@@ -1,0 +1,18 @@
+{
+	"name": "nanoeffects",
+	"private": true,
+	"type": "module",
+	"packageManager": "pnpm@11.13.0",
+	"scripts": {
+		"check": "biome check .",
+		"tsgo": "tsc --noEmit",
+		"prepare": "lefthook install"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.5.15",
+		"@commitlint/cli": "21.2.3",
+		"@commitlint/config-conventional": "21.2.3",
+		"lefthook": "2.2.1",
+		"typescript": "7.0.2"
+	}
+}
