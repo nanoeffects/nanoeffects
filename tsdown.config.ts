@@ -6,7 +6,7 @@ export default defineConfig({
 		effects: "src/effects/index.ts",
 		policies: "src/policies/index.ts",
 		observable: "src/observable.ts",
-		devtools: "src/devtools.ts",
+		trace: "src/trace/index.ts",
 	},
 	format: ["esm"],
 	platform: "neutral",

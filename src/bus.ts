@@ -1,12 +1,13 @@
 import { createTask, type Tracer } from "./context";
 import { eventKey, eventPayload } from "./event";
+import { combineLoggers } from "./logger";
 import { anyEventType, createStore } from "./store";
 import type {
 	EventMap,
 	Keys,
 	PayloadOf,
 	Task,
-	TraceEvent,
+	Trace,
 	UnsubscribeCallback,
 } from "./types";
 
@@ -91,8 +92,8 @@ export interface Bus<E extends EventMap> {
 }
 
 export type BusOptions<E extends EventMap> = {
-	/** Receives every task phase (`start`, `done`, `error`, `cancel`, `drop`). */
-	trace?: (event: TraceEvent<E>) => void;
+	/** Logger(s) that receive every task phase (`start`, `done`, `error`, `cancel`, `drop`). */
+	trace?: Trace<E>;
 };
 
 export const createBus = <Events extends EventMap>(
@@ -101,7 +102,7 @@ export const createBus = <Events extends EventMap>(
 	type Key = EventKey<Events>;
 	let lastId = 0;
 	const tracer: Tracer = {
-		trace: options.trace as Tracer["trace"],
+		trace: combineLoggers(options.trace as Trace),
 		nextId: () => ++lastId,
 	};
 	const events = createStore<Events>();

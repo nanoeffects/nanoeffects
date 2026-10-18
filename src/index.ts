@@ -23,6 +23,8 @@ export type {
 	PayloadOf,
 	Phase,
 	Task,
+	Trace,
 	TraceEvent,
+	TraceLogger,
 	UnsubscribeCallback,
 } from "./types";

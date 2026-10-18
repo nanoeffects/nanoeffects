@@ -1,22 +1,22 @@
-import type { TraceEvent } from "./types";
+import type { TraceLogger } from "../types";
 
-type DevtoolsConnection = {
+type ReduxConnection = {
 	init: (state: unknown) => void;
 	send: (action: unknown, state: unknown) => void;
 };
 
-export type DevtoolsExtension = {
-	connect: (options?: { name?: string }) => DevtoolsConnection;
+export type ReduxExtension = {
+	connect: (options?: { name?: string }) => ReduxConnection;
 };
 
-export type DevtoolsOptions = {
+export type ReduxDevtoolsOptions = {
 	/** Instance name in the Redux DevTools picker. */
 	name?: string;
 	/** Defaults to `globalThis.__REDUX_DEVTOOLS_EXTENSION__`. */
-	extension?: DevtoolsExtension;
+	extension?: ReduxExtension;
 };
 
-export type DevtoolsState = {
+export type ReduxDevtoolsState = {
 	/** Tasks that started and have not settled yet, by trace id. */
 	running: Record<number, { type: string; effect: string }>;
 };
@@ -24,23 +24,23 @@ export type DevtoolsState = {
 const noop = () => {};
 
 /**
- * `trace` hook that logs every task phase to Redux DevTools as an action
+ * Trace logger that sends every task phase to Redux DevTools as an action
  * `type/effect/phase`, with the running tasks as state. Read-only: there is
  * no time travel. Does nothing when the extension is not installed.
  *
  * @example
  * ```ts
  * const bus = createBus<Events>({
- *   trace: connectDevtools({ name: "app" }),
+ *   trace: reduxDevtools({ name: "app" }),
  * });
  * ```
  */
-export const connectDevtools = (
-	options: DevtoolsOptions = {},
-): ((event: TraceEvent) => void) => {
+export const reduxDevtools = (
+	options: ReduxDevtoolsOptions = {},
+): TraceLogger => {
 	const extension =
 		options.extension ??
-		(globalThis as { __REDUX_DEVTOOLS_EXTENSION__?: DevtoolsExtension })
+		(globalThis as { __REDUX_DEVTOOLS_EXTENSION__?: ReduxExtension })
 			.__REDUX_DEVTOOLS_EXTENSION__;
 
 	if (!extension) {
@@ -49,7 +49,7 @@ export const connectDevtools = (
 
 	const connection = extension.connect({ name: options.name ?? "nanoeffects" });
 	const running = new Map<number, { type: string; effect: string }>();
-	const snapshot = (): DevtoolsState => ({
+	const snapshot = (): ReduxDevtoolsState => ({
 		running: Object.fromEntries(running),
 	});
 

@@ -34,4 +34,17 @@ export type TraceEvent<E = Record<string, unknown>> = {
 	};
 }[Keys<E>];
 
+/**
+ * The contract of every trace logger: receives each task phase of a bus.
+ * Adapters in `nanoeffects/trace` are factories that return one.
+ */
+export type TraceLogger<E = Record<string, unknown>> = (
+	event: TraceEvent<E>,
+) => void;
+
+/** One logger or several; a throwing logger never breaks the task or the others. */
+export type Trace<E = Record<string, unknown>> =
+	| TraceLogger<E>
+	| readonly TraceLogger<E>[];
+
 export type UnsubscribeCallback = () => void;

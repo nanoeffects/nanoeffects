@@ -6,13 +6,14 @@ import type {
 	Phase,
 	Task,
 	TraceEvent,
+	TraceLogger,
 } from "./types";
 import { isPromise, linkedController } from "./utils";
 
 type Event = { type: string; payload?: unknown };
 
 export type Tracer = {
-	trace?: ((event: TraceEvent) => void) | undefined;
+	trace?: TraceLogger | null;
 	nextId: () => number;
 };
 
@@ -72,6 +73,9 @@ export const traceRun = <E extends EventMap, R>(
 
 	ctx.signal.addEventListener("abort", () => settle("cancel"), { once: true });
 	traceTask(ctx, effect, "start");
+	if (ctx.signal.aborted) {
+		settle("cancel");
+	}
 
 	let result: R;
 	try {
