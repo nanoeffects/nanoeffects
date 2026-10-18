@@ -1,3 +1,4 @@
+import type { Bus } from "./bus";
 import type { EventMap, Keys } from "./types";
 
 declare global {
@@ -23,3 +24,20 @@ export type Observable<T> = Subscribable<T> & {
 export type Observe<E extends EventMap> = <K extends Keys<E>>(
 	event: K,
 ) => Observable<E[K]>;
+
+export const createObserve = <E extends EventMap>(bus: Bus<E>): Observe<E> => {
+	return <K extends Keys<E>>(event: K): Observable<E[K]> => {
+		return {
+			subscribe: (observer: Observer<E[K]>) => {
+				const unsubscribe = bus.on(event, (payload) => {
+					if (typeof observer === "function") observer(payload);
+					else observer.next?.(payload);
+				});
+				return { unsubscribe };
+			},
+			[$$observable](): Subscribable<E[K]> {
+				return this;
+			},
+		};
+	};
+};

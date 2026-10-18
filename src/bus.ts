@@ -1,4 +1,3 @@
-import { $$observable, type Observe, type Subscribable } from "./observable";
 import { anyEventType, createStore } from "./store";
 import type { Task } from "./task";
 import type {
@@ -8,24 +7,28 @@ import type {
 	TraceEvent,
 	UnsubscribeCallback,
 } from "./types";
-import { eventKey } from "./util";
+import { eventKey, eventPayload } from "./util";
 
 export { anyEventType };
 
 export type EventKey<E extends EventMap> = Keys<E>;
 export type EventPayload<E extends EventMap> = E[EventKey<E>];
-export type WithType<K extends string> = Record<string, unknown> & { type: K };
+export type WithType<K extends string> = { type: K };
 
 export type HandlerRef<E extends EventMap, Response = unknown> = (
 	action: Action<E>,
 ) => Response;
 
-export type Handler<E extends EventMap, Response = unknown> = {
-	[K in EventKey<E>]: {
-		type: K;
-		(payload: E[K]): Response;
+export type Handler<
+	E extends EventMap,
+	Response = unknown,
+	K extends EventKey<E> = EventKey<E>,
+> = {
+	[P in K]: {
+		type: P;
+		(payload: E[P]): Response;
 	};
-}[EventKey<E>];
+}[K];
 
 export type Action<E extends EventMap> = {
 	type: EventKey<E>;
@@ -45,7 +48,10 @@ export type EventLike<E extends EventMap> = {
 
 export type Emit<E extends EventMap> = {
 	<K extends EventKey<E>>(event: K, ...payload: PayloadOf<E[K]>): void;
-	<R>(event: Handler<E, R>): R;
+	<K extends EventKey<E>, R>(
+		event: Handler<E, R, K>,
+		...payload: PayloadOf<E[K]>
+	): R;
 	(event: EventLike<E>): void;
 };
 
@@ -55,6 +61,15 @@ export type On<E extends EventMap> = {
 		event: Event & { type: K },
 		fn: Task<E[K], E>,
 	): UnsubscribeCallback;
+};
+
+export type Off<E extends EventMap> = {
+	<K extends EventKey<E>>(event: K): void;
+	<K extends EventKey<E>>(event: K, fn: Task<E[K], E>): void;
+	<K extends EventKey<E>, Event extends { type: K }>(
+		event: Event & { type: K },
+		fn: Task<E[K], E>,
+	): void;
 };
 
 /** Контекст задачи внутри эффекта. */
@@ -68,9 +83,8 @@ export type Context<E extends EventMap> = EventLike<E> & {
 
 export interface Bus<E extends EventMap> {
 	on: On<E>;
-	onAny: (fn: Task<EventPayload<E>, E>) => UnsubscribeCallback;
+	off: Off<E>;
 	emit: Emit<E>;
-	observe: Observe<E>;
 }
 
 export type BusOptions<E extends EventMap> = {
@@ -82,28 +96,42 @@ export const createBus = <Events extends EventMap>({
 }: BusOptions<Events>): Bus<Events> => {
 	type Key = EventKey<Events>;
 	const events = createStore<Events>();
-	const live = createStore<WithType<Key>>();
 
 	const on = (
 		event: Key | WithType<Key>,
 		fn: Task<EventPayload<Events>, Events>,
 	) => events.add(eventKey(event), fn);
 
+	const off = (
+		event: Key | WithType<Key>,
+		fn?: Task<EventPayload<Events>, Events>,
+	) => events.remove(eventKey(event), fn);
+
+	const emit = (
+		event: Key | Handler<Events> | EventLike<Events>,
+		payload?: EventPayload<Events>,
+	) => {
+		const key = eventKey(event);
+		const data = eventPayload<Events>(event, payload);
+
+		for (const fn of events.get(key)) {
+			const ctx = undefined as unknown as Context<Events>;
+			fn(data, ctx);
+		}
+
+		for (const fn of events.get(anyEventType)) {
+			const ctx = undefined as unknown as Context<Events>;
+			fn(data, ctx);
+		}
+
+		if (typeof event === "function") {
+			return event(data as never);
+		}
+	};
+
 	return {
 		on,
-		onAny: (handler) => events.add(anyEventType, handler),
-		emit: (...args: unknown[]) => {
-			return () => {};
-		},
-		observe: (event) => {
-			return {
-				subscribe: (observer) => {
-					return { unsubscribe: () => {} };
-				},
-				[$$observable](): Subscribable<Events[typeof event]> {
-					return this;
-				},
-			};
-		},
+		off,
+		emit,
 	};
 };
