@@ -1,7 +1,14 @@
+import type { Context } from "./bus";
+
 export type PayloadOf<P> = undefined extends P ? [payload?: P] : [payload: P];
 
 export type EventMap = Record<string, unknown>;
 export type Keys<E> = keyof E & string;
+
+export type Task<P, E extends EventMap, R = unknown> = (
+	payload: P,
+	ctx: Context<E>,
+) => R;
 
 export type EffectName =
 	| "takeEvery"

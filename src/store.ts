@@ -1,5 +1,4 @@
-import type { Task } from "./task";
-import type { EventMap, Keys, UnsubscribeCallback } from "./types";
+import type { EventMap, Keys, Task, UnsubscribeCallback } from "./types";
 
 export const anyEventType = "*";
 type AnyType = "*";

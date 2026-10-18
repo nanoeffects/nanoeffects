@@ -40,3 +40,23 @@ export const after = <T>(
 	done();
 	return value;
 };
+
+/** Resolves after `ms`, or rejects early if `signal` aborts. */
+export const delay = (ms: number, signal?: AbortSignal) =>
+	new Promise<void>((resolve, reject) => {
+		if (signal?.aborted) {
+			reject(signal.reason);
+			return;
+		}
+
+		const timer = setTimeout(() => {
+			signal?.removeEventListener("abort", onAbort);
+			resolve();
+		}, ms);
+
+		const onAbort = () => {
+			clearTimeout(timer);
+			reject(signal?.reason);
+		};
+		signal?.addEventListener("abort", onAbort, { once: true });
+	});

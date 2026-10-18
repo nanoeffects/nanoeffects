@@ -3,7 +3,21 @@
 	"private": true,
 	"type": "module",
 	"packageManager": "pnpm@11.13.0",
+	"sideEffects": false,
+	"files": [
+		"dist"
+	],
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
 	"scripts": {
+		"build": "tsdown",
+		"prepublishOnly": "pnpm build",
 		"check": "biome check ./src",
 		"format": "npx @biomejs/biome check --write --unsafe ./src",
 		"tsgo": "tsc --noEmit",
@@ -14,6 +28,8 @@
 		"@commitlint/cli": "21.2.3",
 		"@commitlint/config-conventional": "21.2.3",
 		"lefthook": "2.2.1",
-		"typescript": "7.0.2"
+		"tsdown": "0.23.1",
+		"typescript": "7.0.2",
+		"unplugin-unused": "^0.6.0"
 	}
 }

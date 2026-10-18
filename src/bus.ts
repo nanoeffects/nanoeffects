@@ -1,6 +1,11 @@
 import { anyEventType, createStore } from "./store";
-import type { Task } from "./task";
-import type { EventMap, Keys, PayloadOf, UnsubscribeCallback } from "./types";
+import type {
+	EventMap,
+	Keys,
+	PayloadOf,
+	Task,
+	UnsubscribeCallback,
+} from "./types";
 import { eventKey, eventPayload } from "./util";
 
 export { anyEventType };

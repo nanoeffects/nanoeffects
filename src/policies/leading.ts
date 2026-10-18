@@ -1,5 +1,4 @@
-import type { Task } from "../task";
-import type { EventMap } from "../types";
+import type { EventMap, Task } from "../types";
 import { after } from "../util";
 
 /** Drops new calls while the task is still running. */

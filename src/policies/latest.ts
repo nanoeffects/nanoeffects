@@ -1,5 +1,4 @@
-import type { Task } from "../task";
-import type { EventMap } from "../types";
+import type { EventMap, Task } from "../types";
 import { isPromise } from "../util";
 
 /** Aborts the previous run when a new call arrives; stale results are dropped. */
