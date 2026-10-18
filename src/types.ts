@@ -36,7 +36,8 @@ export type TraceEvent<E = Record<string, unknown>> = {
 
 /**
  * The contract of every trace logger: receives each task phase of a bus.
- * Adapters in `nanoeffects/trace` are factories that return one.
+ * Adapters in `nanoeffects/trace` are factories that return one; pass it
+ * through `createTracer` to `createBus({ trace })`.
  */
 export type TraceLogger<E = Record<string, unknown>> = (
 	event: TraceEvent<E>,

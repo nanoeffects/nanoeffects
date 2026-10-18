@@ -14,13 +14,14 @@ const bus = createBus<Events>({
 
 ## Tracing
 
-Pass a `trace` hook to `createBus` to observe every task phase. Without the hook tracing costs nothing.
+Pass `trace` to `createBus` to observe every task phase. Make it with `createTracer` from `nanoeffects/trace`, which takes a logger (a function) or an array of them. The tracing code lives in that entry, so a bus without `trace` does not carry it.
 
 ```ts
 import { createBus } from "nanoeffects";
+import { createTracer } from "nanoeffects/trace";
 
 const bus = createBus<Events>({
-	trace: (event) => console.log(event),
+	trace: createTracer((event) => console.log(event)),
 });
 ```
 
@@ -53,18 +54,18 @@ bus.on("load", async (id, ctx) => {
 
 ## Loggers
 
-A logger is a function `(event: TraceEvent) => void` (the `TraceLogger` type). `trace` takes one logger or an array; a logger that throws is reported to `console.error` and never breaks the task or the other loggers.
+A logger is a function `(event: TraceEvent) => void` (the `TraceLogger` type). `createTracer` takes one logger or an array; a logger that throws is reported to `console.error` and never breaks the task or the other loggers.
 
 ```ts
 import { createBus } from "nanoeffects";
-import { consoleLogger, reduxDevtools } from "nanoeffects/trace";
+import { consoleLogger, createTracer, reduxDevtools } from "nanoeffects/trace";
 
 const bus = createBus<Events>({
-	trace: [reduxDevtools({ name: "app" }), consoleLogger()],
+	trace: createTracer([reduxDevtools({ name: "app" }), consoleLogger()]),
 });
 ```
 
-`nanoeffects/trace` ships these loggers, each a factory that returns a `TraceLogger`:
+`nanoeffects/trace` ships `createTracer` and these loggers, each a factory that returns a `TraceLogger`:
 
 | Logger                | What it does                                                                         |
 | --------------------- | ------------------------------------------------------------------------------------ |
@@ -89,7 +90,7 @@ const errorsOnly = (): TraceLogger => (event) => {
 
 An abort only raises a flag: your code decides to stop. `nanoeffects/effects` has helpers for the usual cases.
 
-`delay(ms, ctx)` waits and rejects on abort. `cancellable(executor, ctx)` is a promise tied to the task signal; it works like `new Promise`, with `onCancel` for cleanups:
+`delay(ms, ctx)` waits and rejects on abort. `cancellable(executor, ctx)` is a promise tied to the task signal; it works like `new Promise`, but the executor gets one object, `{ resolve, reject, onCancel }`, with `onCancel` for cleanups:
 
 ```ts
 import { cancellable } from "nanoeffects/effects";
@@ -97,7 +98,7 @@ import { cancellable } from "nanoeffects/effects";
 bus.on(
 	"wait",
 	latest((_, ctx) =>
-		cancellable<void>((resolve, _reject, onCancel) => {
+		cancellable<void>(({ resolve, onCancel }) => {
 			const timer = setTimeout(resolve, 5000);
 			onCancel(() => clearTimeout(timer));
 		}, ctx),

@@ -1,7 +1,7 @@
 import type { Context } from "../bus";
-import { forkTask, traceTask } from "../context";
-import type { EffectName, EventMap, Phase, Task } from "../types";
-import { isPromise } from "../utils";
+import { createSettle, forkTask, traceTask } from "../context";
+import type { EffectName, EventMap, Task } from "../types";
+import { isPromise, onAbort } from "../utils";
 
 /**
  * Aborts the previous run when a new call arrives; stale results are dropped.
@@ -50,25 +50,15 @@ export const latestWith = <P, E extends EventMap, R>(
 		const { ctx, unlink } = forkTask(parent);
 		current = ctx;
 
+		const settle = createSettle(ctx, effect);
 		let started = false;
-		let settled = false;
-		const settle = (phase: Phase, error?: unknown) => {
-			if (!settled) {
-				settled = true;
-				traceTask(ctx, effect, phase, error);
-			}
-		};
 		const begin = () => {
-			if (!settled) {
+			if (!ctx.signal.aborted) {
 				started = true;
 				traceTask(ctx, effect, "start");
 			}
 		};
-		ctx.signal.addEventListener(
-			"abort",
-			() => settle(started ? "cancel" : "drop"),
-			{ once: true },
-		);
+		onAbort(() => settle(started ? "cancel" : "drop"), ctx);
 
 		const finish = () => {
 			unlink();

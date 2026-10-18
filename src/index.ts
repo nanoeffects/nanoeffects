@@ -17,6 +17,7 @@ export {
 	type WithPayload,
 	type WithType,
 } from "./bus";
+export type { Tracer } from "./tracer";
 export type {
 	EffectName,
 	EventMap,

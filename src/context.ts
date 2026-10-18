@@ -1,28 +1,16 @@
 import type { Context, Emit } from "./bus";
-import type {
-	EffectName,
-	EventMap,
-	PayloadOf,
-	Phase,
-	Task,
-	TraceEvent,
-	TraceLogger,
-} from "./types";
-import { isPromise, linkedController } from "./utils";
+import type { TaskRef, Tracer } from "./tracer";
+import type { EffectName, EventMap, PayloadOf, Phase, Task } from "./types";
+import { linkedController } from "./utils";
 
 type Event = { type: string; payload?: unknown };
 
-export type Tracer = {
-	trace?: TraceLogger | null;
-	nextId: () => number;
-};
+type TaskMeta = { tracer: Tracer; ref: TaskRef };
 
-type TaskMeta = { id: number; parent?: number | undefined; tracer: Tracer };
-
-const noTracer: Tracer = { nextId: () => 0 };
 const metaOf = new WeakMap<object, TaskMeta>();
+const noop = () => {};
 
-/** Reports a phase of `ctx` to the bus `trace` hook; no-op without a hook. */
+/** Reports a phase of `ctx` to the bus tracer; no-op without one. */
 export const traceTask = <E extends EventMap>(
 	ctx: Context<E>,
 	effect: EffectName,
@@ -30,76 +18,31 @@ export const traceTask = <E extends EventMap>(
 	error?: unknown,
 ) => {
 	const meta = metaOf.get(ctx);
-	if (!meta?.tracer.trace) {
-		return;
-	}
-
-	const event: TraceEvent = {
-		id: meta.id,
-		type: ctx.type,
-		effect,
-		phase,
-		payload: ctx.payload,
-	};
-	if (typeof meta.parent === "number") {
-		event.parent = meta.parent;
-	}
-	if (phase === "error") {
-		event.error = error;
-	}
-	meta.tracer.trace(event);
+	meta?.tracer.report(meta.ref, effect, phase, error);
 };
 
-/** True for a context created by the bus, i.e. one that can be traced. */
-export const hasTask = (value: object): value is Context<EventMap> =>
-	metaOf.has(value);
+/** Returns `settle(phase, error?)` that reports only the first phase of `ctx`. */
+export const createSettle = <E extends EventMap>(
+	ctx: Context<E>,
+	effect: EffectName,
+): ((phase: Phase, error?: unknown) => void) => {
+	const meta = metaOf.get(ctx);
+
+	return meta ? meta.tracer.settler(meta.ref, effect) : noop;
+};
 
 /**
  * Runs `fn`, reporting `start` and then `done` / `error` of its (sync or async)
- * result, or `cancel` if `ctx` is aborted first.
+ * result, or `cancel` if `ctx` is aborted first. Just runs `fn` without a tracer.
  */
 export const traceRun = <E extends EventMap, R>(
 	ctx: Context<E>,
 	effect: EffectName,
 	fn: () => R,
 ): R => {
-	let settled = false;
-	const settle = (phase: Phase, error?: unknown) => {
-		if (!settled) {
-			settled = true;
-			traceTask(ctx, effect, phase, error);
-		}
-	};
+	const meta = metaOf.get(ctx);
 
-	ctx.signal.addEventListener("abort", () => settle("cancel"), { once: true });
-	traceTask(ctx, effect, "start");
-	if (ctx.signal.aborted) {
-		settle("cancel");
-	}
-
-	let result: R;
-	try {
-		result = fn();
-	} catch (error) {
-		settle("error", error);
-		throw error;
-	}
-
-	if (isPromise(result)) {
-		return Promise.resolve(result).then(
-			(value) => {
-				settle("done");
-				return value;
-			},
-			(error: unknown) => {
-				settle("error", error);
-				throw error;
-			},
-		) as R;
-	}
-
-	settle("done");
-	return result;
+	return meta ? meta.tracer.run(meta.ref, effect, ctx.signal, fn) : fn();
 };
 
 /**
@@ -108,20 +51,20 @@ export const traceRun = <E extends EventMap, R>(
  */
 export const createTask = <E extends EventMap>(
 	event: Event,
-	emit: Emit<E>,
-	tracer: Tracer,
-	parent?: { signal: AbortSignal; id?: number | undefined },
+	emit: Emit<E> | undefined,
+	tracer: Tracer | undefined,
+	parent?: { signal?: AbortSignal | undefined; ref?: TaskRef | undefined },
 ) => {
 	const { controller, unlink } = linkedController(parent?.signal);
 	const { signal } = controller;
 
-	const meta: TaskMeta = { id: tracer.nextId(), parent: parent?.id, tracer };
+	const meta = tracer && { tracer, ref: tracer.task(event, parent?.ref) };
 
 	const taskEmit = (...args: unknown[]) => {
 		if (signal.aborted) {
 			return;
 		}
-		return (emit as (...a: unknown[]) => unknown)(...args);
+		return (emit as ((...a: unknown[]) => unknown) | undefined)?.(...args);
 	};
 
 	const run = async <P, R>(fn: Task<P, E, R>, ...args: PayloadOf<P>) => {
@@ -130,7 +73,7 @@ export const createTask = <E extends EventMap>(
 		const payload = args[0] as P;
 		const child = createTask<E>({ type: event.type, payload }, emit, tracer, {
 			signal,
-			id: meta.id,
+			ref: meta?.ref,
 		});
 
 		try {
@@ -148,14 +91,31 @@ export const createTask = <E extends EventMap>(
 		emit: taskEmit,
 		run,
 	} as unknown as Context<E>;
-	metaOf.set(ctx, meta);
+	if (meta) {
+		metaOf.set(ctx, meta);
+	}
 
 	return { ctx, unlink };
 };
 
-/** Child of `ctx` for policies: aborted with `ctx`, but cancellable on its own. */
-export const forkTask = <E extends EventMap>(ctx: Context<E>) =>
-	createTask<E>(ctx, ctx.emit, metaOf.get(ctx)?.tracer ?? noTracer, {
-		signal: ctx.signal,
-		id: metaOf.get(ctx)?.id,
-	});
+type ForkParent<E extends EventMap> = {
+	signal?: AbortSignal | undefined;
+	type?: string;
+	payload?: unknown;
+	emit?: Emit<E>;
+};
+
+/**
+ * Child of `parent`: aborted with it, but cancellable on its own. `parent` is
+ * a bus task context (the child is traced as its child) or any `{ signal }`.
+ */
+export const forkTask = <E extends EventMap>(parent: ForkParent<E>) => {
+	const meta = metaOf.get(parent);
+
+	return createTask<E>(
+		{ type: parent.type ?? "", payload: parent.payload },
+		parent.emit,
+		meta?.tracer,
+		{ signal: parent.signal, ref: meta?.ref },
+	);
+};

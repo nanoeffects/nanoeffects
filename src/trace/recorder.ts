@@ -12,7 +12,7 @@ export type Recorder<E = Record<string, unknown>> = TraceLogger<E> & {
  * @example
  * ```ts
  * const recorder = createTraceRecorder<Events>();
- * const bus = createBus<Events>({ trace: recorder });
+ * const bus = createBus<Events>({ trace: createTracer(recorder) });
  *
  * bus.emit("search", "re");
  * bus.emit("search", "redux");

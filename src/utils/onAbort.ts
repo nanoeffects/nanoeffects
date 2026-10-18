@@ -1,7 +1,7 @@
 /**
  * Calls `fn` with the abort reason when `ctx.signal` aborts, at most once;
  * at once if it is already aborted. Returns a function that removes the
- * subscription.
+ * subscription. Does nothing without a signal.
  *
  * @example
  * ```ts
@@ -13,17 +13,16 @@
  */
 export const onAbort = (
 	fn: (reason: unknown) => void,
-	ctx: { signal: AbortSignal },
+	ctx?: { signal?: AbortSignal | undefined },
 ): (() => void) => {
-	const { signal } = ctx;
+	const signal = ctx?.signal;
+	const listener = () => fn(signal?.reason);
 
-	if (signal.aborted) {
-		fn(signal.reason);
-		return () => {};
+	if (signal?.aborted) {
+		listener();
+	} else {
+		signal?.addEventListener("abort", listener, { once: true });
 	}
 
-	const listener = () => fn(signal.reason);
-	signal.addEventListener("abort", listener, { once: true });
-
-	return () => signal.removeEventListener("abort", listener);
+	return () => signal?.removeEventListener("abort", listener);
 };

@@ -1,3 +1,5 @@
+import { onAbort } from "./onAbort";
+
 /**
  * Creates an `AbortController` that aborts together with `parent`, with the
  * parent's reason. `unlink` removes the listener from `parent`; call it when
@@ -16,17 +18,9 @@
  */
 export const linkedController = (parent?: AbortSignal) => {
 	const controller = new AbortController();
+	const unlink = onAbort((reason) => controller.abort(reason), {
+		signal: parent,
+	});
 
-	if (parent?.aborted) {
-		controller.abort(parent.reason);
-		return { controller, unlink: () => {} };
-	}
-
-	const follow = () => controller.abort(parent?.reason);
-	parent?.addEventListener("abort", follow, { once: true });
-
-	return {
-		controller,
-		unlink: () => parent?.removeEventListener("abort", follow),
-	};
+	return { controller, unlink };
 };

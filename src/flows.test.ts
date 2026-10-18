@@ -3,6 +3,7 @@ import { type Context, createBus } from "./bus";
 import { all, delay, race } from "./effects";
 import { debounce, latest, leading } from "./policies";
 import { createTraceRecorder } from "./trace/recorder";
+import { createTracer } from "./trace/tracer";
 import type { Task } from "./types";
 
 type Events = {
@@ -18,7 +19,7 @@ type Events = {
 
 const setup = () => {
 	const recorder = createTraceRecorder<Events>();
-	const bus = createBus<Events>({ trace: recorder });
+	const bus = createBus<Events>({ trace: createTracer(recorder) });
 	const phases = () => recorder.events.map((e) => `${e.effect}/${e.phase}`);
 	return { bus, recorder, phases };
 };

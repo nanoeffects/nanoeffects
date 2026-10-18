@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { latest } from "../policies";
 import { createHarness, type TestEvents } from "../test-helpers";
 import type { Task } from "../types";
+import { onAbort } from "../utils";
 import { cancellable } from "./cancellable";
-import { onAbort } from "./onAbort";
 
 const lat = <P, R>(fn: Task<P, TestEvents, R>) => latest(fn);
 
@@ -83,6 +83,16 @@ describe("onAbort", () => {
 		expect(calls).toEqual(["first", "second"]);
 	});
 
+	it("does nothing without a context or a signal", () => {
+		const fn = vi.fn();
+
+		expect(() => {
+			onAbort(fn)();
+			onAbort(fn, {})();
+		}).not.toThrow();
+		expect(fn).not.toHaveBeenCalled();
+	});
+
 	it("accepts a task context", () => {
 		const ctx = createHarness().ctx();
 		const fn = vi.fn();
@@ -116,7 +126,7 @@ describe("cancellable", () => {
 			const controller = new AbortController();
 
 			await expect(
-				cancellable<number>((resolve) => resolve(5), controller),
+				cancellable<number>(({ resolve }) => resolve(5), controller),
 			).resolves.toBe(5);
 		});
 
@@ -125,7 +135,7 @@ describe("cancellable", () => {
 
 			await expect(
 				cancellable<number>(
-					(resolve) => resolve(Promise.resolve(7)),
+					({ resolve }) => resolve(Promise.resolve(7)),
 					controller,
 				),
 			).resolves.toBe(7);
@@ -135,10 +145,7 @@ describe("cancellable", () => {
 			const controller = new AbortController();
 
 			await expect(
-				cancellable(
-					(_resolve, reject) => reject(new Error("boom")),
-					controller,
-				),
+				cancellable(({ reject }) => reject(new Error("boom")), controller),
 			).rejects.toThrow("boom");
 		});
 
@@ -154,7 +161,7 @@ describe("cancellable", () => {
 
 		it("ignores later calls once settled", async () => {
 			const controller = new AbortController();
-			const promise = cancellable<number>((resolve, reject) => {
+			const promise = cancellable<number>(({ resolve, reject }) => {
 				resolve(1);
 				resolve(2);
 				reject(new Error("late"));
@@ -165,7 +172,7 @@ describe("cancellable", () => {
 
 		it("a throw after resolve does not override the result", async () => {
 			const controller = new AbortController();
-			const promise = cancellable<number>((resolve) => {
+			const promise = cancellable<number>(({ resolve }) => {
 				resolve(1);
 				throw new Error("late");
 			}, controller);
@@ -204,7 +211,7 @@ describe("cancellable", () => {
 		it("runs the cleanups on abort, last registered first", async () => {
 			const controller = new AbortController();
 			const calls: string[] = [];
-			const promise = cancellable((_resolve, _reject, onCancel) => {
+			const promise = cancellable(({ onCancel }) => {
 				onCancel(() => calls.push("first"));
 				onCancel(() => calls.push("second"));
 			}, controller);
@@ -218,7 +225,7 @@ describe("cancellable", () => {
 		it("runs the cleanups before the rejection is observable", async () => {
 			const controller = new AbortController();
 			const calls: string[] = [];
-			const promise = cancellable((_resolve, _reject, onCancel) => {
+			const promise = cancellable(({ onCancel }) => {
 				onCancel(() => calls.push("cleanup"));
 			}, controller).catch(() => calls.push("rejected"));
 			controller.abort();
@@ -230,7 +237,7 @@ describe("cancellable", () => {
 		it("runs each cleanup once", async () => {
 			const controller = new AbortController();
 			const cleanup = vi.fn();
-			const promise = cancellable((_resolve, _reject, onCancel) => {
+			const promise = cancellable(({ onCancel }) => {
 				onCancel(cleanup);
 			}, controller);
 			const assertion = expect(promise).rejects.toBeDefined();
@@ -243,7 +250,7 @@ describe("cancellable", () => {
 		it("runs a cleanup registered after the abort at once", async () => {
 			const controller = new AbortController();
 			let register: (cleanup: () => void) => void = () => {};
-			const promise = cancellable((_resolve, _reject, onCancel) => {
+			const promise = cancellable(({ onCancel }) => {
 				register = onCancel;
 			}, controller);
 			const assertion = expect(promise).rejects.toBeDefined();
@@ -258,7 +265,7 @@ describe("cancellable", () => {
 		it("ignores a resolve after the abort", async () => {
 			const controller = new AbortController();
 			let finish: (value: number) => void = () => {};
-			const promise = cancellable<number>((resolve) => {
+			const promise = cancellable<number>(({ resolve }) => {
 				finish = resolve;
 			}, controller);
 			const assertion = expect(promise).rejects.toBe("stop");
@@ -272,7 +279,7 @@ describe("cancellable", () => {
 			const error = vi.spyOn(console, "error").mockImplementation(() => {});
 			const controller = new AbortController();
 			const after = vi.fn();
-			const promise = cancellable((_resolve, _reject, onCancel) => {
+			const promise = cancellable(({ onCancel }) => {
 				onCancel(after);
 				onCancel(() => {
 					throw new Error("cleanup failed");
@@ -291,7 +298,7 @@ describe("cancellable", () => {
 		it("does not run the cleanups if it resolved first", async () => {
 			const controller = new AbortController();
 			const cleanup = vi.fn();
-			const promise = cancellable<number>((resolve, _reject, onCancel) => {
+			const promise = cancellable<number>(({ resolve, onCancel }) => {
 				onCancel(cleanup);
 				resolve(1);
 			}, controller);
@@ -305,7 +312,7 @@ describe("cancellable", () => {
 		it("does not run the cleanups if it rejected first", async () => {
 			const controller = new AbortController();
 			const cleanup = vi.fn();
-			const promise = cancellable((_resolve, reject, onCancel) => {
+			const promise = cancellable(({ reject, onCancel }) => {
 				onCancel(cleanup);
 				reject(new Error("boom"));
 			}, controller);
@@ -318,7 +325,7 @@ describe("cancellable", () => {
 		it("drops a cleanup registered after it settled", async () => {
 			const controller = new AbortController();
 			let register: (cleanup: () => void) => void = () => {};
-			await cancellable<number>((resolve, _reject, onCancel) => {
+			await cancellable<number>(({ resolve, onCancel }) => {
 				register = onCancel;
 				resolve(1);
 			}, controller);
@@ -332,7 +339,7 @@ describe("cancellable", () => {
 		it("removes the abort listener once it settled", async () => {
 			const controller = new AbortController();
 			const remove = vi.spyOn(controller.signal, "removeEventListener");
-			await cancellable<number>((resolve) => resolve(1), controller);
+			await cancellable<number>(({ resolve }) => resolve(1), controller);
 
 			expect(remove).toHaveBeenCalledTimes(1);
 		});
@@ -351,7 +358,7 @@ describe("cancellable", () => {
 	describe("with timers and tasks", () => {
 		it("a timer example: abort clears the timer", async () => {
 			const controller = new AbortController();
-			const promise = cancellable<void>((resolve, _reject, onCancel) => {
+			const promise = cancellable<void>(({ resolve, onCancel }) => {
 				const timer = setTimeout(resolve, 5000);
 				onCancel(() => clearTimeout(timer));
 			}, controller);
@@ -365,7 +372,7 @@ describe("cancellable", () => {
 
 		it("a timer example: finishing on its own leaves nothing behind", async () => {
 			const controller = new AbortController();
-			const promise = cancellable<void>((resolve, _reject, onCancel) => {
+			const promise = cancellable<void>(({ resolve, onCancel }) => {
 				const timer = setTimeout(resolve, 5000);
 				onCancel(() => clearTimeout(timer));
 			}, controller);
@@ -387,7 +394,7 @@ describe("cancellable", () => {
 		it("under latest, a superseded call clears its timer and drops the result", async () => {
 			const h = createHarness();
 			const fn = lat((n: number, ctx) =>
-				cancellable<number>((resolve, _reject, onCancel) => {
+				cancellable<number>(({ resolve, onCancel }) => {
 					const timer = setTimeout(() => resolve(n), 1000);
 					onCancel(() => clearTimeout(timer));
 				}, ctx),

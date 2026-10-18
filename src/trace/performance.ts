@@ -22,7 +22,7 @@ export type PerformanceLoggerOptions = {
  *
  * @example
  * ```ts
- * const bus = createBus<Events>({ trace: performanceLogger() });
+ * const bus = createBus<Events>({ trace: createTracer(performanceLogger()) });
  * ```
  */
 export const performanceLogger = (

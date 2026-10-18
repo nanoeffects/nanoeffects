@@ -1,4 +1,5 @@
 import type { Trace, TraceLogger } from "./types";
+import { report } from "./utils";
 
 /** Merges `trace` into one hook that isolates failures of each logger. */
 export const combineLoggers = (trace?: Trace): TraceLogger | null => {
@@ -13,7 +14,7 @@ export const combineLoggers = (trace?: Trace): TraceLogger | null => {
 			try {
 				log(event);
 			} catch (error) {
-				globalThis.console?.error("[nanoeffects] trace logger failed", error);
+				report("trace logger failed", error);
 			}
 		}
 	};

@@ -55,16 +55,6 @@ describe("store", () => {
 		expect(store.get("a")).toEqual([]);
 	});
 
-	it("clear removes everything", () => {
-		const store = createStore<Events>();
-		store.add("a", () => {});
-		store.add(anyEventType, () => {});
-		store.clear();
-
-		expect(store.get("a")).toEqual([]);
-		expect(store.get(anyEventType)).toEqual([]);
-	});
-
 	it("does not change a list that was already read", () => {
 		const store = createStore<Events>();
 		store.add("a", () => {});

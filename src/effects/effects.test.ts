@@ -1,32 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createHarness, deferred } from "../test-helpers";
-import { all, cancel, delay, race } from ".";
+import { all, delay, race } from ".";
 
 const never = () => new Promise<never>(() => {});
-
-describe("cancel", () => {
-	it("aborts the handle with a reason", () => {
-		const controller = new AbortController();
-		cancel(controller, "left");
-
-		expect(controller.signal.reason).toBe("left");
-	});
-
-	it("is a no-op on an already aborted handle", () => {
-		const controller = new AbortController();
-		controller.abort("first");
-		cancel(controller, "second");
-
-		expect(controller.signal.reason).toBe("first");
-	});
-
-	it("aborts a task context", () => {
-		const ctx = createHarness().ctx();
-		cancel(ctx);
-
-		expect(ctx.signal.aborted).toBe(true);
-	});
-});
 
 describe("all", () => {
 	describe("results", () => {

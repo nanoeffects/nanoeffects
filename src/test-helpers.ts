@@ -1,5 +1,6 @@
 import { type Context, createBus } from "./bus";
 import { createTraceRecorder } from "./trace/recorder";
+import { createTracer } from "./trace/tracer";
 
 export type TestEvents = { t: number; b: string };
 
@@ -22,7 +23,7 @@ export const deferred = <T = void>(): Deferred<T> => {
 /** A bus that records its trace, and a way to get fresh bus task contexts. */
 export const createHarness = () => {
 	const recorder = createTraceRecorder<TestEvents>();
-	const bus = createBus<TestEvents>({ trace: recorder });
+	const bus = createBus<TestEvents>({ trace: createTracer(recorder) });
 
 	/** A new task context: each call emits `t` and captures the handler context. */
 	const ctx = (payload = 0): Context<TestEvents> => {

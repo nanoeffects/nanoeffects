@@ -19,11 +19,10 @@ export type Store<E extends EventMap> = {
 		<K extends Keys<E>>(key: K, task: Task<E[K], E>): UnsubscribeCallback;
 	};
 	remove: UnsubscribeTask<E>;
-	clear: () => void;
 };
 
 export const createStore = <E extends EventMap>(): Store<E> => {
-	let events: Record<PropertyKey, unknown[]> = {};
+	const events: Record<PropertyKey, unknown[]> = {};
 
 	const remove = (key: PropertyKey, task?: unknown) => {
 		const current = events[key] ?? [];
@@ -45,8 +44,5 @@ export const createStore = <E extends EventMap>(): Store<E> => {
 			};
 		},
 		remove,
-		clear: () => {
-			events = {};
-		},
 	} as Store<E>;
 };

@@ -6,6 +6,7 @@ import { consoleLogger } from "./console";
 import { performanceLogger } from "./performance";
 import { createTraceRecorder } from "./recorder";
 import { type ReduxExtension, reduxDevtools } from "./redux";
+import { createTracer } from "./tracer";
 
 const event = (patch: Partial<TraceEvent> = {}): TraceEvent => ({
 	id: 1,
@@ -365,7 +366,9 @@ describe("reduxDevtools", () => {
 	it("works end to end on a bus", async () => {
 		const connection = { init: vi.fn(), send: vi.fn() };
 		const bus = createBus<TestEvents>({
-			trace: reduxDevtools({ extension: { connect: () => connection } }),
+			trace: createTracer(
+				reduxDevtools({ extension: { connect: () => connection } }),
+			),
 		});
 		bus.on("t", (_, ctx) => ctx.run(() => 1));
 		bus.emit("t", 1);

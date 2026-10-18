@@ -1,26 +1,28 @@
-import { onAbort } from "./onAbort";
+import { onAbort, report } from "../utils";
 
-export type CancellableExecutor<T> = (
-	resolve: (value: T | PromiseLike<T>) => void,
-	reject: (reason?: unknown) => void,
+export type CancellableHandle<T> = {
+	resolve: (value: T | PromiseLike<T>) => void;
+	reject: (reason?: unknown) => void;
 	/** Registers a cleanup that runs if the promise is cancelled before it settles. */
-	onCancel: (cleanup: () => void) => void,
-) => void;
+	onCancel: (cleanup: () => void) => void;
+};
+
+export type CancellableExecutor<T> = (handle: CancellableHandle<T>) => void;
 
 /**
- * A promise tied to `ctx.signal`. It works like `new Promise`, with a third
- * argument `onCancel` for cleanups. If the signal aborts before the promise
- * settles, the cleanups run (last registered first) and the promise rejects
- * with the abort reason. If the signal is already aborted, the executor does
- * not run. After the promise settles, the abort listener is removed and the
- * cleanups are dropped.
+ * A promise tied to `ctx.signal`. It works like `new Promise`, but the
+ * executor gets one object, `{ resolve, reject, onCancel }`. If the signal
+ * aborts before the promise settles, the cleanups run (last registered first)
+ * and the promise rejects with the abort reason. If the signal is already
+ * aborted, the executor does not run. After the promise settles, the abort
+ * listener is removed and the cleanups are dropped.
  *
  * @example
  * ```ts
  * bus.on(
  *   "wait",
  *   latest((_, ctx) =>
- *     cancellable<void>((resolve, _reject, onCancel) => {
+ *     cancellable<void>(({ resolve, onCancel }) => {
  *       const timer = setTimeout(resolve, 5000);
  *       onCancel(() => clearTimeout(timer));
  *     }, ctx),
@@ -44,7 +46,7 @@ export const cancellable = <T>(
 			try {
 				cleanup();
 			} catch (error) {
-				globalThis.console?.error("[nanoeffects] cancel cleanup failed", error);
+				report("cancel cleanup failed", error);
 			}
 		};
 
@@ -76,7 +78,7 @@ export const cancellable = <T>(
 		};
 
 		try {
-			executor(once(resolve), once(reject), onCancel);
+			executor({ resolve: once(resolve), reject: once(reject), onCancel });
 		} catch (error) {
 			once(reject)(error);
 		}

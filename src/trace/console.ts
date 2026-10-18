@@ -13,7 +13,7 @@ export type ConsoleLoggerOptions = {
  *
  * @example
  * ```ts
- * const bus = createBus<Events>({ trace: consoleLogger() });
+ * const bus = createBus<Events>({ trace: createTracer(consoleLogger()) });
  * // search · latest start
  * // search · latest cancel
  * ```

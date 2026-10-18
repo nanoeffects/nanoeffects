@@ -1,7 +1,9 @@
-export { delay } from "../utils";
+export { delay, onAbort } from "../utils";
 export { all } from "./all";
-export { type Cancellable, cancel } from "./cancel";
-export { type CancellableExecutor, cancellable } from "./cancellable";
-export { onAbort } from "./onAbort";
+export {
+	type CancellableExecutor,
+	type CancellableHandle,
+	cancellable,
+} from "./cancellable";
 export { type RaceStarter, race } from "./race";
 export type { EffectContext } from "./run";

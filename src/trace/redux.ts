@@ -31,7 +31,7 @@ const noop = () => {};
  * @example
  * ```ts
  * const bus = createBus<Events>({
- *   trace: reduxDevtools({ name: "app" }),
+ *   trace: createTracer(reduxDevtools({ name: "app" })),
  * });
  * ```
  */

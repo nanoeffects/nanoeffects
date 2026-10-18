@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createBus } from "./bus";
 import { createHarness, deferred, type TestEvents } from "./test-helpers";
 import { createTraceRecorder } from "./trace/recorder";
+import { createTracer } from "./trace/tracer";
 import type { TraceEvent } from "./types";
 
 describe("bus trace", () => {
@@ -22,7 +23,9 @@ describe("bus trace", () => {
 
 	it("accepts one logger", async () => {
 		const events: TraceEvent[] = [];
-		const bus = createBus<TestEvents>({ trace: (e) => events.push(e) });
+		const bus = createBus<TestEvents>({
+			trace: createTracer((e) => events.push(e)),
+		});
 		bus.on("t", (_, ctx) => ctx.run(() => 1));
 		bus.emit("t", 1);
 		await Promise.resolve();
@@ -33,7 +36,7 @@ describe("bus trace", () => {
 	it("accepts several loggers and gives each every event", async () => {
 		const a = createTraceRecorder<TestEvents>();
 		const b = createTraceRecorder<TestEvents>();
-		const bus = createBus<TestEvents>({ trace: [a, b] });
+		const bus = createBus<TestEvents>({ trace: createTracer([a, b]) });
 		bus.on("t", (_, ctx) => ctx.run(() => 1));
 		bus.emit("t", 1);
 		await Promise.resolve();
@@ -46,12 +49,12 @@ describe("bus trace", () => {
 		vi.spyOn(console, "error").mockImplementation(() => {});
 		const recorder = createTraceRecorder<TestEvents>();
 		const bus = createBus<TestEvents>({
-			trace: [
+			trace: createTracer([
 				() => {
 					throw new Error("bad logger");
 				},
 				recorder,
-			],
+			]),
 		});
 		let result: Promise<unknown> | null = null;
 		bus.on("t", (_, ctx) => {

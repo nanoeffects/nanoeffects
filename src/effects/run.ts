@@ -1,11 +1,11 @@
-import { forkTask, hasTask, traceRun, traceTask } from "../context";
-import type { EffectName, Phase } from "../types";
-import { linkedController } from "../utils";
-import type { Cancellable } from "./cancel";
+import { createSettle, forkTask, traceRun, traceTask } from "../context";
+import type { EffectName, EventMap } from "../types";
+import { onAbort } from "../utils";
 
 /** Context passed into `race` / `all` effect starters. */
-export type EffectContext = Cancellable & {
+export type EffectContext = {
 	signal: AbortSignal;
+	abort: (reason?: unknown) => void;
 };
 
 export type Starter<T> = (ctx: EffectContext) => T | PromiseLike<T>;
@@ -21,27 +21,13 @@ export const emptyResult = (effects: Starters): Record<string, unknown> =>
 		unknown
 	>;
 
-const openGroup = (parent?: { signal?: AbortSignal }) => {
-	if (parent && hasTask(parent)) {
-		const { ctx, unlink } = forkTask(parent);
-		return { signal: ctx.signal, abort: ctx.abort, unlink, ctx };
-	}
-
-	const { controller, unlink } = linkedController(parent?.signal);
-	return {
-		signal: controller.signal,
-		abort: (reason?: unknown) => controller.abort(reason),
-		unlink,
-		ctx: null,
-	};
-};
-
 /**
  * Starts every starter under one group that follows `parent`; throws
  * `parent.reason` if it is already aborted. `cancelAll` aborts every effect,
  * `unfollowParent` removes the abort listener from `parent`, `settle` reports
- * how the group ended, `until` makes a wait end when `parent` aborts. When `parent` is a bus task, the group and each starter
- * are traced (`effect` for the group, `run` for starters).
+ * how the group ended, `until` makes a wait end when `parent` aborts. When
+ * `parent` is a bus task, the group (`effect`) and each starter (`run`) are
+ * traced.
  */
 export const startEffects = (
 	effects: Starters,
@@ -49,64 +35,37 @@ export const startEffects = (
 	parent?: { signal?: AbortSignal },
 ) => {
 	parent?.signal?.throwIfAborted();
-	const group = openGroup(parent);
-	const groupCtx = group.ctx;
+	const group = forkTask<EventMap>(parent ?? {});
+	const settle = createSettle(group.ctx, effect);
 
-	let settled = false;
-	const settle = (phase: Phase, error?: unknown) => {
-		if (!settled && groupCtx) {
-			settled = true;
-			traceTask(groupCtx, effect, phase, error);
-		}
-	};
-
-	if (groupCtx) {
-		group.signal.addEventListener("abort", () => settle("cancel"), {
-			once: true,
-		});
-		traceTask(groupCtx, effect, "start");
-	}
+	traceTask(group.ctx, effect, "start");
+	onAbort(() => settle("cancel"), group.ctx);
 
 	/** Settles like `work`, but rejects with the reason as soon as `parent` aborts. */
-	const until = <T>(work: Promise<T>): Promise<T> => {
-		const signal = parent?.signal;
-		if (!signal) {
-			return work;
-		}
-
-		return new Promise<T>((resolve, reject) => {
-			const onAbort = () => reject(signal.reason);
-			signal.addEventListener("abort", onAbort, { once: true });
-			work
-				.then(resolve, reject)
-				.finally(() => signal.removeEventListener("abort", onAbort));
-		});
-	};
+	const until = <T>(work: Promise<T>): Promise<T> =>
+		parent?.signal
+			? new Promise<T>((resolve, reject) => {
+					const off = onAbort(reject, parent);
+					work.then(resolve, reject).finally(off);
+				})
+			: work;
 
 	return {
 		tasks: Object.entries(effects).map(([key, starter]) => {
-			if (groupCtx) {
-				const child = forkTask(groupCtx);
-				const ctx: EffectContext = {
-					signal: child.ctx.signal,
-					abort: child.ctx.abort,
-				};
-				return [
-					key,
-					Promise.resolve()
-						.then(() => traceRun(child.ctx, "run", () => starter(ctx)))
-						.finally(child.unlink),
-				] as const;
-			}
-
-			const { controller } = linkedController(group.signal);
+			const child = forkTask(group.ctx);
 			const ctx: EffectContext = {
-				signal: controller.signal,
-				abort: (reason) => controller.abort(reason),
+				signal: child.ctx.signal,
+				abort: child.ctx.abort,
 			};
-			return [key, Promise.resolve().then(() => starter(ctx))] as const;
+
+			return [
+				key,
+				Promise.resolve()
+					.then(() => traceRun(child.ctx, "run", () => starter(ctx)))
+					.finally(child.unlink),
+			] as const;
 		}),
-		cancelAll: () => group.abort(),
+		cancelAll: () => group.ctx.abort(),
 		unfollowParent: group.unlink,
 		settle,
 		until,

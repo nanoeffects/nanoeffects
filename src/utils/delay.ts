@@ -1,3 +1,5 @@
+import { onAbort } from "./onAbort";
+
 /**
  * Resolves after `ms`, or rejects early if `ctx.signal` aborts.
  *
@@ -14,21 +16,12 @@
  */
 export const delay = (ms: number, ctx?: { signal?: AbortSignal }) =>
 	new Promise<void>((resolve, reject) => {
-		const signal = ctx?.signal;
-
-		if (signal?.aborted) {
-			reject(signal.reason);
-			return;
-		}
-
 		const timer = setTimeout(() => {
-			signal?.removeEventListener("abort", onAbort);
+			off();
 			resolve();
 		}, ms);
-
-		const onAbort = () => {
+		const off = onAbort((reason) => {
 			clearTimeout(timer);
-			reject(signal?.reason);
-		};
-		signal?.addEventListener("abort", onAbort, { once: true });
+			reject(reason);
+		}, ctx);
 	});

@@ -1,16 +1,15 @@
-import { createTask, type Tracer } from "./context";
+import { createTask } from "./context";
 import { eventKey, eventPayload } from "./event";
-import { combineLoggers } from "./logger";
 import { anyEventType, createStore } from "./store";
+import type { Tracer } from "./tracer";
 import type {
 	EventMap,
 	Keys,
 	PayloadOf,
 	Task,
-	Trace,
 	UnsubscribeCallback,
 } from "./types";
-import { isPromise } from "./utils";
+import { isPromise, report } from "./utils";
 
 export { anyEventType };
 
@@ -99,8 +98,8 @@ export interface Bus<E extends EventMap> {
 }
 
 export type BusOptions<E extends EventMap> = {
-	/** Logger(s) that receive every task phase (`start`, `done`, `error`, `cancel`, `drop`). */
-	trace?: Trace<E>;
+	/** Tracing of every task phase; make it with `createTracer` from `nanoeffects/trace`. */
+	trace?: Tracer;
 	/**
 	 * Receives errors of handlers: thrown ones and rejections of async ones.
 	 * Without it handlers run like in a plain loop: the first error stops the
@@ -115,11 +114,6 @@ export const createBus = <Events extends EventMap>(
 	options: BusOptions<Events> = {},
 ): Bus<Events> => {
 	type Key = EventKey<Events>;
-	let lastId = 0;
-	const tracer: Tracer = {
-		trace: combineLoggers(options.trace as Trace),
-		nextId: () => ++lastId,
-	};
 	const events = createStore<Events>();
 
 	const on = (
@@ -141,16 +135,16 @@ export const createBus = <Events extends EventMap>(
 
 		const action = { type: key, payload: data };
 		const { onError } = options;
-		const report = (error: unknown) => {
+		const fail = (error: unknown) => {
 			try {
 				onError?.(error, action);
 			} catch (failure) {
-				globalThis.console?.error("[nanoeffects] onError failed", failure);
+				report("onError failed", failure);
 			}
 		};
 
 		for (const fn of [...events.get(key), ...events.get(anyEventType)]) {
-			const { ctx } = createTask(action, emit, tracer);
+			const { ctx } = createTask(action, emit, options.trace);
 
 			if (!onError) {
 				fn(data, ctx);
@@ -160,10 +154,10 @@ export const createBus = <Events extends EventMap>(
 			try {
 				const result = fn(data, ctx);
 				if (isPromise(result)) {
-					Promise.resolve(result).catch(report);
+					Promise.resolve(result).catch(fail);
 				}
 			} catch (error) {
-				report(error);
+				fail(error);
 			}
 		}
 

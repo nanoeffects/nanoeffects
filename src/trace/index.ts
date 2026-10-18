@@ -10,3 +10,4 @@ export {
 	type ReduxExtension,
 	reduxDevtools,
 } from "./redux";
+export { createTracer } from "./tracer";

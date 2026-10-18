@@ -12,7 +12,6 @@ describe("public entries", () => {
 	it("effects", () => {
 		expect(Object.keys(effects).sort()).toEqual([
 			"all",
-			"cancel",
 			"cancellable",
 			"delay",
 			"onAbort",
@@ -33,6 +32,7 @@ describe("public entries", () => {
 		expect(Object.keys(trace).sort()).toEqual([
 			"consoleLogger",
 			"createTraceRecorder",
+			"createTracer",
 			"performanceLogger",
 			"reduxDevtools",
 		]);
