@@ -15,15 +15,6 @@ export {
 	type WithPayload,
 	type WithType,
 } from "./bus";
-export {
-	$$observable,
-	createObserve,
-	type Observable,
-	type Observe,
-	type Observer,
-	type Subscribable,
-} from "./observable";
-export { debounce, latest, leading, throttle } from "./policies";
 export type {
 	EffectName,
 	EventMap,

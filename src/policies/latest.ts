@@ -1,7 +1,23 @@
 import type { EventMap, Task } from "../types";
-import { isPromise } from "../util";
+import { isPromise, linkedController } from "../utils";
 
-/** Aborts the previous run when a new call arrives; stale results are dropped. */
+/**
+ * Aborts the previous run when a new call arrives; stale results are dropped.
+ *
+ * @example
+ * ```ts
+ * bus.on(
+ *   "search",
+ *   latest(async (query, { signal }) => {
+ *     const res = await fetch(`/api?q=${query}`, { signal });
+ *     showResults(await res.json());
+ *   }),
+ * );
+ *
+ * bus.emit("search", "re"); // aborted by the next call
+ * bus.emit("search", "redux"); // only this one finishes
+ * ```
+ */
 export const latest = <P, E extends EventMap, R>(
 	fn: Task<P, E, R>,
 ): Task<P, E, R | Promise<Awaited<R> | undefined> | undefined> => {
@@ -15,14 +31,11 @@ export const latest = <P, E extends EventMap, R>(
 			return;
 		}
 
-		const controller = new AbortController();
+		const { controller, unlink } = linkedController(parent);
 		current = controller;
 
-		const onParentAbort = () => controller.abort(parent?.reason);
-		parent?.addEventListener("abort", onParentAbort, { once: true });
-
 		const finish = () => {
-			parent?.removeEventListener("abort", onParentAbort);
+			unlink();
 			if (current === controller) {
 				current = null;
 			}

@@ -11,9 +11,9 @@ export type Task<P, E extends EventMap, R = unknown> = (
 ) => R;
 
 export type EffectName =
-	| "takeEvery"
-	| "takeLatest"
-	| "takeLeading"
+	| "every"
+	| "latest"
+	| "leading"
 	| "debounce"
 	| "throttle"
 	| "run";

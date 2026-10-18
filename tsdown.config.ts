@@ -1,7 +1,12 @@
 import { defineConfig } from "tsdown";
 
 export default defineConfig({
-	entry: ["src/index.ts"],
+	entry: {
+		index: "src/index.ts",
+		effects: "src/effects/index.ts",
+		policies: "src/policies/index.ts",
+		observable: "src/observable.ts",
+	},
 	format: ["esm"],
 	platform: "neutral",
 	target: "es2023",

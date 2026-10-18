@@ -1,3 +1,4 @@
+import { eventKey, eventPayload } from "./event";
 import { anyEventType, createStore } from "./store";
 import type {
 	EventMap,
@@ -6,7 +7,6 @@ import type {
 	Task,
 	UnsubscribeCallback,
 } from "./types";
-import { eventKey, eventPayload } from "./util";
 
 export { anyEventType };
 
@@ -74,6 +74,8 @@ export type Off<E extends EventMap> = {
 /** Task context inside an effect. */
 export type Context<E extends EventMap> = EventLike<E> & {
 	signal: AbortSignal;
+	/** Abort this task (and attached children). */
+	abort: (reason?: unknown) => void;
 	/** Emit as this task; no-op after the task is aborted. */
 	emit: Emit<E>;
 	/** Child task: aborted with the parent; errors propagate to the parent. */

@@ -1,7 +1,22 @@
 import type { EventMap, Task } from "../types";
-import { after } from "../util";
+import { after } from "../utils";
 
-/** Drops new calls while the task is still running. */
+/**
+ * Drops new calls while the task is still running.
+ *
+ * @example
+ * ```ts
+ * bus.on(
+ *   "save",
+ *   leading(async (draft) => {
+ *     await api.save(draft);
+ *   }),
+ * );
+ *
+ * bus.emit("save", draft); // runs
+ * bus.emit("save", draft); // dropped while the first save is in flight
+ * ```
+ */
 export const leading = <P, E extends EventMap, R>(
 	fn: Task<P, E, R>,
 ): Task<P, E, R | Promise<Awaited<R>> | undefined> => {
