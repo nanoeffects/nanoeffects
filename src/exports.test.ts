@@ -13,7 +13,9 @@ describe("public entries", () => {
 		expect(Object.keys(effects).sort()).toEqual([
 			"all",
 			"cancel",
+			"cancellable",
 			"delay",
+			"onAbort",
 			"race",
 		]);
 	});

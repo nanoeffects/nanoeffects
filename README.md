@@ -1,5 +1,17 @@
 # nanoeffects
 
+## Errors in handlers
+
+`emit` is a plain loop over the handlers, like in nanoevents: if a handler throws, the remaining handlers are skipped and the error reaches the caller of `emit`. A rejected promise of an async handler is left unhandled.
+
+Pass `onError` to isolate handlers instead. Then every handler runs, and thrown errors and rejections of async handlers (including ones wrapped in `latest`, `debounce` and the like) go to `onError`; an `onError` that throws is logged to `console.error`.
+
+```ts
+const bus = createBus<Events>({
+	onError: (error, { type, payload }) => report(error, type, payload),
+});
+```
+
 ## Tracing
 
 Pass a `trace` hook to `createBus` to observe every task phase. Without the hook tracing costs nothing.
@@ -72,3 +84,43 @@ const errorsOnly = (): TraceLogger => (event) => {
 	if (event.phase === "error") report(event.error);
 };
 ```
+
+## Cancellation helpers
+
+An abort only raises a flag: your code decides to stop. `nanoeffects/effects` has helpers for the usual cases.
+
+`delay(ms, ctx)` waits and rejects on abort. `cancellable(executor, ctx)` is a promise tied to the task signal; it works like `new Promise`, with `onCancel` for cleanups:
+
+```ts
+import { cancellable } from "nanoeffects/effects";
+
+bus.on(
+	"wait",
+	latest((_, ctx) =>
+		cancellable<void>((resolve, _reject, onCancel) => {
+			const timer = setTimeout(resolve, 5000);
+			onCancel(() => clearTimeout(timer));
+		}, ctx),
+	),
+);
+```
+
+- If the task aborts before the promise settles, cleanups run (last registered first) and the promise rejects with the abort reason.
+- If the task is already aborted, the executor does not run.
+- After the promise settles, the abort listener is removed and cleanups are dropped.
+
+`onAbort(fn, ctx)` runs `fn(reason)` on abort (at once if already aborted) and returns a function that unsubscribes:
+
+```ts
+import { onAbort } from "nanoeffects/effects";
+
+bus.on("connect", (url, ctx) => {
+	const socket = new WebSocket(url);
+	onAbort(() => socket.close(), ctx);
+});
+```
+
+In every effect `ctx` is the last argument, as in a handler `(payload, ctx)`: `delay(ms, ctx)`, `all(effects, ctx)`, `race(effects, ctx)`, `cancellable(executor, ctx)`, `onAbort(fn, ctx)`.
+
+For `fetch` and other APIs that take a signal, pass `ctx.signal`. A timeout without `race`: `AbortSignal.any([ctx.signal, AbortSignal.timeout(5000)])`.
+

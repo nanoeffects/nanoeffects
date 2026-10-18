@@ -410,10 +410,12 @@ describe("bus", () => {
 	});
 
 	describe("handler errors", () => {
-		it("runs every handler even if one throws, then throws that error", () => {
+		it("without onError the first error stops the remaining handlers and reaches the emitter", () => {
 			const bus = createBus<TestEvents>();
+			const before = vi.fn();
 			const after = vi.fn();
 			const any = vi.fn();
+			bus.on("t", before);
 			bus.on("t", () => {
 				throw new Error("boom");
 			});
@@ -421,31 +423,27 @@ describe("bus", () => {
 			bus.on(anyEventType, any);
 
 			expect(() => bus.emit("t", 1)).toThrow("boom");
-			expect(after).toHaveBeenCalledTimes(1);
-			expect(any).toHaveBeenCalledTimes(1);
+			expect(before).toHaveBeenCalledTimes(1);
+			expect(after).not.toHaveBeenCalled();
+			expect(any).not.toHaveBeenCalled();
 		});
 
-		it("throws an AggregateError when several handlers throw", () => {
+		it("without onError the thrown value is the original error", () => {
 			const bus = createBus<TestEvents>();
+			const error = new Error("boom");
 			bus.on("t", () => {
-				throw new Error("one");
-			});
-			bus.on("t", () => {
-				throw new Error("two");
+				throw error;
 			});
 
 			try {
 				bus.emit("t", 1);
 				expect.unreachable();
-			} catch (error) {
-				expect(error).toBeInstanceOf(AggregateError);
-				expect(
-					(error as AggregateError).errors.map((e: Error) => e.message),
-				).toEqual(["one", "two"]);
+			} catch (caught) {
+				expect(caught).toBe(error);
 			}
 		});
 
-		it("does not call the handler function of a failed emit", () => {
+		it("without onError a failed emit does not call the handler function", () => {
 			const bus = createBus<TestEvents>();
 			bus.on("t", () => {
 				throw new Error("boom");
@@ -455,6 +453,18 @@ describe("bus", () => {
 
 			expect(() => bus.emit(withType, 1)).toThrow("boom");
 			expect(handler).not.toHaveBeenCalled();
+		});
+
+		it("a handler that threw stays subscribed", () => {
+			const bus = createBus<TestEvents>();
+			const fn = vi.fn(() => {
+				throw new Error("boom");
+			});
+			bus.on("t", fn);
+
+			expect(() => bus.emit("t", 1)).toThrow();
+			expect(() => bus.emit("t", 2)).toThrow();
+			expect(fn).toHaveBeenCalledTimes(2);
 		});
 
 		it("does not throw when nothing fails", () => {
@@ -532,6 +542,42 @@ describe("bus", () => {
 				await new Promise((r) => setTimeout(r, 0));
 
 				expect(onError).toHaveBeenCalledTimes(1);
+			});
+
+			it("keeps going when onError itself throws, and logs it", () => {
+				const log = vi.spyOn(console, "error").mockImplementation(() => {});
+				const bus = createBus<TestEvents>({
+					onError: () => {
+						throw new Error("onError failed");
+					},
+				});
+				const after = vi.fn();
+				bus.on("t", () => {
+					throw new Error("boom");
+				});
+				bus.on("t", after);
+
+				expect(() => bus.emit("t", 1)).not.toThrow();
+				expect(after).toHaveBeenCalledTimes(1);
+				expect(log).toHaveBeenCalledTimes(1);
+				log.mockRestore();
+			});
+
+			it("logs a throwing onError for an async rejection too, without an unhandled rejection", async () => {
+				const log = vi.spyOn(console, "error").mockImplementation(() => {});
+				const bus = createBus<TestEvents>({
+					onError: () => {
+						throw new Error("onError failed");
+					},
+				});
+				bus.on("t", async () => {
+					throw new Error("late");
+				});
+				bus.emit("t", 1);
+				await new Promise((r) => setTimeout(r, 0));
+
+				expect(log).toHaveBeenCalledTimes(1);
+				log.mockRestore();
 			});
 
 			it("still returns the result of a handler function", () => {

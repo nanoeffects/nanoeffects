@@ -103,8 +103,10 @@ export type BusOptions<E extends EventMap> = {
 	trace?: Trace<E>;
 	/**
 	 * Receives errors of handlers: thrown ones and rejections of async ones.
-	 * Without it `emit` still runs every handler, then throws the error (several
-	 * errors become an `AggregateError`); async rejections are left unhandled.
+	 * Without it handlers run like in a plain loop: the first error stops the
+	 * rest and is thrown to the caller of `emit`, and rejections of async
+	 * handlers are left unhandled. With it every handler runs and errors go
+	 * here; an `onError` that throws is logged to `console.error`.
 	 */
 	onError?: (error: unknown, event: Action<E>) => void;
 };
@@ -138,33 +140,31 @@ export const createBus = <Events extends EventMap>(
 		const data = eventPayload<Events>(event, payload);
 
 		const action = { type: key, payload: data };
-		const errors: unknown[] = [];
 		const { onError } = options;
-		const fail = (error: unknown) => {
-			if (onError) {
-				onError(error, action);
-			} else {
-				errors.push(error);
+		const report = (error: unknown) => {
+			try {
+				onError?.(error, action);
+			} catch (failure) {
+				globalThis.console?.error("[nanoeffects] onError failed", failure);
 			}
 		};
 
 		for (const fn of [...events.get(key), ...events.get(anyEventType)]) {
 			const { ctx } = createTask(action, emit, tracer);
+
+			if (!onError) {
+				fn(data, ctx);
+				continue;
+			}
+
 			try {
 				const result = fn(data, ctx);
-				if (onError && isPromise(result)) {
-					Promise.resolve(result).catch(fail);
+				if (isPromise(result)) {
+					Promise.resolve(result).catch(report);
 				}
 			} catch (error) {
-				fail(error);
+				report(error);
 			}
-		}
-
-		if (errors.length === 1) {
-			throw errors[0];
-		}
-		if (errors.length > 1) {
-			throw new AggregateError(errors, "Several handlers failed");
 		}
 
 		if (typeof event === "function") {
