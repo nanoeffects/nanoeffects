@@ -30,8 +30,11 @@ export const createObserve = <E extends EventMap>(bus: Bus<E>): Observe<E> => {
 		return {
 			subscribe: (observer: Observer<E[K]>) => {
 				const unsubscribe = bus.on(event, (payload) => {
-					if (typeof observer === "function") observer(payload);
-					else observer.next?.(payload);
+					if (typeof observer === "function") {
+						observer(payload);
+					} else {
+						observer.next?.(payload);
+					}
 				});
 				return { unsubscribe };
 			},

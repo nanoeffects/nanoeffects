@@ -1,12 +1,6 @@
 import { anyEventType, createStore } from "./store";
 import type { Task } from "./task";
-import type {
-	EventMap,
-	Keys,
-	PayloadOf,
-	TraceEvent,
-	UnsubscribeCallback,
-} from "./types";
+import type { EventMap, Keys, PayloadOf, UnsubscribeCallback } from "./types";
 import { eventKey, eventPayload } from "./util";
 
 export { anyEventType };
@@ -72,12 +66,12 @@ export type Off<E extends EventMap> = {
 	): void;
 };
 
-/** Контекст задачи внутри эффекта. */
+/** Task context inside an effect. */
 export type Context<E extends EventMap> = EventLike<E> & {
 	signal: AbortSignal;
-	/** emit от имени задачи; после отмены задачи не делает ничего */
+	/** Emit as this task; no-op after the task is aborted. */
 	emit: Emit<E>;
-	/** Дочерняя задача: отменяется вместе с родителем, ошибка уходит в родителя */
+	/** Child task: aborted with the parent; errors propagate to the parent. */
 	run<P, R>(fn: Task<P, E, R>, ...args: PayloadOf<P>): Promise<Awaited<R>>;
 };
 
@@ -87,13 +81,9 @@ export interface Bus<E extends EventMap> {
 	emit: Emit<E>;
 }
 
-export type BusOptions<E extends EventMap> = {
-	trace?: (event: TraceEvent<E>) => void;
-};
+// export type BusOptions<E extends EventMap> = {};
 
-export const createBus = <Events extends EventMap>({
-	trace,
-}: BusOptions<Events>): Bus<Events> => {
+export const createBus = <Events extends EventMap>(): Bus<Events> => {
 	type Key = EventKey<Events>;
 	const events = createStore<Events>();
 
@@ -115,12 +105,12 @@ export const createBus = <Events extends EventMap>({
 		const data = eventPayload<Events>(event, payload);
 
 		for (const fn of events.get(key)) {
-			const ctx = undefined as unknown as Context<Events>;
+			const ctx = null as unknown as Context<Events>;
 			fn(data, ctx);
 		}
 
 		for (const fn of events.get(anyEventType)) {
-			const ctx = undefined as unknown as Context<Events>;
+			const ctx = null as unknown as Context<Events>;
 			fn(data, ctx);
 		}
 

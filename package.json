@@ -4,7 +4,8 @@
 	"type": "module",
 	"packageManager": "pnpm@11.13.0",
 	"scripts": {
-		"check": "biome check .",
+		"check": "biome check ./src",
+		"format": "npx @biomejs/biome check --write --unsafe ./src",
 		"tsgo": "tsc --noEmit",
 		"prepare": "lefthook install"
 	},

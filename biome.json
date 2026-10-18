@@ -15,7 +15,21 @@
 	"linter": {
 		"enabled": true,
 		"rules": {
-			"preset": "recommended"
+			"preset": "recommended",
+			"complexity": {
+				"noUselessUndefined": "error"
+			},
+			"style": {
+				"noRestrictedGlobals": {
+					"level": "error",
+					"options": {
+						"deniedGlobals": {
+							"undefined": "Do not use the undefined value; omit it or return without a value."
+						}
+					}
+				},
+				"useBlockStatements": "error"
+			}
 		}
 	},
 	"javascript": {
