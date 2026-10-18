@@ -1,3 +1,4 @@
+import type { ActionCreator } from "../actions/action";
 import { isPromise, report } from "../utils";
 import { createTask, currentEmitter, traceRun } from "./context";
 import { eventKey, eventPayload } from "./event";
@@ -97,12 +98,14 @@ export type Emit<E extends EventMap> = {
 export type On<E extends EventMap> = {
 	(event: AnyEvent, fn: Task<EventPayload<E>, E>): UnsubscribeCallback;
 	<K extends EventKey<E>>(event: K, fn: Task<E[K], E>): UnsubscribeCallback;
+	/** An action creator: the payload comes from it, so an event map is not needed. */
+	<P>(creator: ActionCreator<P>, fn: Task<P, E>): UnsubscribeCallback;
+	/** A command: the payload comes from it too. */
+	<P>(command: Command<P, unknown>, fn: Task<P, E>): UnsubscribeCallback;
 	<K extends EventKey<E>, Event extends { type: K }>(
 		event: Event & { type: K },
 		fn: Task<E[K], E>,
 	): UnsubscribeCallback;
-	/** A command or an action creator whose type is not in the event map. */
-	<P>(command: Command<P, unknown>, fn: Task<P, E>): UnsubscribeCallback;
 };
 
 export type Off<E extends EventMap> = {

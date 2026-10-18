@@ -24,7 +24,7 @@ export function race<T extends Record<string, RaceStarter<unknown>>>(
 	ctx: { signal?: AbortSignal },
 	effects: T,
 ): Promise<{ [K in keyof T]?: Awaited<ReturnType<T[K]>> }>;
-export function race<T extends readonly RaceStarter<unknown>[]>(
+export function race<const T extends readonly RaceStarter<unknown>[]>(
 	ctx: { signal?: AbortSignal },
 	effects: T,
 ): Promise<{ -readonly [K in keyof T]?: Awaited<ReturnType<T[K]>> }>;

@@ -54,7 +54,9 @@ What it is for: the glue between events and async work in an app, where the usua
 | `run(fn, ...)`   | a child task: aborted with this one, its errors go to this one                 |
 | `type`, `payload` | the event the task works on                                                    |
 
-`emit` is a synchronous loop over the handlers, and `bus.on` returns the function that unsubscribes. Events are described by one type, `type Events = { name: Payload }`, and an event without data is `void`.
+`emit` is a synchronous loop over the handlers, and `bus.on` returns the function that unsubscribes.
+
+**The event map is optional.** Describe the events once, `type Events = { name: Payload }` (an event without data is `void`), and `createBus<Events>()` checks every `on` and `emit`. Or skip it: `createBus()` takes any string as an event and passes the payload as `unknown`. Actions and commands bring their own types, so they are typed on either kind of bus: `bus.on(userLoaded, (user) => ...)` gives `user` its type from `createAction<User>(...)`. On a bus with an event map, an action or a command that is emitted by its object must have its type in the map.
 
 ## Policies
 

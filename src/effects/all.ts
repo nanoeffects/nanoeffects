@@ -20,7 +20,7 @@ export function all<T extends Record<string, Starter<unknown>>>(
 	ctx: { signal?: AbortSignal },
 	effects: T,
 ): Promise<{ [K in keyof T]: Awaited<ReturnType<T[K]>> }>;
-export function all<T extends readonly Starter<unknown>[]>(
+export function all<const T extends readonly Starter<unknown>[]>(
 	ctx: { signal?: AbortSignal },
 	effects: T,
 ): Promise<{ -readonly [K in keyof T]: Awaited<ReturnType<T[K]>> }>;

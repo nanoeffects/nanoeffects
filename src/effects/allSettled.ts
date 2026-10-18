@@ -33,7 +33,7 @@ export function allSettled<T extends Record<string, Starter<unknown>>>(
 ): Promise<{
 	[K in keyof T]: PromiseSettledResult<Awaited<ReturnType<T[K]>>>;
 }>;
-export function allSettled<T extends readonly Starter<unknown>[]>(
+export function allSettled<const T extends readonly Starter<unknown>[]>(
 	ctx: { signal?: AbortSignal },
 	effects: T,
 ): Promise<{
