@@ -18,7 +18,13 @@ export type EffectName =
 	| "throttle"
 	| "run"
 	| "all"
-	| "race";
+	| "race"
+	| "retry"
+	| "timeout"
+	| "poll"
+	| "take"
+	| "queue"
+	| "allSettled";
 
 export type Phase = "start" | "done" | "error" | "cancel" | "drop";
 

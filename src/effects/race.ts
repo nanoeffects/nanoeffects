@@ -10,13 +10,10 @@ export type RaceStarter<T> = Starter<T>;
  * @example
  * ```ts
  * bus.on("load", async (id, ctx) => {
- *   const result = await race(
- *     {
- *       data: ({ signal }) => fetchData(id, { signal }),
- *       timeout: ({ signal }) => delay(5000, { signal }),
- *     },
- *     ctx,
- *   );
+ *   const result = await race(ctx, {
+ *     data: ({ signal }) => fetchData(id, { signal }),
+ *     timeout: ({ signal }) => delay({ signal }, 5000),
+ *   });
  *
  *   if ("timeout" in result) throw new Error("timed out");
  *   render(result.data);
@@ -24,16 +21,16 @@ export type RaceStarter<T> = Starter<T>;
  * ```
  */
 export function race<T extends Record<string, RaceStarter<unknown>>>(
+	ctx: { signal?: AbortSignal },
 	effects: T,
-	ctx?: { signal?: AbortSignal },
 ): Promise<{ [K in keyof T]?: Awaited<ReturnType<T[K]>> }>;
 export function race<T extends readonly RaceStarter<unknown>[]>(
+	ctx: { signal?: AbortSignal },
 	effects: T,
-	ctx?: { signal?: AbortSignal },
 ): Promise<{ -readonly [K in keyof T]?: Awaited<ReturnType<T[K]>> }>;
 export async function race(
+	ctx: { signal?: AbortSignal },
 	effects: Starters,
-	ctx?: { signal?: AbortSignal },
 ): Promise<unknown> {
 	const result = emptyResult(effects);
 	if (Object.keys(effects).length === 0) {

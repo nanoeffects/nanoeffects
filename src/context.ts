@@ -1,7 +1,7 @@
-import type { Context, Emit } from "./bus";
+import type { Context, Emit, Off, On } from "./bus";
 import type { TaskRef, Tracer } from "./tracer";
 import type { EffectName, EventMap, PayloadOf, Phase, Task } from "./types";
-import { linkedController } from "./utils";
+import { linkedController, onAbort } from "./utils";
 
 type Event = { type: string; payload?: unknown };
 
@@ -45,13 +45,20 @@ export const traceRun = <E extends EventMap, R>(
 	return meta ? meta.tracer.run(meta.ref, effect, ctx.signal, fn) : fn();
 };
 
+/** The parts of the bus a task context forwards to; all absent for a plain `{ signal }` parent. */
+type TaskBus<E extends EventMap> = {
+	emit?: Emit<E> | undefined;
+	on?: On<E> | undefined;
+	off?: Off<E> | undefined;
+};
+
 /**
  * Creates the context of one task. Its signal follows `parent`; `unlink`
  * detaches it from `parent` once the task is finished.
  */
 export const createTask = <E extends EventMap>(
 	event: Event,
-	emit: Emit<E> | undefined,
+	bus: TaskBus<E> | undefined,
 	tracer: Tracer | undefined,
 	parent?: { signal?: AbortSignal | undefined; ref?: TaskRef | undefined },
 ) => {
@@ -64,14 +71,33 @@ export const createTask = <E extends EventMap>(
 		if (signal.aborted) {
 			return;
 		}
-		return (emit as ((...a: unknown[]) => unknown) | undefined)?.(...args);
+		return (bus?.emit as ((...a: unknown[]) => unknown) | undefined)?.(...args);
+	};
+
+	const taskOn = (...args: unknown[]) => {
+		if (signal.aborted) {
+			return noop;
+		}
+
+		const off = (bus?.on as ((...a: unknown[]) => () => void) | undefined)?.(
+			...args,
+		);
+		if (!off) {
+			return noop;
+		}
+
+		const stop = onAbort({ signal }, off);
+		return () => {
+			stop();
+			off();
+		};
 	};
 
 	const run = async <P, R>(fn: Task<P, E, R>, ...args: PayloadOf<P>) => {
 		signal.throwIfAborted();
 
 		const payload = args[0] as P;
-		const child = createTask<E>({ type: event.type, payload }, emit, tracer, {
+		const child = createTask<E>({ type: event.type, payload }, bus, tracer, {
 			signal,
 			ref: meta?.ref,
 		});
@@ -89,6 +115,8 @@ export const createTask = <E extends EventMap>(
 		signal,
 		abort: (reason?: unknown) => controller.abort(reason),
 		emit: taskEmit,
+		on: taskOn,
+		off: bus?.off ?? noop,
 		run,
 	} as unknown as Context<E>;
 	if (meta) {
@@ -103,6 +131,8 @@ type ForkParent<E extends EventMap> = {
 	type?: string;
 	payload?: unknown;
 	emit?: Emit<E>;
+	on?: On<E>;
+	off?: Off<E>;
 };
 
 /**
@@ -114,7 +144,7 @@ export const forkTask = <E extends EventMap>(parent: ForkParent<E>) => {
 
 	return createTask<E>(
 		{ type: parent.type ?? "", payload: parent.payload },
-		parent.emit,
+		{ emit: parent.emit, on: parent.on, off: parent.off },
 		meta?.tracer,
 		{ signal: parent.signal, ref: meta?.ref },
 	);

@@ -7,15 +7,15 @@
  * ```ts
  * bus.on("connect", (url, ctx) => {
  *   const socket = new WebSocket(url);
- *   onAbort(() => socket.close(), ctx);
+ *   onAbort(ctx, () => socket.close());
  * });
  * ```
  */
 export const onAbort = (
+	ctx: { signal?: AbortSignal | undefined },
 	fn: (reason: unknown) => void,
-	ctx?: { signal?: AbortSignal | undefined },
 ): (() => void) => {
-	const signal = ctx?.signal;
+	const { signal } = ctx;
 	const listener = () => fn(signal?.reason);
 
 	if (signal?.aborted) {

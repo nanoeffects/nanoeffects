@@ -12,10 +12,15 @@ describe("public entries", () => {
 	it("effects", () => {
 		expect(Object.keys(effects).sort()).toEqual([
 			"all",
+			"allSettled",
 			"cancellable",
 			"delay",
 			"onAbort",
+			"poll",
 			"race",
+			"retry",
+			"take",
+			"timeout",
 		]);
 	});
 
@@ -24,6 +29,7 @@ describe("public entries", () => {
 			"debounce",
 			"latest",
 			"leading",
+			"queue",
 			"throttle",
 		]);
 	});

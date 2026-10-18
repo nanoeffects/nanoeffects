@@ -2,9 +2,13 @@ import type { Context } from "../bus";
 import { createSettle, forkTask, traceTask } from "../context";
 import type { EffectName, EventMap, Task } from "../types";
 import { isPromise, onAbort } from "../utils";
+import { byKey, type KeyOption, noop } from "./keyed";
+
+export type LatestOptions<P = never> = KeyOption<P>;
 
 /**
  * Aborts the previous run when a new call arrives; stale results are dropped.
+ * With `options.key` each key has its own latest run.
  *
  * @example
  * ```ts
@@ -18,25 +22,39 @@ import { isPromise, onAbort } from "../utils";
  *
  * bus.emit("search", "re"); // aborted by the next call
  * bus.emit("search", "redux"); // only this one finishes
+ *
+ * // one latest run per user instead of one for all
+ * bus.on("load", latest(loadUser, { key: (user) => user.id }));
  * ```
  */
 export const latest = <P, E extends EventMap, R>(
 	fn: Task<P, E, R>,
-): Task<P, E, R | Promise<Awaited<R> | undefined> | undefined> =>
-	latestWith("latest", (payload, ctx, begin) => {
-		begin();
-		return fn(payload, ctx);
-	});
+	options: LatestOptions<P> = {},
+): Task<P, E, R | Promise<Awaited<R> | undefined> | undefined> => {
+	const create = (onIdle: () => void) =>
+		latestWith<P, E, R>(
+			"latest",
+			(payload, ctx, begin) => {
+				begin();
+				return fn(payload, ctx);
+			},
+			onIdle,
+		);
+
+	return options.key ? byKey(options.key, create) : create(noop);
+};
 
 /**
  * Shared core of `latest` and `debounce`. `fn` calls `begin` when the work
- * really starts: a run aborted before that is traced as `drop`, not `cancel`.
+ * really starts: a run that ends before that is traced as `drop`, not `cancel`
+ * or `done`. `onIdle` is called when no run is left.
  *
  * @internal
  */
 export const latestWith = <P, E extends EventMap, R>(
 	effect: EffectName,
 	fn: (payload: P, ctx: Context<E>, begin: () => void) => R,
+	onIdle: () => void = noop,
 ): Task<P, E, R | Promise<Awaited<R> | undefined> | undefined> => {
 	let current: Context<E> | null = null;
 
@@ -58,12 +76,13 @@ export const latestWith = <P, E extends EventMap, R>(
 				traceTask(ctx, effect, "start");
 			}
 		};
-		onAbort(() => settle(started ? "cancel" : "drop"), ctx);
+		onAbort(ctx, () => settle(started ? "cancel" : "drop"));
 
 		const finish = () => {
 			unlink();
 			if (current === ctx) {
 				current = null;
+				onIdle();
 			}
 		};
 
@@ -71,7 +90,7 @@ export const latestWith = <P, E extends EventMap, R>(
 			if (ctx.signal.aborted) {
 				return;
 			}
-			settle("done");
+			settle(started ? "done" : "drop");
 			return value;
 		};
 

@@ -84,7 +84,7 @@ describe("delay", () => {
 
 	it("resolves after the given time", async () => {
 		const done = vi.fn();
-		delay(100).then(done);
+		delay({}, 100).then(done);
 		await vi.advanceTimersByTimeAsync(99);
 		expect(done).not.toHaveBeenCalled();
 		await vi.advanceTimersByTimeAsync(1);
@@ -93,14 +93,14 @@ describe("delay", () => {
 	});
 
 	it("resolves with nothing", async () => {
-		const promise = delay(10);
+		const promise = delay({}, 10);
 		await vi.advanceTimersByTimeAsync(10);
 
 		await expect(promise).resolves.toBeUndefined();
 	});
 
 	it("works without a context", async () => {
-		const promise = delay(10, {});
+		const promise = delay({}, 10);
 		await vi.advanceTimersByTimeAsync(10);
 
 		await expect(promise).resolves.toBeUndefined();
@@ -108,7 +108,7 @@ describe("delay", () => {
 
 	it("rejects with the abort reason and clears the timer", async () => {
 		const controller = new AbortController();
-		const promise = delay(100, controller);
+		const promise = delay(controller, 100);
 		const assertion = expect(promise).rejects.toBe("stop");
 		controller.abort("stop");
 		await assertion;
@@ -119,7 +119,7 @@ describe("delay", () => {
 	it("rejects at once if already aborted, without a timer", async () => {
 		const controller = new AbortController();
 		controller.abort("early");
-		const promise = delay(100, controller);
+		const promise = delay(controller, 100);
 
 		await expect(promise).rejects.toBe("early");
 		expect(vi.getTimerCount()).toBe(0);
@@ -127,9 +127,94 @@ describe("delay", () => {
 
 	it("ignores an abort after it resolved", async () => {
 		const controller = new AbortController();
-		const promise = delay(10, controller);
+		const promise = delay(controller, 10);
 		await vi.advanceTimersByTimeAsync(10);
 		controller.abort();
+
+		await expect(promise).resolves.toBeUndefined();
+	});
+});
+
+describe("delay with a function", () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+		vi.restoreAllMocks();
+	});
+
+	it("waits for the number of ms the function returns", async () => {
+		const done = vi.fn();
+		delay({}, () => 100).then(done);
+		await vi.advanceTimersByTimeAsync(99);
+		expect(done).not.toHaveBeenCalled();
+		await vi.advanceTimersByTimeAsync(1);
+
+		expect(done).toHaveBeenCalledTimes(1);
+	});
+
+	it("calls the function once, when the delay starts", async () => {
+		const ms = vi.fn(() => 50);
+		expect(ms).not.toHaveBeenCalled();
+		const promise = delay({}, ms);
+		expect(ms).toHaveBeenCalledTimes(1);
+		await vi.advanceTimersByTimeAsync(50);
+		await promise;
+
+		expect(ms).toHaveBeenCalledTimes(1);
+	});
+
+	it("supports a random pause", async () => {
+		vi.spyOn(Math, "random").mockReturnValue(0.5);
+		const done = vi.fn();
+		delay({}, () => 200 + Math.random() * 200).then(done);
+		await vi.advanceTimersByTimeAsync(299);
+		expect(done).not.toHaveBeenCalled();
+		await vi.advanceTimersByTimeAsync(1);
+
+		expect(done).toHaveBeenCalledTimes(1);
+	});
+
+	it("supports a growing pause with a counter in a closure", async () => {
+		let attempt = 0;
+		const start = Date.now();
+		const times: number[] = [];
+		const wait = () => delay({}, () => 100 * 2 ** attempt++);
+		for (let i = 0; i < 3; i++) {
+			const pending = wait();
+			await vi.advanceTimersByTimeAsync(1000);
+			await pending;
+			times.push(attempt);
+		}
+
+		expect(times).toEqual([1, 2, 3]);
+		expect(Date.now() - start).toBe(3000);
+	});
+
+	it("rejects with the abort reason and clears the timer", async () => {
+		const controller = new AbortController();
+		const promise = delay(controller, () => 1000);
+		const assertion = expect(promise).rejects.toBe("stop");
+		controller.abort("stop");
+		await assertion;
+
+		expect(vi.getTimerCount()).toBe(0);
+	});
+
+	it("rejects if the function throws, leaving no timer", async () => {
+		await expect(
+			delay({}, () => {
+				throw new Error("bad pause");
+			}),
+		).rejects.toThrow("bad pause");
+		expect(vi.getTimerCount()).toBe(0);
+	});
+
+	it("accepts 0", async () => {
+		const promise = delay({}, () => 0);
+		await vi.advanceTimersByTimeAsync(0);
 
 		await expect(promise).resolves.toBeUndefined();
 	});

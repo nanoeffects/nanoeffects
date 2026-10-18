@@ -380,4 +380,195 @@ describe("debounce", () => {
 			expect(fn.mock.calls[0]?.[0]).toBe(3);
 		});
 	});
+
+	describe("leading and trailing options", () => {
+		const opt = <P, R>(
+			fn: Task<P, TestEvents, R>,
+			options: Parameters<typeof debounce>[2],
+		) => debounce(100, fn, options);
+
+		it("leading runs the first call of a burst at once", () => {
+			const h = createHarness();
+			const fn = vi.fn();
+			opt(fn, { leading: true })(1, h.ctx());
+
+			expect(fn).toHaveBeenCalledTimes(1);
+			expect(fn.mock.calls[0]?.[0]).toBe(1);
+		});
+
+		it("leading alone runs a single call once, with no trailing repeat", async () => {
+			const h = createHarness();
+			const fn = vi.fn();
+			opt(fn, { leading: true })(1, h.ctx());
+			await vi.advanceTimersByTimeAsync(1000);
+
+			expect(fn).toHaveBeenCalledTimes(1);
+		});
+
+		it("leading and trailing: the rest of the burst runs once, with the last payload", async () => {
+			const h = createHarness();
+			const fn = vi.fn();
+			const d = opt(fn, { leading: true });
+			d(1, h.ctx());
+			d(2, h.ctx());
+			d(3, h.ctx());
+			expect(fn).toHaveBeenCalledTimes(1);
+			await vi.advanceTimersByTimeAsync(100);
+
+			expect(fn.mock.calls.map((c) => c[0])).toEqual([1, 3]);
+		});
+
+		it("leading and trailing: a call after the quiet period leads again", async () => {
+			const h = createHarness();
+			const fn = vi.fn();
+			const d = opt(fn, { leading: true });
+			d(1, h.ctx());
+			await vi.advanceTimersByTimeAsync(100);
+			d(2, h.ctx());
+
+			expect(fn.mock.calls.map((c) => c[0])).toEqual([1, 2]);
+		});
+
+		it("leading, trailing: false runs only the first call of a burst", async () => {
+			const h = createHarness();
+			const fn = vi.fn();
+			const d = opt(fn, { leading: true, trailing: false });
+			d(1, h.ctx());
+			d(2, h.ctx());
+			d(3, h.ctx());
+			await vi.advanceTimersByTimeAsync(100);
+
+			expect(fn.mock.calls.map((c) => c[0])).toEqual([1]);
+		});
+
+		it("leading, trailing: false: each call extends the burst", async () => {
+			const h = createHarness();
+			const fn = vi.fn();
+			const d = opt(fn, { leading: true, trailing: false });
+			d(1, h.ctx());
+			await vi.advanceTimersByTimeAsync(60);
+			d(2, h.ctx());
+			await vi.advanceTimersByTimeAsync(60);
+			d(3, h.ctx());
+			await vi.advanceTimersByTimeAsync(100);
+			d(4, h.ctx());
+
+			expect(fn.mock.calls.map((c) => c[0])).toEqual([1, 4]);
+		});
+
+		it("both false: nothing runs", async () => {
+			const h = createHarness();
+			const fn = vi.fn();
+			const d = opt(fn, { trailing: false });
+			d(1, h.ctx());
+			d(2, h.ctx());
+			await vi.advanceTimersByTimeAsync(1000);
+
+			expect(fn).not.toHaveBeenCalled();
+			expect(vi.getTimerCount()).toBe(0);
+		});
+
+		it("the leading call returns the result of fn", async () => {
+			const h = createHarness();
+			const d = opt(async (n: number) => n * 2, { leading: true });
+
+			await expect(d(4, h.ctx())).resolves.toBe(8);
+		});
+
+		it("a leading error rejects that call, and the burst goes on", async () => {
+			const h = createHarness();
+			const fn = vi.fn((n: number) => {
+				if (n === 1) {
+					throw new Error("boom");
+				}
+				return n;
+			});
+			const d = opt(fn, { leading: true });
+
+			expect(() => d(1, h.ctx())).toThrow("boom");
+			const last = d(2, h.ctx());
+			await vi.advanceTimersByTimeAsync(100);
+
+			await expect(last).resolves.toBe(2);
+		});
+
+		it("the leading call runs on the task's own context and is not aborted by later calls", () => {
+			const h = createHarness();
+			const ctx = h.ctx();
+			const signals: AbortSignal[] = [];
+			const d = opt(
+				(_: number, c) => {
+					signals.push(c.signal);
+					return new Promise(() => {});
+				},
+				{ leading: true },
+			);
+			d(1, ctx);
+			d(2, h.ctx());
+
+			expect(signals[0]).toBe(ctx.signal);
+			expect(signals[0]?.aborted).toBe(false);
+		});
+
+		it("a burst whose waiting call is aborted ends, so the next call leads", async () => {
+			const h = createHarness();
+			const ctx = h.ctx();
+			const fn = vi.fn();
+			const d = opt(fn, { leading: true });
+			d(1, ctx);
+			ctx.abort();
+			d(2, h.ctx());
+
+			expect(fn.mock.calls.map((c) => c[0])).toEqual([1, 2]);
+		});
+
+		it("a superseded wait does not end the burst", async () => {
+			const h = createHarness();
+			const fn = vi.fn();
+			const d = opt(fn, { leading: true });
+			d(1, h.ctx());
+			d(2, h.ctx());
+			d(3, h.ctx());
+
+			expect(fn).toHaveBeenCalledTimes(1);
+		});
+
+		it("traces the leading run as start, done and the first wait as a drop", async () => {
+			const h = createHarness();
+			opt(() => 1, { leading: true })(1, h.ctx());
+			await vi.advanceTimersByTimeAsync(100);
+
+			expect(h.phases()).toEqual([
+				"debounce/start",
+				"debounce/done",
+				"debounce/drop",
+			]);
+		});
+
+		it("traces the trailing run after the leading one", async () => {
+			const h = createHarness();
+			const d = opt(() => 1, { leading: true });
+			d(1, h.ctx());
+			d(2, h.ctx());
+			await vi.advanceTimersByTimeAsync(100);
+
+			expect(h.phases()).toEqual([
+				"debounce/start",
+				"debounce/done",
+				"debounce/drop",
+				"debounce/start",
+				"debounce/done",
+			]);
+		});
+
+		it("ignores a call whose task is already aborted", () => {
+			const h = createHarness();
+			const ctx = h.ctx();
+			ctx.abort();
+			const fn = vi.fn();
+
+			expect(opt(fn, { leading: true })(1, ctx)).toBeUndefined();
+			expect(fn).not.toHaveBeenCalled();
+		});
+	});
 });

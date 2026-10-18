@@ -87,6 +87,13 @@ export type Context<E extends EventMap> = EventLike<E> & {
 	abort: (reason?: unknown) => void;
 	/** Emit as this task; no-op after the task is aborted. */
 	emit: Emit<E>;
+	/**
+	 * Subscribe as this task. The subscription is removed when the task aborts;
+	 * after that this is a no-op that returns a no-op.
+	 */
+	on: On<E>;
+	/** Same as the bus `off`. */
+	off: Off<E>;
 	/** Child task: aborted with the parent; errors propagate to the parent. */
 	run<P, R>(fn: Task<P, E, R>, ...args: PayloadOf<P>): Promise<Awaited<R>>;
 };
@@ -144,7 +151,7 @@ export const createBus = <Events extends EventMap>(
 		};
 
 		for (const fn of [...events.get(key), ...events.get(anyEventType)]) {
-			const { ctx } = createTask(action, emit, options.trace);
+			const { ctx } = createTask(action, bus, options.trace);
 
 			if (!onError) {
 				fn(data, ctx);
@@ -166,9 +173,7 @@ export const createBus = <Events extends EventMap>(
 		}
 	};
 
-	return {
-		on,
-		off,
-		emit,
-	};
+	const bus: Bus<Events> = { on, off, emit };
+
+	return bus;
 };

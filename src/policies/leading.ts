@@ -1,11 +1,15 @@
 import { traceRun, traceTask } from "../context";
 import type { EventMap, Task } from "../types";
 import { after } from "../utils";
+import { byKey, type KeyOption, noop } from "./keyed";
+
+export type LeadingOptions<P = never> = KeyOption<P>;
 
 /**
  * Drops new calls while the task is still running. The lock is released when
  * the run settles or when its task is aborted, whichever comes first, so a
- * `fn` that ignores the abort signal may overlap with the next run.
+ * `fn` that ignores the abort signal may overlap with the next run. With
+ * `options.key` each key has its own lock.
  *
  * @example
  * ```ts
@@ -22,37 +26,45 @@ import { after } from "../utils";
  */
 export const leading = <P, E extends EventMap, R>(
 	fn: Task<P, E, R>,
+	options: LeadingOptions<P> = {},
 ): Task<P, E, R | Promise<Awaited<R>> | undefined> => {
-	let lock: object | null = null;
+	const create = (
+		onIdle: () => void,
+	): Task<P, E, R | Promise<Awaited<R>> | undefined> => {
+		let lock: object | null = null;
 
-	return (payload, ctx) => {
-		if (ctx.signal.aborted) {
-			return;
-		}
+		return (payload, ctx) => {
+			if (ctx.signal.aborted) {
+				return;
+			}
 
-		if (lock) {
-			traceTask(ctx, "leading", "drop");
-			return;
-		}
+			if (lock) {
+				traceTask(ctx, "leading", "drop");
+				return;
+			}
 
-		const mine = {};
-		lock = mine;
-		const release = () => {
-			ctx.signal.removeEventListener("abort", release);
-			if (lock === mine) {
-				lock = null;
+			const mine = {};
+			lock = mine;
+			const release = () => {
+				ctx.signal.removeEventListener("abort", release);
+				if (lock === mine) {
+					lock = null;
+					onIdle();
+				}
+			};
+			ctx.signal.addEventListener("abort", release, { once: true });
+
+			try {
+				return after(
+					traceRun(ctx, "leading", () => fn(payload, ctx)),
+					release,
+				);
+			} catch (error) {
+				release();
+				throw error;
 			}
 		};
-		ctx.signal.addEventListener("abort", release, { once: true });
-
-		try {
-			return after(
-				traceRun(ctx, "leading", () => fn(payload, ctx)),
-				release,
-			);
-		} catch (error) {
-			release();
-			throw error;
-		}
 	};
+
+	return options.key ? byKey(options.key, create) : create(noop);
 };

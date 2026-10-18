@@ -92,9 +92,9 @@ describe("flows", () => {
 			leading(async (user, ctx) => {
 				tasks.push(ctx);
 				try {
-					await ctx.run(() => delay(100, ctx).then(() => steps.push("token")));
+					await ctx.run(() => delay(ctx, 100).then(() => steps.push("token")));
 					await ctx.run(() =>
-						delay(100, ctx).then(() => steps.push("profile")),
+						delay(ctx, 100).then(() => steps.push("profile")),
 					);
 					steps.push(`done ${user}`);
 				} catch {
@@ -122,7 +122,7 @@ describe("flows", () => {
 			leading(async (user, ctx) => {
 				tasks.push(ctx);
 				try {
-					await delay(100, ctx);
+					await delay(ctx, 100);
 					steps.push(`done ${user}`);
 				} catch {
 					steps.push(`aborted ${user}`);
@@ -149,7 +149,7 @@ describe("flows", () => {
 			try {
 				for (let i = 0; i < 5; i++) {
 					attempts++;
-					await delay(1000, ctx);
+					await delay(ctx, 1000);
 				}
 			} catch {}
 		});
@@ -171,7 +171,7 @@ describe("flows", () => {
 			tasks.push(ctx);
 			while (!ctx.signal.aborted) {
 				polls++;
-				await delay(100, ctx).catch(() => {});
+				await delay(ctx, 100).catch(() => {});
 			}
 		});
 
@@ -192,7 +192,7 @@ describe("flows", () => {
 			"save",
 			leading(async (draft, ctx) => {
 				try {
-					await ctx.run(() => delay(100, ctx));
+					await ctx.run(() => delay(ctx, 100));
 					if (fail) {
 						throw new Error("offline");
 					}
@@ -218,20 +218,17 @@ describe("flows", () => {
 		const signals: AbortSignal[] = [];
 		const track = ({ signal }: { signal: AbortSignal }) => {
 			signals.push(signal);
-			return delay(10_000, { signal });
+			return delay({ signal }, 10_000);
 		};
 		const tasks: Context<Events>[] = [];
 		bus.on("load", async (_, ctx) => {
 			tasks.push(ctx);
 			try {
-				await all(
-					{
-						a: track,
-						b: () => race({ x: track, y: track }, ctx),
-						c: () => ctx.run((_: string, child) => all([track], child), "c"),
-					},
-					ctx,
-				);
+				await all(ctx, {
+					a: track,
+					b: () => race(ctx, { x: track, y: track }),
+					c: () => ctx.run((_: string, child) => all(child, [track]), "c"),
+				});
 			} catch {}
 		});
 
@@ -259,7 +256,7 @@ describe("flows", () => {
 		bus.on("load", async (_, ctx) => {
 			tasks.push(ctx);
 			ctx.emit("log", "before");
-			await delay(100, ctx).catch(() => {});
+			await delay(ctx, 100).catch(() => {});
 			ctx.emit("log", "after");
 		});
 
@@ -295,7 +292,7 @@ describe("flows", () => {
 			let handler = perKey.get(key);
 			if (!handler) {
 				handler = latest<string, Events, Promise<void>>(async (k, c) => {
-					await delay(100, c);
+					await delay(c, 100);
 					finished.push(k);
 				});
 				perKey.set(key, handler);

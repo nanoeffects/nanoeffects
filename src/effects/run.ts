@@ -1,6 +1,6 @@
 import { createSettle, forkTask, traceRun, traceTask } from "../context";
 import type { EffectName, EventMap } from "../types";
-import { onAbort } from "../utils";
+import { onAbort, raceAbort } from "../utils";
 
 /** Context passed into `race` / `all` effect starters. */
 export type EffectContext = {
@@ -39,16 +39,7 @@ export const startEffects = (
 	const settle = createSettle(group.ctx, effect);
 
 	traceTask(group.ctx, effect, "start");
-	onAbort(() => settle("cancel"), group.ctx);
-
-	/** Settles like `work`, but rejects with the reason as soon as `parent` aborts. */
-	const until = <T>(work: Promise<T>): Promise<T> =>
-		parent?.signal
-			? new Promise<T>((resolve, reject) => {
-					const off = onAbort(reject, parent);
-					work.then(resolve, reject).finally(off);
-				})
-			: work;
+	onAbort(group.ctx, () => settle("cancel"));
 
 	return {
 		tasks: Object.entries(effects).map(([key, starter]) => {
@@ -60,14 +51,14 @@ export const startEffects = (
 
 			return [
 				key,
-				Promise.resolve()
-					.then(() => traceRun(child.ctx, "run", () => starter(ctx)))
-					.finally(child.unlink),
+				new Promise((resolve) =>
+					resolve(traceRun(child.ctx, "run", () => starter(ctx))),
+				).finally(child.unlink),
 			] as const;
 		}),
 		cancelAll: () => group.ctx.abort(),
 		unfollowParent: group.unlink,
 		settle,
-		until,
+		until: <T>(work: Promise<T>) => raceAbort(work, parent),
 	};
 };

@@ -590,4 +590,174 @@ describe("bus", () => {
 			});
 		});
 	});
+
+	describe("ctx.on and ctx.off", () => {
+		it("subscribes like bus.on", () => {
+			const h = createHarness();
+			const fn = vi.fn();
+			h.ctx().on("b", fn);
+			h.bus.emit("b", "hi");
+
+			expect(fn.mock.calls[0]?.[0]).toBe("hi");
+		});
+
+		it("returns an unsubscribe callback", () => {
+			const h = createHarness();
+			const fn = vi.fn();
+			const off = h.ctx().on("b", fn);
+			off();
+			h.bus.emit("b", "hi");
+
+			expect(fn).not.toHaveBeenCalled();
+		});
+
+		it("unsubscribing twice, or after an abort, is harmless", () => {
+			const h = createHarness();
+			const ctx = h.ctx();
+			const off = ctx.on("b", () => {});
+			ctx.abort();
+
+			expect(() => {
+				off();
+				off();
+			}).not.toThrow();
+		});
+
+		it("removes the subscription when the task aborts", () => {
+			const h = createHarness();
+			const ctx = h.ctx();
+			const fn = vi.fn();
+			ctx.on("b", fn);
+			h.bus.emit("b", "one");
+			ctx.abort();
+			h.bus.emit("b", "two");
+
+			expect(fn).toHaveBeenCalledTimes(1);
+		});
+
+		it("keeps the subscription of a task that is not aborted", () => {
+			const h = createHarness();
+			const fn = vi.fn();
+			h.ctx().on("b", fn);
+			h.bus.emit("b", "one");
+			h.bus.emit("b", "two");
+
+			expect(fn).toHaveBeenCalledTimes(2);
+		});
+
+		it("does nothing after the task is aborted", () => {
+			const h = createHarness();
+			const ctx = h.ctx();
+			ctx.abort();
+			const fn = vi.fn();
+			const off = ctx.on("b", fn);
+			h.bus.emit("b", "hi");
+
+			expect(fn).not.toHaveBeenCalled();
+			expect(() => off()).not.toThrow();
+		});
+
+		it("an abort of another task keeps this subscription", () => {
+			const h = createHarness();
+			const a = h.ctx();
+			const b = h.ctx();
+			const fn = vi.fn();
+			a.on("b", fn);
+			b.abort();
+			h.bus.emit("b", "hi");
+
+			expect(fn).toHaveBeenCalledTimes(1);
+		});
+
+		it("supports the any-event key", () => {
+			const h = createHarness();
+			const seen: unknown[] = [];
+			h.ctx().on(anyEventType, (payload) => seen.push(payload));
+			h.bus.emit("t", 1);
+			h.bus.emit("b", "x");
+
+			expect(seen).toEqual([1, "x"]);
+		});
+
+		it("gives the handler a task context of its own", () => {
+			const h = createHarness();
+			const subscriber = h.ctx();
+			const seen: object[] = [];
+			subscriber.on("b", (_, ctx) => {
+				seen.push(ctx);
+			});
+			h.bus.emit("b", "hi");
+
+			expect(seen[0]).not.toBe(subscriber);
+		});
+
+		it("off removes a handler subscribed through ctx.on", () => {
+			const h = createHarness();
+			const ctx = h.ctx();
+			const fn = vi.fn();
+			ctx.on("b", fn);
+			ctx.off("b", fn);
+			h.bus.emit("b", "hi");
+
+			expect(fn).not.toHaveBeenCalled();
+		});
+
+		it("off(event) clears every handler of the event, like the bus", () => {
+			const h = createHarness();
+			const ctx = h.ctx();
+			const fn = vi.fn();
+			h.bus.on("b", fn);
+			ctx.off("b");
+			h.bus.emit("b", "hi");
+
+			expect(fn).not.toHaveBeenCalled();
+		});
+
+		it("a child task's subscription ends with the child, not the parent", async () => {
+			const h = createHarness();
+			const ctx = h.ctx();
+			const fn = vi.fn();
+			await ctx.run((_: number, child) => {
+				child.on("b", fn);
+				child.abort();
+			}, 1);
+			h.bus.emit("b", "hi");
+
+			expect(fn).not.toHaveBeenCalled();
+			expect(ctx.signal.aborted).toBe(false);
+		});
+
+		it("a child task's subscription ends when the parent aborts", async () => {
+			const h = createHarness();
+			const ctx = h.ctx();
+			const fn = vi.fn();
+			const d = deferred();
+			const promise = ctx.run((_: number, child) => {
+				child.on("b", fn);
+				return d.promise;
+			}, 1);
+			ctx.abort();
+			h.bus.emit("b", "hi");
+
+			expect(fn).not.toHaveBeenCalled();
+			d.resolve();
+			await promise;
+		});
+
+		it("a policy fork's subscription ends when its run is superseded", () => {
+			const h = createHarness();
+			const seen: string[] = [];
+			const fn = latest<number, TestEvents, Promise<void>>(async (n, ctx) => {
+				ctx.on("b", () => {
+					seen.push(`run ${n}`);
+				});
+				await new Promise(() => {});
+			});
+			fn(1, h.ctx());
+			fn(2, h.ctx());
+			h.bus.emit("b", "hi");
+
+			expect(seen).toEqual(["run 2"]);
+		});
+	});
 });

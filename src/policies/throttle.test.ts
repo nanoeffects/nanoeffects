@@ -77,18 +77,31 @@ describe("throttle", () => {
 			expect(fn).toHaveBeenCalledTimes(2);
 		});
 
-		it("a trailing run opens a new window", async () => {
+		it("a call right after a quiet window runs at once, even just after a trailing run (as in lodash)", async () => {
 			const h = createHarness();
 			const fn = vi.fn((n: number) => n);
 			const t = thr(100, fn);
 			t(1, h.ctx());
 			t(2, h.ctx());
 			await vi.advanceTimersByTimeAsync(100);
-			expect(fn).toHaveBeenCalledTimes(2);
-			t(3, h.ctx());
-			expect(fn).toHaveBeenCalledTimes(2);
+			expect(fn.mock.calls.map((c) => c[0])).toEqual([1, 2]);
+
+			expect(t(3, h.ctx())).toBe(3);
+			expect(fn.mock.calls.map((c) => c[0])).toEqual([1, 2, 3]);
+		});
+
+		it("a call that follows recent activity waits for the end of its window", async () => {
+			const h = createHarness();
+			const fn = vi.fn((n: number) => n);
+			const t = thr(100, fn);
+			t(1, h.ctx());
+			await vi.advanceTimersByTimeAsync(50);
+			t(2, h.ctx());
+			await vi.advanceTimersByTimeAsync(60); // trailing run of 2 at t=100
+			expect(fn.mock.calls.map((c) => c[0])).toEqual([1, 2]);
+			t(3, h.ctx()); // t=110: the last call was 60 ms ago, the last run 10 ms ago
 			await vi.advanceTimersByTimeAsync(99);
-			expect(fn).toHaveBeenCalledTimes(2);
+			expect(fn.mock.calls.map((c) => c[0])).toEqual([1, 2]);
 			await vi.advanceTimersByTimeAsync(1);
 
 			expect(fn.mock.calls.map((c) => c[0])).toEqual([1, 2, 3]);
@@ -399,6 +412,139 @@ describe("throttle", () => {
 			await vi.advanceTimersByTimeAsync(100);
 
 			expect(fn.mock.calls.map((c) => c[0])).toEqual([1, 3]);
+		});
+	});
+
+	describe("leading and trailing options", () => {
+		const opt = <P, R>(
+			fn: Task<P, TestEvents, R>,
+			options: Parameters<typeof throttle>[2],
+		) => throttle(100, fn, options);
+
+		it("trailing: false drops the calls made during a window", async () => {
+			const h = createHarness();
+			const fn = vi.fn((n: number) => n);
+			const t = opt(fn, { trailing: false });
+			t(1, h.ctx());
+			const dropped = t(2, h.ctx());
+			await vi.advanceTimersByTimeAsync(100);
+
+			expect(dropped).toBeUndefined();
+			expect(fn.mock.calls.map((c) => c[0])).toEqual([1]);
+		});
+
+		it("trailing: false runs the next call after the window at once", async () => {
+			const h = createHarness();
+			const fn = vi.fn((n: number) => n);
+			const t = opt(fn, { trailing: false });
+			t(1, h.ctx());
+			t(2, h.ctx());
+			await vi.advanceTimersByTimeAsync(100);
+
+			expect(t(3, h.ctx())).toBe(3);
+		});
+
+		it("trailing: false reports the dropped calls", () => {
+			const h = createHarness();
+			const t = opt(() => 1, { trailing: false });
+			t(1, h.ctx());
+			t(2, h.ctx());
+			t(3, h.ctx());
+
+			expect(h.phases()).toEqual([
+				"throttle/start",
+				"throttle/done",
+				"throttle/drop",
+				"throttle/drop",
+			]);
+		});
+
+		it("leading: false holds even the first call until its window ends", async () => {
+			const h = createHarness();
+			const fn = vi.fn((n: number) => n);
+			const t = opt(fn, { leading: false });
+			const first = t(1, h.ctx());
+			expect(fn).not.toHaveBeenCalled();
+			await vi.advanceTimersByTimeAsync(99);
+			expect(fn).not.toHaveBeenCalled();
+			await vi.advanceTimersByTimeAsync(1);
+
+			expect(fn.mock.calls.map((c) => c[0])).toEqual([1]);
+			await expect(first).resolves.toBe(1);
+		});
+
+		it("leading: false runs only the latest call of the window", async () => {
+			const h = createHarness();
+			const fn = vi.fn((n: number) => n);
+			const t = opt(fn, { leading: false });
+			t(1, h.ctx());
+			t(2, h.ctx());
+			t(3, h.ctx());
+			await vi.advanceTimersByTimeAsync(100);
+
+			expect(fn.mock.calls.map((c) => c[0])).toEqual([3]);
+		});
+
+		it("leading: false does not run anything for a window with no calls", async () => {
+			const h = createHarness();
+			const fn = vi.fn();
+			const t = opt(fn, { leading: false });
+			await vi.advanceTimersByTimeAsync(1000);
+
+			expect(fn).not.toHaveBeenCalled();
+			t(1, h.ctx());
+			expect(fn).not.toHaveBeenCalled();
+		});
+
+		it("leading: false resolves a replaced call with undefined and traces the drop", async () => {
+			const h = createHarness();
+			const t = opt((n: number) => n, { leading: false });
+			const first = t(1, h.ctx());
+			t(2, h.ctx());
+			await vi.advanceTimersByTimeAsync(100);
+
+			await expect(first).resolves.toBeUndefined();
+			expect(h.phases()).toEqual([
+				"throttle/drop",
+				"throttle/start",
+				"throttle/done",
+			]);
+		});
+
+		it("leading: false skips a held call whose task aborted", async () => {
+			const h = createHarness();
+			const fn = vi.fn();
+			const ctx = h.ctx();
+			const t = opt(fn, { leading: false });
+			const held = t(1, ctx);
+			ctx.abort();
+			await vi.advanceTimersByTimeAsync(100);
+
+			await expect(held).resolves.toBeUndefined();
+			expect(fn).not.toHaveBeenCalled();
+		});
+
+		it("both false: nothing ever runs, and no timer outlives the window", async () => {
+			const h = createHarness();
+			const fn = vi.fn();
+			const t = opt(fn, { leading: false, trailing: false });
+			t(1, h.ctx());
+			t(2, h.ctx());
+			await vi.advanceTimersByTimeAsync(1000);
+
+			expect(fn).not.toHaveBeenCalled();
+			expect(vi.getTimerCount()).toBe(0);
+		});
+
+		it("the default is leading and trailing", async () => {
+			const h = createHarness();
+			const fn = vi.fn((n: number) => n);
+			const t = opt(fn, {});
+			t(1, h.ctx());
+			t(2, h.ctx());
+			await vi.advanceTimersByTimeAsync(100);
+
+			expect(fn.mock.calls.map((c) => c[0])).toEqual([1, 2]);
 		});
 	});
 });

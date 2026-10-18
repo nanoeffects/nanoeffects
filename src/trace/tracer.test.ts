@@ -247,4 +247,188 @@ describe("createTracer", () => {
 			expect(phases(recorder)).toEqual(["start", "done"]);
 		});
 	});
+
+	describe("filter", () => {
+		it("logs only the events it accepts", () => {
+			const recorder = createTraceRecorder();
+			const tracer = createTracer(recorder, {
+				filter: (event) => event.phase === "error",
+			});
+			const ref = tracer.task({ type: "a" });
+			tracer.report(ref, "run", "start");
+			tracer.report(ref, "run", "done");
+			tracer.report(ref, "run", "error", new Error("boom"));
+
+			expect(recorder.events.map((e) => e.phase)).toEqual(["error"]);
+		});
+
+		it("gets the full event", () => {
+			const filter = vi.fn(() => true);
+			const tracer = createTracer(() => {}, { filter });
+			tracer.report(tracer.task({ type: "a", payload: 1 }), "run", "start");
+
+			expect(filter).toHaveBeenCalledWith({
+				id: 1,
+				type: "a",
+				effect: "run",
+				phase: "start",
+				payload: 1,
+			});
+		});
+
+		it("applies to events from run and settler too", async () => {
+			const recorder = createTraceRecorder();
+			const tracer = createTracer(recorder, {
+				filter: (event) => event.phase === "done",
+			});
+			const ref = tracer.task({ type: "a" });
+			tracer.run(ref, "run", new AbortController().signal, () => 1);
+
+			expect(recorder.events.map((e) => e.phase)).toEqual(["done"]);
+		});
+	});
+
+	describe("sample", () => {
+		const root = (tracer: ReturnType<typeof createTracer>) =>
+			tracer.task({ type: "root" });
+
+		it("traces everything by default", () => {
+			const { recorder, tracer } = setup();
+			tracer.report(root(tracer), "run", "start");
+
+			expect(recorder.events).toHaveLength(1);
+		});
+
+		it("traces nothing with 0", () => {
+			const recorder = createTraceRecorder();
+			const tracer = createTracer(recorder, { sample: 0 });
+			const ref = root(tracer);
+			tracer.report(ref, "run", "start");
+			tracer.settler(ref, "run")("done");
+
+			expect(recorder.events).toHaveLength(0);
+		});
+
+		it("traces everything with 1", () => {
+			const recorder = createTraceRecorder();
+			const tracer = createTracer(recorder, { sample: 1 });
+			for (let i = 0; i < 20; i++) {
+				tracer.report(root(tracer), "run", "start");
+			}
+
+			expect(recorder.events).toHaveLength(20);
+		});
+
+		it("compares a random number with the share", () => {
+			const recorder = createTraceRecorder();
+			const tracer = createTracer(recorder, { sample: 0.5 });
+			const random = vi.spyOn(Math, "random");
+			random.mockReturnValueOnce(0.3).mockReturnValueOnce(0.7);
+			tracer.report(root(tracer), "run", "start");
+			tracer.report(root(tracer), "run", "start");
+
+			expect(recorder.events.map((e) => e.id)).toEqual([1]);
+			random.mockRestore();
+		});
+
+		it("accepts a function of the root event", () => {
+			const recorder = createTraceRecorder();
+			const sample = vi.fn(({ type }: { type: string }) => type === "keep");
+			const tracer = createTracer(recorder, { sample });
+			tracer.report(tracer.task({ type: "drop", payload: 1 }), "run", "start");
+			tracer.report(tracer.task({ type: "keep", payload: 2 }), "run", "start");
+
+			expect(recorder.events.map((e) => e.type)).toEqual(["keep"]);
+			expect(sample).toHaveBeenCalledWith({ type: "keep", payload: 2 });
+		});
+
+		it("decides once per root task and not for children", () => {
+			const sample = vi.fn(() => true);
+			const tracer = createTracer(() => {}, { sample });
+			const parent = root(tracer);
+			tracer.task({ type: "child" }, parent);
+			tracer.task({ type: "child" }, parent);
+
+			expect(sample).toHaveBeenCalledTimes(1);
+		});
+
+		it("children follow an unsampled root", () => {
+			const recorder = createTraceRecorder();
+			const tracer = createTracer(recorder, { sample: () => false });
+			const child = tracer.task({ type: "child" }, root(tracer));
+			tracer.report(child, "run", "start");
+
+			expect(recorder.events).toHaveLength(0);
+		});
+
+		it("children follow a sampled root, even through several levels", () => {
+			const recorder = createTraceRecorder();
+			const tracer = createTracer(recorder, { sample: () => true });
+			const child = tracer.task({ type: "child" }, root(tracer));
+			const leaf = tracer.task({ type: "leaf" }, child);
+			tracer.report(leaf, "run", "start");
+
+			expect(recorder.events.map((e) => e.type)).toEqual(["leaf"]);
+		});
+
+		it("an unsampled run just returns what fn returns", async () => {
+			const recorder = createTraceRecorder();
+			const tracer = createTracer(recorder, { sample: 0 });
+			const ref = root(tracer);
+			const promise = Promise.resolve(5);
+			const result = tracer.run(
+				ref,
+				"run",
+				new AbortController().signal,
+				() => promise,
+			);
+
+			expect(result).toBe(promise);
+			expect(recorder.events).toHaveLength(0);
+		});
+
+		it("an unsampled run still rethrows errors", () => {
+			const tracer = createTracer(() => {}, { sample: 0 });
+			const ref = root(tracer);
+
+			expect(() =>
+				tracer.run(ref, "run", new AbortController().signal, () => {
+					throw new Error("boom");
+				}),
+			).toThrow("boom");
+		});
+
+		it("combines with a filter", () => {
+			const recorder = createTraceRecorder();
+			const tracer = createTracer(recorder, {
+				sample: () => true,
+				filter: (event) => event.phase !== "start",
+			});
+			const ref = root(tracer);
+			tracer.report(ref, "run", "start");
+			tracer.report(ref, "run", "done");
+
+			expect(recorder.events.map((e) => e.phase)).toEqual(["done"]);
+		});
+
+		it("traces a whole handler tree or none of it on a bus", async () => {
+			const recorder = createTraceRecorder<TestEvents>();
+			const bus = createBus<TestEvents>({
+				trace: createTracer(recorder, {
+					sample: ({ payload }) => payload === 1,
+				}),
+			});
+			bus.on("t", (_, ctx) =>
+				ctx.run((_: number, child) => child.run(() => 1), 1),
+			);
+			bus.emit("t", 1);
+			bus.emit("t", 2);
+			await new Promise((r) => setTimeout(r, 0));
+
+			expect(recorder.events.filter((e) => e.phase === "start")).toHaveLength(
+				2,
+			);
+			expect(recorder.events.filter((e) => e.phase === "done")).toHaveLength(2);
+		});
+	});
 });

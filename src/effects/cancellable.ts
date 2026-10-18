@@ -22,17 +22,17 @@ export type CancellableExecutor<T> = (handle: CancellableHandle<T>) => void;
  * bus.on(
  *   "wait",
  *   latest((_, ctx) =>
- *     cancellable<void>(({ resolve, onCancel }) => {
+ *     cancellable<void>(ctx, ({ resolve, onCancel }) => {
  *       const timer = setTimeout(resolve, 5000);
  *       onCancel(() => clearTimeout(timer));
- *     }, ctx),
+ *     }),
  *   ),
  * );
  * ```
  */
 export const cancellable = <T>(
-	executor: CancellableExecutor<T>,
 	ctx: { signal: AbortSignal },
+	executor: CancellableExecutor<T>,
 ): Promise<T> => {
 	if (ctx.signal.aborted) {
 		return Promise.reject(ctx.signal.reason);
@@ -50,13 +50,13 @@ export const cancellable = <T>(
 			}
 		};
 
-		const stopListening = onAbort((reason) => {
+		const stopListening = onAbort(ctx, (reason) => {
 			state = "cancelled";
 			for (const cleanup of cleanups.reverse()) {
 				runCleanup(cleanup);
 			}
 			reject(reason);
-		}, ctx);
+		});
 
 		const once =
 			<A extends unknown[]>(settle: (...args: A) => void) =>

@@ -1,9 +1,26 @@
+import { traceRun } from "../context";
 import type { EventMap, Task } from "../types";
-import { delay } from "../utils";
+import { delay, onAbort } from "../utils";
+import { byKey, type KeyOption, noop } from "./keyed";
 import { latestWith } from "./latest";
 
+type DebounceResult<R> =
+	| Promise<R | undefined>
+	| Promise<Awaited<R> | undefined>
+	| undefined;
+
+export type DebounceOptions<P = never> = KeyOption<P> & {
+	/** Run the first call of a burst at once. Default `false`. */
+	leading?: boolean;
+	/** Run the last call of a burst after `ms` of quiet. Default `true`. */
+	trailing?: boolean;
+};
+
 /**
- * Waits for `ms` of quiet, then runs; a new call restarts the wait and drops the previous.
+ * Waits for `ms` of quiet, then runs; a new call restarts the wait and drops
+ * the previous. With `leading` the first call of a burst runs at once, and the
+ * trailing run happens only if more calls follow it. With `trailing: false`
+ * only the leading call runs. With `options.key` each key has its own wait.
  *
  * @example
  * ```ts
@@ -22,10 +39,58 @@ import { latestWith } from "./latest";
 export const debounce = <P, E extends EventMap, R>(
 	ms: number,
 	fn: Task<P, E, R>,
-) =>
-	latestWith<P, E, Promise<R>>("debounce", (payload, ctx, begin) =>
-		delay(ms, ctx).then(() => {
-			begin();
-			return fn(payload, ctx);
-		}),
+	options: DebounceOptions<P> = {},
+): Task<P, E, DebounceResult<R>> => {
+	const create = (onIdle: () => void) =>
+		createDebounce(ms, fn, options, onIdle);
+
+	return options.key ? byKey(options.key, create) : create(noop);
+};
+
+const createDebounce = <P, E extends EventMap, R>(
+	ms: number,
+	fn: Task<P, E, R>,
+	options: DebounceOptions<P>,
+	onIdle: () => void,
+): Task<P, E, DebounceResult<R>> => {
+	const { leading = false, trailing = true } = options;
+	let inBurst = false;
+	let generation = 0;
+
+	// one wait per call; `ran` marks the leading call, which already ran
+	const wait = latestWith<[P, boolean], E, Promise<R | undefined>>(
+		"debounce",
+		([payload, ran], ctx, begin) => {
+			const mine = generation;
+			onAbort(ctx, () => {
+				if (generation === mine) {
+					inBurst = false;
+				}
+			});
+
+			return delay(ctx, ms).then(() => {
+				inBurst = false;
+				if (trailing && !ran) {
+					begin();
+					return fn(payload, ctx);
+				}
+			});
+		},
+		onIdle,
 	);
+
+	return (payload, ctx) => {
+		if (ctx.signal.aborted) {
+			return;
+		}
+
+		const first = leading && !inBurst;
+		inBurst = true;
+		generation++;
+		const waiting = wait([payload, first], ctx);
+
+		return first
+			? Promise.resolve(traceRun(ctx, "debounce", () => fn(payload, ctx)))
+			: waiting;
+	};
+};

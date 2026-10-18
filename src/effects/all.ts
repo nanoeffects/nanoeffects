@@ -7,29 +7,26 @@ import { emptyResult, startEffects } from "./run";
  * @example
  * ```ts
  * bus.on("load", async (id, ctx) => {
- *   const { user, posts } = await all(
- *     {
- *       user: ({ signal }) => fetchUser(id, { signal }),
- *       posts: ({ signal }) => fetchPosts(id, { signal }),
- *     },
- *     ctx,
- *   );
+ *   const { user, posts } = await all(ctx, {
+ *     user: ({ signal }) => fetchUser(id, { signal }),
+ *     posts: ({ signal }) => fetchPosts(id, { signal }),
+ *   });
  *
- *   // arrays work too: const [user, posts] = await all([getUser, getPosts], ctx);
+ *   // arrays work too: const [user, posts] = await all(ctx, [getUser, getPosts]);
  * });
  * ```
  */
 export function all<T extends Record<string, Starter<unknown>>>(
+	ctx: { signal?: AbortSignal },
 	effects: T,
-	ctx?: { signal?: AbortSignal },
 ): Promise<{ [K in keyof T]: Awaited<ReturnType<T[K]>> }>;
 export function all<T extends readonly Starter<unknown>[]>(
+	ctx: { signal?: AbortSignal },
 	effects: T,
-	ctx?: { signal?: AbortSignal },
 ): Promise<{ -readonly [K in keyof T]: Awaited<ReturnType<T[K]>> }>;
 export async function all(
+	ctx: { signal?: AbortSignal },
 	effects: Starters,
-	ctx?: { signal?: AbortSignal },
 ): Promise<unknown> {
 	const run = startEffects(effects, "all", ctx);
 

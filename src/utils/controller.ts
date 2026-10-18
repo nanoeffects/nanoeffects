@@ -18,9 +18,12 @@ import { onAbort } from "./onAbort";
  */
 export const linkedController = (parent?: AbortSignal) => {
 	const controller = new AbortController();
-	const unlink = onAbort((reason) => controller.abort(reason), {
-		signal: parent,
-	});
+	const unlink = onAbort(
+		{
+			signal: parent,
+		},
+		(reason) => controller.abort(reason),
+	);
 
 	return { controller, unlink };
 };
