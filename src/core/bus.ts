@@ -140,6 +140,11 @@ declare global {
 	interface NanoeffectsContext {}
 }
 
+/** Fields for the context of every task, or a function that makes them for one task. */
+export type ContextOption =
+	| NanoeffectsContext
+	| ((event: { type: string; payload?: unknown }) => NanoeffectsContext);
+
 /** Task context inside an effect. */
 export type Context<E extends EventMap> = EventLike<E> &
 	NanoeffectsContext & {
@@ -164,7 +169,7 @@ export interface Bus<E extends EventMap> {
 	off: Off<E>;
 	emit: Emit<E>;
 	/** `BusOptions.context`, `.trace` and `.commands`, for what makes tasks of its own, like `registerModules`. */
-	readonly context?: NanoeffectsContext | undefined;
+	readonly context?: ContextOption | undefined;
 	readonly commands?: Commands | undefined;
 	readonly trace?: Tracer | undefined;
 }
@@ -190,9 +195,10 @@ export type BusOptions<E extends EventMap> = {
 	 * Fields added to the context of every task of this bus, its child tasks
 	 * and the tasks of effects included: a store, a logger, a client. Their
 	 * types come from `NanoeffectsContext`. The fields of the library win over
-	 * these when the names are the same.
+	 * these when the names are the same. A function gets `{ type, payload }` of
+	 * the task and returns its fields, for fields that depend on the task.
 	 */
-	context?: NanoeffectsContext;
+	context?: ContextOption;
 };
 
 export const createBus = <Events extends EventMap>(

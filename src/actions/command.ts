@@ -1,5 +1,6 @@
 import type { Command, Commands, Context } from "../core/bus";
 import { createTask } from "../core/context";
+import { eventKey } from "../core/event";
 import type { EventMap, Task, UnsubscribeCallback } from "../core/types";
 
 /** Thrown when a command runs without a handler: a mistake of the program, not a failure of the work. */
@@ -94,9 +95,6 @@ export const createCommands = <E extends EventMap = EventMap>(
 ) => {
 	const bound = new Map<string, Array<{ fn: Task<never, E, unknown> }>>();
 
-	const typeOf = (command: string | { type: string }) =>
-		typeof command === "string" ? command : command.type;
-
 	const bind = (type: string, fn: Task<never, E, unknown>) => {
 		const entry = { fn };
 		bound.set(type, [...(bound.get(type) ?? []), entry]);
@@ -126,12 +124,12 @@ export const createCommands = <E extends EventMap = EventMap>(
 	): UnsubscribeCallback {
 		if (fn) {
 			const command = target as string | { type: string };
-			return bind(typeOf(command), fn);
+			return bind(eventKey(command), fn);
 		}
 
 		const list = target as readonly Binding<E>[];
 		const unbinds = list.map(([command, handler]) =>
-			bind(typeOf(command), handler),
+			bind(eventKey(command), handler),
 		);
 
 		return () => {

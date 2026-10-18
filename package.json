@@ -45,6 +45,14 @@
 		"./trace": {
 			"types": "./dist/trace.d.ts",
 			"import": "./dist/trace.js"
+		},
+		"./redux": {
+			"notrace": {
+				"types": "./dist/notrace/redux.d.ts",
+				"default": "./dist/notrace/redux.js"
+			},
+			"types": "./dist/redux.d.ts",
+			"import": "./dist/redux.js"
 		}
 	},
 	"scripts": {

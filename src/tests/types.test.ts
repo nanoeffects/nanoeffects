@@ -125,20 +125,24 @@ describe("inference of handlers and policies", () => {
 	});
 
 	it("wrong calls are errors", () => {
-		// @ts-expect-error the payload of search is a string
-		bus.emit("search", 1);
-		// @ts-expect-error there is no such event
-		bus.on("missing", () => {});
-		bus.on(
-			// @ts-expect-error the handler gets a string, not a number
-			"search",
-			latest((query: number) => query),
-		);
-		bus.on(
-			"search",
-			// @ts-expect-error an unknown option
-			queue(() => {}, { concurency: 2 }),
-		);
+		// not called: it only has to fail to compile
+		const wrongCalls = () => {
+			// @ts-expect-error the payload of search is a string
+			bus.emit("search", 1);
+			// @ts-expect-error there is no such event
+			bus.on("missing", () => {});
+			bus.on(
+				// @ts-expect-error the handler gets a string, not a number
+				"search",
+				latest((query: number) => query),
+			);
+			bus.on(
+				"search",
+				// @ts-expect-error an unknown option
+				queue(() => {}, { concurency: 2 }),
+			);
+		};
+		expectTypeOf(wrongCalls).toBeFunction();
 	});
 });
 

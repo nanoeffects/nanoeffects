@@ -3,6 +3,7 @@ import * as main from "..";
 import * as actions from "../actions";
 import * as effects from "../effects";
 import * as policies from "../policies";
+import * as redux from "../store/redux";
 import * as trace from "../trace";
 
 describe("public entries", () => {
@@ -42,6 +43,13 @@ describe("public entries", () => {
 			"createTracer",
 			"performanceLogger",
 			"reduxDevtools",
+		]);
+	});
+
+	it("redux", () => {
+		expect(Object.keys(redux).sort()).toEqual([
+			"createEffectsMiddleware",
+			"nanoeffectsMiddleware",
 		]);
 	});
 

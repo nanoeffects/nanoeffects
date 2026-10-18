@@ -24,6 +24,7 @@ src/core/               bus, context (task contexts), event, store, types, trace
 src/effects/            retry, timeout, poll, take, all, allSettled, race, cancellable, group (withGroup/runTraced)
 src/policies/           latest, leading, debounce, throttle, queue, keyed (byKey), latestWith (shared core)
 src/actions/            createAction, createCommand(s), createJob, createModule, registerModules
+src/store/redux/        nanoeffectsMiddleware: Redux middleware that emits actions to the bus (no dependency on redux)
 src/trace/              createTracer + loggers (console, performance, recorder, redux devtools)
 src/utils/              onAbort hub, linkedController, delay, setTimer/clearTimer, raceAbort, promise, report
 src/tests/              tests that cross modules (flows, fuzz, scenarios, regressions.*) and test-helpers.ts
@@ -42,7 +43,7 @@ Unit tests sit next to the file they test (`x.ts`, `x.test.ts`).
 - **An aborted task delivers no result.** Promises reject with the abort reason; `ctx.emit` and `ctx.on` do nothing after an abort. One shared `onAbort` hub per signal (one real listener each) keeps thousands of subscribers cheap.
 - **Tracing is a contract, not a feature of the bus.** `Tracer` in `src/core/tracer.ts`; events `{ id, parent?, type, effect, phase, payload, error? }`; phases `start|done|error|cancel|drop`; sampling is per root task. The causal parent comes from `currentEmitter()`, which `ctx.emit` sets for the time of the synchronous emit.
 - **`notrace` build.** `TRACE` in `src/core/flag.ts` reads `__NANOEFFECTS_TRACE__`; the second tsdown build defines it as `false`. `scripts/notrace-types.mjs` rewrites `trace?: Tracer;` of `BusOptions` to `never` in the `.d.ts` of that build, so it must keep matching that exact line in `src/core/bus.ts`. The package exports have the `notrace` condition for `.`, `effects`, `policies`, `actions`.
-- **User fields in the context** are a global interface, `NanoeffectsContext` (declared in `src/core/bus.ts`), filled with `createBus({ context })`. Library fields win over them. `src/tests/context-option.test.ts` augments it with `store`, which applies to the whole type check.
+- **User fields in the context** can be a function of the task (`ContextOption`); `createEffectsMiddleware` uses that to give each task a `store` that knows which task dispatches. They are a global interface, `NanoeffectsContext` (declared in `src/core/bus.ts`), filled with `createBus({ context })`. Library fields win over them. `src/tests/context-option.test.ts` augments it with `store`, which applies to the whole type check.
 - **Timers use `setTimer`/`clearTimer`** (`src/utils/timer.ts`), never `setTimeout` directly: waits over 2^31 - 1 ms are split, `Infinity` holds no timer, negative or `NaN` is 0.
 - **Options that are `null`** (plain JavaScript callers) fall back to defaults: read options with `??`, not with destructuring defaults.
 - **`throttle` and `debounce` follow lodash** (and patronum): verified by `src/policies/lodash-parity.test.ts` with random call sequences against the real lodash (a devDependency). `throttle` has a re-entrancy guard (`busy`) so a call made from inside `fn` waits; the leading-only modes use no timers.
@@ -72,4 +73,4 @@ Unit tests sit next to the file they test (`x.ts`, `x.test.ts`).
 
 Done: bus with task contexts; policies with `key`; effects; commands, actions, jobs, modules; `context` option; tracing with loggers and the `notrace` build; about 1100 tests (lodash parity, fuzz, regressions from issues of other libraries).
 
-Ideas the owner has talked about and not started: adapters for Redux (a middleware that emits actions after the reducer, plus `context: { store }`) and Zustand (`bindStore` on `store.subscribe` with a selector) as tiny entries with no dependency on those libraries; splitting `src/tests/regressions.flow.test.ts` by topic; a `createDomain` helper for type prefixes; a `sample: 0` fast path in the tracer. The owner said that "complicating can be done later": prefer the simple version first.
+Done: the Redux adapters. Zustand and MobX have no adapter on purpose (`bindSource` was built and removed as too much; the README shows the plain recipe). Ideas the owner has talked about and not started: splitting `src/tests/regressions.flow.test.ts` by topic; a `createDomain` helper for type prefixes; a `sample: 0` fast path in the tracer. The owner said that "complicating can be done later": prefer the simple version first.
