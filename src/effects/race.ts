@@ -40,7 +40,7 @@ export async function race(
 		return result;
 	}
 
-	const run = startEffects(effects, ctx?.signal);
+	const run = startEffects(effects, "race", ctx);
 
 	try {
 		const [key, value] = await Promise.race(
@@ -49,7 +49,11 @@ export async function race(
 			),
 		);
 		result[key] = value;
+		run.settle("done");
 		return result;
+	} catch (error) {
+		run.settle("error", error);
+		throw error;
 	} finally {
 		run.unfollowParent();
 		run.cancelAll();

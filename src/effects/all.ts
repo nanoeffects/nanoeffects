@@ -31,7 +31,7 @@ export async function all(
 	effects: Starters,
 	ctx?: { signal?: AbortSignal },
 ): Promise<unknown> {
-	const run = startEffects(effects, ctx?.signal);
+	const run = startEffects(effects, "all", ctx);
 
 	try {
 		const values = await Promise.all(run.tasks.map(([, task]) => task));
@@ -39,8 +39,10 @@ export async function all(
 		for (const [index, [key]] of run.tasks.entries()) {
 			result[key] = values[index];
 		}
+		run.settle("done");
 		return result;
 	} catch (error) {
+		run.settle("error", error);
 		run.cancelAll();
 		throw error;
 	} finally {

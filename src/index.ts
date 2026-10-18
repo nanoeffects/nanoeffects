@@ -2,6 +2,7 @@ export {
 	type Action,
 	anyEventType,
 	type Bus,
+	type BusOptions,
 	type Context,
 	createBus,
 	type Emit,

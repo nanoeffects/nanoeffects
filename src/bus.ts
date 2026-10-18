@@ -1,3 +1,4 @@
+import { createTask, type Tracer } from "./context";
 import { eventKey, eventPayload } from "./event";
 import { anyEventType, createStore } from "./store";
 import type {
@@ -5,6 +6,7 @@ import type {
 	Keys,
 	PayloadOf,
 	Task,
+	TraceEvent,
 	UnsubscribeCallback,
 } from "./types";
 
@@ -88,10 +90,20 @@ export interface Bus<E extends EventMap> {
 	emit: Emit<E>;
 }
 
-// export type BusOptions<E extends EventMap> = {};
+export type BusOptions<E extends EventMap> = {
+	/** Receives every task phase (`start`, `done`, `error`, `cancel`, `drop`). */
+	trace?: (event: TraceEvent<E>) => void;
+};
 
-export const createBus = <Events extends EventMap>(): Bus<Events> => {
+export const createBus = <Events extends EventMap>(
+	options: BusOptions<Events> = {},
+): Bus<Events> => {
 	type Key = EventKey<Events>;
+	let lastId = 0;
+	const tracer: Tracer = {
+		trace: options.trace as Tracer["trace"],
+		nextId: () => ++lastId,
+	};
 	const events = createStore<Events>();
 
 	const on = (
@@ -111,13 +123,10 @@ export const createBus = <Events extends EventMap>(): Bus<Events> => {
 		const key = eventKey(event);
 		const data = eventPayload<Events>(event, payload);
 
-		for (const fn of events.get(key)) {
-			const ctx = null as unknown as Context<Events>;
-			fn(data, ctx);
-		}
+		const action = { type: key, payload: data };
 
-		for (const fn of events.get(anyEventType)) {
-			const ctx = null as unknown as Context<Events>;
+		for (const fn of [...events.get(key), ...events.get(anyEventType)]) {
+			const { ctx } = createTask<Events>(action, emit as Emit<Events>, tracer);
 			fn(data, ctx);
 		}
 

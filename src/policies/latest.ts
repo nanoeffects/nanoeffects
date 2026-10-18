@@ -1,5 +1,7 @@
-import type { EventMap, Task } from "../types";
-import { isPromise, linkedController } from "../utils";
+import type { Context } from "../bus";
+import { forkTask, traceTask } from "../context";
+import type { EffectName, EventMap, Phase, Task } from "../types";
+import { isPromise } from "../utils";
 
 /**
  * Aborts the previous run when a new call arrives; stale results are dropped.
@@ -20,43 +22,79 @@ import { isPromise, linkedController } from "../utils";
  */
 export const latest = <P, E extends EventMap, R>(
 	fn: Task<P, E, R>,
-): Task<P, E, R | Promise<Awaited<R> | undefined> | undefined> => {
-	let current: AbortController | null = null;
+): Task<P, E, R | Promise<Awaited<R> | undefined> | undefined> =>
+	latestWith("latest", (payload, ctx, begin) => {
+		begin();
+		return fn(payload, ctx);
+	});
 
-	return (payload, ctx) => {
+/**
+ * Shared core of `latest` and `debounce`. `fn` calls `begin` when the work
+ * really starts: a run aborted before that is traced as `drop`, not `cancel`.
+ *
+ * @internal
+ */
+export const latestWith = <P, E extends EventMap, R>(
+	effect: EffectName,
+	fn: (payload: P, ctx: Context<E>, begin: () => void) => R,
+): Task<P, E, R | Promise<Awaited<R> | undefined> | undefined> => {
+	let current: Context<E> | null = null;
+
+	return (payload, parent) => {
 		current?.abort();
 
-		const parent = ctx?.signal;
-		if (parent?.aborted) {
+		if (parent.signal.aborted) {
 			return;
 		}
 
-		const { controller, unlink } = linkedController(parent);
-		current = controller;
+		const { ctx, unlink } = forkTask(parent);
+		current = ctx;
+
+		let started = false;
+		let settled = false;
+		const settle = (phase: Phase, error?: unknown) => {
+			if (!settled) {
+				settled = true;
+				traceTask(ctx, effect, phase, error);
+			}
+		};
+		const begin = () => {
+			if (!settled) {
+				started = true;
+				traceTask(ctx, effect, "start");
+			}
+		};
+		ctx.signal.addEventListener(
+			"abort",
+			() => settle(started ? "cancel" : "drop"),
+			{ once: true },
+		);
 
 		const finish = () => {
 			unlink();
-			if (current === controller) {
+			if (current === ctx) {
 				current = null;
 			}
 		};
 
 		const returnValue = <T>(value: T): T | undefined => {
-			if (controller.signal.aborted) {
+			if (ctx.signal.aborted) {
 				return;
 			}
+			settle("done");
 			return value;
 		};
 
 		try {
-			const result = fn(payload, { ...ctx, signal: controller.signal });
+			const result = fn(payload, ctx, begin);
 
 			if (isPromise(result)) {
 				return Promise.resolve(result)
 					.then(returnValue, (error: unknown): Awaited<R> | undefined => {
-						if (controller.signal.aborted) {
+						if (ctx.signal.aborted) {
 							return;
 						}
+						settle("error", error);
 						throw error;
 					})
 					.finally(finish);
@@ -67,9 +105,10 @@ export const latest = <P, E extends EventMap, R>(
 			return returnValue(result);
 		} catch (error) {
 			finish();
-			if (controller.signal.aborted) {
+			if (ctx.signal.aborted) {
 				return;
 			}
+			settle("error", error);
 			throw error;
 		}
 	};

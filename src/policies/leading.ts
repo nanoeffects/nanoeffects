@@ -1,3 +1,4 @@
+import { traceRun, traceTask } from "../context";
 import type { EventMap, Task } from "../types";
 import { after } from "../utils";
 
@@ -24,14 +25,18 @@ export const leading = <P, E extends EventMap, R>(
 
 	return (payload, ctx) => {
 		if (running) {
+			traceTask(ctx, "leading", "drop");
 			return;
 		}
 
 		running = true;
 		try {
-			return after(fn(payload, ctx), () => {
-				running = false;
-			});
+			return after(
+				traceRun(ctx, "leading", () => fn(payload, ctx)),
+				() => {
+					running = false;
+				},
+			);
 		} catch (error) {
 			running = false;
 			throw error;

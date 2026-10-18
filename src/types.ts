@@ -16,7 +16,9 @@ export type EffectName =
 	| "leading"
 	| "debounce"
 	| "throttle"
-	| "run";
+	| "run"
+	| "all"
+	| "race";
 
 export type Phase = "start" | "done" | "error" | "cancel" | "drop";
 

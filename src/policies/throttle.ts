@@ -1,4 +1,5 @@
 import type { Context } from "../bus";
+import { traceRun, traceTask } from "../context";
 import type { EventMap, Task } from "../types";
 import { delay } from "../utils";
 
@@ -47,6 +48,7 @@ export const throttle = <P, E extends EventMap, R>(
 			}
 
 			if (next.ctx.signal.aborted) {
+				traceTask(next.ctx, "throttle", "drop");
 				next.resolve();
 				return;
 			}
@@ -57,7 +59,7 @@ export const throttle = <P, E extends EventMap, R>(
 				next.reject(error);
 			}
 		});
-		return fn(payload, ctx);
+		return traceRun(ctx, "throttle", () => fn(payload, ctx));
 	};
 
 	return (payload, ctx) => {
@@ -69,7 +71,10 @@ export const throttle = <P, E extends EventMap, R>(
 			return run(payload, ctx);
 		}
 
-		pending?.resolve();
+		if (pending) {
+			traceTask(pending.ctx, "throttle", "drop");
+			pending.resolve();
+		}
 		return new Promise<R | undefined>((resolve, reject) => {
 			pending = { payload, ctx, resolve, reject };
 		});

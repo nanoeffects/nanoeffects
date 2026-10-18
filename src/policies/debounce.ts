@@ -1,6 +1,6 @@
 import type { EventMap, Task } from "../types";
 import { delay } from "../utils";
-import { latest } from "./latest";
+import { latestWith } from "./latest";
 
 /**
  * Waits for `ms` of quiet, then runs; a new call restarts the wait and drops the previous.
@@ -23,6 +23,9 @@ export const debounce = <P, E extends EventMap, R>(
 	ms: number,
 	fn: Task<P, E, R>,
 ) =>
-	latest<P, E, Promise<R>>((payload, ctx) =>
-		delay(ms, ctx).then(() => fn(payload, ctx)),
+	latestWith<P, E, Promise<R>>("debounce", (payload, ctx, begin) =>
+		delay(ms, ctx).then(() => {
+			begin();
+			return fn(payload, ctx);
+		}),
 	);
