@@ -40,7 +40,7 @@ const openGroup = (parent?: { signal?: AbortSignal }) => {
  * Starts every starter under one group that follows `parent`; throws
  * `parent.reason` if it is already aborted. `cancelAll` aborts every effect,
  * `unfollowParent` removes the abort listener from `parent`, `settle` reports
- * how the group ended. When `parent` is a bus task, the group and each starter
+ * how the group ended, `until` makes a wait end when `parent` aborts. When `parent` is a bus task, the group and each starter
  * are traced (`effect` for the group, `run` for starters).
  */
 export const startEffects = (
@@ -66,6 +66,22 @@ export const startEffects = (
 		});
 		traceTask(groupCtx, effect, "start");
 	}
+
+	/** Settles like `work`, but rejects with the reason as soon as `parent` aborts. */
+	const until = <T>(work: Promise<T>): Promise<T> => {
+		const signal = parent?.signal;
+		if (!signal) {
+			return work;
+		}
+
+		return new Promise<T>((resolve, reject) => {
+			const onAbort = () => reject(signal.reason);
+			signal.addEventListener("abort", onAbort, { once: true });
+			work
+				.then(resolve, reject)
+				.finally(() => signal.removeEventListener("abort", onAbort));
+		});
+	};
 
 	return {
 		tasks: Object.entries(effects).map(([key, starter]) => {
@@ -93,5 +109,6 @@ export const startEffects = (
 		cancelAll: () => group.abort(),
 		unfollowParent: group.unlink,
 		settle,
+		until,
 	};
 };

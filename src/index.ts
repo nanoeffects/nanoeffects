@@ -1,5 +1,6 @@
 export {
 	type Action,
+	type AnyEvent,
 	anyEventType,
 	type Bus,
 	type BusOptions,

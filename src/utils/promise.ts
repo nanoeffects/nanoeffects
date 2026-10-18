@@ -5,7 +5,7 @@ export const isPromise = <T>(
 	if (typeof value !== "object" || value === null) {
 		return false;
 	}
-	return typeof (value as { then?: unknown }).then === "function";
+	return "then" in value && typeof value.then === "function";
 };
 
 /** Runs `done` now for sync values, or after the promise settles. */

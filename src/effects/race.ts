@@ -43,9 +43,11 @@ export async function race(
 	const run = startEffects(effects, "race", ctx);
 
 	try {
-		const [key, value] = await Promise.race(
-			run.tasks.map(([key, task]) =>
-				task.then((value) => [key, value] as const),
+		const [key, value] = await run.until(
+			Promise.race(
+				run.tasks.map(([key, task]) =>
+					task.then((value) => [key, value] as const),
+				),
 			),
 		);
 		result[key] = value;

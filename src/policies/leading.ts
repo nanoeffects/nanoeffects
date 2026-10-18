@@ -3,7 +3,9 @@ import type { EventMap, Task } from "../types";
 import { after } from "../utils";
 
 /**
- * Drops new calls while the task is still running.
+ * Drops new calls while the task is still running. The lock is released when
+ * the run settles or when its task is aborted, whichever comes first, so a
+ * `fn` that ignores the abort signal may overlap with the next run.
  *
  * @example
  * ```ts
@@ -21,24 +23,35 @@ import { after } from "../utils";
 export const leading = <P, E extends EventMap, R>(
 	fn: Task<P, E, R>,
 ): Task<P, E, R | Promise<Awaited<R>> | undefined> => {
-	let running = false;
+	let lock: object | null = null;
 
 	return (payload, ctx) => {
-		if (running) {
+		if (ctx.signal.aborted) {
+			return;
+		}
+
+		if (lock) {
 			traceTask(ctx, "leading", "drop");
 			return;
 		}
 
-		running = true;
+		const mine = {};
+		lock = mine;
+		const release = () => {
+			ctx.signal.removeEventListener("abort", release);
+			if (lock === mine) {
+				lock = null;
+			}
+		};
+		ctx.signal.addEventListener("abort", release, { once: true });
+
 		try {
 			return after(
 				traceRun(ctx, "leading", () => fn(payload, ctx)),
-				() => {
-					running = false;
-				},
+				release,
 			);
 		} catch (error) {
-			running = false;
+			release();
 			throw error;
 		}
 	};

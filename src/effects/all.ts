@@ -34,7 +34,9 @@ export async function all(
 	const run = startEffects(effects, "all", ctx);
 
 	try {
-		const values = await Promise.all(run.tasks.map(([, task]) => task));
+		const values = await run.until(
+			Promise.all(run.tasks.map(([, task]) => task)),
+		);
 		const result = emptyResult(effects);
 		for (const [index, [key]] of run.tasks.entries()) {
 			result[key] = values[index];

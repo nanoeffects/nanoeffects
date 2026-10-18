@@ -11,7 +11,7 @@ export type Recorder<E = Record<string, unknown>> = TraceLogger<E> & {
  *
  * @example
  * ```ts
- * const recorder = createRecorder<Events>();
+ * const recorder = createTraceRecorder<Events>();
  * const bus = createBus<Events>({ trace: recorder });
  *
  * bus.emit("search", "re");
@@ -19,7 +19,9 @@ export type Recorder<E = Record<string, unknown>> = TraceLogger<E> & {
  * recorder.events.map((e) => e.phase); // ["start", "cancel", "start", "done"]
  * ```
  */
-export const createRecorder = <E = Record<string, unknown>>(): Recorder<E> => {
+export const createTraceRecorder = <
+	E = Record<string, unknown>,
+>(): Recorder<E> => {
 	const events: TraceEvent<E>[] = [];
 
 	return Object.assign(

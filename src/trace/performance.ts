@@ -1,8 +1,18 @@
 import type { TraceLogger } from "../types";
 
+/** The part of the User Timing API the logger uses. */
+export type PerformanceLike = {
+	now: () => number;
+	mark: (name: string, options?: { detail?: unknown }) => unknown;
+	measure: (
+		name: string,
+		options: { start: number; end: number; detail?: unknown },
+	) => unknown;
+};
+
 export type PerformanceLoggerOptions = {
 	/** Defaults to `globalThis.performance`. */
-	performance?: Pick<Performance, "now" | "mark" | "measure">;
+	performance?: PerformanceLike;
 };
 
 /**

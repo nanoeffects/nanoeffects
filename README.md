@@ -59,7 +59,7 @@ const bus = createBus<Events>({
 | `reduxDevtools()`     | Sends each phase to Redux DevTools as `type/effect/phase`; state is `{ running }`.   |
 | `consoleLogger()`     | Prints one line per phase, indented by task depth.                                   |
 | `performanceLogger()` | Records User Timing measures for the Timings track of the browser Performance panel. |
-| `createRecorder()`    | Keeps events in `recorder.events`, for tests.                                        |
+| `createTraceRecorder()`    | Keeps events in `recorder.events`, for tests.                                        |
 
 Notes on `reduxDevtools`: it is read-only (the bus owns no state, so there is no time travel) and does nothing when the extension is not installed.
 

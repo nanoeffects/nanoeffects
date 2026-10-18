@@ -54,7 +54,7 @@ export const throttle = <P, E extends EventMap, R>(
 			}
 
 			try {
-				next.resolve(run(next.payload, next.ctx) as R);
+				next.resolve(run(next.payload, next.ctx));
 			} catch (error) {
 				next.reject(error);
 			}
