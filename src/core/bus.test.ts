@@ -1,52 +1,56 @@
 import { describe, expect, it, vi } from "vitest";
+import { latest } from "../policies";
+import {
+	createHarness,
+	deferred,
+	type TestEvents,
+} from "../tests/test-helpers";
 import { anyEventType, createBus } from "./bus";
-import { latest } from "./policies";
-import { createHarness, deferred, type TestEvents } from "./test-helpers";
 
 describe("bus", () => {
 	describe("emit and on", () => {
 		it("calls the handler of the event key with the payload", () => {
 			const bus = createBus<TestEvents>();
-			const fn = vi.fn();
-			bus.on("t", fn);
+			const handler = vi.fn();
+			bus.on("t", handler);
 			bus.emit("t", 5);
 
-			expect(fn).toHaveBeenCalledTimes(1);
-			expect(fn.mock.calls[0]?.[0]).toBe(5);
+			expect(handler).toHaveBeenCalledTimes(1);
+			expect(handler.mock.calls[0]?.[0]).toBe(5);
 		});
 
 		it("does not call handlers of other events", () => {
 			const bus = createBus<TestEvents>();
-			const fn = vi.fn();
-			bus.on("b", fn);
+			const handler = vi.fn();
+			bus.on("b", handler);
 			bus.emit("t", 5);
 
-			expect(fn).not.toHaveBeenCalled();
+			expect(handler).not.toHaveBeenCalled();
 		});
 
 		it("accepts an object event", () => {
 			const bus = createBus<TestEvents>();
-			const fn = vi.fn();
-			bus.on("t", fn);
+			const handler = vi.fn();
+			bus.on("t", handler);
 			bus.emit({ type: "t", payload: 7 });
 
-			expect(fn.mock.calls[0]?.[0]).toBe(7);
+			expect(handler.mock.calls[0]?.[0]).toBe(7);
 		});
 
 		it("accepts an object event as the subscription key", () => {
 			const bus = createBus<TestEvents>();
-			const fn = vi.fn();
-			bus.on({ type: "t" }, fn);
+			const handler = vi.fn();
+			bus.on({ type: "t" }, handler);
 			bus.emit("t", 1);
 
-			expect(fn).toHaveBeenCalledTimes(1);
+			expect(handler).toHaveBeenCalledTimes(1);
 		});
 
 		it("calls a handler function and returns its result", () => {
 			const bus = createBus<TestEvents>();
 			const listener = vi.fn();
 			bus.on("t", listener);
-			const handler = Object.assign((n: number) => n * 2, {
+			const handler = Object.assign((value: number) => value * 2, {
 				type: "t" as const,
 			});
 
@@ -72,12 +76,12 @@ describe("bus", () => {
 
 		it("calls the same handler twice if it is subscribed twice", () => {
 			const bus = createBus<TestEvents>();
-			const fn = vi.fn();
-			bus.on("t", fn);
-			bus.on("t", fn);
+			const handler = vi.fn();
+			bus.on("t", handler);
+			bus.on("t", handler);
 			bus.emit("t", 1);
 
-			expect(fn).toHaveBeenCalledTimes(2);
+			expect(handler).toHaveBeenCalledTimes(2);
 		});
 
 		it("calls any-event handlers after the handlers of the key", () => {
@@ -130,12 +134,12 @@ describe("bus", () => {
 	describe("off", () => {
 		it("on returns an unsubscribe callback", () => {
 			const bus = createBus<TestEvents>();
-			const fn = vi.fn();
-			const off = bus.on("t", fn);
+			const handler = vi.fn();
+			const off = bus.on("t", handler);
 			off();
 			bus.emit("t", 1);
 
-			expect(fn).not.toHaveBeenCalled();
+			expect(handler).not.toHaveBeenCalled();
 		});
 
 		it("off(event, fn) removes only that handler", () => {
@@ -153,23 +157,23 @@ describe("bus", () => {
 
 		it("off(event) removes every handler of the event", () => {
 			const bus = createBus<TestEvents>();
-			const fn = vi.fn();
-			bus.on("t", fn);
-			bus.on("t", fn);
+			const handler = vi.fn();
+			bus.on("t", handler);
+			bus.on("t", handler);
 			bus.off("t");
 			bus.emit("t", 1);
 
-			expect(fn).not.toHaveBeenCalled();
+			expect(handler).not.toHaveBeenCalled();
 		});
 
 		it("off accepts an object event", () => {
 			const bus = createBus<TestEvents>();
-			const fn = vi.fn();
-			bus.on("t", fn);
-			bus.off({ type: "t" }, fn);
+			const handler = vi.fn();
+			bus.on("t", handler);
+			bus.off({ type: "t" }, handler);
 			bus.emit("t", 1);
 
-			expect(fn).not.toHaveBeenCalled();
+			expect(handler).not.toHaveBeenCalled();
 		});
 
 		it("unsubscribing twice is harmless", () => {
@@ -216,20 +220,20 @@ describe("bus", () => {
 		});
 
 		it("gives every emit its own task", () => {
-			const h = createHarness();
+			const harness = createHarness();
 
-			expect(h.ctx().signal).not.toBe(h.ctx().signal);
+			expect(harness.ctx().signal).not.toBe(harness.ctx().signal);
 		});
 
 		it("abort aborts only this task", () => {
-			const h = createHarness();
-			const a = h.ctx();
-			const b = h.ctx();
-			a.abort("stop");
+			const harness = createHarness();
+			const first = harness.ctx();
+			const second = harness.ctx();
+			first.abort("stop");
 
-			expect(a.signal.aborted).toBe(true);
-			expect(a.signal.reason).toBe("stop");
-			expect(b.signal.aborted).toBe(false);
+			expect(first.signal.aborted).toBe(true);
+			expect(first.signal.reason).toBe("stop");
+			expect(second.signal.aborted).toBe(false);
 		});
 
 		it("abort without a reason aborts too", () => {
@@ -240,60 +244,60 @@ describe("bus", () => {
 		});
 
 		it("emit forwards to the bus while the task is alive", () => {
-			const h = createHarness();
-			const fn = vi.fn();
-			h.bus.on("b", fn);
-			h.ctx().emit("b", "hi");
+			const harness = createHarness();
+			const handler = vi.fn();
+			harness.bus.on("b", handler);
+			harness.ctx().emit("b", "hi");
 
-			expect(fn.mock.calls[0]?.[0]).toBe("hi");
+			expect(handler.mock.calls[0]?.[0]).toBe("hi");
 		});
 
 		it("emit supports object events", () => {
-			const h = createHarness();
-			const fn = vi.fn();
-			h.bus.on("b", fn);
-			h.ctx().emit({ type: "b", payload: "hi" });
+			const harness = createHarness();
+			const handler = vi.fn();
+			harness.bus.on("b", handler);
+			harness.ctx().emit({ type: "b", payload: "hi" });
 
-			expect(fn.mock.calls[0]?.[0]).toBe("hi");
+			expect(handler.mock.calls[0]?.[0]).toBe("hi");
 		});
 
 		it("emit is a no-op after the task is aborted", () => {
-			const h = createHarness();
-			const fn = vi.fn();
-			h.bus.on("b", fn);
-			const ctx = h.ctx();
+			const harness = createHarness();
+			const handler = vi.fn();
+			harness.bus.on("b", handler);
+			const ctx = harness.ctx();
 			ctx.abort();
 			ctx.emit("b", "hi");
 
-			expect(fn).not.toHaveBeenCalled();
+			expect(handler).not.toHaveBeenCalled();
 		});
 
 		it("emit from a handler reaches handlers of other events", () => {
 			const bus = createBus<TestEvents>();
-			const fn = vi.fn();
-			bus.on("b", fn);
-			bus.on("t", (n, ctx) => {
-				ctx.emit("b", `got ${n}`);
+			const handler = vi.fn();
+			bus.on("b", handler);
+			bus.on("t", (value, ctx) => {
+				ctx.emit("b", `got ${value}`);
 			});
 			bus.emit("t", 1);
 
-			expect(fn.mock.calls[0]?.[0]).toBe("got 1");
+			expect(handler.mock.calls[0]?.[0]).toBe("got 1");
 		});
 	});
 
 	describe("ctx.run", () => {
 		it("runs a child task with the payload and returns its result", async () => {
 			const ctx = createHarness().ctx();
-			const result = await ctx.run((n: number) => n + 1, 5);
+			const result = await ctx.run((value: number) => value + 1, 5);
 
 			expect(result).toBe(6);
 		});
 
 		it("awaits an async child", async () => {
 			const ctx = createHarness().ctx();
-			const d = deferred<string>();
-			const promise = ctx.run(() => d.promise);
-			d.resolve("done");
+			const gate = deferred<string>();
+			const promise = ctx.run(() => gate.promise);
+			gate.resolve("done");
 
 			await expect(promise).resolves.toBe("done");
 		});
@@ -312,17 +316,17 @@ describe("bus", () => {
 
 		it("aborts a running child when the parent aborts", async () => {
 			const ctx = createHarness().ctx();
-			const d = deferred();
+			const gate = deferred();
 			const childSignals: AbortSignal[] = [];
 			const promise = ctx.run((_: number, child) => {
 				childSignals.push(child.signal);
-				return d.promise;
+				return gate.promise;
 			}, 1);
 			ctx.abort("stop");
 
 			expect(childSignals[0]?.aborted).toBe(true);
 			expect(childSignals[0]?.reason).toBe("stop");
-			d.resolve();
+			gate.resolve();
 			await promise;
 		});
 
@@ -338,10 +342,10 @@ describe("bus", () => {
 		it("rejects with the abort reason if the parent is already aborted", async () => {
 			const ctx = createHarness().ctx();
 			ctx.abort("stop");
-			const fn = vi.fn();
+			const handler = vi.fn();
 
-			await expect(ctx.run(fn)).rejects.toBe("stop");
-			expect(fn).not.toHaveBeenCalled();
+			await expect(ctx.run(handler)).rejects.toBe("stop");
+			expect(handler).not.toHaveBeenCalled();
 		});
 
 		it("propagates a child error to the caller", async () => {
@@ -364,37 +368,37 @@ describe("bus", () => {
 
 		it("cascades an abort through nested children", async () => {
 			const ctx = createHarness().ctx();
-			const d = deferred();
+			const gate = deferred();
 			const signals: AbortSignal[] = [];
-			const promise = ctx.run((_: number, a) => {
-				signals.push(a.signal);
-				return a.run((_: number, b) => {
-					signals.push(b.signal);
-					return b.run((_: number, c) => {
-						signals.push(c.signal);
-						return d.promise;
+			const promise = ctx.run((_: number, first) => {
+				signals.push(first.signal);
+				return first.run((_: number, second) => {
+					signals.push(second.signal);
+					return second.run((_: number, ctx) => {
+						signals.push(ctx.signal);
+						return gate.promise;
 					}, 1);
 				}, 1);
 			}, 1);
 			ctx.abort();
 
 			expect(signals).toHaveLength(3);
-			expect(signals.every((s) => s.aborted)).toBe(true);
-			d.resolve();
+			expect(signals.every((signal) => signal.aborted)).toBe(true);
+			gate.resolve();
 			await promise;
 		});
 
 		it("a child emit is a no-op once the child is aborted", async () => {
-			const h = createHarness();
-			const fn = vi.fn();
-			h.bus.on("b", fn);
-			const ctx = h.ctx();
+			const harness = createHarness();
+			const handler = vi.fn();
+			harness.bus.on("b", handler);
+			const ctx = harness.ctx();
 			await ctx.run((_: number, child) => {
 				child.abort();
 				child.emit("b", "x");
 			}, 1);
 
-			expect(fn).not.toHaveBeenCalled();
+			expect(handler).not.toHaveBeenCalled();
 		});
 
 		it("detaches the child from the parent when it finishes", async () => {
@@ -448,7 +452,7 @@ describe("bus", () => {
 			bus.on("t", () => {
 				throw new Error("boom");
 			});
-			const handler = vi.fn((n: number) => n);
+			const handler = vi.fn((value: number) => value);
 			const withType = Object.assign(handler, { type: "t" as const });
 
 			expect(() => bus.emit(withType, 1)).toThrow("boom");
@@ -457,14 +461,14 @@ describe("bus", () => {
 
 		it("a handler that threw stays subscribed", () => {
 			const bus = createBus<TestEvents>();
-			const fn = vi.fn(() => {
+			const handler = vi.fn(() => {
 				throw new Error("boom");
 			});
-			bus.on("t", fn);
+			bus.on("t", handler);
 
 			expect(() => bus.emit("t", 1)).toThrow();
 			expect(() => bus.emit("t", 2)).toThrow();
-			expect(fn).toHaveBeenCalledTimes(2);
+			expect(handler).toHaveBeenCalledTimes(2);
 		});
 
 		it("does not throw when nothing fails", () => {
@@ -539,7 +543,7 @@ describe("bus", () => {
 					}),
 				);
 				bus.emit("t", 1);
-				await new Promise((r) => setTimeout(r, 0));
+				await new Promise((result) => setTimeout(result, 0));
 
 				expect(onError).toHaveBeenCalledTimes(1);
 			});
@@ -574,7 +578,7 @@ describe("bus", () => {
 					throw new Error("late");
 				});
 				bus.emit("t", 1);
-				await new Promise((r) => setTimeout(r, 0));
+				await new Promise((result) => setTimeout(result, 0));
 
 				expect(log).toHaveBeenCalledTimes(1);
 				log.mockRestore();
@@ -582,7 +586,7 @@ describe("bus", () => {
 
 			it("still returns the result of a handler function", () => {
 				const bus = createBus<TestEvents>({ onError: vi.fn() });
-				const handler = Object.assign((n: number) => n * 2, {
+				const handler = Object.assign((value: number) => value * 2, {
 					type: "t" as const,
 				});
 
@@ -593,27 +597,27 @@ describe("bus", () => {
 
 	describe("ctx.on and ctx.off", () => {
 		it("subscribes like bus.on", () => {
-			const h = createHarness();
-			const fn = vi.fn();
-			h.ctx().on("b", fn);
-			h.bus.emit("b", "hi");
+			const harness = createHarness();
+			const handler = vi.fn();
+			harness.ctx().on("b", handler);
+			harness.bus.emit("b", "hi");
 
-			expect(fn.mock.calls[0]?.[0]).toBe("hi");
+			expect(handler.mock.calls[0]?.[0]).toBe("hi");
 		});
 
 		it("returns an unsubscribe callback", () => {
-			const h = createHarness();
-			const fn = vi.fn();
-			const off = h.ctx().on("b", fn);
+			const harness = createHarness();
+			const handler = vi.fn();
+			const off = harness.ctx().on("b", handler);
 			off();
-			h.bus.emit("b", "hi");
+			harness.bus.emit("b", "hi");
 
-			expect(fn).not.toHaveBeenCalled();
+			expect(handler).not.toHaveBeenCalled();
 		});
 
 		it("unsubscribing twice, or after an abort, is harmless", () => {
-			const h = createHarness();
-			const ctx = h.ctx();
+			const harness = createHarness();
+			const ctx = harness.ctx();
 			const off = ctx.on("b", () => {});
 			ctx.abort();
 
@@ -624,138 +628,140 @@ describe("bus", () => {
 		});
 
 		it("removes the subscription when the task aborts", () => {
-			const h = createHarness();
-			const ctx = h.ctx();
-			const fn = vi.fn();
-			ctx.on("b", fn);
-			h.bus.emit("b", "one");
+			const harness = createHarness();
+			const ctx = harness.ctx();
+			const handler = vi.fn();
+			ctx.on("b", handler);
+			harness.bus.emit("b", "one");
 			ctx.abort();
-			h.bus.emit("b", "two");
+			harness.bus.emit("b", "two");
 
-			expect(fn).toHaveBeenCalledTimes(1);
+			expect(handler).toHaveBeenCalledTimes(1);
 		});
 
 		it("keeps the subscription of a task that is not aborted", () => {
-			const h = createHarness();
-			const fn = vi.fn();
-			h.ctx().on("b", fn);
-			h.bus.emit("b", "one");
-			h.bus.emit("b", "two");
+			const harness = createHarness();
+			const handler = vi.fn();
+			harness.ctx().on("b", handler);
+			harness.bus.emit("b", "one");
+			harness.bus.emit("b", "two");
 
-			expect(fn).toHaveBeenCalledTimes(2);
+			expect(handler).toHaveBeenCalledTimes(2);
 		});
 
 		it("does nothing after the task is aborted", () => {
-			const h = createHarness();
-			const ctx = h.ctx();
+			const harness = createHarness();
+			const ctx = harness.ctx();
 			ctx.abort();
-			const fn = vi.fn();
-			const off = ctx.on("b", fn);
-			h.bus.emit("b", "hi");
+			const handler = vi.fn();
+			const off = ctx.on("b", handler);
+			harness.bus.emit("b", "hi");
 
-			expect(fn).not.toHaveBeenCalled();
+			expect(handler).not.toHaveBeenCalled();
 			expect(() => off()).not.toThrow();
 		});
 
 		it("an abort of another task keeps this subscription", () => {
-			const h = createHarness();
-			const a = h.ctx();
-			const b = h.ctx();
-			const fn = vi.fn();
-			a.on("b", fn);
-			b.abort();
-			h.bus.emit("b", "hi");
+			const harness = createHarness();
+			const first = harness.ctx();
+			const second = harness.ctx();
+			const handler = vi.fn();
+			first.on("b", handler);
+			second.abort();
+			harness.bus.emit("b", "hi");
 
-			expect(fn).toHaveBeenCalledTimes(1);
+			expect(handler).toHaveBeenCalledTimes(1);
 		});
 
 		it("supports the any-event key", () => {
-			const h = createHarness();
+			const harness = createHarness();
 			const seen: unknown[] = [];
-			h.ctx().on(anyEventType, (payload) => seen.push(payload));
-			h.bus.emit("t", 1);
-			h.bus.emit("b", "x");
+			harness.ctx().on(anyEventType, (payload) => seen.push(payload));
+			harness.bus.emit("t", 1);
+			harness.bus.emit("b", "x");
 
 			expect(seen).toEqual([1, "x"]);
 		});
 
 		it("gives the handler a task context of its own", () => {
-			const h = createHarness();
-			const subscriber = h.ctx();
+			const harness = createHarness();
+			const subscriber = harness.ctx();
 			const seen: object[] = [];
 			subscriber.on("b", (_, ctx) => {
 				seen.push(ctx);
 			});
-			h.bus.emit("b", "hi");
+			harness.bus.emit("b", "hi");
 
 			expect(seen[0]).not.toBe(subscriber);
 		});
 
 		it("off removes a handler subscribed through ctx.on", () => {
-			const h = createHarness();
-			const ctx = h.ctx();
-			const fn = vi.fn();
-			ctx.on("b", fn);
-			ctx.off("b", fn);
-			h.bus.emit("b", "hi");
+			const harness = createHarness();
+			const ctx = harness.ctx();
+			const handler = vi.fn();
+			ctx.on("b", handler);
+			ctx.off("b", handler);
+			harness.bus.emit("b", "hi");
 
-			expect(fn).not.toHaveBeenCalled();
+			expect(handler).not.toHaveBeenCalled();
 		});
 
 		it("off(event) clears every handler of the event, like the bus", () => {
-			const h = createHarness();
-			const ctx = h.ctx();
-			const fn = vi.fn();
-			h.bus.on("b", fn);
+			const harness = createHarness();
+			const ctx = harness.ctx();
+			const handler = vi.fn();
+			harness.bus.on("b", handler);
 			ctx.off("b");
-			h.bus.emit("b", "hi");
+			harness.bus.emit("b", "hi");
 
-			expect(fn).not.toHaveBeenCalled();
+			expect(handler).not.toHaveBeenCalled();
 		});
 
 		it("a child task's subscription ends with the child, not the parent", async () => {
-			const h = createHarness();
-			const ctx = h.ctx();
-			const fn = vi.fn();
+			const harness = createHarness();
+			const ctx = harness.ctx();
+			const handler = vi.fn();
 			await ctx.run((_: number, child) => {
-				child.on("b", fn);
+				child.on("b", handler);
 				child.abort();
 			}, 1);
-			h.bus.emit("b", "hi");
+			harness.bus.emit("b", "hi");
 
-			expect(fn).not.toHaveBeenCalled();
+			expect(handler).not.toHaveBeenCalled();
 			expect(ctx.signal.aborted).toBe(false);
 		});
 
 		it("a child task's subscription ends when the parent aborts", async () => {
-			const h = createHarness();
-			const ctx = h.ctx();
-			const fn = vi.fn();
-			const d = deferred();
+			const harness = createHarness();
+			const ctx = harness.ctx();
+			const handler = vi.fn();
+			const gate = deferred();
 			const promise = ctx.run((_: number, child) => {
-				child.on("b", fn);
-				return d.promise;
+				child.on("b", handler);
+				return gate.promise;
 			}, 1);
 			ctx.abort();
-			h.bus.emit("b", "hi");
+			harness.bus.emit("b", "hi");
 
-			expect(fn).not.toHaveBeenCalled();
-			d.resolve();
+			expect(handler).not.toHaveBeenCalled();
+			gate.resolve();
 			await promise;
 		});
 
 		it("a policy fork's subscription ends when its run is superseded", () => {
-			const h = createHarness();
+			const harness = createHarness();
 			const seen: string[] = [];
-			const fn = latest<number, TestEvents, Promise<void>>(async (n, ctx) => {
-				ctx.on("b", () => {
-					seen.push(`run ${n}`);
-				});
-				await new Promise(() => {});
-			});
-			fn(1, h.ctx());
-			fn(2, h.ctx());
-			h.bus.emit("b", "hi");
+			const handler = latest<number, TestEvents, Promise<void>>(
+				async (value, ctx) => {
+					ctx.on("b", () => {
+						seen.push(`run ${value}`);
+					});
+					await new Promise(() => {});
+				},
+			);
+			handler(1, harness.ctx());
+			handler(2, harness.ctx());
+			harness.bus.emit("b", "hi");
 
 			expect(seen).toEqual(["run 2"]);
 		});

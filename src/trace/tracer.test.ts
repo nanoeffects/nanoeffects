@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createBus } from "../bus";
-import type { TestEvents } from "../test-helpers";
-import { deferred } from "../test-helpers";
+import { createBus } from "../core/bus";
+import type { TestEvents } from "../tests/test-helpers";
+import { deferred } from "../tests/test-helpers";
 import { createTraceRecorder } from "./recorder";
 import { createTracer } from "./tracer";
 
@@ -18,12 +18,12 @@ describe("createTracer", () => {
 	describe("task and report", () => {
 		it("numbers tasks from 1", () => {
 			const { recorder, tracer } = setup();
-			const a = tracer.task({ type: "a" });
-			const b = tracer.task({ type: "b" });
-			tracer.report(a, "run", "start");
-			tracer.report(b, "run", "start");
+			const first = tracer.task({ type: "a" });
+			const second = tracer.task({ type: "b" });
+			tracer.report(first, "run", "start");
+			tracer.report(second, "run", "start");
 
-			expect(recorder.events.map((e) => e.id)).toEqual([1, 2]);
+			expect(recorder.events.map((event) => event.id)).toEqual([1, 2]);
 		});
 
 		it("builds the event from the task and the call", () => {
@@ -68,13 +68,13 @@ describe("createTracer", () => {
 		});
 
 		it("keeps separate tracers independent", () => {
-			const a = setup();
-			const b = setup();
-			a.tracer.report(a.tracer.task({ type: "x" }), "run", "start");
-			b.tracer.report(b.tracer.task({ type: "x" }), "run", "start");
+			const first = setup();
+			const second = setup();
+			first.tracer.report(first.tracer.task({ type: "x" }), "run", "start");
+			second.tracer.report(second.tracer.task({ type: "x" }), "run", "start");
 
-			expect(a.recorder.events[0]?.id).toBe(1);
-			expect(b.recorder.events[0]?.id).toBe(1);
+			expect(first.recorder.events[0]?.id).toBe(1);
+			expect(second.recorder.events[0]?.id).toBe(1);
 		});
 
 		it("keeps ids unique when one tracer serves two buses", async () => {
@@ -87,8 +87,8 @@ describe("createTracer", () => {
 			}
 			await Promise.resolve();
 			const ids = recorder.events
-				.filter((e) => e.phase === "start")
-				.map((e) => e.id);
+				.filter((event) => event.phase === "start")
+				.map((event) => event.id);
 
 			expect(new Set(ids).size).toBe(ids.length);
 		});
@@ -104,13 +104,13 @@ describe("createTracer", () => {
 		});
 
 		it("gives every logger every event", () => {
-			const a = vi.fn();
-			const b = vi.fn();
-			const tracer = createTracer([a, b]);
+			const first = vi.fn();
+			const second = vi.fn();
+			const tracer = createTracer([first, second]);
 			tracer.report(tracer.task({ type: "x" }), "run", "start");
 
-			expect(a).toHaveBeenCalledTimes(1);
-			expect(b).toHaveBeenCalledTimes(1);
+			expect(first).toHaveBeenCalledTimes(1);
+			expect(second).toHaveBeenCalledTimes(1);
 		});
 
 		it("isolates a logger that throws", () => {
@@ -136,23 +136,23 @@ describe("createTracer", () => {
 			settle("done");
 			settle("error", new Error("late"));
 
-			expect(recorder.events.map((e) => e.phase)).toEqual(["cancel"]);
+			expect(recorder.events.map((event) => event.phase)).toEqual(["cancel"]);
 		});
 
 		it("keeps settlers of different tasks apart", () => {
 			const { recorder, tracer } = setup();
-			const a = tracer.settler(tracer.task({ type: "a" }), "latest");
-			const b = tracer.settler(tracer.task({ type: "b" }), "latest");
-			a("done");
-			b("done");
+			const first = tracer.settler(tracer.task({ type: "a" }), "latest");
+			const second = tracer.settler(tracer.task({ type: "b" }), "latest");
+			first("done");
+			second("done");
 
-			expect(recorder.events.map((e) => e.type)).toEqual(["a", "b"]);
+			expect(recorder.events.map((event) => event.type)).toEqual(["a", "b"]);
 		});
 	});
 
 	describe("run", () => {
 		const phases = (recorder: ReturnType<typeof setup>["recorder"]) =>
-			recorder.events.map((e) => e.phase);
+			recorder.events.map((event) => event.phase);
 
 		it("returns a sync result and reports start, done", () => {
 			const { recorder, tracer } = setup();
@@ -183,15 +183,15 @@ describe("createTracer", () => {
 		it("returns a promise and reports done when it resolves", async () => {
 			const { recorder, tracer } = setup();
 			const ref = tracer.task({ type: "a" });
-			const d = deferred<number>();
+			const gate = deferred<number>();
 			const promise = tracer.run(
 				ref,
 				"run",
 				new AbortController().signal,
-				() => d.promise,
+				() => gate.promise,
 			);
 			expect(phases(recorder)).toEqual(["start"]);
-			d.resolve(7);
+			gate.resolve(7);
 
 			await expect(promise).resolves.toBe(7);
 			expect(phases(recorder)).toEqual(["start", "done"]);
@@ -212,16 +212,16 @@ describe("createTracer", () => {
 			const { recorder, tracer } = setup();
 			const ref = tracer.task({ type: "a" });
 			const controller = new AbortController();
-			const d = deferred<number>();
+			const gate = deferred<number>();
 			const promise = tracer.run(
 				ref,
 				"run",
 				controller.signal,
-				() => d.promise,
+				() => gate.promise,
 			);
 			controller.abort();
 			expect(phases(recorder)).toEqual(["start", "cancel"]);
-			d.resolve(1);
+			gate.resolve(1);
 			await promise;
 
 			expect(phases(recorder)).toEqual(["start", "cancel"]);
@@ -259,7 +259,7 @@ describe("createTracer", () => {
 			tracer.report(ref, "run", "done");
 			tracer.report(ref, "run", "error", new Error("boom"));
 
-			expect(recorder.events.map((e) => e.phase)).toEqual(["error"]);
+			expect(recorder.events.map((event) => event.phase)).toEqual(["error"]);
 		});
 
 		it("gets the full event", () => {
@@ -284,7 +284,7 @@ describe("createTracer", () => {
 			const ref = tracer.task({ type: "a" });
 			tracer.run(ref, "run", new AbortController().signal, () => 1);
 
-			expect(recorder.events.map((e) => e.phase)).toEqual(["done"]);
+			expect(recorder.events.map((event) => event.phase)).toEqual(["done"]);
 		});
 	});
 
@@ -312,7 +312,7 @@ describe("createTracer", () => {
 		it("traces everything with 1", () => {
 			const recorder = createTraceRecorder();
 			const tracer = createTracer(recorder, { sample: 1 });
-			for (let i = 0; i < 20; i++) {
+			for (let index = 0; index < 20; index++) {
 				tracer.report(root(tracer), "run", "start");
 			}
 
@@ -327,7 +327,7 @@ describe("createTracer", () => {
 			tracer.report(root(tracer), "run", "start");
 			tracer.report(root(tracer), "run", "start");
 
-			expect(recorder.events.map((e) => e.id)).toEqual([1]);
+			expect(recorder.events.map((event) => event.id)).toEqual([1]);
 			random.mockRestore();
 		});
 
@@ -338,7 +338,7 @@ describe("createTracer", () => {
 			tracer.report(tracer.task({ type: "drop", payload: 1 }), "run", "start");
 			tracer.report(tracer.task({ type: "keep", payload: 2 }), "run", "start");
 
-			expect(recorder.events.map((e) => e.type)).toEqual(["keep"]);
+			expect(recorder.events.map((event) => event.type)).toEqual(["keep"]);
 			expect(sample).toHaveBeenCalledWith({ type: "keep", payload: 2 });
 		});
 
@@ -368,7 +368,7 @@ describe("createTracer", () => {
 			const leaf = tracer.task({ type: "leaf" }, child);
 			tracer.report(leaf, "run", "start");
 
-			expect(recorder.events.map((e) => e.type)).toEqual(["leaf"]);
+			expect(recorder.events.map((event) => event.type)).toEqual(["leaf"]);
 		});
 
 		it("an unsampled run just returns what fn returns", async () => {
@@ -408,7 +408,7 @@ describe("createTracer", () => {
 			tracer.report(ref, "run", "start");
 			tracer.report(ref, "run", "done");
 
-			expect(recorder.events.map((e) => e.phase)).toEqual(["done"]);
+			expect(recorder.events.map((event) => event.phase)).toEqual(["done"]);
 		});
 
 		it("traces a whole handler tree or none of it on a bus", async () => {
@@ -423,12 +423,14 @@ describe("createTracer", () => {
 			);
 			bus.emit("t", 1);
 			bus.emit("t", 2);
-			await new Promise((r) => setTimeout(r, 0));
+			await new Promise((result) => setTimeout(result, 0));
 
-			expect(recorder.events.filter((e) => e.phase === "start")).toHaveLength(
-				2,
-			);
-			expect(recorder.events.filter((e) => e.phase === "done")).toHaveLength(2);
+			expect(
+				recorder.events.filter((event) => event.phase === "start"),
+			).toHaveLength(2);
+			expect(
+				recorder.events.filter((event) => event.phase === "done"),
+			).toHaveLength(2);
 		});
 	});
 });

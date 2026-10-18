@@ -1,6 +1,6 @@
-import { combineLoggers } from "../logger";
-import type { Tracer } from "../tracer";
-import type { EffectName, Trace, TraceEvent } from "../types";
+import { combineLoggers } from "../core/logger";
+import type { Tracer } from "../core/tracer";
+import type { EffectName, Trace, TraceEvent } from "../core/types";
 import { isPromise, onAbort } from "../utils";
 
 const noop = () => {};
@@ -48,9 +48,16 @@ export const createTracer = <E = Record<string, unknown>>(
 	options: TracerOptions = {},
 ): Tracer => {
 	// loggers are typed for the events of their bus; here events are plain
-	const log = combineLoggers(trace as Trace);
+	const loggers = trace as Trace;
+	const log = combineLoggers(loggers);
 	const { filter, sample = 1 } = options;
 	let lastId = 0;
+
+	// a root task is sampled by `sample`; its children follow it
+	const isSampled = (event: { type: string; payload?: unknown }) =>
+		typeof sample === "function"
+			? sample({ type: event.type, payload: event.payload })
+			: Math.random() < sample;
 
 	const tracer: Tracer<Ref> = {
 		task: (event, parent) => ({
@@ -58,11 +65,7 @@ export const createTracer = <E = Record<string, unknown>>(
 			parent: parent?.id,
 			type: event.type,
 			payload: event.payload,
-			sampled:
-				parent?.sampled ??
-				(typeof sample === "function"
-					? sample({ type: event.type, payload: event.payload })
-					: Math.random() < sample),
+			sampled: parent?.sampled ?? isSampled(event),
 		}),
 
 		report: (ref, effect, phase, error) => {

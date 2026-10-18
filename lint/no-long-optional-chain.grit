@@ -1,0 +1,10 @@
+language js
+
+or { `const $name = $value`, `let $name = $value`, `return $value` } where {
+	$value <: r"[^\n]*\?\.[^\n]*\?\.[^\n]*",
+	register_diagnostic(
+		span = $value,
+		message = "Two or more optional hops in one expression are hard to read. Split the chain into named steps.",
+		severity = "error"
+	)
+}

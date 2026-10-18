@@ -1,13 +1,21 @@
+import { linkedController, onAbort } from "../utils";
 import type { Context, Emit, Off, On } from "./bus";
+import { TRACE } from "./flag";
 import type { TaskRef, Tracer } from "./tracer";
 import type { EffectName, EventMap, PayloadOf, Phase, Task } from "./types";
-import { linkedController, onAbort } from "./utils";
 
 type Event = { type: string; payload?: unknown };
 
 type TaskMeta = { tracer: Tracer; ref: TaskRef };
 
 const metaOf = new WeakMap<object, TaskMeta>();
+
+// The task whose `ctx.emit` is running. Tasks that this emit starts (listeners,
+// commands) become its children in the trace. It is set only for the duration
+// of the synchronous emit, so a plain `bus.emit` is not linked to anyone.
+let emitter: TaskRef | undefined;
+
+export const currentEmitter = () => emitter;
 const noop = () => {};
 
 /** Reports a phase of `ctx` to the bus tracer; no-op without one. */
@@ -17,8 +25,10 @@ export const traceTask = <E extends EventMap>(
 	phase: Phase,
 	error?: unknown,
 ) => {
-	const meta = metaOf.get(ctx);
-	meta?.tracer.report(meta.ref, effect, phase, error);
+	const meta = TRACE && metaOf.get(ctx);
+	if (meta) {
+		meta.tracer.report(meta.ref, effect, phase, error);
+	}
 };
 
 /** Returns `settle(phase, error?)` that reports only the first phase of `ctx`. */
@@ -26,7 +36,7 @@ export const createSettle = <E extends EventMap>(
 	ctx: Context<E>,
 	effect: EffectName,
 ): ((phase: Phase, error?: unknown) => void) => {
-	const meta = metaOf.get(ctx);
+	const meta = TRACE && metaOf.get(ctx);
 
 	return meta ? meta.tracer.settler(meta.ref, effect) : noop;
 };
@@ -40,7 +50,7 @@ export const traceRun = <E extends EventMap, R>(
 	effect: EffectName,
 	fn: () => R,
 ): R => {
-	const meta = metaOf.get(ctx);
+	const meta = TRACE && metaOf.get(ctx);
 
 	return meta ? meta.tracer.run(meta.ref, effect, ctx.signal, fn) : fn();
 };
@@ -50,7 +60,12 @@ type TaskBus<E extends EventMap> = {
 	emit?: Emit<E> | undefined;
 	on?: On<E> | undefined;
 	off?: Off<E> | undefined;
+	/** Fields the user adds to every context; see `BusOptions.context`. */
+	context?: object | undefined;
 };
+
+// the fields of a context follow from the event it is for, so no literal can be checked against it
+const asContext = <E extends EventMap>(task: object) => task as Context<E>;
 
 /**
  * Creates the context of one task. Its signal follows `parent`; `unlink`
@@ -58,20 +73,29 @@ type TaskBus<E extends EventMap> = {
  */
 export const createTask = <E extends EventMap>(
 	event: Event,
-	bus: TaskBus<E> | undefined,
-	tracer: Tracer | undefined,
+	bus?: TaskBus<E> | undefined,
+	tracer?: Tracer | undefined,
 	parent?: { signal?: AbortSignal | undefined; ref?: TaskRef | undefined },
 ) => {
 	const { controller, unlink } = linkedController(parent?.signal);
 	const { signal } = controller;
 
-	const meta = tracer && { tracer, ref: tracer.task(event, parent?.ref) };
+	const meta =
+		TRACE && tracer ? { tracer, ref: tracer.task(event, parent?.ref) } : void 0;
 
 	const taskEmit = (...args: unknown[]) => {
 		if (signal.aborted) {
 			return;
 		}
-		return (bus?.emit as ((...a: unknown[]) => unknown) | undefined)?.(...args);
+		const emit = bus?.emit as ((...a: unknown[]) => unknown) | undefined;
+		const outer = emitter;
+		emitter = meta?.ref;
+
+		try {
+			return emit?.(...args);
+		} finally {
+			emitter = outer;
+		}
 	};
 
 	const taskOn = (...args: unknown[]) => {
@@ -79,9 +103,8 @@ export const createTask = <E extends EventMap>(
 			return noop;
 		}
 
-		const off = (bus?.on as ((...a: unknown[]) => () => void) | undefined)?.(
-			...args,
-		);
+		const on = bus?.on as ((...a: unknown[]) => () => void) | undefined;
+		const off = on?.(...args);
 		if (!off) {
 			return noop;
 		}
@@ -109,7 +132,8 @@ export const createTask = <E extends EventMap>(
 		}
 	};
 
-	const ctx = {
+	const ctx = asContext<E>({
+		...bus?.context,
 		type: event.type,
 		payload: event.payload,
 		signal,
@@ -118,7 +142,7 @@ export const createTask = <E extends EventMap>(
 		on: taskOn,
 		off: bus?.off ?? noop,
 		run,
-	} as unknown as Context<E>;
+	});
 	if (meta) {
 		metaOf.set(ctx, meta);
 	}
@@ -139,12 +163,21 @@ type ForkParent<E extends EventMap> = {
  * Child of `parent`: aborted with it, but cancellable on its own. `parent` is
  * a bus task context (the child is traced as its child) or any `{ signal }`.
  */
-export const forkTask = <E extends EventMap>(parent: ForkParent<E>) => {
-	const meta = metaOf.get(parent);
+export const forkTask = <E extends EventMap>(
+	parent: ForkParent<E>,
+	type?: string,
+) => {
+	const meta = TRACE ? metaOf.get(parent) : void 0;
 
 	return createTask<E>(
-		{ type: parent.type ?? "", payload: parent.payload },
-		{ emit: parent.emit, on: parent.on, off: parent.off },
+		{ type: type ?? parent.type ?? "", payload: parent.payload },
+		{
+			emit: parent.emit,
+			on: parent.on,
+			off: parent.off,
+			// the fields of the parent context that are not the library's are the user's
+			context: parent,
+		},
 		meta?.tracer,
 		{ signal: parent.signal, ref: meta?.ref },
 	);

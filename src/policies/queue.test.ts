@@ -1,171 +1,183 @@
 import { describe, expect, it, vi } from "vitest";
-import { createBus } from "../bus";
+import { createBus } from "../core/bus";
+import type { Task } from "../core/types";
 import {
 	createHarness,
 	type Deferred,
 	deferred,
 	type TestEvents,
-} from "../test-helpers";
-import type { Task } from "../types";
+} from "../tests/test-helpers";
 import { queue } from "./queue";
 
-const que = <P, R>(fn: Task<P, TestEvents, R>, concurrency?: number) =>
-	queue(fn, typeof concurrency === "number" ? { concurrency } : {});
+const queueTask = <P, R>(
+	handler: Task<P, TestEvents, R>,
+	concurrency?: number,
+) => queue(handler, typeof concurrency === "number" ? { concurrency } : {});
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe("queue", () => {
 	describe("order", () => {
 		it("starts the first call synchronously", () => {
-			const h = createHarness();
-			const fn = vi.fn();
-			que(fn)(1, h.ctx());
+			const harness = createHarness();
+			const handler = vi.fn();
+			queueTask(handler)(1, harness.ctx());
 
-			expect(fn).toHaveBeenCalledTimes(1);
+			expect(handler).toHaveBeenCalledTimes(1);
 		});
 
 		it("makes the next call wait until the running one is done", async () => {
-			const h = createHarness();
-			const d = deferred();
-			const fn = vi.fn((n: number) => (n === 1 ? d.promise : n));
-			const q = que(fn);
-			q(1, h.ctx());
-			q(2, h.ctx());
-			expect(fn).toHaveBeenCalledTimes(1);
-			d.resolve();
+			const harness = createHarness();
+			const gate = deferred();
+			const handler = vi.fn((value: number) =>
+				value === 1 ? gate.promise : value,
+			);
+			const queued = queueTask(handler);
+			queued(1, harness.ctx());
+			queued(2, harness.ctx());
+			expect(handler).toHaveBeenCalledTimes(1);
+			gate.resolve();
 			await flush();
 
-			expect(fn.mock.calls.map((c) => c[0])).toEqual([1, 2]);
+			expect(handler.mock.calls.map((call) => call[0])).toEqual([1, 2]);
 		});
 
 		it("runs calls in the order they arrived", async () => {
-			const h = createHarness();
+			const harness = createHarness();
 			const order: number[] = [];
-			const q = que(async (n: number) => {
-				await new Promise((r) => setTimeout(r, 5 - n));
-				order.push(n);
+			const queued = queueTask(async (value: number) => {
+				await new Promise((result) => setTimeout(result, 5 - value));
+				order.push(value);
 			});
-			await Promise.all([1, 2, 3, 4].map((n) => q(n, h.ctx())));
+			await Promise.all(
+				[1, 2, 3, 4].map((value) => queued(value, harness.ctx())),
+			);
 
 			expect(order).toEqual([1, 2, 3, 4]);
 		});
 
 		it("runs one call at a time", async () => {
-			const h = createHarness();
+			const harness = createHarness();
 			let running = 0;
 			let max = 0;
-			const q = que(async () => {
+			const queued = queueTask(async () => {
 				running++;
 				max = Math.max(max, running);
-				await new Promise((r) => setTimeout(r, 2));
+				await new Promise((result) => setTimeout(result, 2));
 				running--;
 			});
-			await Promise.all([1, 2, 3, 4, 5].map(() => q(0, h.ctx())));
+			await Promise.all([1, 2, 3, 4, 5].map(() => queued(0, harness.ctx())));
 
 			expect(max).toBe(1);
 		});
 
 		it("gives every call the result of its own run", async () => {
-			const h = createHarness();
-			const q = que(async (n: number) => n * 10);
-			const results = await Promise.all([1, 2, 3].map((n) => q(n, h.ctx())));
+			const harness = createHarness();
+			const queued = queueTask(async (value: number) => value * 10);
+			const results = await Promise.all(
+				[1, 2, 3].map((value) => queued(value, harness.ctx())),
+			);
 
 			expect(results).toEqual([10, 20, 30]);
 		});
 
 		it("returns a promise for a sync fn too", async () => {
-			const h = createHarness();
-			const result = que((n: number) => n + 1)(1, h.ctx());
+			const harness = createHarness();
+			const result = queueTask((value: number) => value + 1)(1, harness.ctx());
 
 			expect(result).toBeInstanceOf(Promise);
 			await expect(result).resolves.toBe(2);
 		});
 
 		it("runs sync fns in order", async () => {
-			const h = createHarness();
+			const harness = createHarness();
 			const order: number[] = [];
-			const q = que((n: number) => {
-				order.push(n);
+			const queued = queueTask((value: number) => {
+				order.push(value);
 			});
-			await Promise.all([1, 2, 3].map((n) => q(n, h.ctx())));
+			await Promise.all([1, 2, 3].map((value) => queued(value, harness.ctx())));
 
 			expect(order).toEqual([1, 2, 3]);
 		});
 
 		it("starts again at once after the queue went idle", async () => {
-			const h = createHarness();
-			const fn = vi.fn();
-			const q = que(fn);
-			await q(1, h.ctx());
-			q(2, h.ctx());
+			const harness = createHarness();
+			const handler = vi.fn();
+			const queued = queueTask(handler);
+			await queued(1, harness.ctx());
+			queued(2, harness.ctx());
 
-			expect(fn).toHaveBeenCalledTimes(2);
+			expect(handler).toHaveBeenCalledTimes(2);
 		});
 
 		it("keeps separate instances independent", () => {
-			const h = createHarness();
-			const d = deferred();
-			const a = que(() => d.promise);
-			const b = vi.fn();
-			a(1, h.ctx());
-			que(b)(1, h.ctx());
+			const harness = createHarness();
+			const gate = deferred();
+			const first = queueTask(() => gate.promise);
+			const second = vi.fn();
+			first(1, harness.ctx());
+			queueTask(second)(1, harness.ctx());
 
-			expect(b).toHaveBeenCalledTimes(1);
-			d.resolve();
+			expect(second).toHaveBeenCalledTimes(1);
+			gate.resolve();
 		});
 	});
 
 	describe("concurrency", () => {
 		it("runs up to the limit at the same time", () => {
-			const h = createHarness();
-			const fn = vi.fn(() => new Promise(() => {}));
-			const q = que(fn, 2);
-			q(1, h.ctx());
-			q(2, h.ctx());
-			q(3, h.ctx());
+			const harness = createHarness();
+			const handler = vi.fn(() => new Promise(() => {}));
+			const queued = queueTask(handler, 2);
+			queued(1, harness.ctx());
+			queued(2, harness.ctx());
+			queued(3, harness.ctx());
 
-			expect(fn).toHaveBeenCalledTimes(2);
+			expect(handler).toHaveBeenCalledTimes(2);
 		});
 
 		it("starts a waiting call as soon as a slot frees up", async () => {
-			const h = createHarness();
-			const d1 = deferred();
-			const fn = vi.fn((n: number) =>
-				n === 1 ? d1.promise : new Promise(() => {}),
+			const harness = createHarness();
+			const firstGate = deferred();
+			const handler = vi.fn((value: number) =>
+				value === 1 ? firstGate.promise : new Promise(() => {}),
 			);
-			const q = que(fn, 2);
-			q(1, h.ctx());
-			q(2, h.ctx());
-			q(3, h.ctx());
-			d1.resolve();
+			const queued = queueTask(handler, 2);
+			queued(1, harness.ctx());
+			queued(2, harness.ctx());
+			queued(3, harness.ctx());
+			firstGate.resolve();
 			await flush();
 
-			expect(fn.mock.calls.map((c) => c[0])).toEqual([1, 2, 3]);
+			expect(handler.mock.calls.map((call) => call[0])).toEqual([1, 2, 3]);
 		});
 
 		it("never exceeds the limit", async () => {
-			const h = createHarness();
+			const harness = createHarness();
 			let running = 0;
 			let max = 0;
-			const q = que(async () => {
+			const queued = queueTask(async () => {
 				running++;
 				max = Math.max(max, running);
-				await new Promise((r) => setTimeout(r, 2));
+				await new Promise((result) => setTimeout(result, 2));
 				running--;
 			}, 3);
-			await Promise.all(Array.from({ length: 10 }, () => q(0, h.ctx())));
+			await Promise.all(
+				Array.from({ length: 10 }, () => queued(0, harness.ctx())),
+			);
 
 			expect(max).toBe(3);
 		});
 
 		it("starts waiting calls in arrival order", async () => {
-			const h = createHarness();
+			const harness = createHarness();
 			const started: number[] = [];
-			const q = que(async (n: number) => {
-				started.push(n);
-				await new Promise((r) => setTimeout(r, 2));
+			const queued = queueTask(async (value: number) => {
+				started.push(value);
+				await new Promise((result) => setTimeout(result, 2));
 			}, 2);
-			await Promise.all([1, 2, 3, 4, 5].map((n) => q(n, h.ctx())));
+			await Promise.all(
+				[1, 2, 3, 4, 5].map((value) => queued(value, harness.ctx())),
+			);
 
 			expect(started).toEqual([1, 2, 3, 4, 5]);
 		});
@@ -173,40 +185,40 @@ describe("queue", () => {
 
 	describe("errors", () => {
 		it("rejects the call whose run failed", async () => {
-			const h = createHarness();
-			const q = que(async () => {
+			const harness = createHarness();
+			const queued = queueTask(async () => {
 				throw new Error("boom");
 			});
 
-			await expect(q(1, h.ctx())).rejects.toThrow("boom");
+			await expect(queued(1, harness.ctx())).rejects.toThrow("boom");
 		});
 
 		it("turns a sync throw into a rejection", async () => {
-			const h = createHarness();
-			const q = que(() => {
+			const harness = createHarness();
+			const queued = queueTask(() => {
 				throw new Error("boom");
 			});
 			let result: Promise<unknown> | null = null;
 
 			expect(() => {
-				result = q(1, h.ctx());
+				result = queued(1, harness.ctx());
 			}).not.toThrow();
 			await expect(result).rejects.toThrow("boom");
 		});
 
 		it("keeps going after an error, and only that call fails", async () => {
-			const h = createHarness();
-			const q = que(async (n: number) => {
-				if (n === 2) {
+			const harness = createHarness();
+			const queued = queueTask(async (value: number) => {
+				if (value === 2) {
 					throw new Error("boom");
 				}
-				return n;
+				return value;
 			});
 			const results = await Promise.allSettled(
-				[1, 2, 3].flatMap((n) => q(n, h.ctx())),
+				[1, 2, 3].flatMap((value) => queued(value, harness.ctx())),
 			);
 
-			expect(results.map((r) => r.status)).toEqual([
+			expect(results.map((result) => result.status)).toEqual([
 				"fulfilled",
 				"rejected",
 				"fulfilled",
@@ -214,16 +226,16 @@ describe("queue", () => {
 		});
 
 		it("frees the slot after a sync throw", async () => {
-			const h = createHarness();
-			const fn = vi.fn((n: number) => {
-				if (n === 1) {
+			const harness = createHarness();
+			const handler = vi.fn((value: number) => {
+				if (value === 1) {
 					throw new Error("boom");
 				}
-				return n;
+				return value;
 			});
-			const q = que(fn);
-			const first = q(1, h.ctx());
-			const second = q(2, h.ctx());
+			const queued = queueTask(handler);
+			const first = queued(1, harness.ctx());
+			const second = queued(2, harness.ctx());
 
 			await expect(first).rejects.toThrow("boom");
 			await expect(second).resolves.toBe(2);
@@ -232,114 +244,120 @@ describe("queue", () => {
 
 	describe("abort", () => {
 		it("ignores a call whose task is already aborted", async () => {
-			const h = createHarness();
-			const ctx = h.ctx();
+			const harness = createHarness();
+			const ctx = harness.ctx();
 			ctx.abort();
-			const fn = vi.fn();
+			const handler = vi.fn();
 
-			await expect(que(fn)(1, ctx)).resolves.toBeUndefined();
-			expect(fn).not.toHaveBeenCalled();
-			expect(h.phases()).toEqual([]);
+			await expect(queueTask(handler)(1, ctx)).resolves.toBeUndefined();
+			expect(handler).not.toHaveBeenCalled();
+			expect(harness.phases()).toEqual([]);
 		});
 
 		it("skips a waiting call whose task aborts", async () => {
-			const h = createHarness();
-			const d = deferred();
-			const fn = vi.fn((n: number) => (n === 1 ? d.promise : n));
-			const q = que(fn);
-			q(1, h.ctx());
-			const waitingCtx = h.ctx();
-			const skipped = q(2, waitingCtx);
+			const harness = createHarness();
+			const gate = deferred();
+			const handler = vi.fn((value: number) =>
+				value === 1 ? gate.promise : value,
+			);
+			const queued = queueTask(handler);
+			queued(1, harness.ctx());
+			const waitingCtx = harness.ctx();
+			const skipped = queued(2, waitingCtx);
 			waitingCtx.abort();
-			d.resolve();
+			gate.resolve();
 
 			await expect(skipped).resolves.toBeUndefined();
 			await flush();
-			expect(fn.mock.calls.map((c) => c[0])).toEqual([1]);
+			expect(handler.mock.calls.map((call) => call[0])).toEqual([1]);
 		});
 
 		it("lets the call behind a skipped one run", async () => {
-			const h = createHarness();
-			const d = deferred();
-			const fn = vi.fn((n: number) => (n === 1 ? d.promise : n));
-			const q = que(fn);
-			q(1, h.ctx());
-			const waitingCtx = h.ctx();
-			q(2, waitingCtx);
-			const third = q(3, h.ctx());
+			const harness = createHarness();
+			const gate = deferred();
+			const handler = vi.fn((value: number) =>
+				value === 1 ? gate.promise : value,
+			);
+			const queued = queueTask(handler);
+			queued(1, harness.ctx());
+			const waitingCtx = harness.ctx();
+			queued(2, waitingCtx);
+			const third = queued(3, harness.ctx());
 			waitingCtx.abort();
-			d.resolve();
+			gate.resolve();
 
 			await expect(third).resolves.toBe(3);
 		});
 
 		it("frees the slot when the running task aborts, and drops its result", async () => {
-			const h = createHarness();
-			const ctx = h.ctx();
-			const d = deferred<string>();
-			const fn = vi.fn((n: number) => (n === 1 ? d.promise : "second"));
-			const q = que(fn);
-			const first = q(1, ctx);
-			const second = q(2, h.ctx());
+			const harness = createHarness();
+			const ctx = harness.ctx();
+			const gate = deferred<string>();
+			const handler = vi.fn((value: number) =>
+				value === 1 ? gate.promise : "second",
+			);
+			const queued = queueTask(handler);
+			const first = queued(1, ctx);
+			const second = queued(2, harness.ctx());
 			ctx.abort();
 
 			await expect(second).resolves.toBe("second");
-			d.resolve("late");
+			gate.resolve("late");
 			await expect(first).resolves.toBeUndefined();
 		});
 
 		it("drops a rejection that comes after the abort", async () => {
-			const h = createHarness();
-			const ctx = h.ctx();
-			const d = deferred();
-			const first = que(() => d.promise)(1, ctx);
+			const harness = createHarness();
+			const ctx = harness.ctx();
+			const gate = deferred();
+			const first = queueTask(() => gate.promise)(1, ctx);
 			ctx.abort();
-			d.reject(new Error("late"));
+			gate.reject(new Error("late"));
 
 			await expect(first).resolves.toBeUndefined();
 		});
 
 		it("a late finish of an aborted run does not free a slot twice", async () => {
-			const h = createHarness();
-			const a = h.ctx();
-			const dA = deferred();
-			const dB = deferred();
+			const harness = createHarness();
+			const first = harness.ctx();
+			const gateA = deferred();
+			const gateB = deferred();
 			const started: string[] = [];
-			const q = que((name: string) => {
+			const queued = queueTask((name: string) => {
 				started.push(name);
-				return name === "a" ? dA.promise : name === "b" ? dB.promise : 0;
+				return name === "a" ? gateA.promise : name === "b" ? gateB.promise : 0;
 			});
-			q("a", a);
-			q("b", h.ctx());
-			q("c", h.ctx());
-			a.abort();
-			dA.resolve();
+			queued("a", first);
+			queued("b", harness.ctx());
+			queued("c", harness.ctx());
+			first.abort();
+			gateA.resolve();
 			await flush();
 
 			expect(started).toEqual(["a", "b"]);
-			dB.resolve();
+			gateB.resolve();
 			await flush();
 			expect(started).toEqual(["a", "b", "c"]);
 		});
 
 		it("aborting after the run finished changes nothing", async () => {
-			const h = createHarness();
-			const ctx = h.ctx();
-			const q = que((n: number) => n);
-			await q(1, ctx);
+			const harness = createHarness();
+			const ctx = harness.ctx();
+			const queued = queueTask((value: number) => value);
+			await queued(1, ctx);
 			ctx.abort();
 
-			expect(h.phases()).toEqual(["queue/start", "queue/done"]);
+			expect(harness.phases()).toEqual(["queue/start", "queue/done"]);
 		});
 	});
 
 	describe("trace", () => {
 		it("start and done for each call, one after the other", async () => {
-			const h = createHarness();
-			const q = que(async () => {});
-			await Promise.all([q(1, h.ctx()), q(2, h.ctx())]);
+			const harness = createHarness();
+			const queued = queueTask(async () => {});
+			await Promise.all([queued(1, harness.ctx()), queued(2, harness.ctx())]);
 
-			expect(h.phases()).toEqual([
+			expect(harness.phases()).toEqual([
 				"queue/start",
 				"queue/done",
 				"queue/start",
@@ -348,64 +366,64 @@ describe("queue", () => {
 		});
 
 		it("reports nothing for a call while it waits", () => {
-			const h = createHarness();
-			const q = que(() => new Promise(() => {}));
-			q(1, h.ctx());
-			q(2, h.ctx());
+			const harness = createHarness();
+			const queued = queueTask(() => new Promise(() => {}));
+			queued(1, harness.ctx());
+			queued(2, harness.ctx());
 
-			expect(h.phases()).toEqual(["queue/start"]);
+			expect(harness.phases()).toEqual(["queue/start"]);
 		});
 
 		it("reports a drop for a waiting call that aborts", () => {
-			const h = createHarness();
-			const q = que(() => new Promise(() => {}));
-			q(1, h.ctx());
-			const waitingCtx = h.ctx();
-			q(2, waitingCtx);
+			const harness = createHarness();
+			const queued = queueTask(() => new Promise(() => {}));
+			queued(1, harness.ctx());
+			const waitingCtx = harness.ctx();
+			queued(2, waitingCtx);
 			waitingCtx.abort();
 
-			expect(h.phases()).toEqual(["queue/start", "queue/drop"]);
+			expect(harness.phases()).toEqual(["queue/start", "queue/drop"]);
 		});
 
 		it("reports cancel for a running call that aborts", () => {
-			const h = createHarness();
-			const ctx = h.ctx();
-			que(() => new Promise(() => {}))(1, ctx);
+			const harness = createHarness();
+			const ctx = harness.ctx();
+			queueTask(() => new Promise(() => {}))(1, ctx);
 			ctx.abort();
 
-			expect(h.phases()).toEqual(["queue/start", "queue/cancel"]);
+			expect(harness.phases()).toEqual(["queue/start", "queue/cancel"]);
 		});
 
 		it("reports an error", async () => {
-			const h = createHarness();
-			await que(async () => {
+			const harness = createHarness();
+			await queueTask(async () => {
 				throw new Error("boom");
-			})(1, h.ctx()).catch(() => {});
+			})(1, harness.ctx()).catch(() => {});
 
-			expect(h.phases()).toEqual(["queue/start", "queue/error"]);
+			expect(harness.phases()).toEqual(["queue/start", "queue/error"]);
 		});
 	});
 
 	describe("on a bus", () => {
 		it("handles a burst of emits one at a time, in order", async () => {
-			const h = createHarness();
+			const harness = createHarness();
 			const order: number[] = [];
 			let running = 0;
 			let max = 0;
-			h.bus.on(
+			harness.bus.on(
 				"t",
-				que(async (n: number) => {
+				queueTask(async (value: number) => {
 					running++;
 					max = Math.max(max, running);
-					await new Promise((r) => setTimeout(r, 2));
-					order.push(n);
+					await new Promise((result) => setTimeout(result, 2));
+					order.push(value);
 					running--;
 				}),
 			);
-			for (const n of [1, 2, 3, 4]) {
-				h.bus.emit("t", n);
+			for (const value of [1, 2, 3, 4]) {
+				harness.bus.emit("t", value);
 			}
-			await new Promise((r) => setTimeout(r, 30));
+			await new Promise((result) => setTimeout(result, 30));
 
 			expect(order).toEqual([1, 2, 3, 4]);
 			expect(max).toBe(1);
@@ -416,7 +434,7 @@ describe("queue", () => {
 			const bus = createBus<TestEvents>({ onError });
 			bus.on(
 				"t",
-				que(async () => {
+				queueTask(async () => {
 					throw new Error("boom");
 				}),
 			);
@@ -428,50 +446,50 @@ describe("queue", () => {
 	});
 
 	describe("limit and overflow", () => {
-		const limited = <P, R>(
-			fn: Task<P, TestEvents, R>,
+		const queueLimited = <P, R>(
+			handler: Task<P, TestEvents, R>,
 			options: Parameters<typeof queue>[1],
-		) => queue(fn, options);
+		) => queue(handler, options);
 
 		// a fn that records its payloads and finishes when its deferred resolves
 		const gated = () => {
 			const gates = new Map<number, Deferred<void>>();
 			const started: number[] = [];
-			const fn = (n: number) => {
-				started.push(n);
+			const handler = (value: number) => {
+				started.push(value);
 				const gate = deferred();
-				gates.set(n, gate);
+				gates.set(value, gate);
 				return gate.promise;
 			};
-			const release = async (n: number) => {
-				gates.get(n)?.resolve(void 0);
+			const release = async (value: number) => {
+				gates.get(value)?.resolve(void 0);
 				await flush();
 			};
-			return { fn, started, release };
+			return { fn: handler, started, release };
 		};
 
 		it("has no limit by default", async () => {
-			const h = createHarness();
-			const { fn, started, release } = gated();
-			const q = limited(fn, {});
-			for (let n = 1; n <= 20; n++) {
-				q(n, h.ctx());
+			const harness = createHarness();
+			const { fn: handler, started, release } = gated();
+			const queued = queueLimited(handler, {});
+			for (let index = 1; index <= 20; index++) {
+				queued(index, harness.ctx());
 			}
-			for (let n = 1; n <= 20; n++) {
-				await release(n);
+			for (let index2 = 1; index2 <= 20; index2++) {
+				await release(index2);
 			}
 
 			expect(started).toHaveLength(20);
 		});
 
 		it("drops a new call when the waiting line is full (default overflow)", async () => {
-			const h = createHarness();
-			const { fn, started, release } = gated();
-			const q = limited(fn, { limit: 2 });
-			q(1, h.ctx());
-			q(2, h.ctx());
-			q(3, h.ctx());
-			const dropped = q(4, h.ctx());
+			const harness = createHarness();
+			const { fn: handler, started, release } = gated();
+			const queued = queueLimited(handler, { limit: 2 });
+			queued(1, harness.ctx());
+			queued(2, harness.ctx());
+			queued(3, harness.ctx());
+			const dropped = queued(4, harness.ctx());
 
 			await expect(dropped).resolves.toBeUndefined();
 			await release(1);
@@ -481,22 +499,22 @@ describe("queue", () => {
 		});
 
 		it("reports a drop for the new call that did not fit", () => {
-			const h = createHarness();
-			const q = limited(() => new Promise(() => {}), { limit: 1 });
-			q(1, h.ctx());
-			q(2, h.ctx());
-			q(3, h.ctx());
+			const harness = createHarness();
+			const queued = queueLimited(() => new Promise(() => {}), { limit: 1 });
+			queued(1, harness.ctx());
+			queued(2, harness.ctx());
+			queued(3, harness.ctx());
 
-			expect(h.phases()).toEqual(["queue/start", "queue/drop"]);
+			expect(harness.phases()).toEqual(["queue/start", "queue/drop"]);
 		});
 
 		it("with drop-old drops the oldest waiting call and keeps the new one", async () => {
-			const h = createHarness();
-			const { fn, started, release } = gated();
-			const q = limited(fn, { limit: 1, overflow: "drop-old" });
-			q(1, h.ctx());
-			const old = q(2, h.ctx());
-			q(3, h.ctx());
+			const harness = createHarness();
+			const { fn: handler, started, release } = gated();
+			const queued = queueLimited(handler, { limit: 1, overflow: "drop-old" });
+			queued(1, harness.ctx());
+			const old = queued(2, harness.ctx());
+			queued(3, harness.ctx());
 
 			await expect(old).resolves.toBeUndefined();
 			await release(1);
@@ -505,11 +523,11 @@ describe("queue", () => {
 		});
 
 		it("with drop-old keeps only the latest of a burst, in order", async () => {
-			const h = createHarness();
-			const { fn, started, release } = gated();
-			const q = limited(fn, { limit: 2, overflow: "drop-old" });
-			for (let n = 1; n <= 6; n++) {
-				q(n, h.ctx());
+			const harness = createHarness();
+			const { fn: handler, started, release } = gated();
+			const queued = queueLimited(handler, { limit: 2, overflow: "drop-old" });
+			for (let index = 1; index <= 6; index++) {
+				queued(index, harness.ctx());
 			}
 			await release(1);
 			await release(5);
@@ -519,70 +537,76 @@ describe("queue", () => {
 		});
 
 		it("reports the drop on the dropped call's own task", () => {
-			const h = createHarness();
-			const q = limited(() => new Promise(() => {}), {
+			const harness = createHarness();
+			const queued = queueLimited(() => new Promise(() => {}), {
 				limit: 1,
 				overflow: "drop-old",
 			});
-			q(1, h.ctx());
-			const oldCtx = h.ctx();
-			q(2, oldCtx);
-			q(3, h.ctx());
-			const drop = h.recorder.events.find((e) => e.phase === "drop");
+			queued(1, harness.ctx());
+			const oldCtx = harness.ctx();
+			queued(2, oldCtx);
+			queued(3, harness.ctx());
+			const drop = harness.recorder.events.find(
+				(event) => event.phase === "drop",
+			);
 
-			expect(h.phases()).toEqual(["queue/start", "queue/drop"]);
+			expect(harness.phases()).toEqual(["queue/start", "queue/drop"]);
 			expect(drop).toBeDefined();
 		});
 
 		it("a dropped call that aborts later changes nothing", () => {
-			const h = createHarness();
-			const q = limited(() => new Promise(() => {}), {
+			const harness = createHarness();
+			const queued = queueLimited(() => new Promise(() => {}), {
 				limit: 1,
 				overflow: "drop-old",
 			});
-			q(1, h.ctx());
-			const oldCtx = h.ctx();
-			q(2, oldCtx);
-			q(3, h.ctx());
+			queued(1, harness.ctx());
+			const oldCtx = harness.ctx();
+			queued(2, oldCtx);
+			queued(3, harness.ctx());
 			oldCtx.abort();
 
-			expect(h.phases()).toEqual(["queue/start", "queue/drop"]);
+			expect(harness.phases()).toEqual(["queue/start", "queue/drop"]);
 		});
 
 		it("limit 0 means nothing waits, whatever the overflow", async () => {
 			for (const overflow of ["drop-new", "drop-old"] as const) {
-				const h = createHarness();
-				const fn = vi.fn(() => new Promise(() => {}));
-				const q = limited(fn, { limit: 0, overflow });
-				q(1, h.ctx());
+				const harness = createHarness();
+				const handler = vi.fn(() => new Promise(() => {}));
+				const queued = queueLimited(handler, { limit: 0, overflow });
+				queued(1, harness.ctx());
 
-				await expect(q(2, h.ctx())).resolves.toBeUndefined();
-				expect(fn).toHaveBeenCalledTimes(1);
+				await expect(queued(2, harness.ctx())).resolves.toBeUndefined();
+				expect(handler).toHaveBeenCalledTimes(1);
 			}
 		});
 
 		it("does not count running calls against the limit", () => {
-			const h = createHarness();
-			const fn = vi.fn(() => new Promise(() => {}));
-			const q = limited(fn, { concurrency: 2, limit: 1 });
-			q(1, h.ctx());
-			q(2, h.ctx());
-			q(3, h.ctx());
-			q(4, h.ctx());
+			const harness = createHarness();
+			const handler = vi.fn(() => new Promise(() => {}));
+			const queued = queueLimited(handler, { concurrency: 2, limit: 1 });
+			queued(1, harness.ctx());
+			queued(2, harness.ctx());
+			queued(3, harness.ctx());
+			queued(4, harness.ctx());
 
-			expect(fn).toHaveBeenCalledTimes(2);
-			expect(h.phases()).toEqual(["queue/start", "queue/start", "queue/drop"]);
+			expect(handler).toHaveBeenCalledTimes(2);
+			expect(harness.phases()).toEqual([
+				"queue/start",
+				"queue/start",
+				"queue/drop",
+			]);
 		});
 
 		it("an aborted waiting call frees its place in the line", async () => {
-			const h = createHarness();
-			const { fn, started, release } = gated();
-			const q = limited(fn, { limit: 1 });
-			q(1, h.ctx());
-			const waitingCtx = h.ctx();
-			q(2, waitingCtx);
+			const harness = createHarness();
+			const { fn: handler, started, release } = gated();
+			const queued = queueLimited(handler, { limit: 1 });
+			queued(1, harness.ctx());
+			const waitingCtx = harness.ctx();
+			queued(2, waitingCtx);
 			waitingCtx.abort();
-			q(3, h.ctx());
+			queued(3, harness.ctx());
 			await release(1);
 			await release(3);
 
@@ -590,32 +614,32 @@ describe("queue", () => {
 		});
 
 		it("starts at once when a slot is free, however small the limit", () => {
-			const h = createHarness();
-			const fn = vi.fn();
-			limited(fn, { limit: 0 })(1, h.ctx());
+			const harness = createHarness();
+			const handler = vi.fn();
+			queueLimited(handler, { limit: 0 })(1, harness.ctx());
 
-			expect(fn).toHaveBeenCalledTimes(1);
+			expect(handler).toHaveBeenCalledTimes(1);
 		});
 
 		it("keeps only the latest event while one is running (patronum defer, #329)", async () => {
 			vi.useFakeTimers();
 			try {
-				const h = createHarness();
+				const harness = createHarness();
 				const done: number[] = [];
-				h.bus.on(
+				harness.bus.on(
 					"t",
-					limited(
-						async (n: number) => {
-							await new Promise((r) => setTimeout(r, 100));
-							done.push(n);
+					queueLimited(
+						async (value: number) => {
+							await new Promise((result) => setTimeout(result, 100));
+							done.push(value);
 						},
 						{ limit: 1, overflow: "drop-old" },
 					),
 				);
-				h.bus.emit("t", 1);
-				h.bus.emit("t", 2);
-				h.bus.emit("t", 3);
-				h.bus.emit("t", 4);
+				harness.bus.emit("t", 1);
+				harness.bus.emit("t", 2);
+				harness.bus.emit("t", 3);
+				harness.bus.emit("t", 4);
 				await vi.advanceTimersByTimeAsync(500);
 
 				expect(done).toEqual([1, 4]);

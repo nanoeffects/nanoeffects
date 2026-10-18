@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createHarness, deferred } from "../test-helpers";
+import { createHarness, deferred } from "../tests/test-helpers";
 import { poll } from "./poll";
 
 describe("poll", () => {
@@ -14,33 +14,33 @@ describe("poll", () => {
 	describe("schedule (like patronum interval)", () => {
 		it("makes the first call after ms, not at once", async () => {
 			const controller = new AbortController();
-			const fn = vi.fn();
-			poll(controller, fn, 100);
+			const handler = vi.fn();
+			poll(controller, handler, 100);
 			await vi.advanceTimersByTimeAsync(99);
-			expect(fn).not.toHaveBeenCalled();
+			expect(handler).not.toHaveBeenCalled();
 			await vi.advanceTimersByTimeAsync(1);
 
-			expect(fn).toHaveBeenCalledTimes(1);
+			expect(handler).toHaveBeenCalledTimes(1);
 			controller.abort();
 		});
 
 		it("calls fn every ms", async () => {
 			const controller = new AbortController();
-			const fn = vi.fn();
-			poll(controller, fn, 100);
+			const handler = vi.fn();
+			poll(controller, handler, 100);
 			await vi.advanceTimersByTimeAsync(350);
 
-			expect(fn).toHaveBeenCalledTimes(3);
+			expect(handler).toHaveBeenCalledTimes(3);
 			controller.abort();
 		});
 
 		it("passes the call number, starting at 0", async () => {
 			const controller = new AbortController();
-			const fn = vi.fn();
-			poll(controller, fn, 10);
+			const handler = vi.fn();
+			poll(controller, handler, 10);
 			await vi.advanceTimersByTimeAsync(35);
 
-			expect(fn.mock.calls.map((c) => c[0])).toEqual([0, 1, 2]);
+			expect(handler.mock.calls.map((call) => call[0])).toEqual([0, 1, 2]);
 			controller.abort();
 		});
 
@@ -56,7 +56,7 @@ describe("poll", () => {
 					starts.push(Date.now() - start);
 					running++;
 					max = Math.max(max, running);
-					await new Promise((r) => setTimeout(r, 250));
+					await new Promise((result) => setTimeout(result, 250));
 					running--;
 				},
 				100,
@@ -70,11 +70,11 @@ describe("poll", () => {
 
 		it("does not wait for fn: a never-ending fn does not stop the ticks", async () => {
 			const controller = new AbortController();
-			const fn = vi.fn(() => new Promise(() => {}));
-			poll(controller, fn, 100);
+			const handler = vi.fn(() => new Promise(() => {}));
+			poll(controller, handler, 100);
 			await vi.advanceTimersByTimeAsync(350);
 
-			expect(fn).toHaveBeenCalledTimes(3);
+			expect(handler).toHaveBeenCalledTimes(3);
 			controller.abort();
 		});
 	});
@@ -82,22 +82,22 @@ describe("poll", () => {
 	describe("leading", () => {
 		it("also calls fn at once", async () => {
 			const controller = new AbortController();
-			const fn = vi.fn();
-			poll(controller, fn, 100, { leading: true });
+			const handler = vi.fn();
+			poll(controller, handler, 100, { leading: true });
 			await vi.advanceTimersByTimeAsync(0);
-			expect(fn).toHaveBeenCalledTimes(1);
+			expect(handler).toHaveBeenCalledTimes(1);
 			await vi.advanceTimersByTimeAsync(100);
 
-			expect(fn.mock.calls.map((c) => c[0])).toEqual([0, 1]);
+			expect(handler.mock.calls.map((call) => call[0])).toEqual([0, 1]);
 			controller.abort();
 		});
 
 		it("calls fn synchronously", () => {
 			const controller = new AbortController();
-			const fn = vi.fn();
-			poll(controller, fn, 100, { leading: true });
+			const handler = vi.fn();
+			poll(controller, handler, 100, { leading: true });
 
-			expect(fn).toHaveBeenCalledTimes(1);
+			expect(handler).toHaveBeenCalledTimes(1);
 			controller.abort();
 		});
 	});
@@ -115,7 +115,7 @@ describe("poll", () => {
 					starts.push(Date.now() - start);
 					running++;
 					max = Math.max(max, running);
-					await new Promise((r) => setTimeout(r, 50));
+					await new Promise((result) => setTimeout(result, 50));
 					running--;
 				},
 				100,
@@ -136,7 +136,7 @@ describe("poll", () => {
 				controller,
 				async () => {
 					starts.push(Date.now() - start);
-					await new Promise((r) => setTimeout(r, 50));
+					await new Promise((result) => setTimeout(result, 50));
 				},
 				100,
 				{ waitForFn: true, leading: true },
@@ -149,16 +149,16 @@ describe("poll", () => {
 
 		it("stops waiting for fn when the task aborts", async () => {
 			const controller = new AbortController();
-			const d = deferred();
-			const fn = vi.fn(() => d.promise);
-			const done = poll(controller, fn, 100, { waitForFn: true });
+			const gate = deferred();
+			const handler = vi.fn(() => gate.promise);
+			const done = poll(controller, handler, 100, { waitForFn: true });
 			await vi.advanceTimersByTimeAsync(100);
 			controller.abort();
-			d.resolve();
+			gate.resolve();
 			await vi.advanceTimersByTimeAsync(1000);
 
 			await expect(done).resolves.toBeUndefined();
-			expect(fn).toHaveBeenCalledTimes(1);
+			expect(handler).toHaveBeenCalledTimes(1);
 			expect(vi.getTimerCount()).toBe(0);
 		});
 	});
@@ -175,13 +175,13 @@ describe("poll", () => {
 
 		it("makes no more calls and clears the timer after the abort", async () => {
 			const controller = new AbortController();
-			const fn = vi.fn();
-			poll(controller, fn, 100);
+			const handler = vi.fn();
+			poll(controller, handler, 100);
 			await vi.advanceTimersByTimeAsync(150);
 			controller.abort();
 			await vi.advanceTimersByTimeAsync(1000);
 
-			expect(fn).toHaveBeenCalledTimes(1);
+			expect(handler).toHaveBeenCalledTimes(1);
 			expect(vi.getTimerCount()).toBe(0);
 		});
 
@@ -195,84 +195,84 @@ describe("poll", () => {
 
 		it("resolves at once even if fn is still running and ignores the abort", async () => {
 			const controller = new AbortController();
-			const d = deferred();
-			const promise = poll(controller, () => d.promise, 100);
+			const gate = deferred();
+			const promise = poll(controller, () => gate.promise, 100);
 			await vi.advanceTimersByTimeAsync(100);
 			controller.abort();
 
 			await expect(promise).resolves.toBeUndefined();
-			d.resolve();
+			gate.resolve();
 		});
 
 		it("resolves without calling fn if already aborted", async () => {
 			const controller = new AbortController();
 			controller.abort();
-			const fn = vi.fn();
+			const handler = vi.fn();
 
-			await expect(poll(controller, fn, 100)).resolves.toBeUndefined();
-			expect(fn).not.toHaveBeenCalled();
+			await expect(poll(controller, handler, 100)).resolves.toBeUndefined();
+			expect(handler).not.toHaveBeenCalled();
 			expect(vi.getTimerCount()).toBe(0);
 		});
 
 		it("rejects, stops and clears the timer when fn throws", async () => {
 			const controller = new AbortController();
-			const fn = vi.fn(() => {
+			const handler = vi.fn(() => {
 				throw new Error("boom");
 			});
-			const promise = poll(controller, fn, 100);
+			const promise = poll(controller, handler, 100);
 			const assertion = expect(promise).rejects.toThrow("boom");
 			await vi.advanceTimersByTimeAsync(1000);
 
 			await assertion;
-			expect(fn).toHaveBeenCalledTimes(1);
+			expect(handler).toHaveBeenCalledTimes(1);
 			expect(vi.getTimerCount()).toBe(0);
 		});
 
 		it("rejects and stops when an async fn rejects", async () => {
 			const controller = new AbortController();
-			const fn = vi.fn(async (tick: number) => {
+			const handler = vi.fn(async (tick: number) => {
 				if (tick === 1) {
 					throw new Error("boom");
 				}
 			});
-			const promise = poll(controller, fn, 100);
+			const promise = poll(controller, handler, 100);
 			const assertion = expect(promise).rejects.toThrow("boom");
 			await vi.advanceTimersByTimeAsync(1000);
 
 			await assertion;
-			expect(fn).toHaveBeenCalledTimes(2);
+			expect(handler).toHaveBeenCalledTimes(2);
 			expect(vi.getTimerCount()).toBe(0);
 		});
 
 		it("an error of a slow call stops the ticks that follow it", async () => {
 			const controller = new AbortController();
-			const fn = vi.fn((tick: number) =>
+			const handler = vi.fn((tick: number) =>
 				tick === 0
 					? new Promise((_resolve, reject) =>
 							setTimeout(() => reject(new Error("late boom")), 250),
 						)
 					: new Promise(() => {}),
 			);
-			const promise = poll(controller, fn, 100);
+			const promise = poll(controller, handler, 100);
 			const assertion = expect(promise).rejects.toThrow("late boom");
 			await vi.advanceTimersByTimeAsync(1000);
 
 			await assertion;
-			expect(fn).toHaveBeenCalledTimes(3); // ticks at 100, 200, 300; the error came at 350
+			expect(handler).toHaveBeenCalledTimes(3); // ticks at 100, 200, 300; the error came at 350
 			expect(vi.getTimerCount()).toBe(0);
 		});
 	});
 
 	describe("trace", () => {
 		it("traces every call and ends the group with cancel", async () => {
-			const h = createHarness();
-			const ctx = h.ctx();
+			const harness = createHarness();
+			const ctx = harness.ctx();
 			const promise = poll(ctx, () => {}, 100);
 			await vi.advanceTimersByTimeAsync(250);
 			ctx.abort();
 			await promise;
 
-			expect(h.phases()).toEqual([
+			expect(harness.phases()).toEqual([
 				"poll/start",
 				"run/start",
 				"run/done",
@@ -283,9 +283,9 @@ describe("poll", () => {
 		});
 
 		it("ends the group with error when fn throws", async () => {
-			const h = createHarness();
+			const harness = createHarness();
 			const promise = poll(
-				h.ctx(),
+				harness.ctx(),
 				() => {
 					throw new Error("boom");
 				},
@@ -294,7 +294,7 @@ describe("poll", () => {
 			await vi.advanceTimersByTimeAsync(100);
 			await promise;
 
-			expect(h.phases()).toEqual([
+			expect(harness.phases()).toEqual([
 				"poll/start",
 				"run/start",
 				"run/error",
@@ -303,27 +303,31 @@ describe("poll", () => {
 		});
 
 		it("links the calls to the group", async () => {
-			const h = createHarness();
-			const ctx = h.ctx();
+			const harness = createHarness();
+			const ctx = harness.ctx();
 			const promise = poll(ctx, () => {}, 100);
 			await vi.advanceTimersByTimeAsync(100);
 			ctx.abort();
 			await promise;
-			const group = h.recorder.events.find((e) => e.effect === "poll");
-			const run = h.recorder.events.find((e) => e.effect === "run");
+			const group = harness.recorder.events.find(
+				(event) => event.effect === "poll",
+			);
+			const run = harness.recorder.events.find(
+				(event) => event.effect === "run",
+			);
 
 			expect(run?.parent).toBe(group?.id);
 		});
 
 		it("traces an unfinished call as cancelled after its group when the task aborts", async () => {
-			const h = createHarness();
-			const ctx = h.ctx();
+			const harness = createHarness();
+			const ctx = harness.ctx();
 			const promise = poll(ctx, () => new Promise(() => {}), 100);
 			await vi.advanceTimersByTimeAsync(100);
 			ctx.abort();
 			await promise;
 
-			expect(h.phases()).toEqual([
+			expect(harness.phases()).toEqual([
 				"poll/start",
 				"run/start",
 				"poll/cancel",
@@ -332,12 +336,12 @@ describe("poll", () => {
 		});
 
 		it("traces nothing for an already aborted context", async () => {
-			const h = createHarness();
-			const ctx = h.ctx();
+			const harness = createHarness();
+			const ctx = harness.ctx();
 			ctx.abort();
 			await poll(ctx, () => {}, 100);
 
-			expect(h.phases()).toEqual([]);
+			expect(harness.phases()).toEqual([]);
 		});
 	});
 
@@ -346,7 +350,7 @@ describe("poll", () => {
 			ms: (call: number) => number,
 			options: Parameters<typeof poll>[3],
 			until: number,
-			fn: (tick: number) => unknown = () => {},
+			handler: (tick: number) => unknown = () => {},
 		) => {
 			const controller = new AbortController();
 			const starts: number[] = [];
@@ -355,7 +359,7 @@ describe("poll", () => {
 				controller,
 				(tick) => {
 					starts.push(Date.now() - start);
-					return fn(tick);
+					return handler(tick);
 				},
 				ms,
 				options,
@@ -415,7 +419,7 @@ describe("poll", () => {
 				(call) => 100 * (call + 1),
 				{ waitForFn: true },
 				800,
-				() => new Promise((r) => setTimeout(r, 50)),
+				() => new Promise((result) => setTimeout(result, 50)),
 			);
 
 			expect(starts).toEqual([100, 350, 700]); // 100, then 50 + 200, then 50 + 300 more
@@ -431,8 +435,8 @@ describe("poll", () => {
 
 		it("rejects and clears the timer if the function throws", async () => {
 			const controller = new AbortController();
-			const fn = vi.fn();
-			const promise = poll(controller, fn, (call) => {
+			const handler = vi.fn();
+			const promise = poll(controller, handler, (call) => {
 				if (call === 1) {
 					throw new Error("bad pause");
 				}
@@ -442,7 +446,7 @@ describe("poll", () => {
 			await vi.advanceTimersByTimeAsync(1000);
 
 			await assertion;
-			expect(fn).toHaveBeenCalledTimes(1);
+			expect(handler).toHaveBeenCalledTimes(1);
 			expect(vi.getTimerCount()).toBe(0);
 		});
 

@@ -1,5 +1,5 @@
-import { createSettle, forkTask, traceRun, traceTask } from "../context";
-import type { EffectName, EventMap } from "../types";
+import { createSettle, forkTask, traceRun, traceTask } from "../core/context";
+import type { EffectName, EventMap } from "../core/types";
 import { onAbort, raceAbort } from "../utils";
 
 /** Context passed into `race` / `all` effect starters. */

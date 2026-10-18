@@ -28,13 +28,27 @@ export type RetryOptions = {
  * });
  * ```
  */
+const pauseFor = (
+	wait: NonNullable<RetryOptions["delay"]>,
+	attempt: number,
+	error: unknown,
+) => (typeof wait === "function" ? wait(attempt, error) : wait);
+
+type Settings = Required<RetryOptions>;
+
+const settingsOf = (options: RetryOptions): Settings => ({
+	times: options.times ?? 3,
+	delay: options.delay ?? 0,
+	shouldRetry: options.shouldRetry ?? (() => true),
+});
+
 export const retry = <T>(
 	ctx: { signal?: AbortSignal },
 	fn: (attempt: number) => T | PromiseLike<T>,
 	options: RetryOptions = {},
 ): Promise<T> =>
 	withGroup("retry", ctx, async (group) => {
-		const { times = 3, delay: wait = 0, shouldRetry = () => true } = options;
+		const { times, delay: wait, shouldRetry } = settingsOf(options);
 
 		for (let attempt = 1; ; attempt++) {
 			try {
@@ -45,7 +59,7 @@ export const retry = <T>(
 					throw error;
 				}
 
-				const ms = typeof wait === "function" ? wait(attempt, error) : wait;
+				const ms = pauseFor(wait, attempt, error);
 				if (ms > 0) {
 					await delay(group, ms);
 				}

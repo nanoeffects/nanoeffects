@@ -1,0 +1,13 @@
+language js
+
+or { `$left ?? $right`, `$left || $right`, `$left && $right` } where {
+	or {
+		$left <: or { `$c ? $a : $b`, `($c ? $a : $b)` },
+		$right <: or { `$c ? $a : $b`, `($c ? $a : $b)` }
+	},
+	register_diagnostic(
+		span = $right,
+		message = "A ternary inside ?? / || / && pushes the code to the right and is hard to read. Move the choice into a named helper or a const.",
+		severity = "error"
+	)
+}

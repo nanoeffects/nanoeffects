@@ -1,5 +1,5 @@
+import { report } from "../utils";
 import type { Trace, TraceLogger } from "./types";
-import { report } from "./utils";
 
 /** Merges `trace` into one hook that isolates failures of each logger. */
 export const combineLoggers = (trace?: Trace): TraceLogger | null => {

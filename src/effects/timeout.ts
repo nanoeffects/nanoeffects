@@ -1,6 +1,6 @@
-import { forkTask, traceRun } from "../context";
-import type { EventMap } from "../types";
-import { raceAbort } from "../utils";
+import { forkTask, traceRun } from "../core/context";
+import type { EventMap } from "../core/types";
+import { clearTimer, raceAbort, setTimer } from "../utils";
 import { withGroup } from "./group";
 import type { Starter } from "./run";
 
@@ -23,7 +23,7 @@ export const timeout = <T>(
 ): Promise<T> =>
 	withGroup("timeout", ctx, async (group) => {
 		const child = forkTask<EventMap>(group);
-		const timer = setTimeout(
+		const timer = setTimer(
 			() =>
 				child.ctx.abort(
 					new DOMException(`Timed out after ${ms}ms`, "TimeoutError"),
@@ -41,7 +41,7 @@ export const timeout = <T>(
 				child.ctx,
 			);
 		} finally {
-			clearTimeout(timer);
+			clearTimer(timer);
 			child.unlink();
 		}
 	});

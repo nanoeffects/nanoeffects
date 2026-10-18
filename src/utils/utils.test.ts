@@ -54,22 +54,22 @@ describe("linkedController", () => {
 
 	it("links a chain of controllers", () => {
 		const root = new AbortController();
-		const a = linkedController(root.signal);
-		const b = linkedController(a.controller.signal);
+		const first = linkedController(root.signal);
+		const second = linkedController(first.controller.signal);
 		root.abort("root");
 
-		expect(b.controller.signal.aborted).toBe(true);
-		expect(b.controller.signal.reason).toBe("root");
+		expect(second.controller.signal.aborted).toBe(true);
+		expect(second.controller.signal.reason).toBe("root");
 	});
 
 	it("aborting a middle controller does not reach the root or siblings", () => {
 		const root = new AbortController();
-		const a = linkedController(root.signal);
-		const b = linkedController(root.signal);
-		a.controller.abort();
+		const first = linkedController(root.signal);
+		const second = linkedController(root.signal);
+		first.controller.abort();
 
 		expect(root.signal.aborted).toBe(false);
-		expect(b.controller.signal.aborted).toBe(false);
+		expect(second.controller.signal.aborted).toBe(false);
 	});
 });
 
@@ -182,7 +182,7 @@ describe("delay with a function", () => {
 		const start = Date.now();
 		const times: number[] = [];
 		const wait = () => delay({}, () => 100 * 2 ** attempt++);
-		for (let i = 0; i < 3; i++) {
+		for (let index = 0; index < 3; index++) {
 			const pending = wait();
 			await vi.advanceTimersByTimeAsync(1000);
 			await pending;

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createHarness, deferred } from "../test-helpers";
+import { createHarness, deferred } from "../tests/test-helpers";
 import { all, delay, race } from ".";
 import { take } from "./take";
 
@@ -28,10 +28,10 @@ describe("all", () => {
 		});
 
 		it("an event emitted right after the call reaches a waiting starter", async () => {
-			const h = createHarness();
-			const ctx = h.ctx();
+			const harness = createHarness();
+			const ctx = harness.ctx();
 			const promise = all(ctx, [() => take(ctx, "b")]);
-			h.bus.emit("b", "hi");
+			harness.bus.emit("b", "hi");
 
 			await expect(promise).resolves.toEqual(["hi"]);
 		});
@@ -58,15 +58,15 @@ describe("all", () => {
 		});
 
 		it("waits for every starter", async () => {
-			const a = deferred<number>();
-			const b = deferred<number>();
+			const first = deferred<number>();
+			const second = deferred<number>();
 			const done = vi.fn();
-			all({}, { a: () => a.promise, b: () => b.promise }).then(done);
-			a.resolve(1);
-			await new Promise((r) => setTimeout(r, 0));
+			all({}, { a: () => first.promise, b: () => second.promise }).then(done);
+			first.resolve(1);
+			await new Promise((result) => setTimeout(result, 0));
 			expect(done).not.toHaveBeenCalled();
-			b.resolve(2);
-			await new Promise((r) => setTimeout(r, 0));
+			second.resolve(2);
+			await new Promise((result) => setTimeout(result, 0));
 
 			expect(done).toHaveBeenCalledWith({ a: 1, b: 2 });
 		});
@@ -137,7 +137,7 @@ describe("all", () => {
 				() => Promise.reject(new Error("one")),
 				() => Promise.reject(new Error("two")),
 			]).catch(() => {});
-			await new Promise((r) => setTimeout(r, 5));
+			await new Promise((result) => setTimeout(result, 5));
 		});
 
 		it("does not cancel starters when all succeed", async () => {
@@ -201,15 +201,15 @@ describe("all", () => {
 		});
 
 		it("rejects at once when a task context aborts, and traces cancel", async () => {
-			const h = createHarness();
-			const ctx = h.ctx();
+			const harness = createHarness();
+			const ctx = harness.ctx();
 			const promise = all(ctx, { a: never });
 			const assertion = expect(promise).rejects.toBe("stop");
 			ctx.abort("stop");
 			await assertion;
 
-			expect(h.phases()).toContain("all/cancel");
-			expect(h.phases()).not.toContain("all/error");
+			expect(harness.phases()).toContain("all/cancel");
+			expect(harness.phases()).not.toContain("all/error");
 		});
 
 		it("does not reject after finishing when the parent aborts later", async () => {
@@ -241,34 +241,38 @@ describe("all", () => {
 
 	describe("trace", () => {
 		it("traces the group and every starter when given a task context", async () => {
-			const h = createHarness();
-			await all(h.ctx(), { a: () => 1, b: () => 2 });
-			const phases = h.phases();
+			const harness = createHarness();
+			await all(harness.ctx(), { a: () => 1, b: () => 2 });
+			const phases = harness.phases();
 
 			expect(phases[0]).toBe("all/start");
 			expect(phases.at(-1)).toBe("all/done");
-			expect(phases.filter((p) => p === "run/start")).toHaveLength(2);
-			expect(phases.filter((p) => p === "run/done")).toHaveLength(2);
+			expect(phases.filter((phase) => phase === "run/start")).toHaveLength(2);
+			expect(phases.filter((phase) => phase === "run/done")).toHaveLength(2);
 		});
 
 		it("links starters to the group", async () => {
-			const h = createHarness();
-			await all(h.ctx(), { a: () => 1 });
-			const group = h.recorder.events.find((e) => e.effect === "all");
-			const run = h.recorder.events.find((e) => e.effect === "run");
+			const harness = createHarness();
+			await all(harness.ctx(), { a: () => 1 });
+			const group = harness.recorder.events.find(
+				(event) => event.effect === "all",
+			);
+			const run = harness.recorder.events.find(
+				(event) => event.effect === "run",
+			);
 
 			expect(run?.parent).toBe(group?.id);
 		});
 
 		it("reports error for the group and cancel for the sibling", async () => {
-			const h = createHarness();
-			await all(h.ctx(), [
+			const harness = createHarness();
+			await all(harness.ctx(), [
 				never,
 				() => {
 					throw new Error("bad");
 				},
 			]).catch(() => {});
-			const phases = h.phases();
+			const phases = harness.phases();
 
 			expect(phases).toContain("all/error");
 			expect(phases).toContain("run/error");
@@ -277,15 +281,15 @@ describe("all", () => {
 		});
 
 		it("reports cancel when the parent aborts", async () => {
-			const h = createHarness();
-			const ctx = h.ctx();
+			const harness = createHarness();
+			const ctx = harness.ctx();
 			const promise = all(ctx, [({ signal }) => delay({ signal }, 1000)]).catch(
 				() => {},
 			);
 			await Promise.resolve();
 			ctx.abort();
 			await promise;
-			const phases = h.phases();
+			const phases = harness.phases();
 
 			expect(phases).toContain("all/cancel");
 			expect(phases).toContain("run/cancel");
@@ -293,10 +297,10 @@ describe("all", () => {
 		});
 
 		it("is silent for a plain parent", async () => {
-			const h = createHarness();
-			await all({ signal: h.ctx().signal }, { a: () => 1 });
+			const harness = createHarness();
+			await all({ signal: harness.ctx().signal }, { a: () => 1 });
 
-			expect(h.phases()).toEqual([]);
+			expect(harness.phases()).toEqual([]);
 		});
 	});
 });
@@ -417,15 +421,15 @@ describe("race", () => {
 	});
 
 	it("rejects at once when a task context aborts, and traces cancel", async () => {
-		const h = createHarness();
-		const ctx = h.ctx();
+		const harness = createHarness();
+		const ctx = harness.ctx();
 		const promise = race(ctx, { a: never });
 		const assertion = expect(promise).rejects.toBe("stop");
 		ctx.abort("stop");
 		await assertion;
 
-		expect(h.phases()).toContain("race/cancel");
-		expect(h.phases()).not.toContain("race/error");
+		expect(harness.phases()).toContain("race/cancel");
+		expect(harness.phases()).not.toContain("race/error");
 	});
 
 	it("does not reject after a win when the parent aborts later", async () => {
@@ -475,9 +479,9 @@ describe("race", () => {
 
 	describe("trace", () => {
 		it("reports done for the winner and cancel for the loser", async () => {
-			const h = createHarness();
-			await race(h.ctx(), { a: () => "a", b: never });
-			const phases = h.phases();
+			const harness = createHarness();
+			await race(harness.ctx(), { a: () => "a", b: never });
+			const phases = harness.phases();
 
 			expect(phases[0]).toBe("race/start");
 			expect(phases).toContain("race/done");
@@ -486,20 +490,20 @@ describe("race", () => {
 		});
 
 		it("reports error when the first to settle fails", async () => {
-			const h = createHarness();
-			await race(h.ctx(), {
+			const harness = createHarness();
+			await race(harness.ctx(), {
 				a: () => Promise.reject(new Error("boom")),
 				b: never,
 			}).catch(() => {});
 
-			expect(h.phases()).toContain("race/error");
+			expect(harness.phases()).toContain("race/error");
 		});
 
 		it("reports one terminal event for the group", async () => {
-			const h = createHarness();
-			await race(h.ctx(), { a: () => 1, b: never });
-			const groupTerminal = h.recorder.events.filter(
-				(e) => e.effect === "race" && e.phase !== "start",
+			const harness = createHarness();
+			await race(harness.ctx(), { a: () => 1, b: never });
+			const groupTerminal = harness.recorder.events.filter(
+				(event) => event.effect === "race" && event.phase !== "start",
 			);
 
 			expect(groupTerminal).toHaveLength(1);

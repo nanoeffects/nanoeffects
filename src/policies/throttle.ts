@@ -1,6 +1,7 @@
-import type { Context } from "../bus";
-import { traceRun, traceTask } from "../context";
-import type { EventMap, Task } from "../types";
+import type { Context } from "../core/bus";
+import { traceRun, traceTask } from "../core/context";
+import type { EventMap, Task } from "../core/types";
+import { clearTimer, setTimer, type Timer } from "../utils";
 import { byKey, type KeyOption, noop } from "./keyed";
 
 type Pending<P, E extends EventMap, R> = {
@@ -63,13 +64,16 @@ const createThrottle = <P, E extends EventMap, R>(
 	options: ThrottleOptions<P>,
 	onIdle: () => void,
 ): Task<P, E, R | Promise<R | undefined> | undefined> => {
-	const { leading = true, trailing = true } = options;
+	const leading = options.leading ?? true;
+	const trailing = options.trailing ?? true;
 	const keyed = onIdle !== noop;
 	let lastCallTime: number | null = null;
 	let lastRunTime = 0;
-	let timer: ReturnType<typeof setTimeout> | null = null;
-	let cooldown: ReturnType<typeof setTimeout> | null = null;
+	let timer: Timer | null = null;
+	let cooldown: Timer | null = null;
 	let pending: Pending<P, E, R> | null = null;
+	// true while `fn` runs synchronously: a call made from inside it must wait
+	let busy = false;
 
 	const shouldRun = (time: number) =>
 		lastCallTime === null ||
@@ -98,7 +102,19 @@ const createThrottle = <P, E extends EventMap, R>(
 	const run = (payload: P, ctx: Context<E>, time: number) => {
 		dropPending();
 		lastRunTime = time;
-		return traceRun(ctx, "throttle", () => fn(payload, ctx));
+		busy = true;
+
+		try {
+			return traceRun(ctx, "throttle", () => fn(payload, ctx));
+		} finally {
+			busy = false;
+		}
+	};
+
+	const armCooldown = () => {
+		if (keyed) {
+			cooldown = setTimer(checkIdle, ms);
+		}
 	};
 
 	// a keyed throttle is forgotten once it behaves like a fresh one
@@ -116,7 +132,7 @@ const createThrottle = <P, E extends EventMap, R>(
 		if (wait <= 0) {
 			onIdle();
 		} else {
-			cooldown = setTimeout(checkIdle, wait);
+			cooldown = setTimer(checkIdle, wait);
 		}
 	};
 
@@ -143,11 +159,77 @@ const createThrottle = <P, E extends EventMap, R>(
 			trailingEdge(time);
 		} else {
 			const last = lastCallTime ?? time;
-			timer = setTimeout(
+			timer = setTimer(
 				expired,
 				Math.min(ms - (time - last), ms - (time - lastRunTime)),
 			);
 		}
+	};
+
+	const cancelCooldown = () => {
+		if (cooldown !== null) {
+			clearTimer(cooldown);
+			cooldown = null;
+		}
+	};
+
+	// a call that does not run now: it waits for the end of the window, or is dropped
+	const defer = (payload: P, ctx: Context<E>) => {
+		if (!trailing) {
+			drop(ctx);
+			return;
+		}
+		return hold(payload, ctx);
+	};
+
+	// Without a trailing run nothing is owed after the leading one, so no timer
+	// is needed: the window is told from the times of the last call and run.
+	const leadingOnly = (
+		payload: P,
+		ctx: Context<E>,
+		time: number,
+		running: boolean,
+	) => {
+		if (!running) {
+			drop(ctx);
+			return;
+		}
+
+		lastRunTime = time;
+		armCooldown();
+		if (!leading) {
+			drop(ctx);
+			return;
+		}
+		return run(payload, ctx, time);
+	};
+
+	// With a trailing run: a timer ends the window and runs the call held.
+	const withTrailing = (
+		payload: P,
+		ctx: Context<E>,
+		time: number,
+		running: boolean,
+	) => {
+		if (running && timer !== null) {
+			// the window is over but its timer has not fired: restart it, run now
+			clearTimer(timer);
+			timer = setTimer(expired, ms);
+			return run(payload, ctx, time);
+		}
+
+		if (timer === null) {
+			timer = setTimer(expired, ms);
+			if (running) {
+				// the throttle was idle: a new window starts
+				lastRunTime = time;
+				if (leading) {
+					return run(payload, ctx, time);
+				}
+			}
+		}
+
+		return defer(payload, ctx);
 	};
 
 	return (payload, ctx) => {
@@ -156,33 +238,13 @@ const createThrottle = <P, E extends EventMap, R>(
 		}
 
 		const time = Date.now();
-		const running = shouldRun(time);
+		// a call made by `fn` itself never runs at once, or it could loop forever
+		const running = !busy && shouldRun(time);
 		lastCallTime = time;
-		if (cooldown !== null) {
-			clearTimeout(cooldown);
-			cooldown = null;
-		}
+		cancelCooldown();
 
-		if (running && timer === null) {
-			// leading edge: the throttle was idle, so a new window starts
-			lastRunTime = time;
-			timer = setTimeout(expired, ms);
-			if (leading) {
-				return run(payload, ctx, time);
-			}
-		} else if (running && timer !== null) {
-			// the window is over but its timer has not fired: restart it, run now
-			clearTimeout(timer);
-			timer = setTimeout(expired, ms);
-			return run(payload, ctx, time);
-		} else if (timer === null) {
-			timer = setTimeout(expired, ms);
-		}
-
-		if (!trailing) {
-			drop(ctx);
-			return;
-		}
-		return hold(payload, ctx);
+		return trailing
+			? withTrailing(payload, ctx, time, running)
+			: leadingOnly(payload, ctx, time, running);
 	};
 };

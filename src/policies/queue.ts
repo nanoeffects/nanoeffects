@@ -1,5 +1,5 @@
-import { traceRun, traceTask } from "../context";
-import type { EventMap, Task } from "../types";
+import { traceRun, traceTask } from "../core/context";
+import type { EventMap, Task } from "../core/types";
 import { onAbort } from "../utils";
 import { byKey, type KeyOption, noop } from "./keyed";
 
@@ -62,7 +62,8 @@ const createQueue = <P, E extends EventMap, R>(
 	options: QueueOptions<P>,
 	onIdle: () => void,
 ): Task<P, E, Promise<Awaited<R> | undefined>> => {
-	const { concurrency = 1, limit = Number.POSITIVE_INFINITY } = options;
+	const concurrency = options.concurrency ?? 1;
+	const limit = options.limit ?? Number.POSITIVE_INFINITY;
 	const waiting: Entry[] = [];
 	let running = 0;
 
@@ -93,6 +94,10 @@ const createQueue = <P, E extends EventMap, R>(
 
 			const start = () => {
 				stopWaiting();
+				if (ctx.signal.aborted) {
+					drop();
+					return;
+				}
 				running++;
 
 				let held = true;
@@ -106,7 +111,10 @@ const createQueue = <P, E extends EventMap, R>(
 						}
 					}
 				};
-				const stopFree = onAbort(ctx, free);
+				const stopFree = onAbort(ctx, () => {
+					free();
+					resolve(void 0);
+				});
 
 				let outcome: Promise<Awaited<R>>;
 				try {

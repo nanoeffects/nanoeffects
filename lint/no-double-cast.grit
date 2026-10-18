@@ -1,0 +1,9 @@
+language js
+
+`$value as unknown as $type` where {
+	register_diagnostic(
+		span = $value,
+		message = "A double cast hides a type problem. Type the value, or name the cast on its own line.",
+		severity = "error"
+	)
+}

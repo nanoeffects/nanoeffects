@@ -17,7 +17,13 @@
 		"rules": {
 			"preset": "recommended",
 			"complexity": {
-				"noUselessUndefined": "error"
+				"noUselessUndefined": "error",
+				"noExcessiveCognitiveComplexity": {
+					"level": "error",
+					"options": {
+						"maxAllowedComplexity": 15
+					}
+				}
 			},
 			"style": {
 				"noRestrictedGlobals": {
@@ -28,7 +34,8 @@
 						}
 					}
 				},
-				"useBlockStatements": "error"
+				"useBlockStatements": "error",
+				"noNestedTernary": "error"
 			}
 		}
 	},
@@ -44,5 +51,34 @@
 				"organizeImports": "on"
 			}
 		}
-	}
+	},
+	"overrides": [
+		{
+			"includes": [
+				"src/**",
+				"!**/*.test.ts",
+				"!src/tests/test-helpers.ts",
+				"!src/lodash.d.ts"
+			],
+			"plugins": [
+				"./lint/no-double-cast.grit",
+				"./lint/no-cast-in-arguments.grit",
+				"./lint/no-long-optional-chain.grit",
+				"./lint/no-ternary-operand.grit"
+			]
+		},
+		{
+			"includes": ["**/*.test.ts", "src/tests/test-helpers.ts"],
+			"linter": {
+				"rules": {
+					"complexity": {
+						"noExcessiveCognitiveComplexity": "off"
+					},
+					"style": {
+						"noNestedTernary": "off"
+					}
+				}
+			}
+		}
+	]
 }

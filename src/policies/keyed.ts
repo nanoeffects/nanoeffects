@@ -1,4 +1,4 @@
-import type { EventMap, Task } from "../types";
+import type { EventMap, Task } from "../core/types";
 
 /** Options shared by every policy that can keep its state per key. */
 export type KeyOption<P> = {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createHarness, deferred } from "../test-helpers";
+import { createHarness, deferred } from "../tests/test-helpers";
 import { allSettled } from "./allSettled";
 
 const never = () => new Promise<never>(() => {});
@@ -54,19 +54,24 @@ describe("allSettled", () => {
 				() => Promise.reject(new Error("two")),
 			]);
 
-			expect(result.map((r) => r.status)).toEqual(["rejected", "rejected"]);
+			expect(result.map((result) => result.status)).toEqual([
+				"rejected",
+				"rejected",
+			]);
 		});
 
 		it("waits for the slowest starter", async () => {
-			const a = deferred<number>();
-			const b = deferred<number>();
+			const first = deferred<number>();
+			const second = deferred<number>();
 			const done = vi.fn();
-			allSettled({}, { a: () => a.promise, b: () => b.promise }).then(done);
-			a.resolve(1);
-			await new Promise((r) => setTimeout(r, 0));
+			allSettled({}, { a: () => first.promise, b: () => second.promise }).then(
+				done,
+			);
+			first.resolve(1);
+			await new Promise((result) => setTimeout(result, 0));
 			expect(done).not.toHaveBeenCalled();
-			b.reject(new Error("late"));
-			await new Promise((r) => setTimeout(r, 0));
+			second.reject(new Error("late"));
+			await new Promise((result) => setTimeout(result, 0));
 
 			expect(done).toHaveBeenCalledTimes(1);
 		});
@@ -86,7 +91,7 @@ describe("allSettled", () => {
 					},
 				},
 			);
-			await new Promise((r) => setTimeout(r, 0));
+			await new Promise((result) => setTimeout(result, 0));
 			expect(signals[0]?.aborted).toBe(false);
 			slow.resolve("done");
 
@@ -98,7 +103,7 @@ describe("allSettled", () => {
 
 		it("does not leak an unhandled rejection", async () => {
 			await allSettled({}, [() => Promise.reject(new Error("boom"))]);
-			await new Promise((r) => setTimeout(r, 5));
+			await new Promise((result) => setTimeout(result, 5));
 		});
 	});
 
@@ -146,12 +151,12 @@ describe("allSettled", () => {
 
 	describe("trace", () => {
 		it("ends the group with done even when a starter failed", async () => {
-			const h = createHarness();
-			await allSettled(h.ctx(), [
+			const harness = createHarness();
+			await allSettled(harness.ctx(), [
 				() => 1,
 				() => Promise.reject(new Error("boom")),
 			]);
-			const phases = h.phases();
+			const phases = harness.phases();
 
 			expect(phases[0]).toBe("allSettled/start");
 			expect(phases.at(-1)).toBe("allSettled/done");
@@ -160,13 +165,13 @@ describe("allSettled", () => {
 		});
 
 		it("ends the group with cancel when the task aborts", async () => {
-			const h = createHarness();
-			const ctx = h.ctx();
+			const harness = createHarness();
+			const ctx = harness.ctx();
 			const promise = allSettled(ctx, [never]).catch(() => {});
 			ctx.abort();
 			await promise;
 
-			expect(h.phases()).toContain("allSettled/cancel");
+			expect(harness.phases()).toContain("allSettled/cancel");
 		});
 	});
 });

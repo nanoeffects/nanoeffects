@@ -1,4 +1,4 @@
-import type { TraceEvent, TraceLogger } from "../types";
+import type { TraceEvent, TraceLogger } from "../core/types";
 
 export type Recorder<E = Record<string, unknown>> = TraceLogger<E> & {
 	/** Every event received so far, in order. */

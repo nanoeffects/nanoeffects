@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
-import * as effects from "./effects";
-import * as main from "./index";
-import * as policies from "./policies";
-import * as trace from "./trace";
+import * as main from "..";
+import * as actions from "../actions";
+import * as effects from "../effects";
+import * as policies from "../policies";
+import * as trace from "../trace";
 
 describe("public entries", () => {
 	it("main", () => {
@@ -41,6 +42,18 @@ describe("public entries", () => {
 			"createTracer",
 			"performanceLogger",
 			"reduxDevtools",
+		]);
+	});
+
+	it("actions", () => {
+		expect(Object.keys(actions).sort()).toEqual([
+			"bindHandler",
+			"createAction",
+			"createCommand",
+			"createCommands",
+			"createJob",
+			"createModule",
+			"registerModules",
 		]);
 	});
 });

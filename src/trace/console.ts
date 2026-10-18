@@ -1,4 +1,4 @@
-import type { TraceLogger } from "../types";
+import type { TraceLogger } from "../core/types";
 
 export type ConsoleLoggerOptions = {
 	/** Defaults to `globalThis.console`. */

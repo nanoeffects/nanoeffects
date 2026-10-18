@@ -1,5 +1,5 @@
-import type { Context } from "../bus";
-import type { EventMap, Keys } from "../types";
+import type { Context } from "../core/bus";
+import type { EventMap, Keys } from "../core/types";
 import { onAbort } from "../utils";
 import { withGroup } from "./group";
 

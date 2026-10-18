@@ -1,6 +1,6 @@
-import { traceRun } from "../context";
-import type { EventMap, Task } from "../types";
-import { delay, onAbort } from "../utils";
+import { traceRun, traceTask } from "../core/context";
+import type { EventMap, Task } from "../core/types";
+import { clearTimer, delay, onAbort, setTimer, type Timer } from "../utils";
 import { byKey, type KeyOption, noop } from "./keyed";
 import { latestWith } from "./latest";
 
@@ -47,13 +47,54 @@ export const debounce = <P, E extends EventMap, R>(
 	return options.key ? byKey(options.key, create) : create(noop);
 };
 
+// Without a trailing run there is nothing to wait for, so no timer is needed:
+// a burst lasts while the calls come less than `ms` apart, told by their times.
+const createLeadingOnly = <P, E extends EventMap, R>(
+	ms: number,
+	fn: Task<P, E, R>,
+	leading: boolean,
+	onIdle: () => void,
+): Task<P, E, DebounceResult<R>> => {
+	const keyed = onIdle !== noop;
+	let lastCall: number | null = null;
+	let cooldown: Timer | null = null;
+
+	return (payload, ctx) => {
+		if (ctx.signal.aborted) {
+			return;
+		}
+
+		const time = Date.now();
+		const quiet =
+			lastCall === null || time - lastCall >= ms || time - lastCall < 0;
+		lastCall = time;
+
+		if (cooldown !== null) {
+			clearTimer(cooldown);
+		}
+		// a keyed debounce is forgotten after `ms` of quiet
+		cooldown = keyed ? setTimer(onIdle, ms) : null;
+
+		if (!(leading && quiet)) {
+			traceTask(ctx, "debounce", "drop");
+			return Promise.resolve(void 0);
+		}
+		return Promise.resolve(traceRun(ctx, "debounce", () => fn(payload, ctx)));
+	};
+};
+
 const createDebounce = <P, E extends EventMap, R>(
 	ms: number,
 	fn: Task<P, E, R>,
 	options: DebounceOptions<P>,
 	onIdle: () => void,
 ): Task<P, E, DebounceResult<R>> => {
-	const { leading = false, trailing = true } = options;
+	const leading = options.leading ?? false;
+	const trailing = options.trailing ?? true;
+	if (!trailing) {
+		return createLeadingOnly(ms, fn, leading, onIdle);
+	}
+
 	let inBurst = false;
 	let generation = 0;
 

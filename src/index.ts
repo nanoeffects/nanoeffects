@@ -4,9 +4,12 @@ export {
 	anyEventType,
 	type Bus,
 	type BusOptions,
+	type Command,
+	type Commands,
 	type Context,
 	createBus,
 	type Emit,
+	type Emittable,
 	type EventKey,
 	type EventLike,
 	type EventPayload,
@@ -16,8 +19,8 @@ export {
 	type On,
 	type WithPayload,
 	type WithType,
-} from "./bus";
-export type { Tracer } from "./tracer";
+} from "./core/bus";
+export type { Tracer } from "./core/tracer";
 export type {
 	EffectName,
 	EventMap,
@@ -29,4 +32,4 @@ export type {
 	TraceEvent,
 	TraceLogger,
 	UnsubscribeCallback,
-} from "./types";
+} from "./core/types";

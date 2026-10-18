@@ -23,6 +23,47 @@ bus.emit("save", b); // waits for a, then runs
 - Every call returns a promise with the result of its own run. An error rejects only that call and the queue goes on.
 - A waiting call whose task aborts is skipped and resolves with `undefined`. When the task of a running call aborts, its slot is freed at once and its result is dropped, so pass `signal` to what `fn` does: a `fn` that ignores it can overlap with the next run.
 
+## Actions, commands and jobs
+
+`nanoeffects/actions` has the pieces to describe what a bus does, apart from the code that does it.
+
+```ts
+import { createAction, createCommand, createJob } from "nanoeffects/actions";
+
+// an event with a payload, as in Redux Toolkit
+const userLoaded = createAction<User, "user/loaded">("user/loaded");
+const loadFailed = createAction<Error, "user/failed">("user/failed");
+
+// a request for a result: emit it and get what its handler returns
+const getUser = createCommand("user/get", (id: string, { signal }) => fetchUser(id, { signal }));
+
+// a contract without a handler: the code that sends mail is elsewhere
+const sendMail = createCommand<Mail, void>("mail/send");
+
+// a command whose outcome is sent on as events
+const loadUser = createJob("user/load", fetchUser, { done: userLoaded, fail: loadFailed });
+```
+
+**Actions.** `createAction(type)` returns a creator: `userLoaded(user)` is `{ type, payload }`, `userLoaded.type` is the type, `userLoaded.match(action)` narrows an action. `createAction(type, prepare)` builds the payload from several arguments. A creator works as the event of its type: `bus.emit(userLoaded(user))`, `bus.on(userLoaded, fn)`.
+
+**Commands.** `bus.emit(command, payload)` tells the listeners of the command's type, then runs its handler as a task, with a context, and returns the result. The handler can be wrapped in a policy, `createCommand("search", latest(fn))`. Calling `command(payload)` runs its own handler without a bus.
+
+**Where handlers are registered.** The command may carry a handler. The bus gets the handlers bound to commands from a registry, `createCommands`, and a handler bound there wins over the command's own. The registry belongs to one bus, as an effector scope does with `fork({ handlers })`, so each bus (each test) can have its own.
+
+```ts
+import { createCommands, bindHandler } from "nanoeffects/actions";
+
+const commands = createCommands<Events>([bindHandler(sendMail, smtpSend)]);
+const bus = createBus<Events>({ commands });
+
+const unbind = commands.handle(getUser, async () => fakeUser); // later, e.g. in a test
+unbind(); // the command's own handler is back; the latest binding wins
+```
+
+A command with no handler anywhere throws `No handler for command "..."` from `emit`. The registry lives in `nanoeffects/actions`, so a bus without `commands` carries none of this code; without it `emit(command, payload)` simply runs the command's own handler.
+
+**Jobs.** `createJob(type, handler, { done, fail })` is a command that sends its outcome on, for when nobody waits for the result. `done` receives the result and `fail` receives the error; each is anything `emit` takes: an event type, an action creator, a command, or a plain action. `bus.emit(job, payload)` still returns a promise of the result. With `fail` set the error counts as handled: it goes to `fail` and the promise resolves with `undefined`; without it the promise rejects. The outcome is routed also for a handler bound with `commands.handle`, and is not sent once the task is aborted.
+
 ## Policies
 
 A policy wraps a handler and decides what happens when calls overlap. Every policy takes `key` in its options (see below), so each key has its own state.
@@ -105,6 +146,60 @@ bus.on("load", async (id, ctx) => {
 	await all(ctx, { user: () => fetchUser(id), posts: () => fetchPosts(id) });
 });
 ```
+
+## Removing tracing from a build
+
+Without a tracer the hooks cost almost nothing (a lookup that finds no tracer), and `nanoeffects/trace` is a separate entry that is only bundled when imported. To also drop the tracing code from the core, use the `notrace` export condition: the package ships a second build of `index`, `effects`, `policies` and `actions` made with `__NANOEFFECTS_TRACE__` set to `false`, so the bundler removes the tracer calls.
+
+```ts
+// vite / rolldown
+resolve: { conditions: ["notrace"] }
+// webpack
+resolve: { conditionNames: ["notrace", "import", "..."] }
+// esbuild
+conditions: ["notrace"]
+```
+
+In a build of your own from the sources, `define: { __NANOEFFECTS_TRACE__: "false" }` does the same. With the condition set, the types of that build have no `trace` option: `createBus({ trace })` is a type error, so tracing cannot be left on by mistake (`scripts/notrace-types.mjs` makes `BusOptions.trace` `never` there). `nanoeffects/trace` has no `notrace` build. The saving is about 0.4 kB gzip of the whole library.
+
+## Your own fields in the context
+
+`createBus({ context })` adds fields to the context of every task of the bus: handlers, `ctx.run`, listeners added with `ctx.on`, commands, modules and the child tasks of effects and policies. Use it for a store, a client or a logger that the tasks share. Declare the types once, globally:
+
+```ts
+declare global {
+  interface NanoeffectsContext {
+    store: Store;
+  }
+}
+
+const bus = createBus<Events>({ context: { store } });
+bus.on("save", (draft, { store }) => store.put(draft));
+```
+
+The fields of the library (`signal`, `emit`, `run`, ...) win when the names are the same. Modules get these fields too.
+
+## Modules
+
+`registerModules(bus, modules)` from `nanoeffects/actions` assembles an app from modules and returns `mount`, `unmount`, `isMounted` and `dispose`. Create the bus with the registry of `createCommands`, so the commands that modules bind are the ones it runs:
+
+```ts
+const userModule = createModule<Events>("user", (m) => {
+  m.handle(getUser, fetchUser);
+  m.on("login", (user, ctx) => ctx.emit("loaded", user));
+  m.spawn(async (_, ctx) => { /* background work, ends with the module */ });
+});
+
+const commands = createCommands<Events>();
+const bus = createBus<Events>({ commands });
+const app = registerModules(bus, [userModule]);
+
+const unmount = app.mount(orderModule); // later, e.g. after a lazy import
+commands.handle(getUser, fakeUser); // in a test
+app.dispose(); // unmounts every module
+```
+
+The bus has `context`, `trace` and `commands` as read-only fields (the options), for code that makes tasks of its own, like `registerModules`.
 
 ## Loggers
 

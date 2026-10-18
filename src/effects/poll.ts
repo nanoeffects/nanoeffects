@@ -1,4 +1,4 @@
-import { onAbort } from "../utils";
+import { clearTimer, onAbort, setTimer, type Timer } from "../utils";
 import { runTraced, withGroup } from "./group";
 
 export type PollOptions = {
@@ -43,7 +43,8 @@ export const poll = (
 		return Promise.resolve();
 	}
 
-	const { leading = false, waitForFn = false } = options;
+	const leading = options.leading ?? false;
+	const waitForFn = options.waitForFn ?? false;
 
 	return withGroup(
 		"poll",
@@ -52,21 +53,18 @@ export const poll = (
 			// it never fulfils: it ends by an abort or by an error of `fn`
 			new Promise<void>((_, reject) => {
 				let started = 0;
-				let timer: ReturnType<typeof setTimeout> | null = null;
+				let timer: Timer | null = null;
 
 				const stop = () => {
 					if (timer !== null) {
-						clearTimeout(timer);
+						clearTimer(timer);
 						timer = null;
 					}
 				};
 				// `next` is the number of the call this pause leads to
 				const schedule = (next: number) => {
 					try {
-						timer = setTimeout(
-							onTimer,
-							typeof ms === "function" ? ms(next) : ms,
-						);
+						timer = setTimer(onTimer, typeof ms === "function" ? ms(next) : ms);
 					} catch (error) {
 						stop();
 						reject(error);

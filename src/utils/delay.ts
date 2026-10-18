@@ -1,4 +1,5 @@
 import { onAbort } from "./onAbort";
+import { clearTimer, setTimer } from "./timer";
 
 /**
  * Resolves after `ms`, or rejects early if `ctx.signal` aborts. `ms` can be a
@@ -24,7 +25,7 @@ export const delay = (
 	ms: number | (() => number),
 ) =>
 	new Promise<void>((resolve, reject) => {
-		const timer = setTimeout(
+		const timer = setTimer(
 			() => {
 				off();
 				resolve();
@@ -32,7 +33,7 @@ export const delay = (
 			typeof ms === "function" ? ms() : ms,
 		);
 		const off = onAbort(ctx, (reason) => {
-			clearTimeout(timer);
+			clearTimer(timer);
 			reject(reason);
 		});
 	});

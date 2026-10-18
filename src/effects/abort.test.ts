@@ -1,57 +1,114 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Task } from "../core/types";
 import { latest } from "../policies";
-import { createHarness, type TestEvents } from "../test-helpers";
-import type { Task } from "../types";
+import { createHarness, type TestEvents } from "../tests/test-helpers";
 import { onAbort } from "../utils";
 import { cancellable } from "./cancellable";
 
-const lat = <P, R>(fn: Task<P, TestEvents, R>) => latest(fn);
+const latestTask = <P, R>(handler: Task<P, TestEvents, R>) => latest(handler);
 
 describe("onAbort", () => {
 	it("calls fn with the abort reason", () => {
 		const controller = new AbortController();
-		const fn = vi.fn();
-		onAbort(controller, fn);
+		const handler = vi.fn();
+		onAbort(controller, handler);
 		controller.abort("stop");
 
-		expect(fn).toHaveBeenCalledTimes(1);
-		expect(fn).toHaveBeenCalledWith("stop");
+		expect(handler).toHaveBeenCalledTimes(1);
+		expect(handler).toHaveBeenCalledWith("stop");
 	});
 
 	it("does not call fn before the abort", () => {
 		const controller = new AbortController();
-		const fn = vi.fn();
-		onAbort(controller, fn);
+		const handler = vi.fn();
+		onAbort(controller, handler);
 
-		expect(fn).not.toHaveBeenCalled();
+		expect(handler).not.toHaveBeenCalled();
 	});
 
 	it("calls fn at once if already aborted", () => {
 		const controller = new AbortController();
 		controller.abort("early");
-		const fn = vi.fn();
-		onAbort(controller, fn);
+		const handler = vi.fn();
+		onAbort(controller, handler);
 
-		expect(fn).toHaveBeenCalledTimes(1);
-		expect(fn).toHaveBeenCalledWith("early");
+		expect(handler).toHaveBeenCalledTimes(1);
+		expect(handler).toHaveBeenCalledWith("early");
 	});
 
 	it("returns a callback that removes the subscription", () => {
 		const controller = new AbortController();
-		const fn = vi.fn();
-		const off = onAbort(controller, fn);
+		const handler = vi.fn();
+		const off = onAbort(controller, handler);
 		off();
 		controller.abort();
 
-		expect(fn).not.toHaveBeenCalled();
+		expect(handler).not.toHaveBeenCalled();
 	});
 
-	it("removes the listener from the signal on off", () => {
+	it("an unsubscribed callback is not called on abort, the others are", () => {
 		const controller = new AbortController();
-		const remove = vi.spyOn(controller.signal, "removeEventListener");
-		onAbort(controller, () => {})();
+		const removed = vi.fn();
+		const kept = vi.fn();
+		const off = onAbort(controller, removed);
+		onAbort(controller, kept);
+		off();
+		controller.abort();
 
-		expect(remove).toHaveBeenCalledTimes(1);
+		expect(removed).not.toHaveBeenCalled();
+		expect(kept).toHaveBeenCalledTimes(1);
+	});
+
+	it("keeps calling the other callbacks when one throws, and logs it", () => {
+		const error = vi.spyOn(console, "error").mockImplementation(() => {});
+		const controller = new AbortController();
+		const after = vi.fn();
+		onAbort(controller, () => {
+			throw new Error("bad callback");
+		});
+		onAbort(controller, after);
+		controller.abort();
+
+		expect(after).toHaveBeenCalledTimes(1);
+		expect(error).toHaveBeenCalledTimes(1);
+		error.mockRestore();
+	});
+
+	it("calls callbacks added after the abort at once, once each", () => {
+		const controller = new AbortController();
+		controller.abort("done");
+		const handler = vi.fn();
+		onAbort(controller, handler);
+
+		expect(handler).toHaveBeenCalledTimes(1);
+		expect(handler).toHaveBeenCalledWith("done");
+	});
+
+	it("handles many callbacks on one signal without slowing down", () => {
+		const controller = new AbortController();
+		const handler = vi.fn();
+		const start = performance.now();
+		const offs = Array.from({ length: 30_000 }, () =>
+			onAbort(controller, handler),
+		);
+		for (const off of offs.reverse()) {
+			off();
+		}
+		onAbort(controller, handler);
+		controller.abort();
+
+		expect(performance.now() - start).toBeLessThan(500);
+		expect(handler).toHaveBeenCalledTimes(1);
+	});
+
+	it("the same function subscribed twice is called twice", () => {
+		const controller = new AbortController();
+		const handler = vi.fn();
+		onAbort(controller, handler);
+		onAbort(controller, handler);
+		controller.abort();
+
+		expect(handler).toHaveBeenCalledTimes(2);
 	});
 
 	it("off can be called twice, and after the abort", () => {
@@ -84,30 +141,30 @@ describe("onAbort", () => {
 	});
 
 	it("does nothing without a context or a signal", () => {
-		const fn = vi.fn();
+		const handler = vi.fn();
 
 		expect(() => {
-			onAbort({}, fn)();
-			onAbort({}, fn)();
+			onAbort({}, handler)();
+			onAbort({}, handler)();
 		}).not.toThrow();
-		expect(fn).not.toHaveBeenCalled();
+		expect(handler).not.toHaveBeenCalled();
 	});
 
 	it("accepts a task context", () => {
 		const ctx = createHarness().ctx();
-		const fn = vi.fn();
-		onAbort(ctx, fn);
+		const handler = vi.fn();
+		onAbort(ctx, handler);
 		ctx.abort("task gone");
 
-		expect(fn).toHaveBeenCalledWith("task gone");
+		expect(handler).toHaveBeenCalledWith("task gone");
 	});
 
 	it("does not fire for a task that never aborts", () => {
 		const ctx = createHarness().ctx();
-		const fn = vi.fn();
-		onAbort(ctx, fn);
+		const handler = vi.fn();
+		onAbort(ctx, handler);
 
-		expect(fn).not.toHaveBeenCalled();
+		expect(handler).not.toHaveBeenCalled();
 	});
 });
 
@@ -338,22 +395,32 @@ describe("cancellable", () => {
 			expect(cleanup).not.toHaveBeenCalled();
 		});
 
-		it("removes the abort listener once it settled", async () => {
+		it("stops listening once it settled: a later abort changes nothing", async () => {
 			const controller = new AbortController();
-			const remove = vi.spyOn(controller.signal, "removeEventListener");
-			await cancellable<number>(controller, ({ resolve }) => resolve(1));
+			const cleanup = vi.fn();
+			const result = await cancellable<number>(
+				controller,
+				({ resolve, onCancel }) => {
+					onCancel(cleanup);
+					resolve(1);
+				},
+			);
+			controller.abort();
 
-			expect(remove).toHaveBeenCalledTimes(1);
+			expect(result).toBe(1);
+			expect(cleanup).not.toHaveBeenCalled();
 		});
 
-		it("removes the abort listener when the executor throws", async () => {
+		it("stops listening when the executor throws: a later abort changes nothing", async () => {
 			const controller = new AbortController();
-			const remove = vi.spyOn(controller.signal, "removeEventListener");
-			await cancellable(controller, () => {
+			const cleanup = vi.fn();
+			await cancellable(controller, ({ onCancel }) => {
+				onCancel(cleanup);
 				throw new Error("boom");
 			}).catch(() => {});
+			controller.abort();
 
-			expect(remove).toHaveBeenCalledTimes(1);
+			expect(cleanup).not.toHaveBeenCalled();
 		});
 	});
 
@@ -394,15 +461,15 @@ describe("cancellable", () => {
 		});
 
 		it("under latest, a superseded call clears its timer and drops the result", async () => {
-			const h = createHarness();
-			const fn = lat((n: number, ctx) =>
+			const harness = createHarness();
+			const handler = latestTask((value: number, ctx) =>
 				cancellable<number>(ctx, ({ resolve, onCancel }) => {
-					const timer = setTimeout(() => resolve(n), 1000);
+					const timer = setTimeout(() => resolve(value), 1000);
 					onCancel(() => clearTimeout(timer));
 				}),
 			);
-			const first = fn(1, h.ctx());
-			const second = fn(2, h.ctx());
+			const first = handler(1, harness.ctx());
+			const second = handler(2, harness.ctx());
 			expect(vi.getTimerCount()).toBe(1);
 			await vi.advanceTimersByTimeAsync(1000);
 
@@ -412,13 +479,15 @@ describe("cancellable", () => {
 		});
 
 		it("under latest, the trace shows the superseded call as cancelled", async () => {
-			const h = createHarness();
-			const fn = lat((_: number, ctx) => cancellable<void>(ctx, () => {}));
-			fn(1, h.ctx());
-			fn(2, h.ctx());
+			const harness = createHarness();
+			const handler = latestTask((_: number, ctx) =>
+				cancellable<void>(ctx, () => {}),
+			);
+			handler(1, harness.ctx());
+			handler(2, harness.ctx());
 			await Promise.resolve();
 
-			expect(h.phases()).toEqual([
+			expect(harness.phases()).toEqual([
 				"latest/start",
 				"latest/cancel",
 				"latest/start",

@@ -1,6 +1,6 @@
-import { traceRun, traceTask } from "../context";
-import type { EventMap, Task } from "../types";
-import { after } from "../utils";
+import { traceRun, traceTask } from "../core/context";
+import type { EventMap, Task } from "../core/types";
+import { after, onAbort } from "../utils";
 import { byKey, type KeyOption, noop } from "./keyed";
 
 export type LeadingOptions<P = never> = KeyOption<P>;
@@ -46,13 +46,13 @@ export const leading = <P, E extends EventMap, R>(
 			const mine = {};
 			lock = mine;
 			const release = () => {
-				ctx.signal.removeEventListener("abort", release);
+				stopWatching();
 				if (lock === mine) {
 					lock = null;
 					onIdle();
 				}
 			};
-			ctx.signal.addEventListener("abort", release, { once: true });
+			const stopWatching = onAbort(ctx, release);
 
 			try {
 				return after(

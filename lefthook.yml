@@ -1,14 +1,21 @@
+# VS Code shows the output of hooks as plain text: no colors, no banner
+colors: false
+output:
+  - success
+  - failure
+
 commit-msg:
   commands:
     commitlint:
-      run: pnpm exec commitlint --edit {1}
+      run: pnpm exec commitlint --color false --edit {1}
 
 pre-commit:
   parallel: true
   commands:
     biome:
       glob: "*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc,css}"
-      run: pnpm exec biome check --no-errors-on-unmatched --files-ignore-unknown=true {staged_files}
+      stage_fixed: true
+      run: pnpm exec biome check --write --reporter=concise --colors=off --max-diagnostics=20 --no-errors-on-unmatched --files-ignore-unknown=true {staged_files}
     tsgo:
       glob: "*.{ts,tsx,mts,cts}"
-      run: pnpm tsgo
+      run: pnpm tsgo --pretty false

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createHarness, deferred } from "../test-helpers";
+import { createHarness, deferred } from "../tests/test-helpers";
 import { timeout } from "./timeout";
 
 const never = () => new Promise<never>(() => {});
@@ -19,9 +19,9 @@ describe("timeout", () => {
 		});
 
 		it("awaits an async starter", async () => {
-			const d = deferred<string>();
-			const promise = timeout({}, 100, () => d.promise);
-			d.resolve("done");
+			const gate = deferred<string>();
+			const promise = timeout({}, 100, () => gate.promise);
+			gate.resolve("done");
 
 			await expect(promise).resolves.toBe("done");
 		});
@@ -96,7 +96,7 @@ describe("timeout", () => {
 			});
 			const assertion = expect(promise).rejects.toBeDefined();
 			await vi.advanceTimersByTimeAsync(100);
-			const error = await promise.catch((e: unknown) => e);
+			const error = await promise.catch((error: unknown) => error);
 			await assertion;
 
 			expect(signals[0]?.aborted).toBe(true);
@@ -104,8 +104,8 @@ describe("timeout", () => {
 		});
 
 		it("rejects even if the starter ignores its signal", async () => {
-			const d = deferred();
-			const promise = timeout({}, 100, () => d.promise);
+			const gate = deferred();
+			const promise = timeout({}, 100, () => gate.promise);
 			const assertion = expect(promise).rejects.toHaveProperty(
 				"name",
 				"TimeoutError",
@@ -113,7 +113,7 @@ describe("timeout", () => {
 			await vi.advanceTimersByTimeAsync(100);
 
 			await assertion;
-			d.resolve();
+			gate.resolve();
 		});
 
 		it("rejects with the reason when the starter aborts itself", async () => {
@@ -174,10 +174,10 @@ describe("timeout", () => {
 
 	describe("trace", () => {
 		it("a starter that finishes in time", async () => {
-			const h = createHarness();
-			await timeout(h.ctx(), 100, () => 1);
+			const harness = createHarness();
+			await timeout(harness.ctx(), 100, () => 1);
 
-			expect(h.phases()).toEqual([
+			expect(harness.phases()).toEqual([
 				"timeout/start",
 				"run/start",
 				"run/done",
@@ -186,39 +186,43 @@ describe("timeout", () => {
 		});
 
 		it("an expiry cancels the starter and ends the group with error", async () => {
-			const h = createHarness();
-			const promise = timeout(h.ctx(), 100, never).catch(() => {});
+			const harness = createHarness();
+			const promise = timeout(harness.ctx(), 100, never).catch(() => {});
 			await vi.advanceTimersByTimeAsync(100);
 			await promise;
 
-			expect(h.phases()).toEqual([
+			expect(harness.phases()).toEqual([
 				"timeout/start",
 				"run/start",
 				"run/cancel",
 				"timeout/error",
 			]);
-			expect(h.recorder.events.at(-1)?.error).toHaveProperty(
+			expect(harness.recorder.events.at(-1)?.error).toHaveProperty(
 				"name",
 				"TimeoutError",
 			);
 		});
 
 		it("a parent abort ends the group with cancel", async () => {
-			const h = createHarness();
-			const ctx = h.ctx();
+			const harness = createHarness();
+			const ctx = harness.ctx();
 			const promise = timeout(ctx, 100, never).catch(() => {});
 			ctx.abort();
 			await promise;
 
-			expect(h.phases()).toContain("timeout/cancel");
-			expect(h.phases()).not.toContain("timeout/error");
+			expect(harness.phases()).toContain("timeout/cancel");
+			expect(harness.phases()).not.toContain("timeout/error");
 		});
 
 		it("links the starter to the group", async () => {
-			const h = createHarness();
-			await timeout(h.ctx(), 100, () => 1);
-			const group = h.recorder.events.find((e) => e.effect === "timeout");
-			const run = h.recorder.events.find((e) => e.effect === "run");
+			const harness = createHarness();
+			await timeout(harness.ctx(), 100, () => 1);
+			const group = harness.recorder.events.find(
+				(event) => event.effect === "timeout",
+			);
+			const run = harness.recorder.events.find(
+				(event) => event.effect === "run",
+			);
 
 			expect(run?.parent).toBe(group?.id);
 		});

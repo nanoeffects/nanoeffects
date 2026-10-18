@@ -23,21 +23,41 @@ export type Store<E extends EventMap> = {
 
 export const createStore = <E extends EventMap>(): Store<E> => {
 	const events: Record<PropertyKey, unknown[]> = {};
+	// arrays handed out by `get`: an emit may still walk them, so a change copies first
+	const shared = new WeakSet<unknown[]>();
+
+	const own = (key: PropertyKey) => {
+		const current = events[key] ?? [];
+		if (!shared.has(current)) {
+			events[key] = current;
+			return current;
+		}
+		const copy = [...current];
+		events[key] = copy;
+		return copy;
+	};
 
 	const remove = (key: PropertyKey, task?: unknown) => {
-		const current = events[key] ?? [];
-		if (task) {
-			events[key] = current.filter((item) => item !== task);
-		} else {
+		if (!task) {
 			events[key] = [];
+			return;
+		}
+
+		// one registration goes, as for the unsubscribe of an `on` call
+		const index = (events[key] ?? []).indexOf(task);
+		if (index >= 0) {
+			own(key).splice(index, 1);
 		}
 	};
 
 	return {
-		get: (key: PropertyKey) => events[key] ?? [],
-		add: (key: PropertyKey, task: unknown) => {
+		get: (key: PropertyKey) => {
 			const items = events[key] ?? [];
-			events[key] = [...items, task];
+			shared.add(items);
+			return items;
+		},
+		add: (key: PropertyKey, task: unknown) => {
+			own(key).push(task);
 
 			return () => {
 				remove(key, task);

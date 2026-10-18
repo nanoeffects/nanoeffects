@@ -1,6 +1,8 @@
-import { type Context, createBus } from "./bus";
-import { createTraceRecorder } from "./trace/recorder";
-import { createTracer } from "./trace/tracer";
+import { createCommands, type Module, registerModules } from "../actions";
+import { type BusOptions, type Context, createBus } from "../core/bus";
+import type { EventMap } from "../core/types";
+import { createTraceRecorder } from "../trace/recorder";
+import { createTracer } from "../trace/tracer";
 
 export type TestEvents = { t: number; b: string };
 
@@ -28,8 +30,8 @@ export const createHarness = () => {
 	/** A new task context: each call emits `t` and captures the handler context. */
 	const ctx = (payload = 0): Context<TestEvents> => {
 		const got: Context<TestEvents>[] = [];
-		const off = bus.on("t", (_, c) => {
-			got.push(c);
+		const off = bus.on("t", (_, ctx) => {
+			got.push(ctx);
 		});
 		bus.emit("t", payload);
 		off();
@@ -41,10 +43,25 @@ export const createHarness = () => {
 	};
 
 	/** `effect/phase` of every traced event, in order. */
-	const phases = () => recorder.events.map((e) => `${e.effect}/${e.phase}`);
+	const phases = () =>
+		recorder.events.map((event) => `${event.effect}/${event.phase}`);
 
 	return { bus, recorder, ctx, phases };
 };
 
 /** A payload that is `undefined` at runtime, for events without data. */
 export const noPayload = Reflect.get({}, "none");
+
+/** A bus with `registerModules`, and its parts at hand, for tests of modules and commands. */
+export const createApp = <E extends EventMap = EventMap>(
+	options: Omit<BusOptions<E>, "commands"> & {
+		modules?: readonly Module<E>[];
+	} = {},
+) => {
+	const { modules, ...busOptions } = options;
+	const commands = createCommands<E>();
+	const bus = createBus<E>({ ...busOptions, commands });
+	const app = registerModules(bus, modules);
+
+	return { bus, commands, ...app };
+};

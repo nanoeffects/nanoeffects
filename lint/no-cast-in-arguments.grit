@@ -1,0 +1,10 @@
+language js
+
+`$callee($args)` where {
+	$args <: some `$value as $type`,
+	register_diagnostic(
+		span = $value,
+		message = "Name the cast on its own line instead of casting inside call arguments.",
+		severity = "error"
+	)
+}

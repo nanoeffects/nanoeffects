@@ -1,15 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createHarness, deferred, type TestEvents } from "../test-helpers";
-import type { Task } from "../types";
+import type { Task } from "../core/types";
+import {
+	createHarness,
+	deferred,
+	type TestEvents,
+} from "../tests/test-helpers";
 import { debounce } from "./debounce";
 import { latest } from "./latest";
 import { leading } from "./leading";
 import { throttle } from "./throttle";
 
-const lat = <P, R>(fn: Task<P, TestEvents, R>) => latest(fn);
-const lead = <P, R>(fn: Task<P, TestEvents, R>) => leading(fn);
-const deb = <P, R>(ms: number, fn: Task<P, TestEvents, R>) => debounce(ms, fn);
-const thr = <P, R>(ms: number, fn: Task<P, TestEvents, R>) => throttle(ms, fn);
+const latestTask = <P, R>(handler: Task<P, TestEvents, R>) => latest(handler);
+const leadingTask = <P, R>(handler: Task<P, TestEvents, R>) => leading(handler);
+const debounceTask = <P, R>(ms: number, handler: Task<P, TestEvents, R>) =>
+	debounce(ms, handler);
+const throttleTask = <P, R>(ms: number, handler: Task<P, TestEvents, R>) =>
+	throttle(ms, handler);
 
 describe("policy composition", () => {
 	beforeEach(() => {
@@ -21,17 +27,17 @@ describe("policy composition", () => {
 	});
 
 	it("throttle(latest): the trailing run aborts a leading run that is still going", async () => {
-		const h = createHarness();
+		const harness = createHarness();
 		const signals: AbortSignal[] = [];
-		const t = thr(
+		const throttled = throttleTask(
 			100,
-			lat((_: number, c) => {
-				signals.push(c.signal);
+			latestTask((_: number, ctx) => {
+				signals.push(ctx.signal);
 				return new Promise(() => {});
 			}),
 		);
-		t(1, h.ctx());
-		t(2, h.ctx());
+		throttled(1, harness.ctx());
+		throttled(2, harness.ctx());
 		await vi.advanceTimersByTimeAsync(100);
 
 		expect(signals).toHaveLength(2);
@@ -40,101 +46,105 @@ describe("policy composition", () => {
 	});
 
 	it("throttle(latest): a finished leading run is left alone", async () => {
-		const h = createHarness();
+		const harness = createHarness();
 		const signals: AbortSignal[] = [];
-		const t = thr(
+		const throttled = throttleTask(
 			100,
-			lat(async (_: number, c) => {
-				signals.push(c.signal);
+			latestTask(async (_: number, ctx) => {
+				signals.push(ctx.signal);
 			}),
 		);
-		await t(1, h.ctx());
-		t(2, h.ctx());
+		await throttled(1, harness.ctx());
+		throttled(2, harness.ctx());
 		await vi.advanceTimersByTimeAsync(100);
 
 		expect(signals[0]?.aborted).toBe(false);
 	});
 
 	it("debounce(leading): a debounced run that fires while the previous is in flight aborts it and takes over", async () => {
-		const h = createHarness();
+		const harness = createHarness();
 		const signals: AbortSignal[] = [];
-		const d = deferred();
-		const db = deb(
+		const gate = deferred();
+		const debounced = debounceTask(
 			100,
-			lead((_: number, c) => {
-				signals.push(c.signal);
-				return d.promise;
+			leadingTask((_: number, ctx) => {
+				signals.push(ctx.signal);
+				return gate.promise;
 			}),
 		);
-		db(1, h.ctx());
+		debounced(1, harness.ctx());
 		await vi.advanceTimersByTimeAsync(100);
-		db(2, h.ctx());
+		debounced(2, harness.ctx());
 		await vi.advanceTimersByTimeAsync(100);
 
 		expect(signals).toHaveLength(2);
 		expect(signals[0]?.aborted).toBe(true);
 		expect(signals[1]?.aborted).toBe(false);
-		d.resolve();
+		gate.resolve();
 	});
 
 	it("leading(latest): the lock keeps latest from ever superseding", () => {
-		const h = createHarness();
+		const harness = createHarness();
 		const signals: AbortSignal[] = [];
-		const l = lead(
-			lat((_: number, c) => {
-				signals.push(c.signal);
+		const leading = leadingTask(
+			latestTask((_: number, ctx) => {
+				signals.push(ctx.signal);
 				return new Promise(() => {});
 			}),
 		);
-		l(1, h.ctx());
-		l(2, h.ctx());
-		l(3, h.ctx());
+		leading(1, harness.ctx());
+		leading(2, harness.ctx());
+		leading(3, harness.ctx());
 
 		expect(signals).toHaveLength(1);
 		expect(signals[0]?.aborted).toBe(false);
 	});
 
 	it("debounce(latest): a new call after the run started aborts the inner signal", async () => {
-		const h = createHarness();
+		const harness = createHarness();
 		const signals: AbortSignal[] = [];
-		const db = deb(
+		const debounced = debounceTask(
 			100,
-			lat((_: number, c) => {
-				signals.push(c.signal);
+			latestTask((_: number, ctx) => {
+				signals.push(ctx.signal);
 				return new Promise(() => {});
 			}),
 		);
-		db(1, h.ctx());
+		debounced(1, harness.ctx());
 		await vi.advanceTimersByTimeAsync(100);
-		db(2, h.ctx());
+		debounced(2, harness.ctx());
 
 		expect(signals[0]?.aborted).toBe(true);
 	});
 
 	it("nests the trace: the inner policy is a child of the outer one", async () => {
-		const h = createHarness();
-		deb(
+		const harness = createHarness();
+		debounceTask(
 			100,
-			lat(async () => {}),
-		)(1, h.ctx());
+			latestTask(async () => {}),
+		)(1, harness.ctx());
 		await vi.advanceTimersByTimeAsync(100);
-		const outer = h.recorder.events.find((e) => e.effect === "debounce");
-		const inner = h.recorder.events.find((e) => e.effect === "latest");
+		const outer = harness.recorder.events.find(
+			(event) => event.effect === "debounce",
+		);
+		const inner = harness.recorder.events.find(
+			(event) => event.effect === "latest",
+		);
 
 		expect(inner?.parent).toBe(outer?.id);
 		expect(outer?.parent).not.toBe(inner?.parent);
 	});
 
 	it("an abort of the handler task reaches the deepest run", async () => {
-		const h = createHarness();
-		const ctx = h.ctx();
+		const harness = createHarness();
+		const ctx = harness.ctx();
 		const signals: AbortSignal[] = [];
-		const chain = thr(
+		const chain = throttleTask(
 			50,
-			deb(
+			debounceTask(
 				50,
-				lat((_: number, c) => {
-					signals.push(c.signal);
+				latestTask((_: number, ctx) => {
+					signals.push(ctx.signal);
 					return new Promise(() => {});
 				}),
 			),
@@ -149,27 +159,27 @@ describe("policy composition", () => {
 	});
 
 	it("an abort of the handler task during a debounce wait runs nothing", async () => {
-		const h = createHarness();
-		const ctx = h.ctx();
-		const fn = vi.fn();
-		thr(50, deb(100, lat(fn)))(1, ctx);
+		const harness = createHarness();
+		const ctx = harness.ctx();
+		const handler = vi.fn();
+		throttleTask(50, debounceTask(100, latestTask(handler)))(1, ctx);
 		await vi.advanceTimersByTimeAsync(50);
 		ctx.abort();
 		await vi.advanceTimersByTimeAsync(500);
 
-		expect(fn).not.toHaveBeenCalled();
+		expect(handler).not.toHaveBeenCalled();
 		expect(vi.getTimerCount()).toBe(0);
 	});
 
 	it("the same wrapped handler on a bus keeps one state for all emits", async () => {
-		const h = createHarness();
-		const fn = vi.fn();
-		h.bus.on("t", thr(100, lat(fn)));
-		for (let i = 1; i <= 5; i++) {
-			h.bus.emit("t", i);
+		const harness = createHarness();
+		const handler = vi.fn();
+		harness.bus.on("t", throttleTask(100, latestTask(handler)));
+		for (let index = 1; index <= 5; index++) {
+			harness.bus.emit("t", index);
 		}
 		await vi.advanceTimersByTimeAsync(100);
 
-		expect(fn.mock.calls.map((c) => c[0])).toEqual([1, 5]);
+		expect(handler.mock.calls.map((call) => call[0])).toEqual([1, 5]);
 	});
 });

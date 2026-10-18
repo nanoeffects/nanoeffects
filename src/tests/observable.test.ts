@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { createBus } from "./bus";
-import { $$observable, createObserve } from "./observable";
+import { createBus } from "../core/bus";
+import { $$observable, createObserve } from "../observable";
 
 type Events = { a: number; b: string };
 
@@ -33,36 +33,36 @@ describe("observable", () => {
 
 	it("only sees its own event", () => {
 		const bus = createBus<Events>();
-		const fn = vi.fn();
-		createObserve(bus)("b").subscribe(fn);
+		const handler = vi.fn();
+		createObserve(bus)("b").subscribe(handler);
 		bus.emit("a", 1);
 
-		expect(fn).not.toHaveBeenCalled();
+		expect(handler).not.toHaveBeenCalled();
 	});
 
 	it("stops after unsubscribe", () => {
 		const bus = createBus<Events>();
-		const fn = vi.fn();
-		const sub = createObserve(bus)("a").subscribe(fn);
+		const handler = vi.fn();
+		const sub = createObserve(bus)("a").subscribe(handler);
 		bus.emit("a", 1);
 		sub.unsubscribe();
 		bus.emit("a", 2);
 
-		expect(fn).toHaveBeenCalledTimes(1);
+		expect(handler).toHaveBeenCalledTimes(1);
 	});
 
 	it("supports many subscribers", () => {
 		const bus = createBus<Events>();
-		const a = vi.fn();
-		const b = vi.fn();
+		const first = vi.fn();
+		const second = vi.fn();
 		const observable = createObserve(bus)("a");
-		observable.subscribe(a);
-		const sub = observable.subscribe(b);
+		observable.subscribe(first);
+		const sub = observable.subscribe(second);
 		sub.unsubscribe();
 		bus.emit("a", 1);
 
-		expect(a).toHaveBeenCalledTimes(1);
-		expect(b).not.toHaveBeenCalled();
+		expect(first).toHaveBeenCalledTimes(1);
+		expect(second).not.toHaveBeenCalled();
 	});
 
 	it("is interop-observable: returns itself from the observable symbol", () => {

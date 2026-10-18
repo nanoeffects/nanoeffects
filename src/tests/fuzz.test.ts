@@ -1,7 +1,8 @@
 // Random mixes of policies and effects with random aborts. Whatever happens,
 // the trace must stay consistent and nothing may be left running.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { type Context, createBus } from "./bus";
+import { type Context, createBus } from "../core/bus";
+import type { Task, TraceEvent } from "../core/types";
 import {
 	all,
 	allSettled,
@@ -11,11 +12,10 @@ import {
 	retry,
 	take,
 	timeout,
-} from "./effects";
-import { debounce, latest, leading, queue, throttle } from "./policies";
-import { createTraceRecorder } from "./trace/recorder";
-import { createTracer } from "./trace/tracer";
-import type { Task, TraceEvent } from "./types";
+} from "../effects";
+import { debounce, latest, leading, queue, throttle } from "../policies";
+import { createTraceRecorder } from "../trace/recorder";
+import { createTracer } from "../trace/tracer";
 
 type Events = {
 	l: number;
@@ -34,15 +34,15 @@ type Events = {
 	cx: number;
 };
 
-const task = <P, R>(fn: Task<P, Events, R>) => fn;
+const task = <P, R>(handler: Task<P, Events, R>) => handler;
 
 const mulberry32 = (seed: number) => {
-	let a = seed;
+	let first = seed;
 	return () => {
-		a = (a + 0x6d2b79f5) | 0;
-		let t = Math.imul(a ^ (a >>> 15), 1 | a);
-		t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-		return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+		first = (first + 0x6d2b79f5) | 0;
+		let mixed = Math.imul(first ^ (first >>> 15), 1 | first);
+		mixed = (mixed + Math.imul(mixed ^ (mixed >>> 7), 61 | mixed)) ^ mixed;
+		return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
 	};
 };
 
@@ -78,10 +78,10 @@ const simulate = async (seed: number) => {
 
 	const held: Context<Events>[] = [];
 	// also keeps the root context of a handler call, so a later step can abort it
-	const tracked = <P, R>(fn: Task<P, Events, R>): Task<P, Events, R> => {
+	const tracked = <P, R>(handler: Task<P, Events, R>): Task<P, Events, R> => {
 		return (payload, ctx) => {
 			held.push(ctx);
-			return fn(payload, ctx);
+			return handler(payload, ctx);
 		};
 	};
 
@@ -96,10 +96,10 @@ const simulate = async (seed: number) => {
 	bus.on("qa", tracked(queue(work, { concurrency: 2 })));
 	bus.on("qd", tracked(queue(work, { limit: 1, overflow: "drop-old" })));
 	// keyed, and with leading/trailing options
-	bus.on("lk", tracked(latest(work, { key: (n) => n % 3 })));
+	bus.on("lk", tracked(latest(work, { key: (value) => value % 3 })));
 	bus.on("dl", tracked(debounce(15, work, { leading: true })));
 	bus.on("tl", tracked(throttle(25, work, { leading: false })));
-	bus.on("qk", tracked(queue(work, { key: (n) => n % 2 })));
+	bus.on("qk", tracked(queue(work, { key: (value) => value % 2 })));
 
 	bus.on("cx", (_, ctx) => {
 		held.push(ctx);
@@ -115,22 +115,22 @@ const simulate = async (seed: number) => {
 	const swallow = (promise: Promise<unknown>) => promise.catch(() => {});
 
 	const steps = 40 + int(40);
-	for (let i = 0; i < steps; i++) {
+	for (let index2 = 0; index2 < steps; index2++) {
 		switch (int(20)) {
 			case 0:
-				bus.emit("l", i);
+				bus.emit("l", index2);
 				break;
 			case 1:
-				bus.emit("d", i);
+				bus.emit("d", index2);
 				break;
 			case 2:
-				bus.emit("th", i);
+				bus.emit("th", index2);
 				break;
 			case 3:
-				bus.emit("le", i);
+				bus.emit("le", index2);
 				break;
 			case 4:
-				bus.emit("q", i);
+				bus.emit("q", index2);
 				break;
 			case 5:
 				swallow(
@@ -182,22 +182,22 @@ const simulate = async (seed: number) => {
 				swallow(take(freshCtx(), "tk"));
 				break;
 			case 11:
-				bus.emit("tk", String(i));
+				bus.emit("tk", String(index2));
 				break;
 			case 12:
-				bus.emit("lea", i);
+				bus.emit("lea", index2);
 				break;
 			case 14:
-				bus.emit("lk", i);
+				bus.emit("lk", index2);
 				break;
 			case 15:
-				bus.emit("dl", i);
+				bus.emit("dl", index2);
 				break;
 			case 16:
-				bus.emit("tl", i);
+				bus.emit("tl", index2);
 				break;
 			case 17:
-				bus.emit("qk", i);
+				bus.emit("qk", index2);
 				break;
 			case 18:
 				swallow(
@@ -208,9 +208,9 @@ const simulate = async (seed: number) => {
 				);
 				break;
 			case 13:
-				for (let n = 0; n < 3; n++) {
-					bus.emit("qa", i);
-					bus.emit("qd", i);
+				for (let index = 0; index < 3; index++) {
+					bus.emit("qa", index2);
+					bus.emit("qd", index2);
 				}
 				break;
 			default:
@@ -238,9 +238,9 @@ const check = (events: TraceEvent<Events>[]) => {
 	}
 
 	for (const [id, own] of byId) {
-		const phases = own.map((e) => e.phase);
-		const starts = phases.filter((p) => p === "start").length;
-		const ends = phases.filter((p) => p !== "start").length;
+		const phases = own.map((event) => event.phase);
+		const starts = phases.filter((phase) => phase === "start").length;
+		const ends = phases.filter((phase) => phase !== "start").length;
 
 		// a task starts at most once and ends exactly once, and nothing follows its end
 		expect(starts, `task ${id} starts`).toBeLessThanOrEqual(1);
@@ -271,7 +271,7 @@ describe("fuzz: random policies and effects with random aborts", () => {
 		vi.useRealTimers();
 	});
 
-	it.each(Array.from({ length: 150 }, (_, i) => i + 1))(
+	it.each(Array.from({ length: 150 }, (_, index) => index + 1))(
 		"seed %i",
 		async (seed) => {
 			const { events, peaks, timers } = await simulate(seed);
@@ -287,8 +287,8 @@ describe("fuzz: random policies and effects with random aborts", () => {
 		const seen = new Set<string>();
 		for (let seed = 1; seed <= 150; seed++) {
 			const { events } = await simulate(seed);
-			for (const e of events) {
-				seen.add(`${e.effect}/${e.phase}`);
+			for (const error of events) {
+				seen.add(`${error.effect}/${error.phase}`);
 			}
 		}
 

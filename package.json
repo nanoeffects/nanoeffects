@@ -11,16 +11,36 @@
 	"types": "./dist/index.d.ts",
 	"exports": {
 		".": {
+			"notrace": {
+				"types": "./dist/notrace/index.d.ts",
+				"default": "./dist/notrace/index.js"
+			},
 			"types": "./dist/index.d.ts",
 			"import": "./dist/index.js"
 		},
 		"./effects": {
+			"notrace": {
+				"types": "./dist/notrace/effects.d.ts",
+				"default": "./dist/notrace/effects.js"
+			},
 			"types": "./dist/effects.d.ts",
 			"import": "./dist/effects.js"
 		},
 		"./policies": {
+			"notrace": {
+				"types": "./dist/notrace/policies.d.ts",
+				"default": "./dist/notrace/policies.js"
+			},
 			"types": "./dist/policies.d.ts",
 			"import": "./dist/policies.js"
+		},
+		"./actions": {
+			"notrace": {
+				"types": "./dist/notrace/actions.d.ts",
+				"default": "./dist/notrace/actions.js"
+			},
+			"types": "./dist/actions.d.ts",
+			"import": "./dist/actions.js"
 		},
 		"./trace": {
 			"types": "./dist/trace.d.ts",
@@ -28,7 +48,7 @@
 		}
 	},
 	"scripts": {
-		"build": "tsdown",
+		"build": "tsdown && node scripts/notrace-types.mjs",
 		"prepublishOnly": "pnpm build",
 		"check": "biome check ./src",
 		"format": "npx @biomejs/biome check --write --unsafe ./src",

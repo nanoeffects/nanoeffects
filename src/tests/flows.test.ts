@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { type Context, createBus } from "./bus";
-import { all, delay, race } from "./effects";
-import { debounce, latest, leading } from "./policies";
-import { createTraceRecorder } from "./trace/recorder";
-import { createTracer } from "./trace/tracer";
-import type { Task } from "./types";
+import { type Context, createBus } from "../core/bus";
+import type { Task } from "../core/types";
+import { all, delay, race } from "../effects";
+import { debounce, latest, leading } from "../policies";
+import { createTraceRecorder } from "../trace/recorder";
+import { createTracer } from "../trace/tracer";
 
 type Events = {
 	search: string;
@@ -20,7 +20,8 @@ type Events = {
 const setup = () => {
 	const recorder = createTraceRecorder<Events>();
 	const bus = createBus<Events>({ trace: createTracer(recorder) });
-	const phases = () => recorder.events.map((e) => `${e.effect}/${e.phase}`);
+	const phases = () =>
+		recorder.events.map((event) => `${event.effect}/${event.phase}`);
 	return { bus, recorder, phases };
 };
 
@@ -51,7 +52,7 @@ describe("flows", () => {
 		const { bus, phases } = setup();
 		const results: string[][] = [];
 		const aborted: string[] = [];
-		bus.on("results", (r) => results.push(r));
+		bus.on("results", (result) => results.push(result));
 		bus.on(
 			"search",
 			debounce(300, async (query, ctx) => {
@@ -77,9 +78,15 @@ describe("flows", () => {
 
 		expect(aborted).toEqual(["red"]);
 		expect(results).toEqual([["redu"]]);
-		expect(phases().filter((p) => p === "debounce/drop")).toHaveLength(2);
-		expect(phases().filter((p) => p === "debounce/cancel")).toHaveLength(1);
-		expect(phases().filter((p) => p === "debounce/done")).toHaveLength(1);
+		expect(phases().filter((phase) => phase === "debounce/drop")).toHaveLength(
+			2,
+		);
+		expect(
+			phases().filter((phase) => phase === "debounce/cancel"),
+		).toHaveLength(1);
+		expect(phases().filter((phase) => phase === "debounce/done")).toHaveLength(
+			1,
+		);
 		expect(vi.getTimerCount()).toBe(0);
 	});
 
@@ -147,7 +154,7 @@ describe("flows", () => {
 		bus.on("load", async (_, ctx) => {
 			tasks.push(ctx);
 			try {
-				for (let i = 0; i < 5; i++) {
+				for (let index = 0; index < 5; index++) {
 					attempts++;
 					await delay(ctx, 1000);
 				}
@@ -209,8 +216,12 @@ describe("flows", () => {
 		await vi.advanceTimersByTimeAsync(100);
 
 		expect(saved).toEqual(["v1"]);
-		expect(phases().filter((p) => p === "leading/drop")).toHaveLength(1);
-		expect(phases().filter((p) => p === "leading/start")).toHaveLength(2);
+		expect(phases().filter((phase) => phase === "leading/drop")).toHaveLength(
+			1,
+		);
+		expect(phases().filter((phase) => phase === "leading/start")).toHaveLength(
+			2,
+		);
 	});
 
 	it("cancel propagates through all, race and run to every leaf", async () => {
@@ -238,20 +249,22 @@ describe("flows", () => {
 		await vi.advanceTimersByTimeAsync(20_000);
 
 		expect(signals).toHaveLength(4);
-		expect(signals.every((s) => s.aborted)).toBe(true);
+		expect(signals.every((signal) => signal.aborted)).toBe(true);
 		expect(vi.getTimerCount()).toBe(0);
-		const started = recorder.events.filter((e) => e.phase === "start");
-		const ended = recorder.events.filter((e) => e.phase !== "start");
+		const started = recorder.events.filter((event) => event.phase === "start");
+		const ended = recorder.events.filter((event) => event.phase !== "start");
 		expect(ended.length).toBe(started.length);
 		expect(
-			recorder.events.filter((e) => e.phase === "done" || e.phase === "error"),
+			recorder.events.filter(
+				(event) => event.phase === "done" || event.phase === "error",
+			),
 		).toHaveLength(0);
 	});
 
 	it("emits from an aborted task are dropped (saga: put after cancel)", async () => {
 		const { bus } = setup();
 		const logs: string[] = [];
-		bus.on("log", (m) => logs.push(m));
+		bus.on("log", (moduleContext) => logs.push(moduleContext));
 		const tasks: Context<Events>[] = [];
 		bus.on("load", async (_, ctx) => {
 			tasks.push(ctx);
@@ -291,9 +304,9 @@ describe("flows", () => {
 		bus.on("load", (key, ctx) => {
 			let handler = perKey.get(key);
 			if (!handler) {
-				handler = latest<string, Events, Promise<void>>(async (k, c) => {
-					await delay(c, 100);
-					finished.push(k);
+				handler = latest<string, Events, Promise<void>>(async (key, ctx) => {
+					await delay(ctx, 100);
+					finished.push(key);
 				});
 				perKey.set(key, handler);
 			}

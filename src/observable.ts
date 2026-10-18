@@ -1,5 +1,5 @@
-import type { Bus } from "./bus";
-import type { EventMap, Keys } from "./types";
+import type { Bus } from "./core/bus";
+import type { EventMap, Keys } from "./core/types";
 
 declare global {
 	interface SymbolConstructor {

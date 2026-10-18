@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { createBus } from "../bus";
-import { createHarness, type TestEvents } from "../test-helpers";
-import type { TraceEvent } from "../types";
+import { createBus } from "../core/bus";
+import type { TraceEvent } from "../core/types";
+import { createHarness, type TestEvents } from "../tests/test-helpers";
 import { consoleLogger } from "./console";
 import { performanceLogger } from "./performance";
 import { createTraceRecorder } from "./recorder";
@@ -23,7 +23,10 @@ describe("createTraceRecorder", () => {
 		recorder(event({ phase: "start" }));
 		recorder(event({ phase: "done" }));
 
-		expect(recorder.events.map((e) => e.phase)).toEqual(["start", "done"]);
+		expect(recorder.events.map((event) => event.phase)).toEqual([
+			"start",
+			"done",
+		]);
 	});
 
 	it("clear empties the same array", () => {
@@ -46,10 +49,13 @@ describe("createTraceRecorder", () => {
 	});
 
 	it("records a real bus", async () => {
-		const h = createHarness();
-		await h.ctx().run(() => 1);
+		const harness = createHarness();
+		await harness.ctx().run(() => 1);
 
-		expect(h.recorder.events.map((e) => e.phase)).toEqual(["start", "done"]);
+		expect(harness.recorder.events.map((event) => event.phase)).toEqual([
+			"start",
+			"done",
+		]);
 	});
 });
 
@@ -80,7 +86,7 @@ describe("consoleLogger", () => {
 		log(event({ id: 1 }));
 		log(event({ id: 2, parent: 1 }));
 		log(event({ id: 3, parent: 2 }));
-		const lines = out.debug.mock.calls.map((c) => c[0]);
+		const lines = out.debug.mock.calls.map((call) => call[0]);
 
 		expect(lines).toEqual([
 			"> search · latest start",
@@ -374,7 +380,7 @@ describe("reduxDevtools", () => {
 		bus.emit("t", 1);
 		await Promise.resolve();
 		await Promise.resolve();
-		const types = connection.send.mock.calls.map((c) => c[0].type);
+		const types = connection.send.mock.calls.map((call) => call[0].type);
 
 		expect(types).toEqual(["t/run/start", "t/run/done"]);
 	});

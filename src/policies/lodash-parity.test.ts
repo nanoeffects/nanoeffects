@@ -3,35 +3,35 @@
 import lodashDebounce from "lodash/debounce.js";
 import lodashThrottle from "lodash/throttle.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createHarness, type TestEvents } from "../test-helpers";
+import { createHarness, type TestEvents } from "../tests/test-helpers";
 import { debounce } from "./debounce";
 import { throttle } from "./throttle";
 
 const mulberry32 = (seed: number) => {
-	let a = seed;
+	let first = seed;
 	return () => {
-		a = (a + 0x6d2b79f5) | 0;
-		let t = Math.imul(a ^ (a >>> 15), 1 | a);
-		t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-		return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+		first = (first + 0x6d2b79f5) | 0;
+		let mixed = Math.imul(first ^ (first >>> 15), 1 | first);
+		mixed = (mixed + Math.imul(mixed ^ (mixed >>> 7), 61 | mixed)) ^ mixed;
+		return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
 	};
 };
 
 type Log = Array<[number, number]>;
 
 const drive = async (
-	make: (record: (n: number) => void) => (n: number) => void,
+	make: (record: (value: number) => void) => (value: number) => void,
 	gaps: number[],
 ) => {
 	vi.useFakeTimers();
 	vi.setSystemTime(0);
 	const log: Log = [];
-	const call = make((n) => {
-		log.push([Date.now(), n]);
+	const call = make((value) => {
+		log.push([Date.now(), value]);
 	});
-	for (const [i, gap] of gaps.entries()) {
+	for (const [index, gap] of gaps.entries()) {
 		await vi.advanceTimersByTimeAsync(gap);
-		call(i);
+		call(index);
 	}
 	await vi.advanceTimersByTimeAsync(2000);
 	vi.useRealTimers();
@@ -52,8 +52,8 @@ describe("throttle parity with lodash", () => {
 					const gaps = Array.from(
 						{ length: 5 + Math.floor(random() * 30) },
 						() => {
-							const r = random();
-							return r < 0.2 ? 0 : Math.floor(random() * wait * 1.6);
+							const result = random();
+							return result < 0.2 ? 0 : Math.floor(random() * wait * 1.6);
 						},
 					);
 
@@ -62,17 +62,17 @@ describe("throttle parity with lodash", () => {
 						gaps,
 					);
 					const actual = await drive((record) => {
-						const h = createHarness();
-						const t = throttle<number, TestEvents, void>(
+						const harness = createHarness();
+						const throttled = throttle<number, TestEvents, void>(
 							wait,
-							(n) => record(n),
+							(value) => record(value),
 							{
 								leading,
 								trailing,
 							},
 						);
-						return (n) => {
-							void t(n, h.ctx());
+						return (value) => {
+							void throttled(value, harness.ctx());
 						};
 					}, gaps);
 
@@ -100,8 +100,8 @@ describe("debounce parity with lodash", () => {
 					const gaps = Array.from(
 						{ length: 5 + Math.floor(random() * 30) },
 						() => {
-							const r = random();
-							return r < 0.2 ? 0 : Math.floor(random() * wait * 1.6);
+							const result = random();
+							return result < 0.2 ? 0 : Math.floor(random() * wait * 1.6);
 						},
 					);
 
@@ -110,17 +110,17 @@ describe("debounce parity with lodash", () => {
 						gaps,
 					);
 					const actual = await drive((record) => {
-						const h = createHarness();
-						const d = debounce<number, TestEvents, void>(
+						const harness = createHarness();
+						const debounced = debounce<number, TestEvents, void>(
 							wait,
-							(n) => record(n),
+							(value) => record(value),
 							{
 								leading,
 								trailing,
 							},
 						);
-						return (n) => {
-							void d(n, h.ctx());
+						return (value) => {
+							void debounced(value, harness.ctx());
 						};
 					}, gaps);
 
@@ -144,18 +144,22 @@ describe("a keyed throttle behaves like an unkeyed one", () => {
 			const random = mulberry32(seed * 15485863);
 			const wait = 20 + Math.floor(random() * 100);
 			const gaps = Array.from({ length: 5 + Math.floor(random() * 30) }, () => {
-				const r = random();
-				return r < 0.2 ? 0 : Math.floor(random() * wait * 3);
+				const result = random();
+				return result < 0.2 ? 0 : Math.floor(random() * wait * 3);
 			});
 			const make =
 				(keyed: boolean) =>
-				(record: (n: number) => void): ((n: number) => void) => {
-					const h = createHarness();
-					const t = throttle<number, TestEvents, void>(wait, (n) => record(n), {
-						...(keyed ? { key: () => "same" } : {}),
-					});
-					return (n) => {
-						void t(n, h.ctx());
+				(record: (value: number) => void): ((value: number) => void) => {
+					const harness = createHarness();
+					const throttled = throttle<number, TestEvents, void>(
+						wait,
+						(value) => record(value),
+						{
+							...(keyed ? { key: () => "same" } : {}),
+						},
+					);
+					return (value) => {
+						void throttled(value, harness.ctx());
 					};
 				};
 

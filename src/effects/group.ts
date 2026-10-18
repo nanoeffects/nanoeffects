@@ -1,6 +1,6 @@
-import type { Context } from "../bus";
-import { createSettle, forkTask, traceRun, traceTask } from "../context";
-import type { EffectName, EventMap } from "../types";
+import type { Context } from "../core/bus";
+import { createSettle, forkTask, traceRun, traceTask } from "../core/context";
+import type { EffectName, EventMap } from "../core/types";
 import { onAbort, raceAbort } from "../utils";
 
 /**

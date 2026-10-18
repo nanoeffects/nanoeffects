@@ -1,4 +1,4 @@
-import type { TraceLogger } from "../types";
+import type { TraceLogger } from "../core/types";
 
 /** The part of the User Timing API the logger uses. */
 export type PerformanceLike = {

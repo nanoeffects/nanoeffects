@@ -24,7 +24,8 @@ export type EffectName =
 	| "poll"
 	| "take"
 	| "queue"
-	| "allSettled";
+	| "allSettled"
+	| "command";
 
 export type Phase = "start" | "done" | "error" | "cancel" | "drop";
 
