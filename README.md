@@ -1,68 +1,60 @@
 # nanoeffects
 
-## Queue
-
-`queue(fn, options?)` runs the calls of a handler one after another, in the order they arrived, instead of dropping or replacing them like `leading` and `latest` do:
+A typed event bus where every handler is a **task**: it gets a context with an `AbortSignal`, and the policies that decide what happens when calls overlap (`latest`, `debounce`, `throttle`, `queue`, ...) are plain functions around the handler.
 
 ```ts
-import { queue } from "nanoeffects/policies";
+import { createBus } from "nanoeffects";
+import { latest } from "nanoeffects/policies";
+import { retry } from "nanoeffects/effects";
 
+type Events = { search: string; results: Item[] };
+
+const bus = createBus<Events>();
+
+// a new search aborts the previous one; the request is retried and cancelled with the task
 bus.on(
-	"save",
-	queue(async (draft, { signal }) => {
-		await api.save(draft, { signal });
+	"search",
+	latest(async (query, ctx) => {
+		const items = await retry(ctx, () => api.search(query, { signal: ctx.signal }));
+		ctx.emit("results", items); // does nothing if this task was aborted meanwhile
 	}),
 );
 
-bus.emit("save", a); // runs now
-bus.emit("save", b); // waits for a, then runs
+bus.emit("search", "nano");
 ```
 
-- `concurrency` (default 1) is how many calls may run at the same time.
-- `limit` caps how many calls may wait, and `overflow` says what to drop when the line is full: the new call (`"drop-new"`, the default) or the oldest waiting one (`"drop-old"`). A dropped call resolves with `undefined`. `queue(fn, { limit: 1, overflow: "drop-old" })` keeps only the latest call while one is running and runs it when the current one is done; `limit: 0` lets nothing wait.
-- Every call returns a promise with the result of its own run. An error rejects only that call and the queue goes on.
-- A waiting call whose task aborts is skipped and resolves with `undefined`. When the task of a running call aborts, its slot is freed at once and its result is dropped, so pass `signal` to what `fn` does: a `fn` that ignores it can overlap with the next run.
+What it is for: the glue between events and async work in an app, where the usual answer is a pile of `AbortController`s, `debounce` from lodash, `p-queue` and a hand-written retry. Here they share one model of cancellation and one trace.
 
-## Actions, commands and jobs
+- **Tiny core.** `createBus` is about 1.2 kB gzip. Everything else is a separate entry and is bundled only when imported.
+- **Cancellation is the base of everything.** Aborting a task aborts its children, ends its `ctx.on` subscriptions and drops its result.
+- **Policies and effects are functions**: `latest`, `leading`, `debounce`, `throttle`, `queue`, `retry`, `timeout`, `poll`, `all`, `allSettled`, `race`, `take`.
+- **Typed commands, actions, jobs and modules** to describe what the app does apart from the code that does it.
+- **Tracing by design**: causal links between tasks, sampling, Redux DevTools, and a build that cuts all of it out.
+- **Checked against the libraries it replaces**: `throttle` and `debounce` are compared with lodash on random call sequences, and known issues of lodash, RxJS, p-queue, p-retry, bottleneck and effector are regression tests.
 
-`nanoeffects/actions` has the pieces to describe what a bus does, apart from the code that does it.
+## Entries
 
-```ts
-import { createAction, createCommand, createJob } from "nanoeffects/actions";
+| Import                  | What is in it                                                                          |
+| ----------------------- | -------------------------------------------------------------------------------------- |
+| `nanoeffects`           | `createBus`, the types (`Bus`, `Context`, `Task`, ...)                                 |
+| `nanoeffects/policies`  | `latest`, `leading`, `debounce`, `throttle`, `queue`                                   |
+| `nanoeffects/effects`   | `retry`, `timeout`, `poll`, `delay`, `take`, `all`, `allSettled`, `race`, `cancellable`, `onAbort` |
+| `nanoeffects/actions`   | `createAction`, `createCommand`, `createCommands`, `createJob`, `createModule`, `registerModules` |
+| `nanoeffects/trace`     | `createTracer` and the loggers                                                         |
 
-// an event with a payload, as in Redux Toolkit
-const userLoaded = createAction<User, "user/loaded">("user/loaded");
-const loadFailed = createAction<Error, "user/failed">("user/failed");
+## Handlers and the task context
 
-// a request for a result: emit it and get what its handler returns
-const getUser = createCommand("user/get", (id: string, { signal }) => fetchUser(id, { signal }));
+`bus.on(event, handler)` calls `handler(payload, ctx)` for every `bus.emit(event, payload)`. Each call is a task with its own context:
 
-// a contract without a handler: the code that sends mail is elsewhere
-const sendMail = createCommand<Mail, void>("mail/send");
+| `ctx`            | Meaning                                                                        |
+| ---------------- | ------------------------------------------------------------------------------ |
+| `signal`, `abort` | the abort signal of the task, and a way to abort it (and its children)         |
+| `emit`           | emit as this task; does nothing after the task is aborted                      |
+| `on`, `off`      | subscribe as this task; the subscription ends when the task aborts             |
+| `run(fn, ...)`   | a child task: aborted with this one, its errors go to this one                 |
+| `type`, `payload` | the event the task works on                                                    |
 
-// a command whose outcome is sent on as events
-const loadUser = createJob("user/load", fetchUser, { done: userLoaded, fail: loadFailed });
-```
-
-**Actions.** `createAction(type)` returns a creator: `userLoaded(user)` is `{ type, payload }`, `userLoaded.type` is the type, `userLoaded.match(action)` narrows an action. `createAction(type, prepare)` builds the payload from several arguments. A creator works as the event of its type: `bus.emit(userLoaded(user))`, `bus.on(userLoaded, fn)`.
-
-**Commands.** `bus.emit(command, payload)` tells the listeners of the command's type, then runs its handler as a task, with a context, and returns the result. The handler can be wrapped in a policy, `createCommand("search", latest(fn))`. Calling `command(payload)` runs its own handler without a bus.
-
-**Where handlers are registered.** The command may carry a handler. The bus gets the handlers bound to commands from a registry, `createCommands`, and a handler bound there wins over the command's own. The registry belongs to one bus, as an effector scope does with `fork({ handlers })`, so each bus (each test) can have its own.
-
-```ts
-import { createCommands, bindHandler } from "nanoeffects/actions";
-
-const commands = createCommands<Events>([bindHandler(sendMail, smtpSend)]);
-const bus = createBus<Events>({ commands });
-
-const unbind = commands.handle(getUser, async () => fakeUser); // later, e.g. in a test
-unbind(); // the command's own handler is back; the latest binding wins
-```
-
-A command with no handler anywhere throws `No handler for command "..."` from `emit`. The registry lives in `nanoeffects/actions`, so a bus without `commands` carries none of this code; without it `emit(command, payload)` simply runs the command's own handler.
-
-**Jobs.** `createJob(type, handler, { done, fail })` is a command that sends its outcome on, for when nobody waits for the result. `done` receives the result and `fail` receives the error; each is anything `emit` takes: an event type, an action creator, a command, or a plain action. `bus.emit(job, payload)` still returns a promise of the result. With `fail` set the error counts as handled: it goes to `fail` and the promise resolves with `undefined`; without it the promise rejects. The outcome is routed also for a handler bound with `commands.handle`, and is not sent once the task is aborted.
+`emit` is a synchronous loop over the handlers, and `bus.on` returns the function that unsubscribes. Events are described by one type, `type Events = { name: Payload }`, and an event without data is `void`.
 
 ## Policies
 
@@ -95,161 +87,30 @@ bus.on("upload", queue(upload, { key: (file) => file.name }));
 
 The state of a key is dropped when that key goes idle, so keys can be unbounded (ids, urls).
 
-## Errors in handlers
+### Queue
 
-`emit` is a plain loop over the handlers, like in nanoevents: if a handler throws, the remaining handlers are skipped and the error reaches the caller of `emit`. A rejected promise of an async handler is left unhandled.
-
-Pass `onError` to isolate handlers instead. Then every handler runs, and thrown errors and rejections of async handlers (including ones wrapped in `latest`, `debounce` and the like) go to `onError`; an `onError` that throws is logged to `console.error`.
+`queue(fn, options?)` runs the calls of a handler one after another, in the order they arrived, instead of dropping or replacing them like `leading` and `latest` do:
 
 ```ts
-const bus = createBus<Events>({
-	onError: (error, { type, payload }) => report(error, type, payload),
-});
+import { queue } from "nanoeffects/policies";
+
+bus.on(
+	"save",
+	queue(async (draft, { signal }) => {
+		await api.save(draft, { signal });
+	}),
+);
+
+bus.emit("save", a); // runs now
+bus.emit("save", b); // waits for a, then runs
 ```
 
-## Tracing
+- `concurrency` (default 1) is how many calls may run at the same time.
+- `limit` caps how many calls may wait, and `overflow` says what to drop when the line is full: the new call (`"drop-new"`, the default) or the oldest waiting one (`"drop-old"`). A dropped call resolves with `undefined`. `queue(fn, { limit: 1, overflow: "drop-old" })` keeps only the latest call while one is running and runs it when the current one is done; `limit: 0` lets nothing wait.
+- Every call returns a promise with the result of its own run. An error rejects only that call and the queue goes on.
+- A waiting call whose task aborts is skipped and resolves with `undefined`. When the task of a running call aborts, its slot is freed at once and its result is dropped, so pass `signal` to what `fn` does: a `fn` that ignores it can overlap with the next run.
 
-Pass `trace` to `createBus` to observe every task phase. Make it with `createTracer` from `nanoeffects/trace`, which takes a logger (a function) or an array of them. The tracing code lives in that entry, so a bus without `trace` does not carry it.
-
-```ts
-import { createBus } from "nanoeffects";
-import { createTracer } from "nanoeffects/trace";
-
-const bus = createBus<Events>({
-	trace: createTracer((event) => console.log(event)),
-});
-```
-
-Each `TraceEvent` has:
-
-| Field     | Meaning                                                              |
-| --------- | -------------------------------------------------------------------- |
-| `id`      | Unique task id within the bus.                                       |
-| `parent`  | Id of the task that started this one (absent for handler tasks).     |
-| `type`    | Event type the task works on.                                        |
-| `effect`  | `latest`, `debounce`, `throttle`, `leading`, `run`, `all` or `race`. |
-| `phase`   | `start`, `done`, `error`, `cancel` or `drop`.                        |
-| `payload` | Event payload.                                                       |
-| `error`   | Thrown value, only for `error`.                                      |
-
-Phases:
-
-- `start`: the work began.
-- `done` / `error`: it finished or threw.
-- `cancel`: it was aborted after it started (superseded by `latest`, parent aborted, lost a `race`).
-- `drop`: it never started (`leading` while busy, a `throttle` call replaced by a newer one, a `debounce` call replaced before its delay ended).
-
-`all` and `race` are traced when you pass them the handler `ctx`: the group is one task, every starter is a child `run` task.
-
-```ts
-bus.on("load", async (id, ctx) => {
-	await all(ctx, { user: () => fetchUser(id), posts: () => fetchPosts(id) });
-});
-```
-
-## Removing tracing from a build
-
-Without a tracer the hooks cost almost nothing (a lookup that finds no tracer), and `nanoeffects/trace` is a separate entry that is only bundled when imported. To also drop the tracing code from the core, use the `notrace` export condition: the package ships a second build of `index`, `effects`, `policies` and `actions` made with `__NANOEFFECTS_TRACE__` set to `false`, so the bundler removes the tracer calls.
-
-```ts
-// vite / rolldown
-resolve: { conditions: ["notrace"] }
-// webpack
-resolve: { conditionNames: ["notrace", "import", "..."] }
-// esbuild
-conditions: ["notrace"]
-```
-
-In a build of your own from the sources, `define: { __NANOEFFECTS_TRACE__: "false" }` does the same. With the condition set, the types of that build have no `trace` option: `createBus({ trace })` is a type error, so tracing cannot be left on by mistake (`scripts/notrace-types.mjs` makes `BusOptions.trace` `never` there). `nanoeffects/trace` has no `notrace` build. The saving is about 0.4 kB gzip of the whole library.
-
-## Your own fields in the context
-
-`createBus({ context })` adds fields to the context of every task of the bus: handlers, `ctx.run`, listeners added with `ctx.on`, commands, modules and the child tasks of effects and policies. Use it for a store, a client or a logger that the tasks share. Declare the types once, globally:
-
-```ts
-declare global {
-  interface NanoeffectsContext {
-    store: Store;
-  }
-}
-
-const bus = createBus<Events>({ context: { store } });
-bus.on("save", (draft, { store }) => store.put(draft));
-```
-
-The fields of the library (`signal`, `emit`, `run`, ...) win when the names are the same. Modules get these fields too.
-
-## Modules
-
-`registerModules(bus, modules)` from `nanoeffects/actions` assembles an app from modules and returns `mount`, `unmount`, `isMounted` and `dispose`. Create the bus with the registry of `createCommands`, so the commands that modules bind are the ones it runs:
-
-```ts
-const userModule = createModule<Events>("user", (m) => {
-  m.handle(getUser, fetchUser);
-  m.on("login", (user, ctx) => ctx.emit("loaded", user));
-  m.spawn(async (_, ctx) => { /* background work, ends with the module */ });
-});
-
-const commands = createCommands<Events>();
-const bus = createBus<Events>({ commands });
-const app = registerModules(bus, [userModule]);
-
-const unmount = app.mount(orderModule); // later, e.g. after a lazy import
-commands.handle(getUser, fakeUser); // in a test
-app.dispose(); // unmounts every module
-```
-
-The bus has `context`, `trace` and `commands` as read-only fields (the options), for code that makes tasks of its own, like `registerModules`.
-
-## Loggers
-
-A logger is a function `(event: TraceEvent) => void` (the `TraceLogger` type). `createTracer` takes one logger or an array; a logger that throws is reported to `console.error` and never breaks the task or the other loggers.
-
-```ts
-import { createBus } from "nanoeffects";
-import { consoleLogger, createTracer, reduxDevtools } from "nanoeffects/trace";
-
-const bus = createBus<Events>({
-	trace: createTracer([reduxDevtools({ name: "app" }), consoleLogger()]),
-});
-```
-
-`nanoeffects/trace` ships `createTracer` and these loggers, each a factory that returns a `TraceLogger`:
-
-| Logger                  | What it does                                                                         |
-| ----------------------- | ------------------------------------------------------------------------------------ |
-| `reduxDevtools()`       | Sends each phase to Redux DevTools as `type/effect/phase`; state is `{ running }`.   |
-| `consoleLogger()`       | Prints one line per phase, indented by task depth.                                   |
-| `performanceLogger()`   | Records User Timing measures for the Timings track of the browser Performance panel. |
-| `createTraceRecorder()` | Keeps events in `recorder.events`, for tests.                                        |
-
-### Production: filter and sampling
-
-`createTracer(loggers, options)` can cut the volume:
-
-```ts
-createTracer(logger, {
-	sample: 0.05, // trace 5% of the handler calls (a share, or a function of { type, payload })
-	filter: (event) => event.phase === "error", // and keep only failures
-});
-```
-
-- `sample` is decided once per root task (one handler call) and every task below it follows, so a trace is never cut in the middle. Tasks that are not sampled cost almost nothing: their effects run without tracing.
-- `filter` runs on each event before any logger sees it.
-
-Notes on `reduxDevtools`: it is read-only (the bus owns no state, so there is no time travel) and does nothing when the extension is not installed.
-
-To write your own, return a `TraceLogger`:
-
-```ts
-import type { TraceLogger } from "nanoeffects";
-
-const errorsOnly = (): TraceLogger => (event) => {
-	if (event.phase === "error") report(event.error);
-};
-```
-
-## Cancellation helpers
+## Effects and cancellation
 
 An abort only raises a flag: your code decides to stop. `nanoeffects/effects` has helpers for the usual cases.
 
@@ -369,6 +230,201 @@ In every effect `ctx` is the first argument: `delay(ctx, ms)`, `all(ctx, effects
 
 For `fetch` and other APIs that take a signal, pass `ctx.signal`. A timeout without `race`: `AbortSignal.any([ctx.signal, AbortSignal.timeout(5000)])`.
 
+## Actions, commands and jobs
+
+`nanoeffects/actions` has the pieces to describe what a bus does, apart from the code that does it.
+
+```ts
+import { createAction, createCommand, createJob } from "nanoeffects/actions";
+
+// an event with a payload, as in Redux Toolkit
+const userLoaded = createAction<User, "user/loaded">("user/loaded");
+const loadFailed = createAction<Error, "user/failed">("user/failed");
+
+// a request for a result: emit it and get what its handler returns
+const getUser = createCommand("user/get", (id: string, { signal }) => fetchUser(id, { signal }));
+
+// a contract without a handler: the code that sends mail is elsewhere
+const sendMail = createCommand<Mail, void>("mail/send");
+
+// a command whose outcome is sent on as events
+const loadUser = createJob("user/load", fetchUser, { done: userLoaded, fail: loadFailed });
+```
+
+**Actions.** `createAction(type)` returns a creator: `userLoaded(user)` is `{ type, payload }`, `userLoaded.type` is the type, `userLoaded.match(action)` narrows an action. `createAction(type, prepare)` builds the payload from several arguments. A creator works as the event of its type: `bus.emit(userLoaded(user))`, `bus.on(userLoaded, fn)`.
+
+**Commands.** `bus.emit(command, payload)` tells the listeners of the command's type, then runs its handler as a task, with a context, and returns the result. The handler can be wrapped in a policy, `createCommand("search", latest(fn))`. Calling `command(payload)` runs its own handler without a bus.
+
+**Where handlers are registered.** The command may carry a handler. The bus gets the handlers bound to commands from a registry, `createCommands`, and a handler bound there wins over the command's own. The registry belongs to one bus, as an effector scope does with `fork({ handlers })`, so each bus (each test) can have its own.
+
+```ts
+import { createCommands, bindHandler } from "nanoeffects/actions";
+
+const commands = createCommands<Events>([bindHandler(sendMail, smtpSend)]);
+const bus = createBus<Events>({ commands });
+
+const unbind = commands.handle(getUser, async () => fakeUser); // later, e.g. in a test
+unbind(); // the command's own handler is back; the latest binding wins
+```
+
+A command with no handler anywhere throws `No handler for command "..."` from `emit`. The registry lives in `nanoeffects/actions`, so a bus without `commands` carries none of this code; without it `emit(command, payload)` simply runs the command's own handler.
+
+**Jobs.** `createJob(type, handler, { done, fail })` is a command that sends its outcome on, for when nobody waits for the result. `done` receives the result and `fail` receives the error; each is anything `emit` takes: an event type, an action creator, a command, or a plain action. `bus.emit(job, payload)` still returns a promise of the result. With `fail` set the error counts as handled: it goes to `fail` and the promise resolves with `undefined`; without it the promise rejects. The outcome is routed also for a handler bound with `commands.handle`, and is not sent once the task is aborted.
+
+## Modules
+
+`registerModules(bus, modules)` from `nanoeffects/actions` assembles an app from modules and returns `mount`, `unmount`, `isMounted` and `dispose`. Create the bus with the registry of `createCommands`, so the commands that modules bind are the ones it runs:
+
+```ts
+const userModule = createModule<Events>("user", (m) => {
+  m.handle(getUser, fetchUser);
+  m.on("login", (user, ctx) => ctx.emit("loaded", user));
+  m.spawn(async (_, ctx) => { /* background work, ends with the module */ });
+});
+
+const commands = createCommands<Events>();
+const bus = createBus<Events>({ commands });
+const app = registerModules(bus, [userModule]);
+
+const unmount = app.mount(orderModule); // later, e.g. after a lazy import
+commands.handle(getUser, fakeUser); // in a test
+app.dispose(); // unmounts every module
+```
+
+The bus has `context`, `trace` and `commands` as read-only fields (the options), for code that makes tasks of its own, like `registerModules`.
+
+## Your own fields in the context
+
+`createBus({ context })` adds fields to the context of every task of the bus: handlers, `ctx.run`, listeners added with `ctx.on`, commands, modules and the child tasks of effects and policies. Use it for a store, a client or a logger that the tasks share. Declare the types once, globally:
+
+```ts
+declare global {
+  interface NanoeffectsContext {
+    store: Store;
+  }
+}
+
+const bus = createBus<Events>({ context: { store } });
+bus.on("save", (draft, { store }) => store.put(draft));
+```
+
+The fields of the library (`signal`, `emit`, `run`, ...) win when the names are the same. Modules get these fields too.
+
+## Errors in handlers
+
+`emit` is a plain loop over the handlers, like in nanoevents: if a handler throws, the remaining handlers are skipped and the error reaches the caller of `emit`. A rejected promise of an async handler is left unhandled.
+
+Pass `onError` to isolate handlers instead. Then every handler runs, and thrown errors and rejections of async handlers (including ones wrapped in `latest`, `debounce` and the like) go to `onError`; an `onError` that throws is logged to `console.error`.
+
+```ts
+const bus = createBus<Events>({
+	onError: (error, { type, payload }) => report(error, type, payload),
+});
+```
+
+## Tracing
+
+Pass `trace` to `createBus` to observe every task phase. Make it with `createTracer` from `nanoeffects/trace`, which takes a logger (a function) or an array of them. The tracing code lives in that entry, so a bus without `trace` does not carry it.
+
+```ts
+import { createBus } from "nanoeffects";
+import { createTracer } from "nanoeffects/trace";
+
+const bus = createBus<Events>({
+	trace: createTracer((event) => console.log(event)),
+});
+```
+
+Each `TraceEvent` has:
+
+| Field     | Meaning                                                              |
+| --------- | -------------------------------------------------------------------- |
+| `id`      | Unique task id within the bus.                                       |
+| `parent`  | Id of the task that started this one (absent for handler tasks).     |
+| `type`    | Event type the task works on.                                        |
+| `effect`  | `latest`, `debounce`, `throttle`, `leading`, `run`, `all` or `race`. |
+| `phase`   | `start`, `done`, `error`, `cancel` or `drop`.                        |
+| `payload` | Event payload.                                                       |
+| `error`   | Thrown value, only for `error`.                                      |
+
+Phases:
+
+- `start`: the work began.
+- `done` / `error`: it finished or threw.
+- `cancel`: it was aborted after it started (superseded by `latest`, parent aborted, lost a `race`).
+- `drop`: it never started (`leading` while busy, a `throttle` call replaced by a newer one, a `debounce` call replaced before its delay ended).
+
+`all` and `race` are traced when you pass them the handler `ctx`: the group is one task, every starter is a child `run` task.
+
+```ts
+bus.on("load", async (id, ctx) => {
+	await all(ctx, { user: () => fetchUser(id), posts: () => fetchPosts(id) });
+});
+```
+
+## Loggers
+
+A logger is a function `(event: TraceEvent) => void` (the `TraceLogger` type). `createTracer` takes one logger or an array; a logger that throws is reported to `console.error` and never breaks the task or the other loggers.
+
+```ts
+import { createBus } from "nanoeffects";
+import { consoleLogger, createTracer, reduxDevtools } from "nanoeffects/trace";
+
+const bus = createBus<Events>({
+	trace: createTracer([reduxDevtools({ name: "app" }), consoleLogger()]),
+});
+```
+
+`nanoeffects/trace` ships `createTracer` and these loggers, each a factory that returns a `TraceLogger`:
+
+| Logger                  | What it does                                                                         |
+| ----------------------- | ------------------------------------------------------------------------------------ |
+| `reduxDevtools()`       | Sends each phase to Redux DevTools as `type/effect/phase`; state is `{ running }`.   |
+| `consoleLogger()`       | Prints one line per phase, indented by task depth.                                   |
+| `performanceLogger()`   | Records User Timing measures for the Timings track of the browser Performance panel. |
+| `createTraceRecorder()` | Keeps events in `recorder.events`, for tests.                                        |
+
+### Production: filter and sampling
+
+`createTracer(loggers, options)` can cut the volume:
+
+```ts
+createTracer(logger, {
+	sample: 0.05, // trace 5% of the handler calls (a share, or a function of { type, payload })
+	filter: (event) => event.phase === "error", // and keep only failures
+});
+```
+
+- `sample` is decided once per root task (one handler call) and every task below it follows, so a trace is never cut in the middle. Tasks that are not sampled cost almost nothing: their effects run without tracing.
+- `filter` runs on each event before any logger sees it.
+
+Notes on `reduxDevtools`: it is read-only (the bus owns no state, so there is no time travel) and does nothing when the extension is not installed.
+
+To write your own, return a `TraceLogger`:
+
+```ts
+import type { TraceLogger } from "nanoeffects";
+
+const errorsOnly = (): TraceLogger => (event) => {
+	if (event.phase === "error") report(event.error);
+};
+```
+
+## Removing tracing from a build
+
+Without a tracer the hooks cost almost nothing (a lookup that finds no tracer), and `nanoeffects/trace` is a separate entry that is only bundled when imported. To also drop the tracing code from the core, use the `notrace` export condition: the package ships a second build of `index`, `effects`, `policies` and `actions` made with `__NANOEFFECTS_TRACE__` set to `false`, so the bundler removes the tracer calls.
+
+```ts
+// vite / rolldown
+resolve: { conditions: ["notrace"] }
+// webpack
+resolve: { conditionNames: ["notrace", "import", "..."] }
+// esbuild
+conditions: ["notrace"]
+```
+
+In a build of your own from the sources, `define: { __NANOEFFECTS_TRACE__: "false" }` does the same. With the condition set, the types of that build have no `trace` option: `createBus({ trace })` is a type error, so tracing cannot be left on by mistake (`scripts/notrace-types.mjs` makes `BusOptions.trace` `never` there). `nanoeffects/trace` has no `notrace` build. The saving is about 0.4 kB gzip of the whole library.
+
 ## Semantics
 
 - **An aborted task delivers no result.** If the task aborts before a promise settles, the promise rejects with the abort reason, even if the value was just produced in the same tick. `latest`, `debounce`, `all`, `race`, `take` and the rest follow this rule.
@@ -377,3 +433,13 @@ For `fetch` and other APIs that take a signal, pass `ctx.signal`. A timeout with
 - **`leading` releases its lock when the task aborts**, not only when `fn` settles. A `fn` that ignores the abort signal can then overlap with the next run, so pass `ctx.signal` to what `fn` does.
 - **Effects start their function synchronously**, so an event emitted right after the call reaches a `take` inside it.
 
+## Development
+
+```bash
+pnpm test       # vitest, 1000+ tests
+pnpm tsgo       # type check
+pnpm check      # biome with the readability plugins in lint/
+pnpm build      # tsdown: dist/ and dist/notrace/
+```
+
+`AGENTS.md` (also read by Claude Code through `CLAUDE.md`) describes the structure, the decisions behind it and the rules of the code, for people and for AI assistants that work on the project.
