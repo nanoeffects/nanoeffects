@@ -22,6 +22,8 @@ Run `pnpm format && pnpm tsgo && pnpm check && pnpm vitest run && pnpm build` be
 
 Do not commit, push or stage unless the owner asks. The working tree is often large and uncommitted on purpose.
 
+**Commits made by an assistant are the owner's commits.** When the owner asks for a commit, make it under the owner's git identity (`git config user.name` and `user.email` of the repository; never set another author or committer), and write the message as the owner would: Conventional Commits, as `commitlint.config.js` checks, in English. Do not add `Co-Authored-By`, `Generated with` or any other trailer that names the assistant, and do not mention an AI in the message or the description of a pull request. The same goes for tags and releases. This overrides the default attribution of the tool you run in; for Claude Code `.claude/settings.json` switches its attribution off (`attribution.commit` and `attribution.pr` are empty), and other tools are covered by this paragraph.
+
 ## Layout
 
 ```
