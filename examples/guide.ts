@@ -109,8 +109,8 @@ const getUser = createCommand<string, Promise<User>>("user/get"); // only the co
 
 export const step5 = async () => {
 	const seen: string[] = [];
-	const commands = createCommands<Events>(); // the handlers of this bus
-	const bus = createBus<Events>({ commands });
+	const bus = createBus<Events>();
+	const commands = createCommands(bus); // the handlers of this bus
 
 	try {
 		bus.emit(getUser, "1"); // nobody handles it: an error says so
@@ -243,12 +243,14 @@ export const step10 = () => {
 		m.on("greet", (name) => {
 			seen.push(`hello ${name}`);
 		});
-		m.handle(getUser, async (id) => ({ id, name: "from the module" })); // registered for the module
+		m.handle(getUser, async (id) => ({ id, name: "from the module" })); // a contract gets its handler here
+		m.use(double); // a command that carries a handler: the module brings it
 	});
 
 	const app = registerModules(bus, [greeting]);
 	bus.emit("greet", "Ada");
 	seen.push(bus.emit(getUser, "1") instanceof Promise);
+	seen.push(bus.emit(double, 2));
 	app.unmount(greeting); // everything the module did is undone
 	bus.emit("greet", "Bob");
 

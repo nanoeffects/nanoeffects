@@ -89,8 +89,8 @@ import { createCommand, createCommands } from "nanoeffects/actions";
 
 const getUser = createCommand<string, Promise<User>>("user/get"); // no handler yet
 
-const commands = createCommands<Events>(); // the handlers of this bus
-const bus = createBus<Events>({ commands });
+const bus = createBus<Events>();
+const commands = createCommands(bus); // the handlers of this bus
 
 bus.emit(getUser, "1"); // throws: No handler for command "user/get"
 
@@ -203,7 +203,8 @@ import { createModule, registerModules } from "nanoeffects/actions";
 
 const greeting = createModule<Events>("greeting", (m) => {
   m.on("greet", (name) => console.log(`hello ${name}`));
-  m.handle(getUser, (id) => api.user(id)); // registered for the module
+  m.handle(getUser, (id) => api.user(id)); // a contract gets its handler here
+  m.use(double); // a command that carries a handler: the module brings it
 });
 
 const app = registerModules(bus, [greeting]);

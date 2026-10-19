@@ -56,7 +56,7 @@ describe("docs/guide.md", () => {
 	});
 
 	it("10. a module is undone as a whole, with its commands", () => {
-		expect(step10()).toEqual(["hello Ada", true]);
+		expect(step10()).toEqual(["hello Ada", true, 4]);
 	});
 
 	it("11. errors and typos", () => {

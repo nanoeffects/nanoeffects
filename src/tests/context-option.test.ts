@@ -98,10 +98,8 @@ describe("BusOptions.context", () => {
 				return ctx.store.name;
 			},
 		);
-		const bus = createBus<StoreEvents>({
-			context: { store },
-			commands: createCommands(),
-		});
+		const bus = createBus<StoreEvents>({ context: { store } });
+		createCommands(bus);
 
 		expect(bus.emit(read)).toBe("main");
 	});

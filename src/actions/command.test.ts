@@ -14,8 +14,8 @@ type Events = TestEvents & { "user/get": string };
 
 const setup = () => {
 	const recorder = createTraceRecorder<Events>();
-	const commands = createCommands<Events>();
-	const bus = createBus<Events>({ trace: createTracer(recorder), commands });
+	const bus = createBus<Events>({ trace: createTracer(recorder) });
+	const commands = createCommands(bus);
 	const phases = () =>
 		recorder.events.map((event) => `${event.effect}/${event.phase}`);
 	return { bus, commands, recorder, phases };
@@ -248,9 +248,8 @@ describe("createCommand", () => {
 
 		it("createCommands binds the list it is given", () => {
 			const send = createCommand<string, string>("mail/send");
-			const bus = createBus<Events>({
-				commands: createCommands([bindHandler(send, (to) => `sent to ${to}`)]),
-			});
+			const bus = createBus<Events>();
+			createCommands(bus, [bindHandler(send, (to) => `sent to ${to}`)]);
 
 			expect(bus.emit(send, "ann")).toBe("sent to ann");
 		});
@@ -258,20 +257,18 @@ describe("createCommand", () => {
 		it("binds several commands from the list", () => {
 			const first = createCommand<number, number>("a");
 			const second = createCommand<number, number>("b");
-			const bus = createBus<Events>({
-				commands: createCommands([
-					bindHandler(first, (value) => value + 1),
-					bindHandler(second, (value) => value * 2),
-				]),
-			});
+			const bus = createBus<Events>();
+			createCommands(bus, [
+				bindHandler(first, (value) => value + 1),
+				bindHandler(second, (value) => value * 2),
+			]);
 
 			expect([bus.emit(first, 1), bus.emit(second, 5)]).toEqual([2, 10]);
 		});
 
 		it("a binding can name the command by its type string", () => {
-			const bus = createBus<Events>({
-				commands: createCommands<Events>([["x/y", () => 1]]),
-			});
+			const bus = createBus<Events>();
+			createCommands(bus, [["x/y", () => 1]]);
 			const command = createCommand<number, number>("x/y");
 
 			expect(bus.emit(command, 0)).toBe(1);
@@ -279,10 +276,10 @@ describe("createCommand", () => {
 
 		it("a handler bound later wins over the list", () => {
 			const command = createCommand<number, string>("a/b");
-			const commands = createCommands<Events>([
+			const bus = createBus<Events>();
+			const commands = createCommands(bus, [
 				bindHandler(command, () => "listed"),
 			]);
-			const bus = createBus<Events>({ commands });
 			commands.handle(command, () => "later");
 
 			expect(bus.emit(command, 1)).toBe("later");

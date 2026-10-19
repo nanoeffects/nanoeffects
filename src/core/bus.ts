@@ -178,20 +178,14 @@ export interface Bus<E extends EventMap> {
 	on: On<E>;
 	off: Off<E>;
 	emit: Emit<E>;
-	/** `BusOptions.context`, `.trace` and `.commands`, for what makes tasks of its own, like `registerModules`. */
+	/** `BusOptions.context` and `.trace`, and `commands`, for what makes tasks of its own, like `registerModules`. */
 	readonly context?: ContextOption<E> | undefined;
-	/** What runs the commands; `registerModules` sets it when the bus was made without. */
+	/** What runs the commands; `createCommands(bus)` and `registerModules` set it. Without one a command runs its own handler. */
 	commands?: Commands | undefined;
 	readonly trace?: Tracer | undefined;
 }
 
 export type BusOptions<E extends EventMap> = {
-	/**
-	 * Runs commands: make it with `createCommands` from `nanoeffects/actions`.
-	 * Without it an event that is a function runs as it is, with the payload and
-	 * the task context.
-	 */
-	commands?: Commands;
 	/** Tracing of every task phase; make it with `createTracer` from `nanoeffects/trace`. */
 	trace?: Tracer;
 	/**
@@ -307,7 +301,6 @@ export const createBus = <Events extends EventMap>(
 		on,
 		off,
 		emit,
-		commands: options.commands,
 		context: options.context,
 		trace: options.trace,
 	};

@@ -31,14 +31,14 @@ const loadUser = createJob("user/load", fetchUser, { done: userLoaded, fail: loa
 ```ts
 import { createCommands, bindHandler } from "nanoeffects/actions";
 
-const commands = createCommands<Events>([bindHandler(sendMail, smtpSend)]);
-const bus = createBus<Events>({ commands });
+const bus = createBus<Events>();
+const commands = createCommands(bus, [bindHandler(sendMail, smtpSend)]); // attached to the bus
 
 const unbind = commands.handle(getUser, async () => fakeUser); // later, e.g. in a test
 unbind(); // the command's own handler is back; the latest binding wins
 ```
 
-A command with no handler anywhere throws `No handler for command "..."` from `emit`. The registry lives in `nanoeffects/actions`, so a bus without `commands` carries none of this code; without it `emit(command, payload)` simply runs the command's own handler.
+A command with no handler anywhere throws `No handler for command "..."` from `emit`. The registry lives in `nanoeffects/actions`, so a bus without one carries none of this code; without it `emit(command, payload)` simply runs the command's own handler. `createCommands(bus)` sets the registry as `bus.commands`, and a second call on the same bus replaces it. There is no `commands` option in `createBus`; a custom runner is assigned, `bus.commands = { run }`.
 
 **Jobs.** `createJob(type, handler, { done, fail })` is a command that sends its outcome on, for when nobody waits for the result. `done` receives the result and `fail` receives the error; each is anything `emit` takes: an event type, an action creator, a command, or a plain action. `bus.emit(job, payload)` still returns a promise of the result. With `fail` set the error counts as handled: it goes to `fail` and the promise resolves with `undefined`; without it the promise rejects. The outcome is routed also for a handler bound with `commands.handle`, and is not sent once the task is aborted.
 
@@ -48,7 +48,8 @@ A command with no handler anywhere throws `No handler for command "..."` from `e
 
 ```ts
 const userModule = createModule<Events>("user", (m) => {
-  m.handle(getUser, fetchUser);
+  m.handle(getUser, fetchUser); // a contract gets its handler here
+  m.use(saveUser, authModule); // a command that carries a handler, and a sub-module
   m.on("login", (user, ctx) => ctx.emit("loaded", user));
   m.spawn(async (_, ctx) => { /* background work, ends with the module */ });
 });
@@ -63,6 +64,7 @@ app.dispose(); // unmounts every module
 
 - **Unmounting undoes everything** the module did: its subscriptions, its bound commands, its sub-modules and its background tasks, which are aborted.
 - **A module is known by its name.** Mounting a module whose name is taken replaces the mounted one. That is what hot reload needs: see [hmr.md](hmr.md).
-- **The registry.** If the bus was made with `createBus({ commands: createCommands() })`, that registry is used; otherwise the app brings its own. A bus has `commands` as a field, so the commands that modules bind are the ones it runs.
+- **The registry.** If `createCommands(bus)` was called, that registry is used; otherwise `registerModules` attaches its own. Either way it is `bus.commands` and `app.commands`, so the commands that modules bind are the ones the bus runs.
 - A disposed app cannot mount modules.
-- A module context is a task context plus `handle` (bind a command), `use` (mount sub-modules, unmounted with this one) and `spawn` (a background task, aborted on unmount).
+- A module context is a task context plus `handle` (give a command a handler: for a contract, or to override), `use` (bring sub-modules and commands that carry a handler: `m.use(getUser, saveUser, subModule)`, in any order; the returned function undoes just that call) and `spawn` (a background task, aborted on unmount).
+- A command that carries a handler keeps answering after its module is unmounted: the handler is its own, and `use` only brings the command and tracks it in the registry. Use `handle` for a handler that should live only as long as the module.

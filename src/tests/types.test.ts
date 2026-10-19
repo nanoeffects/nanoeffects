@@ -2,7 +2,13 @@
 // without writing generics, and wrong calls are errors. Nothing here runs
 // anything that matters; `pnpm tsgo` is the test.
 import { describe, expectTypeOf, it } from "vitest";
-import { createAction, createCommand, createJob } from "../actions";
+import {
+	createAction,
+	createCommand,
+	createCommands,
+	createJob,
+	createModule,
+} from "../actions";
 import { type Context, createBus, type WithContext } from "../core/bus";
 import type { UnsubscribeCallback } from "../core/types";
 import {
@@ -478,5 +484,45 @@ describe("effects as Tasks", () => {
 			poll("100", search);
 		};
 		expectTypeOf(wrongCalls).toBeFunction();
+	});
+});
+
+describe("commands on the bus", () => {
+	type Events = { greet: string };
+	const getUser = createCommand<string, Promise<User>>("user/get");
+
+	it("createCommands(bus) takes the events from the bus and binds handlers", () => {
+		const bus = createBus<Events>();
+		const commands = createCommands(bus);
+		const unbind = commands.handle(getUser, async (id, ctx) => {
+			expectTypeOf(id).toEqualTypeOf<string>();
+			expectTypeOf(ctx).toEqualTypeOf<Context<Events>>();
+			return { id, name: "a" };
+		});
+		expectTypeOf(unbind).toEqualTypeOf<UnsubscribeCallback>();
+		expectTypeOf(bus.emit(getUser, "1")).resolves.toEqualTypeOf<User>();
+	});
+
+	it("the constructor has no commands option", () => {
+		const wrongCalls = () => {
+			const other = createBus<Events>();
+			// @ts-expect-error commands are attached with createCommands(bus)
+			createBus<Events>({ commands: createCommands(other) });
+		};
+		expectTypeOf(wrongCalls).toBeFunction();
+	});
+
+	it("a module brings commands and modules with use, and nothing else", () => {
+		const double = createCommand("math/double", (value: number) => value * 2);
+		const sub = createModule<Events>("sub", () => {});
+		createModule<Events>("parent", (moduleContext) => {
+			expectTypeOf(
+				moduleContext.use(double, sub),
+			).toEqualTypeOf<UnsubscribeCallback>();
+			// @ts-expect-error a string is neither a command nor a module
+			moduleContext.use("math/double");
+			// @ts-expect-error an event is neither a command nor a module
+			moduleContext.use({ type: "greet", payload: "x" });
+		});
 	});
 });

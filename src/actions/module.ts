@@ -21,10 +21,16 @@ export type ModuleContext<E extends EventMap = EventMap> = Context<E> & {
 	handle(type: string, fn: Task<never, E, unknown>): UnsubscribeCallback;
 	handle(bindings: readonly Binding<E>[]): UnsubscribeCallback;
 	/**
-	 * Mounts sub-modules; they are unmounted with this one. The returned function
-	 * unmounts just these, e.g. when they were added later from a listener.
+	 * Brings sub-modules and commands, in any order. A sub-module is mounted and
+	 * unmounted with this one. A command is bound to the handler it carries, for
+	 * as long as this module is mounted; a command that answers by itself keeps
+	 * answering after the module is gone, since the handler is its own. The
+	 * returned function undoes just this call, e.g. for what was added later from
+	 * a listener.
 	 */
-	use(...modules: Module<E>[]): UnsubscribeCallback;
+	use(
+		...items: Array<Module<E> | Command<never, unknown>>
+	): UnsubscribeCallback;
 	/**
 	 * Starts a background task that lives as long as the module: it is aborted
 	 * on unmount, and an error of it is left unhandled, as in any handler.
@@ -79,8 +85,8 @@ export type ModuleApi<E extends EventMap = EventMap> = {
  * Assembles an app from modules on `bus`: mounts `modules` at once, in the
  * order given, and returns `mount`, `unmount`, `isMounted` and `dispose` for
  * the modules that come and go later. The bus runs the commands that the
- * modules bind: if it was made with `commands: createCommands()` that registry
- * is used, otherwise the app brings its own, as `app.commands`.
+ * modules bind: if `createCommands(bus)` was called before, that registry is
+ * used, otherwise the app attaches its own, as `app.commands`.
  *
  * A module is known by its `name`: mounting a module whose name is taken
  * replaces the mounted one, which is unmounted first. That is what hot reload
@@ -108,10 +114,9 @@ export const registerModules = <E extends EventMap>(
 	bus: Bus<E>,
 	modules: readonly Module<E>[] = [],
 ): ModuleApi<E> => {
-	// the bus runs what it was given; without commands the app brings its registry
+	// the bus runs what it was given; without commands the app attaches its registry
 	const given = bus.commands as Registry<E> | undefined;
-	const registry = given ?? createCommands<E>();
-	bus.commands ??= registry;
+	const registry = given ?? createCommands(bus);
 	const commands = {
 		handle: (...args: Parameters<Registry<E>["handle"]>) => {
 			if (!registry.handle) {
@@ -169,11 +174,16 @@ export const registerModules = <E extends EventMap>(
 				onAbort(task, unbind);
 				return unbind;
 			};
-			const use = (...subs: Module<E>[]) => {
-				const unmounts = subs.map(children.mount);
+			const use = (...items: Array<Module<E> | Command<never, unknown>>) => {
+				// a command (a function) is bound to itself: its own handler answers
+				const undos = items.map((item) =>
+					typeof item === "function"
+						? handle(item, item)
+						: children.mount(item),
+				);
 				return () => {
-					for (const unmountSub of unmounts) {
-						unmountSub();
+					for (const undo of undos) {
+						undo();
 					}
 				};
 			};

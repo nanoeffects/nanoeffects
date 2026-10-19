@@ -15,8 +15,8 @@ type Events = {
 
 const setup = () => {
 	const recorder = createTraceRecorder<Events>();
-	const commands = createCommands<Events>();
-	const bus = createBus<Events>({ trace: createTracer(recorder), commands });
+	const bus = createBus<Events>({ trace: createTracer(recorder) });
+	const commands = createCommands(bus);
 	return { bus, commands, recorder };
 };
 

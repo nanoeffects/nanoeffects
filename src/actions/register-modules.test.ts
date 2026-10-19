@@ -7,8 +7,8 @@ import { createModule, type ModuleContext, registerModules } from "./module";
 describe("registerModules", () => {
 	it("mounts the given modules and mounts more later", () => {
 		const setup = vi.fn();
-		const commands = createCommands<TestEvents>();
-		const bus = createBus<TestEvents>({ commands });
+		const bus = createBus<TestEvents>();
+		createCommands(bus);
 		const app = registerModules(bus, [createModule("first", setup)]);
 		const later = createModule<TestEvents>("second", setup);
 		const unmount = app.mount(later);
@@ -22,10 +22,8 @@ describe("registerModules", () => {
 	it("gives the modules the context of the bus", () => {
 		type StoreEvents = TestEvents & WithContext<{ store: { name: string } }>;
 		const context = { store: { name: "main" } };
-		const bus = createBus<StoreEvents>({
-			commands: createCommands<StoreEvents>(),
-			context,
-		});
+		const bus = createBus<StoreEvents>({ context });
+		createCommands(bus);
 		let seen: unknown = null;
 		registerModules(bus, [
 			createModule<StoreEvents>("m", (moduleContext) => {
@@ -77,15 +75,16 @@ describe("registerModules", () => {
 	});
 
 	it("uses the registry that the bus was made with", () => {
-		const commands = createCommands<TestEvents>();
-		const bus = createBus<TestEvents>({ commands });
+		const bus = createBus<TestEvents>();
+		const commands = createCommands(bus);
 		const app = registerModules(bus);
 
 		expect(app.commands).toBe(commands);
 	});
 
 	it("a custom commands runner without handle fails when a module binds", () => {
-		const bus = createBus<TestEvents>({ commands: { run: () => 0 } });
+		const bus = createBus<TestEvents>();
+		bus.commands = { run: () => 0 };
 
 		expect(() =>
 			registerModules(bus, [
@@ -219,5 +218,139 @@ describe("replacing a module by its name (hot reload)", () => {
 		bus.emit("t", 1);
 
 		expect(calls).toEqual(["v2"]);
+	});
+});
+
+describe("use with commands", () => {
+	const setup = () => {
+		const bus = createBus<TestEvents>();
+		const app = registerModules(bus);
+
+		return { bus, app };
+	};
+	const double = createCommand("math/double", (value: number) => value * 2);
+	const triple = createCommand("math/triple", (value: number) => value * 3);
+
+	it("binds commands that carry a handler, and emit answers with their results", () => {
+		const { bus, app } = setup();
+		app.mount(
+			createModule<TestEvents>("math", (moduleContext) => {
+				moduleContext.use(double, triple);
+			}),
+		);
+
+		expect([bus.emit(double, 4), bus.emit(triple, 4)]).toEqual([8, 12]);
+	});
+
+	it("the binding is in the registry of the app", () => {
+		const { bus, app } = setup();
+		const answers: number[] = [];
+		app.mount(
+			createModule<TestEvents>("math", (moduleContext) => {
+				moduleContext.use(double);
+			}),
+		);
+		// a bound command answers in the registry: its own entry runs through `run`
+		app.commands.handle(triple, () => 0);
+		answers.push(bus.emit(double, 5), bus.emit(triple, 5));
+
+		expect(answers).toEqual([10, 0]);
+	});
+
+	it("takes commands and a sub-module in one call, in any order", () => {
+		const { bus, app } = setup();
+		const seen: string[] = [];
+		const sub = createModule<TestEvents>("sub", (moduleContext) => {
+			moduleContext.on("t", () => {
+				seen.push("sub heard");
+			});
+		});
+		app.mount(
+			createModule<TestEvents>("parent", (moduleContext) => {
+				moduleContext.use(double, sub, triple);
+			}),
+		);
+		bus.emit("t", 1);
+
+		expect(seen).toEqual(["sub heard"]);
+		expect([bus.emit(double, 1), bus.emit(triple, 1)]).toEqual([2, 3]);
+	});
+
+	it("use with modules only works as before", () => {
+		const { bus, app } = setup();
+		const seen: string[] = [];
+		const sub = createModule<TestEvents>("sub", (moduleContext) => {
+			moduleContext.on("t", () => {
+				seen.push("heard");
+			});
+		});
+		const parent = createModule<TestEvents>("parent", (moduleContext) => {
+			moduleContext.use(sub);
+		});
+		app.mount(parent);
+		app.unmount(parent);
+		bus.emit("t", 1);
+
+		expect(seen).toEqual([]);
+	});
+
+	it("unmount removes the binding of the module, and an override of another stays", () => {
+		const { bus, app } = setup();
+		const math = createModule<TestEvents>("math", (moduleContext) => {
+			moduleContext.use(double);
+		});
+		app.mount(math);
+		app.commands.handle(double, (value: number) => value + 100);
+		app.unmount(math);
+
+		expect(bus.emit(double, 1)).toBe(101);
+	});
+
+	it("the function that use returns undoes only that call", () => {
+		const { bus, app } = setup();
+		const undos: Array<() => void> = [];
+		const tracked = createCommand("a/tracked", (value: number) => value);
+		app.mount(
+			createModule<TestEvents>("math", (moduleContext) => {
+				undos.push(moduleContext.use(double));
+				moduleContext.use(tracked);
+			}),
+		);
+		// both are bound in the registry; undo of the first removes only its entry
+		app.commands.handle(tracked, () => -1);
+		undos[0]?.();
+
+		expect(bus.emit(double, 2)).toBe(4); // its own handler is the fallback
+		expect(bus.emit(tracked, 2)).toBe(-1); // the later binding still wins
+	});
+
+	it("a handler registered later wins, and removing it brings the command back", () => {
+		const { bus, app } = setup();
+		app.mount(
+			createModule<TestEvents>("math", (moduleContext) => {
+				moduleContext.use(double);
+			}),
+		);
+		const unbind = app.commands.handle(double, () => 99);
+		const during = bus.emit(double, 1);
+		unbind();
+
+		expect([during, bus.emit(double, 1)]).toEqual([99, 2]);
+	});
+
+	it("replacing the module by name unbinds the old commands and binds the new ones", () => {
+		const { bus, app } = setup();
+		app.mount(
+			createModule<TestEvents>("math", (moduleContext) => {
+				moduleContext.use(double);
+			}),
+		);
+		app.mount(
+			createModule<TestEvents>("math", (moduleContext) => {
+				moduleContext.use(triple);
+			}),
+		);
+
+		expect([bus.emit(double, 2), bus.emit(triple, 2)]).toEqual([4, 6]);
 	});
 });

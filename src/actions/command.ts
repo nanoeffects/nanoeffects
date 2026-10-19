@@ -1,4 +1,4 @@
-import type { Command, Commands, Context } from "../core/bus";
+import type { Bus, Command, Commands, Context } from "../core/bus";
 import { createTask } from "../core/context";
 import { eventKey } from "../core/event";
 import type { EventMap, Task, UnsubscribeCallback } from "../core/types";
@@ -77,23 +77,26 @@ export const bindHandler = <P, R, E extends EventMap>(
 ): Binding<E> => [command, fn];
 
 /**
- * The handlers bound to commands, for `createBus({ commands })`. Each bus gets
- * its own, so each test can have its own implementation. `handle` binds more
- * later and returns the function that unbinds.
+ * The handlers bound to commands of `bus`: it makes the registry, sets it as
+ * the commands of the bus and returns it. Each bus has its own, so each test
+ * can have its own implementation. `handle` binds more later and returns the
+ * function that unbinds. A second `createCommands(bus)` replaces the registry
+ * of that bus.
  *
  * What the bus runs for a command: the handler bound last, else the one the
  * command was created with, else it throws `No handler for command "..."`.
  *
  * @example
  * ```ts
- * const commands = createCommands([bindHandler(sendMail, smtpSend)]);
- * const bus = createBus<Events>({ commands });
+ * const bus = createBus<Events>();
+ * const commands = createCommands(bus, [bindHandler(sendMail, smtpSend)]);
  *
  * const unbind = commands.handle(getUser, async () => fakeUser);
  * unbind(); // the command's own handler is back
  * ```
  */
-export const createCommands = <E extends EventMap = EventMap>(
+export const createCommands = <E extends EventMap>(
+	bus: Bus<E>,
 	bindings: readonly Binding<E>[] = [],
 ) => {
 	const bound = new Map<string, Array<{ fn: Task<never, E, unknown> }>>();
@@ -153,5 +156,8 @@ export const createCommands = <E extends EventMap = EventMap>(
 		return Reflect.apply(routed, null, [payload, ctx]);
 	};
 
-	return { run, handle };
+	const registry = { run, handle };
+	bus.commands = registry;
+
+	return registry;
 };
