@@ -3,9 +3,18 @@
 // anything that matters; `pnpm tsgo` is the test.
 import { describe, expectTypeOf, it } from "vitest";
 import { createAction, createCommand, createJob } from "../actions";
-import { type Context, createBus } from "../core/bus";
+import { type Context, createBus, type WithContext } from "../core/bus";
 import type { UnsubscribeCallback } from "../core/types";
-import { all, allSettled, poll, race, retry, take, timeout } from "../effects";
+import {
+	all,
+	allSettled,
+	cancellable,
+	poll,
+	race,
+	retry,
+	take,
+	timeout,
+} from "../effects";
 import { debounce, latest, leading, queue, throttle } from "../policies";
 
 type User = { id: string; name: string };
@@ -190,6 +199,16 @@ describe("results of effects", () => {
 		});
 	});
 
+	it("cancellable is a promise of void unless told the value", () => {
+		bus.on("search", async (_, ctx) => {
+			const nothing = cancellable(ctx, ({ resolve }) => resolve());
+			expectTypeOf(nothing).resolves.toBeVoid();
+
+			const value = cancellable<number>(ctx, ({ resolve }) => resolve(5));
+			expectTypeOf(value).resolves.toEqualTypeOf<number>();
+		});
+	});
+
 	it("take resolves with the payload of the event", () => {
 		bus.on("search", async (_, ctx) => {
 			const user = await take(ctx, "loaded");
@@ -275,5 +294,116 @@ describe("a bus without an event map", () => {
 
 		// @ts-expect-error the payload of the action is a number
 		added("2");
+	});
+});
+
+describe("fields of the context from the event map", () => {
+	type Store = { readonly name: string };
+	type StoreEvents = { save: User } & WithContext<{ store: Store }>;
+
+	it("the context has the fields, in handlers and in policies", () => {
+		const withStore = createBus<StoreEvents>({
+			context: { store: { name: "main" } },
+		});
+		withStore.on("save", (_, ctx) => {
+			expectTypeOf(ctx.store).toEqualTypeOf<Store>();
+		});
+		withStore.on(
+			"save",
+			latest((_, ctx) => {
+				expectTypeOf(ctx.store).toEqualTypeOf<Store>();
+			}),
+		);
+	});
+
+	it("the option is checked against the fields", () => {
+		const wrongOptions = () => {
+			// @ts-expect-error the store must have a name
+			createBus<StoreEvents>({ context: { store: { id: 1 } } });
+		};
+		expectTypeOf(wrongOptions).toBeFunction();
+	});
+
+	it("without WithContext the context has no extra fields", () => {
+		bus.on("search", (_, ctx) => {
+			// @ts-expect-error there is no store in this bus
+			void ctx.store;
+		});
+	});
+
+	it("a function makes the fields for each task", () => {
+		createBus<StoreEvents>({
+			context: (task) => ({ store: { name: task.type } }),
+		});
+	});
+});
+
+describe("an action without generics", () => {
+	type Events = { "user/loaded": User; tick: undefined; "count/set": number };
+	const typed = createBus<Events>();
+
+	it("keeps its literal type and takes the payload from the event map of the bus", () => {
+		const userLoaded = createAction("user/loaded");
+		expectTypeOf(userLoaded.type).toEqualTypeOf<"user/loaded">();
+		expectTypeOf(userLoaded({ id: "1", name: "a" })).toEqualTypeOf<{
+			type: "user/loaded";
+			payload: { id: string; name: string };
+		}>();
+
+		typed.on(userLoaded, (user) => {
+			expectTypeOf(user).toEqualTypeOf<User>();
+		});
+		typed.emit(userLoaded({ id: "1", name: "a" }));
+	});
+
+	it("the bus checks the payload of a call against its map", () => {
+		const userLoaded = createAction("user/loaded");
+		const wrongCalls = () => {
+			// @ts-expect-error the payload of user/loaded is a user
+			typed.emit(userLoaded(5));
+		};
+		expectTypeOf(wrongCalls).toBeFunction();
+	});
+
+	it("an action without data takes no argument", () => {
+		const tick = createAction("tick");
+		expectTypeOf(tick()).toEqualTypeOf<{ type: "tick"; payload: undefined }>();
+		typed.emit(tick());
+	});
+
+	it("an action that is not in the map is an error on that bus", () => {
+		const other = createAction("other");
+		const wrongCalls = () => {
+			// @ts-expect-error there is no such event in the map
+			typed.emit(other());
+		};
+		expectTypeOf(wrongCalls).toBeFunction();
+	});
+
+	it("on a bus without a map the payload is unknown, and createAction<Payload> gives it", () => {
+		const loose = createBus();
+		const free = createAction("free/event");
+		loose.on(free, (payload) => {
+			expectTypeOf(payload).toEqualTypeOf<unknown>();
+		});
+
+		const typedAction = createAction<User>("user/loaded");
+		loose.on(typedAction, (user) => {
+			expectTypeOf(user).toEqualTypeOf<User>();
+		});
+		expectTypeOf(
+			typedAction({ id: "1", name: "a" }).payload,
+		).toEqualTypeOf<User>();
+	});
+
+	it("match tells the type", () => {
+		const userLoaded = createAction("user/loaded");
+		const action: { type: string; payload?: unknown } = {
+			type: "user/loaded",
+			payload: 1,
+		};
+		if (userLoaded.match(action)) {
+			expectTypeOf(action.type).toEqualTypeOf<"user/loaded">();
+		}
 	});
 });

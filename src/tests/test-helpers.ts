@@ -1,4 +1,4 @@
-import { createCommands, type Module, registerModules } from "../actions";
+import { type Module, registerModules } from "../actions";
 import { type BusOptions, type Context, createBus } from "../core/bus";
 import type { EventMap } from "../core/types";
 import { createTraceRecorder } from "../trace/recorder";
@@ -59,9 +59,8 @@ export const createApp = <E extends EventMap = EventMap>(
 	} = {},
 ) => {
 	const { modules, ...busOptions } = options;
-	const commands = createCommands<E>();
-	const bus = createBus<E>({ ...busOptions, commands });
+	const bus = createBus<E>(busOptions);
 	const app = registerModules(bus, modules);
 
-	return { bus, commands, ...app };
+	return { bus, ...app };
 };

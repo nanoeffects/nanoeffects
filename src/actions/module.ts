@@ -7,7 +7,7 @@ import type {
 	UnsubscribeCallback,
 } from "../core/types";
 import { onAbort } from "../utils";
-import type { Binding, createCommands } from "./command";
+import { type Binding, createCommands } from "./command";
 
 /**
  * What a module's `setup` gets: the context of the module's task, so `on`,
@@ -61,8 +61,12 @@ export const createModule = <E extends EventMap = EventMap>(
 	setup: (m: ModuleContext<E>) => void,
 ): Module<E> => ({ name, setup });
 
+type Registry<E extends EventMap> = ReturnType<typeof createCommands<E>>;
+
 /** What `registerModules` returns. */
 export type ModuleApi<E extends EventMap = EventMap> = {
+	/** The registry of command handlers of the bus: the one it was made with, or the app's own. */
+	commands: Registry<E>;
 	/** Mounts a module and returns the function that unmounts it; a module that is mounted already is not run again. */
 	mount(module: Module<E>): UnsubscribeCallback;
 	unmount(module: Module<E>): void;
@@ -71,14 +75,17 @@ export type ModuleApi<E extends EventMap = EventMap> = {
 	dispose(): void;
 };
 
-type Registry<E extends EventMap> = ReturnType<typeof createCommands<E>>;
-
 /**
  * Assembles an app from modules on `bus`: mounts `modules` at once, in the
  * order given, and returns `mount`, `unmount`, `isMounted` and `dispose` for
- * the modules that come and go later. The bus needs the registry of
- * `createCommands` as its `commands` option, so that the commands the modules
- * bind are the ones it runs.
+ * the modules that come and go later. The bus runs the commands that the
+ * modules bind: if it was made with `commands: createCommands()` that registry
+ * is used, otherwise the app brings its own, as `app.commands`.
+ *
+ * A module is known by its `name`: mounting a module whose name is taken
+ * replaces the mounted one, which is unmounted first. That is what hot reload
+ * needs (see `docs/hmr.md`): the new version of a module file mounts again and
+ * the old version goes away with its subscriptions, commands and tasks.
  *
  * Unmounting undoes everything the module did: its subscriptions, its bound
  * commands, its sub-modules and its background tasks. `dispose` unmounts them
@@ -86,15 +93,14 @@ type Registry<E extends EventMap> = ReturnType<typeof createCommands<E>>;
  *
  * @example
  * ```ts
- * const commands = createCommands<Events>();
- * const bus = createBus<Events>({ commands });
+ * const bus = createBus<Events>();
  * const app = registerModules(bus, [userModule]);
  *
  * const unmount = app.mount(orderModule); // later, e.g. after a lazy import
  * unmount(); // or app.unmount(orderModule)
  *
  * bus.emit(getUser, "1");
- * commands.handle(getUser, fakeUser); // in a test
+ * app.commands.handle(getUser, fakeUser); // in a test
  * app.dispose();
  * ```
  */
@@ -102,13 +108,15 @@ export const registerModules = <E extends EventMap>(
 	bus: Bus<E>,
 	modules: readonly Module<E>[] = [],
 ): ModuleApi<E> => {
-	// the bus runs whatever it was given; to bind handlers it must be the registry
-	const registry = bus.commands as Registry<E> | undefined;
+	// the bus runs what it was given; without commands the app brings its registry
+	const given = bus.commands as Registry<E> | undefined;
+	const registry = given ?? createCommands<E>();
+	bus.commands ??= registry;
 	const commands = {
 		handle: (...args: Parameters<Registry<E>["handle"]>) => {
-			if (!registry?.handle) {
+			if (!registry.handle) {
 				throw new Error(
-					"registerModules: create the bus with `commands: createCommands()`",
+					"registerModules: the `commands` of the bus is not a registry from `createCommands()`",
 				);
 			}
 			return Reflect.apply(registry.handle, null, args);
@@ -120,11 +128,17 @@ export const registerModules = <E extends EventMap>(
 	// task undoes the module. A module that is mounted already is not run again.
 	const mounts = (parent: Context<E>) => {
 		const active = new Map<Module<E>, UnsubscribeCallback>();
+		const byName = new Map<string, Module<E>>();
 
 		const mount = (module: Module<E>): UnsubscribeCallback => {
 			const known = active.get(module);
 			if (known) {
 				return known;
+			}
+			// a module of the same name is replaced: this is how hot reload swaps a module
+			const replaced = byName.get(module.name);
+			if (replaced) {
+				active.get(replaced)?.();
 			}
 
 			const scope = forkTask(parent, module.name);
@@ -133,10 +147,14 @@ export const registerModules = <E extends EventMap>(
 
 			const unmount = () => {
 				active.delete(module);
+				if (byName.get(module.name) === module) {
+					byName.delete(module.name);
+				}
 				task.abort();
 				scope.unlink();
 			};
 			active.set(module, unmount);
+			byName.set(module.name, module);
 
 			const handle = (target: unknown, fn?: unknown): UnsubscribeCallback => {
 				const unbind: UnsubscribeCallback = Reflect.apply(
@@ -186,6 +204,7 @@ export const registerModules = <E extends EventMap>(
 	}
 
 	return {
+		commands: registry,
 		mount: (module) => {
 			root.ctx.signal.throwIfAborted();
 			return apps.mount(module);

@@ -767,3 +767,52 @@ describe("bus", () => {
 		});
 	});
 });
+
+describe("onUnhandled", () => {
+	type Events = { known: number; other: string };
+
+	it("is called for an event that nobody listens to", () => {
+		const onUnhandled = vi.fn();
+		const bus = createBus<Events>({ onUnhandled });
+		bus.emit("known", 1);
+
+		expect(onUnhandled).toHaveBeenCalledWith({ type: "known", payload: 1 });
+	});
+
+	it("is not called when there is a listener, or a listener of every event", () => {
+		const onUnhandled = vi.fn();
+		const bus = createBus<Events>({ onUnhandled });
+		const off = bus.on("known", () => {});
+		bus.emit("known", 1);
+		off();
+		bus.on("*", () => {});
+		bus.emit("other", "x");
+
+		expect(onUnhandled).not.toHaveBeenCalled();
+	});
+
+	it("is called again after the last listener is removed", () => {
+		const onUnhandled = vi.fn();
+		const bus = createBus<Events>({ onUnhandled });
+		const off = bus.on("known", () => {});
+		off();
+		bus.emit("known", 2);
+
+		expect(onUnhandled).toHaveBeenCalledTimes(1);
+	});
+
+	it("is not called for a command, which runs its own handler", () => {
+		const onUnhandled = vi.fn();
+		const bus = createBus<Events>({ onUnhandled });
+		const command = Object.assign((value: number) => value, { type: "double" });
+		bus.emit(command, 3);
+
+		expect(onUnhandled).not.toHaveBeenCalled();
+	});
+
+	it("does nothing when it is not set", () => {
+		const bus = createBus<Events>();
+
+		expect(() => bus.emit("known", 1)).not.toThrow();
+	});
+});

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import * as main from "..";
 import * as actions from "../actions";
 import * as effects from "../effects";
+import * as observable from "../observable";
 import * as policies from "../policies";
 import * as redux from "../store/redux";
 import * as trace from "../trace";
@@ -43,6 +44,13 @@ describe("public entries", () => {
 			"createTracer",
 			"performanceLogger",
 			"reduxDevtools",
+		]);
+	});
+
+	it("observable", () => {
+		expect(Object.keys(observable).sort()).toEqual([
+			"$$observable",
+			"createObserve",
 		]);
 	});
 

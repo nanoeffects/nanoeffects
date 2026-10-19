@@ -7,6 +7,8 @@ export {
 	type Command,
 	type Commands,
 	type Context,
+	type ContextOf,
+	type ContextOption,
 	createBus,
 	type Emit,
 	type Emittable,
@@ -17,6 +19,7 @@ export {
 	type HandlerRef,
 	type Off,
 	type On,
+	type WithContext,
 	type WithPayload,
 	type WithType,
 } from "./core/bus";

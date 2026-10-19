@@ -11,7 +11,15 @@
 		"verbatimModuleSyntax": true,
 		"erasableSyntaxOnly": true,
 		"noUncheckedIndexedAccess": true,
-		"exactOptionalPropertyTypes": true
+		"exactOptionalPropertyTypes": true,
+		"paths": {
+			"nanoeffects": ["./src/index.ts"],
+			"nanoeffects/effects": ["./src/effects/index.ts"],
+			"nanoeffects/policies": ["./src/policies/index.ts"],
+			"nanoeffects/actions": ["./src/actions/index.ts"],
+			"nanoeffects/trace": ["./src/trace/index.ts"],
+			"nanoeffects/redux": ["./src/store/redux/index.ts"]
+		}
 	},
-	"include": ["src"]
+	"include": ["src", "examples", "integration"]
 }

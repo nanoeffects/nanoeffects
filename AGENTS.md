@@ -1,6 +1,6 @@
 # nanoeffects: guide for AI assistants and contributors (AGENTS.md)
 
-A typed event bus where each handler is a task with a context (`AbortSignal`, `emit`, `on`, `run`), plus policies (`latest`, `debounce`, `throttle`, `queue`, ...), effects (`retry`, `timeout`, `poll`, `all`, `take`, ...), commands/actions/jobs, modules and tracing. `README.md` is the user documentation; this file is what you need to change the code without breaking its decisions. The owner talks to you in Russian, in short requests: answer in Russian.
+A typed event bus where each handler is a task with a context (`AbortSignal`, `emit`, `on`, `run`), plus policies (`latest`, `debounce`, `throttle`, `queue`, ...), effects (`retry`, `timeout`, `poll`, `all`, `take`, ...), commands/actions/jobs, modules and tracing. `README.md` is the short entry and `docs/` the user documentation (every example in `examples/` is type-checked with the project through `tsconfig` paths); this file is what you need to change the code without breaking its decisions. The owner talks to you in Russian, in short requests: answer in Russian.
 
 ## Commands
 
@@ -10,6 +10,10 @@ pnpm check         # biome check ./src, with the plugins from lint/
 pnpm format        # biome check --write --unsafe ./src
 pnpm vitest run    # all tests (fake timers where time matters)
 pnpm build         # tsdown: dist/ and dist/notrace/, then scripts/notrace-types.mjs
+pnpm test:integration  # the real Redux Toolkit, Zustand, MobX, Jotai, and Vite and webpack bundling the packed package (needs `pnpm build` first; it builds when dist is missing)
+pnpm lint:package  # publint and attw on the packed package
+pnpm size          # size-limit: bundle size of each entry (brotli), limits in package.json
+pnpm verify        # all of the above in one go (what CI runs)
 ```
 
 Run `pnpm format && pnpm tsgo && pnpm check && pnpm vitest run && pnpm build` before you say that something is done. `format` may rewrite `void` to `undefined` in types: keep the `biome-ignore` on `Absent<P>` in `src/actions/action.ts`.
@@ -25,9 +29,12 @@ src/effects/            retry, timeout, poll, take, all, allSettled, race, cance
 src/policies/           latest, leading, debounce, throttle, queue, keyed (byKey), latestWith (shared core)
 src/actions/            createAction, createCommand(s), createJob, createModule, registerModules
 src/store/redux/        nanoeffectsMiddleware: Redux middleware that emits actions to the bus (no dependency on redux)
+src/observable.ts       createObserve: an event of the bus as a TC39 Observable (entry nanoeffects/observable, no notrace build)
 src/trace/              createTracer + loggers (console, performance, recorder, redux devtools)
 src/utils/              onAbort hub, linkedController, delay, setTimer/clearTimer, raceAbort, promise, report
 src/tests/              tests that cross modules (flows, fuzz, scenarios, regressions.*) and test-helpers.ts
+integration/            tests with the real libraries and bundlers (own vitest config: vitest.integration.config.ts)
+docs/, examples/        user documentation; examples are type-checked with the project (tsconfig paths map `nanoeffects/*` to `src`)
 lint/                   GritQL readability rules (see below); excluded from biome's formatter on purpose
 scripts/                notrace-types.mjs (postbuild)
 ```
@@ -43,7 +50,10 @@ Unit tests sit next to the file they test (`x.ts`, `x.test.ts`).
 - **An aborted task delivers no result.** Promises reject with the abort reason; `ctx.emit` and `ctx.on` do nothing after an abort. One shared `onAbort` hub per signal (one real listener each) keeps thousands of subscribers cheap.
 - **Tracing is a contract, not a feature of the bus.** `Tracer` in `src/core/tracer.ts`; events `{ id, parent?, type, effect, phase, payload, error? }`; phases `start|done|error|cancel|drop`; sampling is per root task. The causal parent comes from `currentEmitter()`, which `ctx.emit` sets for the time of the synchronous emit.
 - **`notrace` build.** `TRACE` in `src/core/flag.ts` reads `__NANOEFFECTS_TRACE__`; the second tsdown build defines it as `false`. `scripts/notrace-types.mjs` rewrites `trace?: Tracer;` of `BusOptions` to `never` in the `.d.ts` of that build, so it must keep matching that exact line in `src/core/bus.ts`. The package exports have the `notrace` condition for `.`, `effects`, `policies`, `actions`.
-- **User fields in the context** can be a function of the task (`ContextOption`); `createEffectsMiddleware` uses that to give each task a `store` that knows which task dispatches. They are a global interface, `NanoeffectsContext` (declared in `src/core/bus.ts`), filled with `createBus({ context })`. Library fields win over them. `src/tests/context-option.test.ts` augments it with `store`, which applies to the whole type check.
+- **User fields in the context** are typed through the event map: `type Events = {...} & WithContext<{ store: Store }>` (a type-only symbol key in `src/core/bus.ts`, read by `ContextOf<E>`), filled with `createBus({ context })`, which can also be a function of the task (`ContextOption`). `createEffectsMiddleware` uses the function form to give each task a `store` that knows which task dispatches. Library fields win over them. There is no global interface any more.
+- **`bus.commands` is a mutable field**: `registerModules` sets its own registry when the bus has none, and `emit` reads `bus.commands` each time.
+- **Modules are known by name**: mounting a module whose name is taken unmounts the old one first (hot reload, see `docs/hmr.md`).
+- **`onUnhandled`** is called for an event without listeners (not for commands).
 - **Timers use `setTimer`/`clearTimer`** (`src/utils/timer.ts`), never `setTimeout` directly: waits over 2^31 - 1 ms are split, `Infinity` holds no timer, negative or `NaN` is 0.
 - **Options that are `null`** (plain JavaScript callers) fall back to defaults: read options with `??`, not with destructuring defaults.
 - **`throttle` and `debounce` follow lodash** (and patronum): verified by `src/policies/lodash-parity.test.ts` with random call sequences against the real lodash (a devDependency). `throttle` has a re-entrancy guard (`busy`) so a call made from inside `fn` waits; the leading-only modes use no timers.
@@ -59,6 +69,7 @@ Unit tests sit next to the file they test (`x.ts`, `x.test.ts`).
 - **Few extra types**, but add one where a signature gets hard to read (`Binding`, `Emittable`, `ModuleApi`). Do not make the code general ("implement" is too wide a name; name things by what they do).
 - **Comments** say why, not what; match the density of the file you edit. Keep doc comments on public API with an `@example`.
 - **Tests: no abbreviations.** Use `harness`, `handler`, `value`, `gate`, `debounced`, `command`, `moduleContext`... not `h`, `fn`, `n`, `d`, `deb`, `cmd`, `m`. `ctx`, `bus`, `app`, `ms`, `id` are names of the API and stay. Pin generics in test helpers (`queue<number, TestEvents, void>`). For a payload that is `undefined` at runtime use `noPayload` from `src/tests/test-helpers.ts`.
+- `createAction("x")` without generics returns a `FreeActionCreator`: it keeps the literal type, and the payload type comes from the event map (the overloads of `On` in `src/core/bus.ts` put it before `ActionCreator<P>` and commands; keep that order). `createAction<Payload>("x")` gives the payload type instead.
 - `src/tests/types.test.ts` checks what users see from the type checker (inference of handlers, policies, effects, commands; wrong calls with `@ts-expect-error`). `pnpm tsgo` runs it. A `@ts-expect-error` must sit above the line where TypeScript reports the error, which for a failed overload is the first argument of `bus.on`, not the inner call.
 - Tests use fake timers for anything with time; `createHarness()` gives a bus that records its trace and fresh task contexts (`harness.ctx()`).
 

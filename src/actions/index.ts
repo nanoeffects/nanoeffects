@@ -1,4 +1,8 @@
-export { type ActionCreator, createAction } from "./action";
+export {
+	type ActionCreator,
+	createAction,
+	type FreeActionCreator,
+} from "./action";
 export {
 	type Binding,
 	bindHandler,

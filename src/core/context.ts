@@ -61,11 +61,18 @@ type TaskBus<E extends EventMap> = {
 	on?: On<E> | undefined;
 	off?: Off<E> | undefined;
 	/** Fields the user adds to every context, or a function that makes them for a task; see `BusOptions.context`. */
-	context?: object | ((event: Event) => object) | undefined;
+	context?: unknown;
 };
 
-const fieldsOf = (context: TaskBus<EventMap>["context"], event: Event) =>
-	typeof context === "function" ? context(event) : context;
+// the fields come from the user's `BusOptions.context`: an object, or a function of the task
+const fieldsOf = (context: unknown, event: Event): object | undefined => {
+	if (typeof context !== "function") {
+		return context as object | undefined;
+	}
+	const make = context as (event: Event) => object;
+
+	return make(event);
+};
 
 // the fields of a context follow from the event it is for, so no literal can be checked against it
 const asContext = <E extends EventMap>(task: object) => task as Context<E>;

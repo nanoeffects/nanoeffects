@@ -22,7 +22,7 @@ export type CancellableExecutor<T> = (handle: CancellableHandle<T>) => void;
  * bus.on(
  *   "wait",
  *   latest((_, ctx) =>
- *     cancellable<void>(ctx, ({ resolve, onCancel }) => {
+ *     cancellable(ctx, ({ resolve, onCancel }) => {
  *       const timer = setTimeout(resolve, 5000);
  *       onCancel(() => clearTimeout(timer));
  *     }),
@@ -30,7 +30,7 @@ export type CancellableExecutor<T> = (handle: CancellableHandle<T>) => void;
  * );
  * ```
  */
-export const cancellable = <T>(
+export const cancellable = <T = void>(
 	ctx: { signal: AbortSignal },
 	executor: CancellableExecutor<T>,
 ): Promise<T> => {

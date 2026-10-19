@@ -9,6 +9,27 @@ type Absent<P> = [P] extends [void] ? undefined : P;
 // The action of a creator, as an event of the bus sees it.
 type Made<P, T extends string> = WithPayload<{ [K in T]: Absent<P> }, T>;
 
+// only the type of this key is used: it marks "the payload type was not given"
+declare const free: unique symbol;
+type Free = typeof free;
+
+/**
+ * A creator whose payload type was not given: each call has the type of what
+ * it is given, and the bus checks it against its event map, so
+ * `createAction("user/loaded")` needs no generics and keeps its literal type.
+ */
+export interface FreeActionCreator<T extends string> {
+	(): { type: T; payload: undefined };
+	<P>(payload: P): { type: T; payload: P };
+	readonly type: T;
+	/** Tells whether an action is one of this creator. */
+	match(action: { type: string; payload?: unknown }): action is {
+		type: T;
+		payload: unknown;
+	};
+	toString(): T;
+}
+
 /**
  * Makes actions of one type. It also works as the event of that type:
  * `bus.on(creator, fn)` and `bus.emit(creator(payload))`.
@@ -26,11 +47,17 @@ export interface ActionCreator<
 }
 
 /**
- * Creates an action creator, as in Redux Toolkit. Give the payload type first
- * and, to keep the literal type, the type as the second generic:
- * `createAction<number, "counter/add">("counter/add")`.
+ * Creates an action creator, as in Redux Toolkit.
  *
- * With `prepare` the arguments of the creator can differ from the payload.
+ * - `createAction("user/loaded")` needs no generics: the payload type comes
+ *   from the event map of the bus that the action goes to, and the literal
+ *   type of the action is kept.
+ * - `createAction<User>("user/loaded")` gives the payload type, for a bus
+ *   without an event map or to check the calls of the creator. The type of
+ *   the action is then `string`; to keep the literal, give it as the second
+ *   generic: `createAction<User, "user/loaded">("user/loaded")`.
+ * - With `prepare` the arguments of the creator can differ from the payload,
+ *   and both types are inferred.
  *
  * @example
  * ```ts
@@ -47,9 +74,9 @@ export interface ActionCreator<
  * bus.on(added, (n) => console.log(n));
  * ```
  */
-export function createAction<P = void, T extends string = string>(
+export function createAction<P = Free, T extends string = string>(
 	type: T,
-): ActionCreator<P, T>;
+): [P] extends [Free] ? FreeActionCreator<T> : ActionCreator<P, T>;
 export function createAction<A extends unknown[], P, T extends string = string>(
 	type: T,
 	prepare: (...args: A) => { payload: P },
@@ -57,7 +84,7 @@ export function createAction<A extends unknown[], P, T extends string = string>(
 export function createAction(
 	type: string,
 	prepare?: (...args: unknown[]) => { payload: unknown },
-): ActionCreator<unknown, string, unknown[]> {
+): ActionCreator<unknown, string, unknown[]> | FreeActionCreator<string> {
 	const creator = (...args: unknown[]) => ({
 		type,
 		payload: prepare ? prepare(...args).payload : args[0],

@@ -1,4 +1,4 @@
-import type { ActionCreator } from "../actions/action";
+import type { ActionCreator, FreeActionCreator } from "../actions/action";
 import { isPromise, report } from "../utils";
 import { createTask, currentEmitter, traceRun } from "./context";
 import { eventKey, eventPayload } from "./event";
@@ -98,6 +98,11 @@ export type Emit<E extends EventMap> = {
 export type On<E extends EventMap> = {
 	(event: AnyEvent, fn: Task<EventPayload<E>, E>): UnsubscribeCallback;
 	<K extends EventKey<E>>(event: K, fn: Task<E[K], E>): UnsubscribeCallback;
+	/** An action creator without a payload type: the payload comes from the event map. */
+	<K extends EventKey<E>>(
+		creator: FreeActionCreator<K>,
+		fn: Task<E[K], E>,
+	): UnsubscribeCallback;
 	/** An action creator: the payload comes from it, so an event map is not needed. */
 	<P>(creator: ActionCreator<P>, fn: Task<P, E>): UnsubscribeCallback;
 	/** A command: the payload comes from it too. */
@@ -120,34 +125,39 @@ export type Off<E extends EventMap> = {
 	<P>(command: Command<P, unknown>, fn?: Task<P, E>): void;
 };
 
-declare global {
-	/**
-	 * Your own fields of every task context: declare them here and give their
-	 * values in `createBus({ context })`.
-	 *
-	 * @example
-	 * ```ts
-	 * declare global {
-	 *   interface NanoeffectsContext {
-	 *     store: Store;
-	 *   }
-	 * }
-	 *
-	 * const bus = createBus<Events>({ context: { store } });
-	 * bus.on("save", (draft, { store }) => store.put(draft));
-	 * ```
-	 */
-	interface NanoeffectsContext {}
-}
+// only the type of this key is used: it never exists at run time
+declare const contextKey: unique symbol;
+
+/**
+ * Your own fields of every task context, in the event map: add it to the
+ * events with `&` and give the values in `createBus({ context })`. The fields
+ * are in the context of every task of that bus, and the compiler checks them.
+ *
+ * @example
+ * ```ts
+ * type Events = { save: Draft } & WithContext<{ store: Store }>;
+ *
+ * const bus = createBus<Events>({ context: { store } });
+ * bus.on("save", (draft, { store }) => store.put(draft));
+ * ```
+ */
+export type WithContext<Fields extends object> = {
+	readonly [contextKey]?: Fields;
+};
+
+/** The fields that the event map `E` adds to the context of a task. */
+export type ContextOf<E extends EventMap> = typeof contextKey extends keyof E
+	? NonNullable<E[typeof contextKey]>
+	: unknown;
 
 /** Fields for the context of every task, or a function that makes them for one task. */
-export type ContextOption =
-	| NanoeffectsContext
-	| ((event: { type: string; payload?: unknown }) => NanoeffectsContext);
+export type ContextOption<E extends EventMap> =
+	| ContextOf<E>
+	| ((event: { type: string; payload?: unknown }) => ContextOf<E>);
 
 /** Task context inside an effect. */
 export type Context<E extends EventMap> = EventLike<E> &
-	NanoeffectsContext & {
+	ContextOf<E> & {
 		signal: AbortSignal;
 		/** Abort this task (and attached children). */
 		abort: (reason?: unknown) => void;
@@ -169,8 +179,9 @@ export interface Bus<E extends EventMap> {
 	off: Off<E>;
 	emit: Emit<E>;
 	/** `BusOptions.context`, `.trace` and `.commands`, for what makes tasks of its own, like `registerModules`. */
-	readonly context?: ContextOption | undefined;
-	readonly commands?: Commands | undefined;
+	readonly context?: ContextOption<E> | undefined;
+	/** What runs the commands; `registerModules` sets it when the bus was made without. */
+	commands?: Commands | undefined;
 	readonly trace?: Tracer | undefined;
 }
 
@@ -192,13 +203,26 @@ export type BusOptions<E extends EventMap> = {
 	 */
 	onError?: (error: unknown, event: Action<E>) => void;
 	/**
+	 * Called when an event is emitted and nobody listens to it: the usual sign
+	 * of a typo in an event name. Not called for commands, which always have a
+	 * handler to run. Typically a warning in development only.
+	 *
+	 * @example
+	 * ```ts
+	 * createBus<Events>({
+	 *   onUnhandled: import.meta.env.DEV ? ({ type }) => console.warn(`Nobody listens to "${type}"`) : void 0,
+	 * });
+	 * ```
+	 */
+	onUnhandled?: (event: Action<E>) => void;
+	/**
 	 * Fields added to the context of every task of this bus, its child tasks
 	 * and the tasks of effects included: a store, a logger, a client. Their
-	 * types come from `NanoeffectsContext`. The fields of the library win over
+	 * types come from `WithContext` in the event map. The fields of the library win over
 	 * these when the names are the same. A function gets `{ type, payload }` of
 	 * the task and returns its fields, for fields that depend on the task.
 	 */
-	context?: ContextOption;
+	context?: ContextOption<E>;
 };
 
 export const createBus = <Events extends EventMap>(
@@ -217,45 +241,56 @@ export const createBus = <Events extends EventMap>(
 		fn?: Task<EventPayload<Events>, Events>,
 	) => events.remove(eventKey(event), fn);
 
-	const emit = (event: Emittable<Events>, payload?: EventPayload<Events>) => {
-		const key = eventKey(event);
-		const data = eventPayload<Events>(event, payload);
-
-		const action = { type: key, payload: data };
+	// runs one handler as a task; errors go to `onError` when there is one
+	const callHandler = (
+		fn: Task<EventPayload<Events>, Events>,
+		action: Action<Events>,
+	) => {
 		const { onError } = options;
+		const { ctx } = createTask(action, bus, options.trace, {
+			ref: currentEmitter(),
+		});
+		if (!onError) {
+			fn(action.payload, ctx);
+			return;
+		}
+
 		const fail = (error: unknown) => {
 			try {
-				onError?.(error, action);
+				onError(error, action);
 			} catch (failure) {
 				report("onError failed", failure);
 			}
 		};
-
-		for (const fn of [...events.get(key), ...events.get(anyEventType)]) {
-			const { ctx } = createTask(action, bus, options.trace, {
-				ref: currentEmitter(),
-			});
-
-			if (!onError) {
-				fn(data, ctx);
-				continue;
+		try {
+			const result = fn(action.payload, ctx);
+			if (isPromise(result)) {
+				Promise.resolve(result).catch(fail);
 			}
+		} catch (error) {
+			fail(error);
+		}
+	};
 
-			try {
-				const result = fn(data, ctx);
-				if (isPromise(result)) {
-					Promise.resolve(result).catch(fail);
-				}
-			} catch (error) {
-				fail(error);
-			}
+	const emit = (event: Emittable<Events>, payload?: EventPayload<Events>) => {
+		const key = eventKey(event);
+		const data = eventPayload<Events>(event, payload);
+		const action = { type: key, payload: data };
+
+		const handlers = [...events.get(key), ...events.get(anyEventType)];
+		// a command always has a handler to run, so only events can go unheard
+		if (handlers.length === 0 && typeof event !== "function") {
+			options.onUnhandled?.(action);
+		}
+		for (const fn of handlers) {
+			callHandler(fn, action);
 		}
 
 		if (typeof event === "function") {
 			const { ctx } = createTask(action, bus, options.trace, {
 				ref: currentEmitter(),
 			});
-			const run = options.commands?.run ?? callCommand;
+			const run = bus.commands?.run ?? callCommand;
 
 			return traceRun(ctx, "command", () => run(event, data, ctx));
 		}

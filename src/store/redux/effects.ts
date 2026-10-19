@@ -1,4 +1,9 @@
-import { type Bus, type BusOptions, createBus } from "../../core/bus";
+import {
+	type Bus,
+	type BusOptions,
+	type ContextOf,
+	createBus,
+} from "../../core/bus";
 import type { EventMap } from "../../core/types";
 import { report } from "../../utils";
 import {
@@ -8,7 +13,7 @@ import {
 
 /** What Redux gives a middleware: the parts of the store that it may use. */
 export type ReduxStoreApi<State = unknown> = {
-	dispatch: (action: never) => unknown;
+	dispatch: (action: { type: string; payload?: unknown }) => unknown;
 	getState: () => State;
 };
 
@@ -24,15 +29,11 @@ export type EffectsMiddlewareOptions<E extends EventMap> = Omit<
 /**
  * Creates a bus and the Redux middleware that feeds it: the effects of an app
  * in one place, without sagas. Every task gets `ctx.store`, the `dispatch` and
- * `getState` of the store, as soon as the middleware is added to it. Declare
- * its type once:
+ * `getState` of the store, as soon as the middleware is added to it. Type it
+ * in the event map:
  *
  * ```ts
- * declare global {
- *   interface NanoeffectsContext {
- *     store: ReduxStoreApi<RootState>;
- *   }
- * }
+ * type Events = { userRequested: string } & WithContext<{ store: ReduxStoreApi<RootState> }>;
  * ```
  *
  * Two things are looked after for you:
@@ -69,7 +70,7 @@ export const createEffectsMiddleware = <E extends EventMap = EventMap>(
 	const origins = new WeakMap<object, string>();
 
 	// each task gets its own `store`, which knows which task dispatches
-	const contextOf = (task: { type: string }): NanoeffectsContext => {
+	const contextOf = (task: { type: string }): ContextOf<E> => {
 		const fields: object = {
 			...context,
 			store: api && {
@@ -85,7 +86,7 @@ export const createEffectsMiddleware = <E extends EventMap = EventMap>(
 			},
 		};
 
-		return fields as NanoeffectsContext;
+		return fields as ContextOf<E>;
 	};
 
 	const bus: Bus<E> = createBus<E>({

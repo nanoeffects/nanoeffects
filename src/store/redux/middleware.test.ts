@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createAction } from "../../actions";
-import { createBus } from "../../core/bus";
+import { createBus, type WithContext } from "../../core/bus";
 import { latest } from "../../policies";
 import { deferred } from "../../tests/test-helpers";
 import { nanoeffectsMiddleware } from "./middleware";
@@ -29,6 +29,9 @@ const createMiniStore = (
 	// `name` makes it fit the `store` field that other tests declare on the context
 	return { name: "mini", dispatch, getState: () => state };
 };
+
+type StoreEvents = Events &
+	WithContext<{ store: ReturnType<typeof createMiniStore> }>;
 
 const added = createAction<number, "counter/added">("counter/added");
 const reset = createAction<void, "counter/reset">("counter/reset");
@@ -158,7 +161,7 @@ describe("nanoeffectsMiddleware", () => {
 	});
 
 	it("the bus can get the store lazily through context, and a handler dispatches to it", () => {
-		const bus = createBus<Events>({
+		const bus = createBus<StoreEvents>({
 			context: {
 				get store() {
 					return store;
@@ -168,7 +171,7 @@ describe("nanoeffectsMiddleware", () => {
 		const store = createMiniStore(nanoeffectsMiddleware(bus)());
 		bus.on(added, (value, ctx) => {
 			if (value === 1) {
-				(ctx.store as typeof store).dispatch(added(10));
+				ctx.store.dispatch(added(10));
 			}
 		});
 		store.dispatch(added(1));
