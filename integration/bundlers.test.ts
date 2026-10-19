@@ -25,7 +25,7 @@ import { createBus } from "nanoeffects";
 import { debounce, latest, queue, throttle } from "nanoeffects/policies";
 import { all, retry, timeout } from "nanoeffects/effects";
 import { createAction, createModule, modulePlugin } from "nanoeffects/actions";
-import { nanoeffectsMiddleware } from "nanoeffects/redux";
+import { createEffectsMiddleware } from "nanoeffects/redux";
 import { createObserve } from "nanoeffects/observable";
 
 export const run = async () => {
@@ -51,7 +51,9 @@ export const run = async () => {
 	app.dispose();
 	bus.emit("hello");
 
-	const middleware = nanoeffectsMiddleware(bus)()((action) => action);
+	const effects = createEffectsMiddleware();
+	effects.bus.on("counter/added", (value) => { seen.push("added " + value); });
+	const middleware = effects.middleware({ dispatch: (action) => action, getState: () => ({}) })((action) => action);
 	middleware({ type: "counter/added", payload: 5 });
 
 	const observed = [];

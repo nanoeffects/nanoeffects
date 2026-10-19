@@ -4,14 +4,10 @@ import {
 	createSlice,
 	type PayloadAction,
 } from "@reduxjs/toolkit";
-import { type Bus, createBus, type WithContext } from "nanoeffects";
+import type { WithContext } from "nanoeffects";
 import { createAction } from "nanoeffects/actions";
 import { latest } from "nanoeffects/policies";
-import {
-	createEffectsMiddleware,
-	nanoeffectsMiddleware,
-	type ReduxStoreApi,
-} from "nanoeffects/redux";
+import { createEffectsMiddleware, type ReduxStoreApi } from "nanoeffects/redux";
 import { describe, expect, it, vi } from "vitest";
 
 type User = { id: string; name: string };
@@ -155,31 +151,7 @@ describe("Redux Toolkit with the effects middleware", () => {
 	});
 });
 
-describe("Redux Toolkit with nanoeffectsMiddleware and your own bus", () => {
-	it("works with a lazy store in the context", () => {
-		type Events = { "app/userRequested": string } & WithContext<{
-			store: { dispatch: (action: unknown) => unknown };
-		}>;
-		const bus: Bus<Events> = createBus<Events>({
-			context: {
-				get store() {
-					return store;
-				},
-			},
-		});
-		const store = configureStore({
-			reducer: counter.reducer,
-			middleware: (getDefault) =>
-				getDefault().concat(nanoeffectsMiddleware(bus)),
-		});
-		bus.on("app/userRequested", (id, ctx) => {
-			ctx.store.dispatch(userLoaded({ id, name: "n" }));
-		});
-		store.dispatch(userRequested("1"));
-
-		expect(store.getState().user?.id).toBe("1");
-	});
-
+describe("Redux Toolkit and nanoeffects actions", () => {
 	it("nanoeffects actions are plain actions that the store takes", () => {
 		const bumped = createAction<number, "app/bumped">("app/bumped");
 		const store = configureStore({

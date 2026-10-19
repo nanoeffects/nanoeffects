@@ -27,8 +27,6 @@ It looks after what is easy to get wrong:
 
 Options are those of `createBus` (except `context`, which adds fields next to `store`) and `filter`, which keeps the actions it rejects away from the bus. Values that are not plain actions (thunks) go through untouched. Nothing here depends on Redux.
 
-To use your own bus, `nanoeffectsMiddleware(bus, { filter })` is the middleware alone: it sends actions to the bus after the reducers and nothing more. Give the store to the tasks yourself with `createBus({ context: { store } })`, or lazily, `context: { get store() { return store; } }` (typed with `WithContext`), since the store needs the middleware and the middleware needs the bus.
-
 ## Zustand, MobX and other stores
 
 No adapter is needed: a store tells about its changes, and `bus.emit` is a call.

@@ -15,7 +15,7 @@ const { createBus } = await load("index");
 const { latest, debounce, queue, throttle } = await load("policies");
 const { retry, timeout, all, delay } = await load("effects");
 const { createAction, createModule, modulePlugin } = await load("actions");
-const { nanoeffectsMiddleware } = await load("redux");
+const { createEffectsMiddleware } = await load("redux");
 const { createObserve } = await load("observable");
 
 const fail = (message) => {
@@ -59,7 +59,12 @@ const app = bus.use(
 bus.emit("hello");
 app.dispose();
 bus.emit("hello");
-nanoeffectsMiddleware(bus)()((action) => action)({
+const effects = createEffectsMiddleware();
+effects.bus.on("counter/added", (value) => seen.push(`added ${value}`));
+effects.middleware({
+	dispatch: (action) => action,
+	getState: () => ({}),
+})((action) => action)({
 	type: "counter/added",
 	payload: 5,
 });

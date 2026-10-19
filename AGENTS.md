@@ -32,7 +32,7 @@ src/core/               bus, context (task contexts), event, store, types, trace
 src/effects/            retry, timeout, poll, take, all, allSettled, race, cancellable, group (withGroup/runTraced)
 src/policies/           latest, leading, debounce, throttle, queue, keyed (byKey), latestWith (shared core)
 src/actions/            createAction, createCommand(s), createJob, createModule, modulePlugin
-src/store/redux/        nanoeffectsMiddleware: Redux middleware that emits actions to the bus (no dependency on redux)
+src/store/redux/        createEffectsMiddleware: a bus and a Redux middleware that emits actions to it (no dependency on redux); `middleware.ts` is its inner part, not exported
 src/observable.ts       createObserve: an event of the bus as a TC39 Observable (entry nanoeffects/observable, no notrace build)
 src/dev/                devPlugin: leak warning and module messages; wraps bus.on and app.mount, no dev code in core or actions; `noop.ts` is the production build
 src/trace/              createTracer + loggers (console, performance, recorder, redux devtools)

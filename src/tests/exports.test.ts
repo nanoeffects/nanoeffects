@@ -55,10 +55,7 @@ describe("public entries", () => {
 	});
 
 	it("redux", () => {
-		expect(Object.keys(redux).sort()).toEqual([
-			"createEffectsMiddleware",
-			"nanoeffectsMiddleware",
-		]);
+		expect(Object.keys(redux).sort()).toEqual(["createEffectsMiddleware"]);
 	});
 
 	it("actions", () => {
