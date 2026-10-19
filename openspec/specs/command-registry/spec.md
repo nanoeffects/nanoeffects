@@ -6,21 +6,21 @@ Say how the registry of command handlers is connected to a bus: it is attached t
 ## Requirements
 
 ### Requirement: The registry is attached to a bus
-`createCommands(bus, bindings?)` SHALL create a registry of command handlers, set it as the commands of `bus`, and return it, with the events type taken from `bus`.
+`commandsPlugin(bindings?)` SHALL return a plugin, a function of a bus; `bus.use(commandsPlugin(bindings?))` SHALL create a registry of command handlers, set it as the commands of `bus`, and return it, with the events type taken from `bus`.
 
 #### Scenario: Handlers registered after the bus exists
-- **WHEN** `const commands = createCommands(bus)` and `commands.handle(getUser, fn)` are called, and `bus.emit(getUser, "1")` follows
+- **WHEN** `const commands = bus.use(commandsPlugin())` and `commands.handle(getUser, fn)` are called, and `bus.emit(getUser, "1")` follows
 - **THEN** `emit` runs `fn` and returns its result
 
 #### Scenario: Initial bindings
-- **WHEN** `createCommands(bus, [bindHandler(sendMail, smtpSend)])` is called
+- **WHEN** `bus.use(commandsPlugin([bindHandler(sendMail, smtpSend)]))` is called
 - **THEN** `bus.emit(sendMail, mail)` runs `smtpSend`
 
 ### Requirement: The constructor has no commands option
-`createBus` SHALL NOT take a `commands` option; the commands of a bus SHALL be set only through `createCommands(bus)`, through the module plugin, or by assigning `bus.commands`.
+`createBus` SHALL NOT take a `commands` option; the commands of a bus SHALL be set only through `bus.use(commandsPlugin())`, through the module plugin, or by assigning `bus.commands`.
 
 #### Scenario: The old option is a type error
-- **WHEN** `createBus({ commands: createCommands(bus) })` is written
+- **WHEN** `createBus({ commands: bus.use(commandsPlugin()) })` is written
 - **THEN** it does not type-check
 
 #### Scenario: A custom runner is assigned
@@ -39,17 +39,17 @@ A bus with no commands set SHALL run a command with the handler that the command
 - **THEN** it throws `No handler for command "<type>"`
 
 ### Requirement: A later registry replaces the earlier one
-A second `createCommands(bus)` on the same bus SHALL replace the registry of that bus; the handlers of the earlier registry SHALL no longer run through that bus.
+A second `bus.use(commandsPlugin())` on the same bus SHALL replace the registry of that bus; the handlers of the earlier registry SHALL no longer run through that bus.
 
 #### Scenario: Replacement
-- **WHEN** `createCommands(bus)` is called twice and a handler was bound in the first registry
+- **WHEN** `bus.use(commandsPlugin())` is called twice and a handler was bound in the first registry
 - **THEN** `emit` ignores the handler of the first registry
 
 ### Requirement: The module plugin uses or attaches the registry
-`bus.use(modulePlugin(modules))` SHALL use the registry that the bus has, and SHALL attach one with `createCommands(bus)` when the bus has none; the registry SHALL be returned as `commands`.
+`bus.use(modulePlugin(modules))` SHALL use the registry that the bus has, and SHALL attach one with `commandsPlugin()` when the bus has none; the registry SHALL be returned as `commands`.
 
 #### Scenario: The bus already has a registry
-- **WHEN** `createCommands(bus)` was called before `bus.use(modulePlugin([...]))`
+- **WHEN** `bus.use(commandsPlugin())` was called before `bus.use(modulePlugin([...]))`
 - **THEN** the modules bind handlers in that registry and `app.commands` is that registry
 
 #### Scenario: The bus has none
