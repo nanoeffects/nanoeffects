@@ -6,6 +6,16 @@ import type { EventMap, Task, UnsubscribeCallback } from "../core/types";
 /** Thrown when a command runs without a handler: a mistake of the program, not a failure of the work. */
 export class MissingHandlerError extends Error {}
 
+/** What `createCommand` returns: a command that also tells whether an action is of its type. */
+export type MadeCommand<P, R, T extends string> = Command<P, R> & {
+	readonly type: T;
+	/** Tells whether an action has the type of this command, and narrows its type. */
+	match(action: { type: string; payload?: unknown }): action is {
+		type: T;
+		payload: P;
+	};
+};
+
 /**
  * Creates a command: a typed request for a result. `bus.emit(command, payload)`
  * runs its handler as a task, with a context, and returns what the handler
@@ -13,11 +23,13 @@ export class MissingHandlerError extends Error {}
  *
  * The handler is optional. A command without one is only a contract, and the
  * bus gets its implementation from the `commands` registry (see
- * `createCommands` and `bindHandler`). A handler bound there wins over the one
+ * `commandsPlugin` and `bindHandler`). A handler bound there wins over the one
  * the command was created with, so a test can give a bus its own implementation.
  *
  * A handler can be wrapped in a policy, e.g. `latest(fn)`. Calling the command
  * directly, `command(payload)`, runs its own handler outside of any bus.
+ * `command.match(action)` tells whether an action has the type of the command,
+ * as it does for an action creator.
  *
  * @example
  * ```ts
@@ -26,7 +38,7 @@ export class MissingHandlerError extends Error {}
  * );
  * const sendMail = createCommand<Mail, void>("mail/send"); // implemented elsewhere
  *
- * const commands = createCommands([bindHandler(sendMail, smtpSend)]);
+ * bus.use(commandsPlugin([bindHandler(sendMail, smtpSend)]));
  * const bus = createBus({ commands });
  * const user = await bus.emit(getUser, "1");
  *
@@ -41,7 +53,7 @@ export const createCommand = <
 >(
 	type: T,
 	handler?: Task<P, E, R>,
-): Command<P, R> & { readonly type: T } => {
+): MadeCommand<P, R, T> => {
 	const run = (payload: P, ctx?: Context<E>): R => {
 		if (!handler) {
 			throw new MissingHandlerError(`No handler for command "${type}"`);
@@ -53,7 +65,12 @@ export const createCommand = <
 		);
 	};
 
-	return Object.assign(run, { type });
+	const match = (action: {
+		type: string;
+		payload?: unknown;
+	}): action is { type: T; payload: P } => action.type === type;
+
+	return Object.assign(run, { type, match });
 };
 
 /** A command (or its type) with the handler to bind to it; `bindHandler` makes one. */
@@ -63,12 +80,12 @@ export type Binding<E extends EventMap = EventMap> = readonly [
 ];
 
 /**
- * Pairs a command with the handler to bind to it, for `createCommands`. It
+ * Pairs a command with the handler to bind to it, for `commandsPlugin`. It
  * checks that the handler fits the command.
  *
  * @example
  * ```ts
- * createCommands([bindHandler(sendMail, smtpSend)]);
+ * bus.use(commandsPlugin([bindHandler(sendMail, smtpSend)]));
  * ```
  */
 export const bindHandler = <P, R, E extends EventMap>(
@@ -77,11 +94,12 @@ export const bindHandler = <P, R, E extends EventMap>(
 ): Binding<E> => [command, fn];
 
 /**
- * The handlers bound to commands of `bus`: it makes the registry, sets it as
- * the commands of the bus and returns it. Each bus has its own, so each test
- * can have its own implementation. `handle` binds more later and returns the
- * function that unbinds. A second `createCommands(bus)` replaces the registry
- * of that bus.
+ * The plugin that gives a bus the handlers bound to commands:
+ * `bus.use(commandsPlugin(bindings))` makes the registry, sets it as the
+ * commands of the bus and returns it. Each bus has its own, so each test can
+ * have its own implementation. `handle` binds more later and returns the
+ * function that unbinds. A second `commandsPlugin` on the same bus replaces
+ * the registry of that bus.
  *
  * What the bus runs for a command: the handler bound last, else the one the
  * command was created with, else it throws `No handler for command "..."`.
@@ -89,75 +107,74 @@ export const bindHandler = <P, R, E extends EventMap>(
  * @example
  * ```ts
  * const bus = createBus<Events>();
- * const commands = createCommands(bus, [bindHandler(sendMail, smtpSend)]);
+ * const commands = bus.use(commandsPlugin([bindHandler(sendMail, smtpSend)]));
  *
  * const unbind = commands.handle(getUser, async () => fakeUser);
  * unbind(); // the command's own handler is back
  * ```
  */
-export const createCommands = <E extends EventMap>(
-	bus: Bus<E>,
-	bindings: readonly Binding<E>[] = [],
-) => {
-	const bound = new Map<string, Array<{ fn: Task<never, E, unknown> }>>();
+export const commandsPlugin =
+	<E extends EventMap>(bindings: readonly Binding<E>[] = []) =>
+	(bus: Bus<E>) => {
+		const bound = new Map<string, Array<{ fn: Task<never, E, unknown> }>>();
 
-	const bind = (type: string, fn: Task<never, E, unknown>) => {
-		const entry = { fn };
-		bound.set(type, [...(bound.get(type) ?? []), entry]);
+		const bind = (type: string, fn: Task<never, E, unknown>) => {
+			const entry = { fn };
+			bound.set(type, [...(bound.get(type) ?? []), entry]);
 
-		return () => {
-			const rest = (bound.get(type) ?? []).filter((item) => item !== entry);
-			if (rest.length > 0) {
-				bound.set(type, rest);
-			} else {
-				bound.delete(type);
-			}
+			return () => {
+				const rest = (bound.get(type) ?? []).filter((item) => item !== entry);
+				if (rest.length > 0) {
+					bound.set(type, rest);
+				} else {
+					bound.delete(type);
+				}
+			};
 		};
-	};
 
-	function handle<P, R>(
-		command: Command<P, R>,
-		fn: Task<P, E, R>,
-	): UnsubscribeCallback;
-	function handle(
-		type: string,
-		fn: Task<never, E, unknown>,
-	): UnsubscribeCallback;
-	function handle(bindings: readonly Binding<E>[]): UnsubscribeCallback;
-	function handle(
-		target: string | { type: string } | readonly Binding<E>[],
-		fn?: Task<never, E, unknown>,
-	): UnsubscribeCallback {
-		if (fn) {
-			const command = target as string | { type: string };
-			return bind(eventKey(command), fn);
+		function handle<P, R>(
+			command: Command<P, R>,
+			fn: Task<P, E, R>,
+		): UnsubscribeCallback;
+		function handle(
+			type: string,
+			fn: Task<never, E, unknown>,
+		): UnsubscribeCallback;
+		function handle(bindings: readonly Binding<E>[]): UnsubscribeCallback;
+		function handle(
+			target: string | { type: string } | readonly Binding<E>[],
+			fn?: Task<never, E, unknown>,
+		): UnsubscribeCallback {
+			if (fn) {
+				const command = target as string | { type: string };
+				return bind(eventKey(command), fn);
+			}
+
+			const list = target as readonly Binding<E>[];
+			const unbinds = list.map(([command, handler]) =>
+				bind(eventKey(command), handler),
+			);
+
+			return () => {
+				for (const unbind of unbinds) {
+					unbind();
+				}
+			};
 		}
 
-		const list = target as readonly Binding<E>[];
-		const unbinds = list.map(([command, handler]) =>
-			bind(eventKey(command), handler),
-		);
+		handle(bindings);
 
-		return () => {
-			for (const unbind of unbinds) {
-				unbind();
-			}
+		// the contract passes the payload and the context loosely typed: they belong to the command
+		const run: Commands["run"] = (command, payload, ctx) => {
+			const stack = bound.get(command.type) ?? [];
+			const fn = stack.at(-1)?.fn;
+			const routed = fn && command.wrap ? command.wrap(fn) : (fn ?? command);
+
+			return Reflect.apply(routed, null, [payload, ctx]);
 		};
-	}
 
-	handle(bindings);
+		const registry = { run, handle };
+		bus.commands = registry;
 
-	// the contract passes the payload and the context loosely typed: they belong to the command
-	const run: Commands["run"] = (command, payload, ctx) => {
-		const stack = bound.get(command.type) ?? [];
-		const fn = stack.at(-1)?.fn;
-		const routed = fn && command.wrap ? command.wrap(fn) : (fn ?? command);
-
-		return Reflect.apply(routed, null, [payload, ctx]);
+		return registry;
 	};
-
-	const registry = { run, handle };
-	bus.commands = registry;
-
-	return registry;
-};

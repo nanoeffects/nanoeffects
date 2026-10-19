@@ -18,8 +18,8 @@ const getUser = createCommand("user/get", (id: string, { signal }) => fetchUser(
 // a contract without a handler: the code that sends mail is elsewhere
 const sendMail = createCommand<Mail, void>("mail/send");
 
-// a command whose outcome is sent on as actions: the command and its two actions together
-const { command: loadUser, successAction, failAction } = createJob("user/load", fetchUser, {
+// a command whose outcome is sent on as actions: they are its properties, loadUser.success and loadUser.fail
+const loadUser = createJob("user/load", fetchUser, {
   success: userLoaded, // an action creator that exists: used and returned as it is
   fail: "user/failed", // a string: the job makes the action creator
 });
@@ -27,26 +27,26 @@ const { command: loadUser, successAction, failAction } = createJob("user/load", 
 
 **Actions.** `createAction(type)` returns a creator, with no generics: it keeps the literal type, and the bus checks the payload against its event map (`bus.emit(userLoaded(5))` is an error when `"user/loaded"` is a `User`). Without an event map give the payload type, `createAction<User>("user/loaded")`. The creator: `userLoaded(user)` is `{ type, payload }`, `userLoaded.type` is the type, `userLoaded.match(action)` narrows an action. `createAction(type, prepare)` builds the payload from several arguments. A creator works as the event of its type: `bus.emit(userLoaded(user))`, `bus.on(userLoaded, fn)`.
 
-**Commands.** `bus.emit(command, payload)` tells the listeners of the command's type, then runs its handler as a task, with a context, and returns the result. The handler can be wrapped in a policy, `createCommand("search", latest(fn))`. Calling `command(payload)` runs its own handler without a bus.
+**Commands.** `bus.emit(command, payload)` tells the listeners of the command's type, then runs its handler as a task, with a context, and returns the result. The handler can be wrapped in a policy, `createCommand("search", latest(fn))`. Calling `command(payload)` runs its own handler without a bus. `command.match(action)` tells whether an action has the command's type and narrows it, as `match` of an action creator does.
 
-**Where handlers are registered.** The command may carry a handler. The bus gets the handlers bound to commands from a registry, `createCommands`, and a handler bound there wins over the command's own. The registry belongs to one bus, as an effector scope does with `fork({ handlers })`, so each bus (each test) can have its own.
+**Where handlers are registered.** The command may carry a handler. The bus gets the handlers bound to commands from a registry, `commandsPlugin`, and a handler bound there wins over the command's own. The registry belongs to one bus, as an effector scope does with `fork({ handlers })`, so each bus (each test) can have its own.
 
 ```ts
-import { createCommands, bindHandler } from "nanoeffects/actions";
+import { commandsPlugin, bindHandler } from "nanoeffects/actions";
 
 const bus = createBus<Events>();
-const commands = createCommands(bus, [bindHandler(sendMail, smtpSend)]); // attached to the bus
+const commands = bus.use(commandsPlugin([bindHandler(sendMail, smtpSend)])); // attached to the bus
 
 const unbind = commands.handle(getUser, async () => fakeUser); // later, e.g. in a test
 unbind(); // the command's own handler is back; the latest binding wins
 ```
 
-A command with no handler anywhere throws `No handler for command "..."` from `emit`. The registry lives in `nanoeffects/actions`, so a bus without one carries none of this code; without it `emit(command, payload)` simply runs the command's own handler. `createCommands(bus)` sets the registry as `bus.commands`, and a second call on the same bus replaces it. There is no `commands` option in `createBus`; a custom runner is assigned, `bus.commands = { run }`.
+A command with no handler anywhere throws `No handler for command "..."` from `emit`. The registry lives in `nanoeffects/actions`, so a bus without one carries none of this code; without it `emit(command, payload)` simply runs the command's own handler. `bus.use(commandsPlugin())` sets the registry as `bus.commands`, and a second one on the same bus replaces it. There is no `commands` option in `createBus`; a custom runner is assigned, `bus.commands = { run }`.
 
-**Jobs.** `createJob(type, handler, { success, fail })` makes a command that sends its outcome on as actions, for when nobody waits for the result, and returns `{ command, successAction, failAction }`. When the handler succeeds, `successAction(result)` is emitted on the bus, and when it fails, `failAction(error)`.
+**Jobs.** `createJob(type, handler, { success, fail })` makes a command that sends its outcome on as actions, for when nobody waits for the result, and returns the command itself, with the two actions on it: `loadUser.success` and `loadUser.fail`. When the handler succeeds, `loadUser.success(result)` is emitted on the bus, and when it fails, `loadUser.fail(error)`.
 
 - `success` and `fail` are a string, from which the job makes an action creator with `createAction` (the payload is the result, or the error), or an action creator that exists already, which is used and returned as it is. A missing one is made with the type `<type>/success` or `<type>/fail`.
-- `bus.emit(command, payload)` returns a promise of the result. An error of the handler always counts as handled: it goes to `failAction` and the promise resolves with `undefined`. For a result that must reject, use a command.
+- `bus.emit(command, payload)` returns a promise of the result. An error of the handler always counts as handled: it goes to `loadUser.fail` and the promise resolves with `undefined`. For a result that must reject, use a command.
 - The actions are emitted as the task that ran the job, also for a handler bound with `commands.handle`, and are not sent once the task is aborted. A missing handler is not an outcome: `emit` throws `No handler for command "..."`.
 - Calling `command(payload)` directly runs only the handler.
 
@@ -72,7 +72,7 @@ app.dispose(); // unmounts every module
 
 - **Unmounting undoes everything** the module did: its subscriptions, its bound commands, its sub-modules and its background tasks, which are aborted.
 - **A module is known by its name.** Mounting a module whose name is taken replaces the mounted one. That is what hot reload needs: see [hmr.md](hmr.md).
-- **The registry.** If `createCommands(bus)` was called, that registry is used; otherwise the module plugin attaches its own. Either way it is `bus.commands` and `app.commands`, so the commands that modules bind are the ones the bus runs.
+- **The registry.** If `bus.use(commandsPlugin())` was called, that registry is used; otherwise the module plugin attaches its own. Either way it is `bus.commands` and `app.commands`, so the commands that modules bind are the ones the bus runs.
 - A disposed app cannot mount modules.
 - A module context is a task context plus `handle` (give a command a handler: for a contract, or to override), `use` (bring sub-modules and commands that carry a handler: `m.use(getUser, saveUser, subModule)`, in any order; the returned function undoes just that call) and `spawn` (a background task, aborted on unmount).
 - A command that carries a handler keeps answering after its module is unmounted: the handler is its own, and `use` only brings the command and tracks it in the registry. Use `handle` for a handler that should live only as long as the module.

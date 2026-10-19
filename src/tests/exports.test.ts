@@ -61,9 +61,9 @@ describe("public entries", () => {
 	it("actions", () => {
 		expect(Object.keys(actions).sort()).toEqual([
 			"bindHandler",
+			"commandsPlugin",
 			"createAction",
 			"createCommand",
-			"createCommands",
 			"createJob",
 			"createModule",
 			"modulePlugin",

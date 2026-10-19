@@ -3,9 +3,10 @@
 // anything that matters; `pnpm tsgo` is the test.
 import { describe, expectTypeOf, it } from "vitest";
 import {
+	bindHandler,
+	commandsPlugin,
 	createAction,
 	createCommand,
-	createCommands,
 	createJob,
 	createModule,
 	modulePlugin,
@@ -256,7 +257,7 @@ describe("actions, commands and jobs", () => {
 
 	it("a job gives a promise of the result", () => {
 		const loaded = createAction<User, "user/loaded">("user/loaded");
-		const { command: loadUser } = createJob(
+		const loadUser = createJob(
 			"user/load",
 			async (id: string) => ({ id, name: "a" }),
 			{ success: loaded },
@@ -492,9 +493,9 @@ describe("commands on the bus", () => {
 	type Events = { greet: string };
 	const getUser = createCommand<string, Promise<User>>("user/get");
 
-	it("createCommands(bus) takes the events from the bus and binds handlers", () => {
+	it("bus.use(commandsPlugin()) takes the events from the bus and binds handlers", () => {
 		const bus = createBus<Events>();
-		const commands = createCommands(bus);
+		const commands = bus.use(commandsPlugin());
 		const unbind = commands.handle(getUser, async (id, ctx) => {
 			expectTypeOf(id).toEqualTypeOf<string>();
 			expectTypeOf(ctx).toEqualTypeOf<Context<Events>>();
@@ -504,11 +505,24 @@ describe("commands on the bus", () => {
 		expectTypeOf(bus.emit(getUser, "1")).resolves.toEqualTypeOf<User>();
 	});
 
+	it("bindings keep the payload types of their commands", () => {
+		const bus = createBus<Events>();
+		const commands = bus.use(
+			commandsPlugin([
+				bindHandler(getUser, async (id) => {
+					expectTypeOf(id).toEqualTypeOf<string>();
+					return { id, name: "a" };
+				}),
+			]),
+		);
+		expectTypeOf(commands.handle).toBeFunction();
+	});
+
 	it("the constructor has no commands option", () => {
 		const wrongCalls = () => {
 			const other = createBus<Events>();
-			// @ts-expect-error commands are attached with createCommands(bus)
-			createBus<Events>({ commands: createCommands(other) });
+			// @ts-expect-error commands are attached with bus.use(commandsPlugin())
+			createBus<Events>({ commands: other.use(commandsPlugin()) });
 		};
 		expectTypeOf(wrongCalls).toBeFunction();
 	});
@@ -533,14 +547,11 @@ describe("a job", () => {
 	const fetchItem = async (id: string): Promise<Item> => ({ id: Number(id) });
 
 	it("returns the command and two actions, made from strings with the literal types", () => {
-		const { command, successAction, failAction } = createJob(
-			"item/load",
-			fetchItem,
-			{
-				success: "item/loaded",
-				fail: "item/failed",
-			},
-		);
+		const command = createJob("item/load", fetchItem, {
+			success: "item/loaded",
+			fail: "item/failed",
+		});
+		const { success: successAction, fail: failAction } = command;
 
 		expectTypeOf(command.type).toEqualTypeOf<"item/load">();
 		expectTypeOf(successAction.type).toEqualTypeOf<"item/loaded">();
@@ -549,8 +560,18 @@ describe("a job", () => {
 		expectTypeOf(failAction(new Error("x")).payload).toEqualTypeOf<unknown>();
 	});
 
+	it("a command narrows an action with match", () => {
+		const getItem = createCommand("item/get", (id: string) => id);
+		const action: { type: string; payload?: unknown } = { type: "item/get" };
+		if (getItem.match(action)) {
+			expectTypeOf(action.type).toEqualTypeOf<"item/get">();
+			expectTypeOf(action.payload).toEqualTypeOf<string>();
+		}
+	});
+
 	it("makes the missing actions with the types <type>/success and <type>/fail", () => {
-		const { successAction, failAction } = createJob("item/load", fetchItem);
+		const command = createJob("item/load", fetchItem);
+		const { success: successAction, fail: failAction } = command;
 
 		expectTypeOf(successAction.type).toEqualTypeOf<"item/load/success">();
 		expectTypeOf(failAction.type).toEqualTypeOf<"item/load/fail">();
@@ -558,9 +579,10 @@ describe("a job", () => {
 
 	it("returns a given action creator as it is, with its own type", () => {
 		const loaded = createAction<Item, "item/loaded">("item/loaded");
-		const { successAction } = createJob("item/load", fetchItem, {
+		const command = createJob("item/load", fetchItem, {
 			success: loaded,
 		});
+		const { success: successAction } = command;
 
 		expectTypeOf(successAction).toEqualTypeOf(loaded);
 	});

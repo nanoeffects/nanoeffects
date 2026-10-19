@@ -21,11 +21,10 @@ const userLoaded = createAction("user/loaded"); // the payload type comes from `
 // a request for a result: only the contract, the module below says how it is answered
 export const getUser = createCommand<string, Promise<User>>("user/get");
 // a job: a command that sends its outcome on as actions; strings make them, a creator is used as it is
-export const { command: loadUser, failAction: userFailed } = createJob(
-	"user/load",
-	fetchUser,
-	{ success: userLoaded, fail: "user/failed" },
-);
+export const loadUser = createJob("user/load", fetchUser, {
+	success: userLoaded,
+	fail: "user/failed",
+});
 // a command that carries its handler: a module only has to bring it
 export const saveUser = createCommand("user/save", (user: User) => user.id);
 

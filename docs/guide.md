@@ -85,12 +85,12 @@ Strings are for the plain case, objects for actions that other code already make
 A command made with a function carries its handler, as above. More often it is only a contract, a name with the types of the request and the result, and the code that does the work is registered separately: in another file, or a fake one in a test.
 
 ```ts
-import { createCommand, createCommands } from "nanoeffects/actions";
+import { createCommand, commandsPlugin } from "nanoeffects/actions";
 
 const getUser = createCommand<string, Promise<User>>("user/get"); // no handler yet
 
 const bus = createBus<Events>();
-const commands = createCommands(bus); // the handlers of this bus
+const commands = bus.use(commandsPlugin()); // the handlers of this bus
 
 bus.emit(getUser, "1"); // throws: No handler for command "user/get"
 

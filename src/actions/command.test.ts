@@ -8,14 +8,15 @@ import {
 } from "../tests/test-helpers";
 import { createTraceRecorder } from "../trace/recorder";
 import { createTracer } from "../trace/tracer";
-import { bindHandler, createCommand, createCommands } from "./command";
+import { bindHandler, commandsPlugin, createCommand } from "./command";
+import { createJob } from "./job";
 
 type Events = TestEvents & { "user/get": string };
 
 const setup = () => {
 	const recorder = createTraceRecorder<Events>();
 	const bus = createBus<Events>({ trace: createTracer(recorder) });
-	const commands = createCommands(bus);
+	const commands = bus.use(commandsPlugin());
 	const phases = () =>
 		recorder.events.map((event) => `${event.effect}/${event.phase}`);
 	return { bus, commands, recorder, phases };
@@ -246,10 +247,10 @@ describe("createCommand", () => {
 			expect(command(1)).toBe(1);
 		});
 
-		it("createCommands binds the list it is given", () => {
+		it("commandsPlugin binds the list it is given", () => {
 			const send = createCommand<string, string>("mail/send");
 			const bus = createBus<Events>();
-			createCommands(bus, [bindHandler(send, (to) => `sent to ${to}`)]);
+			bus.use(commandsPlugin([bindHandler(send, (to) => `sent to ${to}`)]));
 
 			expect(bus.emit(send, "ann")).toBe("sent to ann");
 		});
@@ -258,17 +259,19 @@ describe("createCommand", () => {
 			const first = createCommand<number, number>("a");
 			const second = createCommand<number, number>("b");
 			const bus = createBus<Events>();
-			createCommands(bus, [
-				bindHandler(first, (value) => value + 1),
-				bindHandler(second, (value) => value * 2),
-			]);
+			bus.use(
+				commandsPlugin([
+					bindHandler(first, (value) => value + 1),
+					bindHandler(second, (value) => value * 2),
+				]),
+			);
 
 			expect([bus.emit(first, 1), bus.emit(second, 5)]).toEqual([2, 10]);
 		});
 
 		it("a binding can name the command by its type string", () => {
 			const bus = createBus<Events>();
-			createCommands(bus, [["x/y", () => 1]]);
+			bus.use(commandsPlugin([["x/y", () => 1]]));
 			const command = createCommand<number, number>("x/y");
 
 			expect(bus.emit(command, 0)).toBe(1);
@@ -277,9 +280,9 @@ describe("createCommand", () => {
 		it("a handler bound later wins over the list", () => {
 			const command = createCommand<number, string>("a/b");
 			const bus = createBus<Events>();
-			const commands = createCommands(bus, [
-				bindHandler(command, () => "listed"),
-			]);
+			const commands = bus.use(
+				commandsPlugin([bindHandler(command, () => "listed")]),
+			);
 			commands.handle(command, () => "later");
 
 			expect(bus.emit(command, 1)).toBe("later");
@@ -376,5 +379,21 @@ describe("createCommand", () => {
 		});
 
 		expect(harness.bus.emit(handler, 4)).toBe(8);
+	});
+});
+
+describe("command.match", () => {
+	it("is true for an action of the type of the command and false for another", () => {
+		const getUser = createCommand("user/get", async (id: string) => id);
+
+		expect(getUser.match({ type: "user/get", payload: "1" })).toBe(true);
+		expect(getUser.match({ type: "user/other" })).toBe(false);
+	});
+
+	it("is there on the command of a job as well", () => {
+		const loadUser = createJob("user/load", async (id: string) => id);
+
+		expect(loadUser.match({ type: "user/load" })).toBe(true);
+		expect(loadUser.match({ type: "user/load/success" })).toBe(false);
 	});
 });

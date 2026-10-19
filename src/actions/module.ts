@@ -7,7 +7,7 @@ import type {
 	UnsubscribeCallback,
 } from "../core/types";
 import { onAbort } from "../utils";
-import { type Binding, createCommands } from "./command";
+import { type Binding, commandsPlugin } from "./command";
 
 /**
  * What a module's `setup` gets: the context of the module's task, so `on`,
@@ -67,7 +67,9 @@ export const createModule = <E extends EventMap = EventMap>(
 	setup: (m: ModuleContext<E>) => void,
 ): Module<E> => ({ name, setup });
 
-type Registry<E extends EventMap> = ReturnType<typeof createCommands<E>>;
+type Registry<E extends EventMap> = ReturnType<
+	ReturnType<typeof commandsPlugin<E>>
+>;
 
 /** What `modulePlugin` returns. */
 export type ModuleApi<E extends EventMap = EventMap> = {
@@ -85,7 +87,7 @@ export type ModuleApi<E extends EventMap = EventMap> = {
  * The plugin that assembles an app from modules: `bus.use(modulePlugin(modules))`
  * mounts `modules` at once, in the order given, and returns `mount`, `unmount`,
  * `isMounted`, `dispose` and `commands` for the modules that come and go later. The bus runs the commands that the
- * modules bind: if `createCommands(bus)` was called before, that registry is
+ * modules bind: if `bus.use(commandsPlugin())` was called before, that registry is
  * used, otherwise the app attaches its own, as `app.commands`.
  *
  * A module is known by its `name`: mounting a module whose name is taken
@@ -115,12 +117,12 @@ export const modulePlugin =
 	(bus: Bus<E>): ModuleApi<E> => {
 		// the bus runs what it was given; without commands the app attaches its registry
 		const given = bus.commands as Registry<E> | undefined;
-		const registry = given ?? createCommands(bus);
+		const registry = given ?? commandsPlugin<E>()(bus);
 		const commands = {
 			handle: (...args: Parameters<Registry<E>["handle"]>) => {
 				if (!registry.handle) {
 					throw new Error(
-						"modulePlugin: the `commands` of the bus is not a registry from `createCommands()`",
+						"modulePlugin: the `commands` of the bus is not a registry from `commandsPlugin()`",
 					);
 				}
 				return Reflect.apply(registry.handle, null, args);

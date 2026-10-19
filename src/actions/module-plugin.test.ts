@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import { createBus, type WithContext } from "../core/bus";
 import { createApp, type TestEvents } from "../tests/test-helpers";
-import { createCommand, createCommands } from "./command";
+import { commandsPlugin, createCommand } from "./command";
 import { createModule, type ModuleContext, modulePlugin } from "./module";
 
 describe("modulePlugin", () => {
 	it("mounts the given modules and mounts more later", () => {
 		const setup = vi.fn();
 		const bus = createBus<TestEvents>();
-		createCommands(bus);
+		bus.use(commandsPlugin());
 		const app = bus.use(modulePlugin([createModule("first", setup)]));
 		const later = createModule<TestEvents>("second", setup);
 		const unmount = app.mount(later);
@@ -23,7 +23,7 @@ describe("modulePlugin", () => {
 		type StoreEvents = TestEvents & WithContext<{ store: { name: string } }>;
 		const context = { store: { name: "main" } };
 		const bus = createBus<StoreEvents>({ context });
-		createCommands(bus);
+		bus.use(commandsPlugin());
 		let seen: unknown = null;
 		bus.use(
 			modulePlugin([
@@ -80,7 +80,7 @@ describe("modulePlugin", () => {
 
 	it("uses the registry that the bus was made with", () => {
 		const bus = createBus<TestEvents>();
-		const commands = createCommands(bus);
+		const commands = bus.use(commandsPlugin());
 		const app = bus.use(modulePlugin());
 
 		expect(app.commands).toBe(commands);
@@ -98,7 +98,7 @@ describe("modulePlugin", () => {
 					}),
 				]),
 			),
-		).toThrow("createCommands");
+		).toThrow("commandsPlugin");
 	});
 
 	it("modules that bind nothing work on a plain bus", () => {

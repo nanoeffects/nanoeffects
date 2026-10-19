@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createCommand, createCommands, createModule } from "../actions";
+import { commandsPlugin, createCommand, createModule } from "../actions";
 import { type Context, createBus, type WithContext } from "../core/bus";
 import { all, retry } from "../effects";
 import { debounce, queue } from "../policies";
@@ -99,7 +99,7 @@ describe("BusOptions.context", () => {
 			},
 		);
 		const bus = createBus<StoreEvents>({ context: { store } });
-		createCommands(bus);
+		bus.use(commandsPlugin());
 
 		expect(bus.emit(read)).toBe("main");
 	});

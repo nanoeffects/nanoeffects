@@ -2,9 +2,9 @@
 // so the guide is type-checked and run by `src/tests/guide.test.ts`.
 import { createBus } from "nanoeffects";
 import {
+	commandsPlugin,
 	createAction,
 	createCommand,
-	createCommands,
 	createModule,
 	modulePlugin,
 } from "nanoeffects/actions";
@@ -110,7 +110,7 @@ const getUser = createCommand<string, Promise<User>>("user/get"); // only the co
 export const step5 = async () => {
 	const seen: string[] = [];
 	const bus = createBus<Events>();
-	const commands = createCommands(bus); // the handlers of this bus
+	const commands = bus.use(commandsPlugin()); // the handlers of this bus
 
 	try {
 		bus.emit(getUser, "1"); // nobody handles it: an error says so

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **BREAKING:** `createJob` returns the command itself, with the action creators of its outcome as properties, `job.success` and `job.fail`; `{ command, successAction, failAction }` is gone. Options, defaults and routing are unchanged.
+- **BREAKING:** `createCommands(bus, bindings?)` is replaced by `bus.use(commandsPlugin(bindings?))`, the same form as `modulePlugin` and `devPlugin`; the registry it returns is unchanged.
+- A command has `match(action)`, as an action creator has: it tells whether an action has the type of the command and narrows its type.
+
 ## 0.2.1
 
 - **BREAKING:** `nanoeffectsMiddleware` is no longer exported from `nanoeffects/redux`; `createEffectsMiddleware` is the one entry, and its `bus` takes modules, tracing and the rest (`effects.bus.use(...)`).

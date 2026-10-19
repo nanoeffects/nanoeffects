@@ -3,22 +3,22 @@ import { createBus } from "../core/bus";
 import type { TestEvents } from "../tests/test-helpers";
 import {
 	bindHandler,
+	commandsPlugin,
 	createCommand,
-	createCommands,
 	MissingHandlerError,
 } from "./command";
 
-describe("createCommands(bus)", () => {
+describe("bus.use(commandsPlugin())", () => {
 	it("sets the registry as the commands of the bus and returns it", () => {
 		const bus = createBus<TestEvents>();
-		const commands = createCommands(bus);
+		const commands = bus.use(commandsPlugin());
 
 		expect(bus.commands).toBe(commands);
 	});
 
 	it("handlers registered after the bus exists answer emit", () => {
 		const bus = createBus<TestEvents>();
-		const commands = createCommands(bus);
+		const commands = bus.use(commandsPlugin());
 		const getUser = createCommand<string, string>("user/get");
 		commands.handle(getUser, (id) => `user ${id}`);
 
@@ -28,7 +28,7 @@ describe("createCommands(bus)", () => {
 	it("the initial bindings answer", () => {
 		const bus = createBus<TestEvents>();
 		const send = createCommand<string, string>("mail/send");
-		createCommands(bus, [bindHandler(send, (to) => `sent to ${to}`)]);
+		bus.use(commandsPlugin([bindHandler(send, (to) => `sent to ${to}`)]));
 
 		expect(bus.emit(send, "ann")).toBe("sent to ann");
 	});
@@ -36,9 +36,9 @@ describe("createCommands(bus)", () => {
 	it("a second registry replaces the first, and the old handlers no longer run", () => {
 		const bus = createBus<TestEvents>();
 		const command = createCommand<number, number>("a/b", (value) => value);
-		const first = createCommands(bus);
+		const first = bus.use(commandsPlugin());
 		first.handle(command, () => 1);
-		const second = createCommands(bus);
+		const second = bus.use(commandsPlugin());
 
 		expect(bus.commands).toBe(second);
 		expect(bus.emit(command, 7)).toBe(7);
@@ -48,15 +48,15 @@ describe("createCommands(bus)", () => {
 		const one = createBus<TestEvents>();
 		const two = createBus<TestEvents>();
 		const command = createCommand<number, number>("a/b", (value) => value);
-		createCommands(one).handle(command, () => 1);
-		createCommands(two).handle(command, () => 2);
+		one.use(commandsPlugin()).handle(command, () => 1);
+		two.use(commandsPlugin()).handle(command, () => 2);
 
 		expect([one.emit(command, 0), two.emit(command, 0)]).toEqual([1, 2]);
 	});
 
 	it("passes the payload and a task context to a handler", () => {
 		const bus = createBus<TestEvents>();
-		const commands = createCommands(bus);
+		const commands = bus.use(commandsPlugin());
 		const command = createCommand<number, number>("a/b");
 		const handler = vi.fn((value: number, ctx: { signal: AbortSignal }) => {
 			void ctx;

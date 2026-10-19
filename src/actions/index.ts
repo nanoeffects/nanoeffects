@@ -6,8 +6,8 @@ export {
 export {
 	type Binding,
 	bindHandler,
+	commandsPlugin,
 	createCommand,
-	createCommands,
 } from "./command";
 export { createJob, type Job } from "./job";
 export {

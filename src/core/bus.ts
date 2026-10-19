@@ -67,7 +67,7 @@ export type Command<P = never, R = unknown> = {
 };
 
 /**
- * What the bus needs to run commands. The implementation, `createCommands` in
+ * What the bus needs to run commands. The implementation, `commandsPlugin` in
  * `nanoeffects/actions`, holds the handlers bound to commands and runs the
  * right one, so a bus without `commands` carries none of that.
  */
@@ -186,7 +186,7 @@ export interface Bus<E extends EventMap> {
 	use<R>(plugin: (bus: Bus<E>) => R): R;
 	/** `BusOptions.context` and `.trace`, and `commands`, for what makes tasks of its own, like `modulePlugin`. */
 	readonly context?: ContextOption<E> | undefined;
-	/** What runs the commands; `createCommands(bus)` and `modulePlugin` set it. Without one a command runs its own handler. */
+	/** What runs the commands; `commandsPlugin` and `modulePlugin` set it. Without one a command runs its own handler. */
 	commands?: Commands | undefined;
 	readonly trace?: Tracer | undefined;
 }

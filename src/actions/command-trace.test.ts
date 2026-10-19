@@ -100,7 +100,7 @@ describe("tracing of commands", () => {
 
 		it("reports a job as a command run", async () => {
 			const { app, recorder } = setup();
-			const { command: job } = createJob("user/load", async () => "x");
+			const job = createJob("user/load", async () => "x");
 			await app.bus.emit(job, void 0);
 
 			expect(
@@ -217,7 +217,7 @@ describe("tracing of commands", () => {
 		it("the actions of a job do not add a task", async () => {
 			const { app, starts } = setup();
 			const loaded = createAction<string, "loaded">("loaded");
-			const { command: job } = createJob("user/load", async () => "x", {
+			const job = createJob("user/load", async () => "x", {
 				success: loaded,
 			});
 			await app.bus.emit(job, void 0);
