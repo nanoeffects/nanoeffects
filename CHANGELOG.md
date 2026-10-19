@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0
 
 - **BREAKING:** `createJob` returns the command itself, with the action creators of its outcome as properties, `job.success` and `job.fail`; `{ command, successAction, failAction }` is gone. Options, defaults and routing are unchanged.
 - **BREAKING:** `createCommands(bus, bindings?)` is replaced by `bus.use(commandsPlugin(bindings?))`, the same form as `modulePlugin` and `devPlugin`; the registry it returns is unchanged.
