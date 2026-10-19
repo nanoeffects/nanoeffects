@@ -1,5 +1,9 @@
-import type { ActionCreator, FreeActionCreator } from "../actions/action";
 import { isPromise, report } from "../utils";
+import type {
+	ActionCreator,
+	FreeActionCreator,
+	WithPayload,
+} from "./action-creator";
 import { createTask, currentEmitter, traceRun } from "./context";
 import { eventKey, eventPayload } from "./event";
 import { anyEventType, createStore } from "./store";
@@ -41,12 +45,7 @@ export type Action<E extends EventMap> = {
 	payload: EventPayload<E>;
 };
 
-export type WithPayload<
-	E extends EventMap,
-	K extends EventKey<E>,
-> = undefined extends E[K]
-	? { type: K; payload?: E[K] }
-	: { type: K; payload: E[K] };
+export type { WithPayload };
 
 export type EventLike<E extends EventMap> = {
 	[K in EventKey<E>]: WithPayload<E, K>;

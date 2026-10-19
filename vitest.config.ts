@@ -25,5 +25,7 @@ export default defineConfig({
 	},
 	test: {
 		include: ["src/**/*.test.ts"],
+		// ArchUnitTS adds its matcher to the global `expect`
+		globals: true,
 	},
 });

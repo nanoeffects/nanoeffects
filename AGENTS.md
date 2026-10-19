@@ -28,7 +28,7 @@ Do not commit, push or stage unless the owner asks. The working tree is often la
 
 ```
 src/index.ts            re-exports only (every index.ts only re-exports)
-src/core/               bus, context (task contexts), event, store, types, tracer contract, flag, logger
+src/core/               bus, context (task contexts), event, store, types, action-creator types, tracer contract, flag, logger
 src/effects/            retry, timeout, poll, take, all, allSettled, race, cancellable, group (withGroup/runTraced)
 src/policies/           latest, leading, debounce, throttle, queue, keyed (byKey), latestWith (shared core)
 src/actions/            createAction, createCommand(s), createJob, createModule, modulePlugin
@@ -81,6 +81,7 @@ Larger changes are planned with OpenSpec (`openspec/`): `/opsx:propose "idea"` m
 - **Tests: no abbreviations.** Use `harness`, `handler`, `value`, `gate`, `debounced`, `command`, `moduleContext`... not `h`, `fn`, `n`, `d`, `deb`, `cmd`, `m`. `ctx`, `bus`, `app`, `ms`, `id` are names of the API and stay. Pin generics in test helpers (`queue<number, TestEvents, void>`). For a payload that is `undefined` at runtime use `noPayload` from `src/tests/test-helpers.ts`.
 - `createAction("x")` without generics returns a `FreeActionCreator`: it keeps the literal type, and the payload type comes from the event map (the overloads of `On` in `src/core/bus.ts` put it before `ActionCreator<P>` and commands; keep that order). `createAction<Payload>("x")` gives the payload type instead.
 - `src/tests/types.test.ts` checks what users see from the type checker (inference of handlers, policies, effects, commands; wrong calls with `@ts-expect-error`). `pnpm tsgo` runs it. A `@ts-expect-error` must sit above the line where TypeScript reports the error, which for a failed overload is the first argument of `bus.on`, not the inner call.
+- `src/tests/architecture.test.ts` (ArchUnitTS) keeps the layers: `src/core` imports nothing from `actions`, `dev`, `effects`, `policies`, `store` or `trace` (types included), and the layers above it have no import cycles. A type both need goes down into `src/core` (as `action-creator.ts` did). It needs `globals: true` in `vitest.config.ts`: ArchUnitTS adds its matcher to the global `expect`.
 - Tests use fake timers for anything with time; `createHarness()` gives a bus that records its trace and fresh task contexts (`harness.ctx()`).
 
 ## Releasing
