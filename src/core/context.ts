@@ -74,6 +74,17 @@ const fieldsOf = (context: unknown, event: Event): object | undefined => {
 	return make(event);
 };
 
+/** What `createTask` takes. */
+type TaskInit<E extends EventMap> = {
+	/** The event the task works on. */
+	event: Event;
+	/** What the context forwards to; absent for a task that is made without a bus. */
+	bus?: TaskBus<E> | undefined;
+	tracer?: Tracer | undefined;
+	/** The task this one belongs to: it follows its signal and is its child in the trace. */
+	parent?: { signal?: AbortSignal | undefined; ref?: TaskRef | undefined };
+};
+
 // the fields of a context follow from the event it is for, so no literal can be checked against it
 const asContext = <E extends EventMap>(task: object) => task as Context<E>;
 
@@ -81,12 +92,12 @@ const asContext = <E extends EventMap>(task: object) => task as Context<E>;
  * Creates the context of one task. Its signal follows `parent`; `unlink`
  * detaches it from `parent` once the task is finished.
  */
-export const createTask = <E extends EventMap>(
-	event: Event,
-	bus?: TaskBus<E> | undefined,
-	tracer?: Tracer | undefined,
-	parent?: { signal?: AbortSignal | undefined; ref?: TaskRef | undefined },
-) => {
+export const createTask = <E extends EventMap>({
+	event,
+	bus,
+	tracer,
+	parent,
+}: TaskInit<E>) => {
 	const { controller, unlink } = linkedController(parent?.signal);
 	const { signal } = controller;
 
@@ -130,9 +141,11 @@ export const createTask = <E extends EventMap>(
 		signal.throwIfAborted();
 
 		const payload = args[0] as P;
-		const child = createTask<E>({ type: event.type, payload }, bus, tracer, {
-			signal,
-			ref: meta?.ref,
+		const child = createTask<E>({
+			event: { type: event.type, payload },
+			bus,
+			tracer,
+			parent: { signal, ref: meta?.ref },
 		});
 
 		try {
@@ -179,16 +192,16 @@ export const forkTask = <E extends EventMap>(
 ) => {
 	const meta = TRACE ? metaOf.get(parent) : void 0;
 
-	return createTask<E>(
-		{ type: type ?? parent.type ?? "", payload: parent.payload },
-		{
+	return createTask<E>({
+		event: { type: type ?? parent.type ?? "", payload: parent.payload },
+		bus: {
 			emit: parent.emit,
 			on: parent.on,
 			off: parent.off,
 			// the fields of the parent context that are not the library's are the user's
 			context: parent,
 		},
-		meta?.tracer,
-		{ signal: parent.signal, ref: meta?.ref },
-	);
+		tracer: meta?.tracer,
+		parent: { signal: parent.signal, ref: meta?.ref },
+	});
 };

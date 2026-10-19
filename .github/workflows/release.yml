@@ -1,0 +1,47 @@
+name: Release
+
+# Push a tag `v0.1.0` that matches the version in package.json: the workflow checks everything,
+# publishes to npm and creates the GitHub release with the notes of that version from CHANGELOG.md.
+# npm trusted publishing: on npmjs.com, Settings > Trusted Publisher of the package, add this
+# repository and the workflow file `release.yml`. No token is stored here.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # the GitHub release
+  id-token: write # npm trusted publishing and provenance
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24 # npm 11.5.1 or newer is needed for trusted publishing
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: The tag matches the version of the package
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          test "v$version" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME, package $version"; exit 1; }
+
+      - name: The changelog has notes for this version
+        run: grep -q "^## ${GITHUB_REF_NAME#v}$" CHANGELOG.md
+
+      - run: pnpm verify
+      - run: pnpm smoke
+
+      - run: npm publish --provenance --access public
+
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes="$(awk -v v="${GITHUB_REF_NAME#v}" '$0 == "## " v {found=1; next} /^## / {found=0} found' CHANGELOG.md)"
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes "$notes"

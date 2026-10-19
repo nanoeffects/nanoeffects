@@ -6,7 +6,7 @@ Pass `onError` to isolate handlers instead. Then every handler runs, and thrown 
 
 ```ts
 const bus = createBus<Events>({
-	onError: (error, { type, payload }) => report(error, type, payload),
+  onError: (error, { type, payload }) => report(error, type, payload),
 });
 ```
 
@@ -16,8 +16,8 @@ A typo in an event name, `emit("serch")`, does nothing and says nothing. `onUnha
 
 ```ts
 const bus = createBus<Events>({
-	onUnhandled: import.meta.env.DEV
-		? ({ type }) => console.warn(`Nobody listens to "${type}"`)
-		: void 0,
+  onUnhandled: import.meta.env.DEV
+    ? ({ type }) => console.warn(`Nobody listens to "${type}"`)
+    : void 0,
 });
 ```

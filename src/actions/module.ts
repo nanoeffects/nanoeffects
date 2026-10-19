@@ -122,7 +122,11 @@ export const registerModules = <E extends EventMap>(
 			return Reflect.apply(registry.handle, null, args);
 		},
 	};
-	const root = createTask<E>({ type: "app", payload: void 0 }, bus, bus.trace);
+	const root = createTask<E>({
+		event: { type: "app", payload: void 0 },
+		bus,
+		tracer: bus.trace,
+	});
 
 	// Mounts modules under `parent`, each in a task of its own: aborting that
 	// task undoes the module. A module that is mounted already is not run again.

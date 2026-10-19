@@ -218,9 +218,10 @@ export type BusOptions<E extends EventMap> = {
 	/**
 	 * Fields added to the context of every task of this bus, its child tasks
 	 * and the tasks of effects included: a store, a logger, a client. Their
-	 * types come from `WithContext` in the event map. The fields of the library win over
-	 * these when the names are the same. A function gets `{ type, payload }` of
-	 * the task and returns its fields, for fields that depend on the task.
+	 * types come from `WithContext` in the event map. The fields of the library
+	 * win over these when the names are the same. A function gets
+	 * `{ type, payload }` of the task and returns its fields, for fields that
+	 * depend on the task.
 	 */
 	context?: ContextOption<E>;
 };
@@ -247,8 +248,11 @@ export const createBus = <Events extends EventMap>(
 		action: Action<Events>,
 	) => {
 		const { onError } = options;
-		const { ctx } = createTask(action, bus, options.trace, {
-			ref: currentEmitter(),
+		const { ctx } = createTask({
+			event: action,
+			bus,
+			tracer: options.trace,
+			parent: { ref: currentEmitter() },
 		});
 		if (!onError) {
 			fn(action.payload, ctx);
@@ -287,8 +291,11 @@ export const createBus = <Events extends EventMap>(
 		}
 
 		if (typeof event === "function") {
-			const { ctx } = createTask(action, bus, options.trace, {
-				ref: currentEmitter(),
+			const { ctx } = createTask({
+				event: action,
+				bus,
+				tracer: options.trace,
+				parent: { ref: currentEmitter() },
 			});
 			const run = bus.commands?.run ?? callCommand;
 

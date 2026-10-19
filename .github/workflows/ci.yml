@@ -10,11 +10,12 @@ permissions:
 
 jobs:
   verify:
+    # the dev tools (pnpm 11, vitest, Vite) need Node 22 or newer
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        node: [20, 22, 24]
+        node: [22, 24]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -30,3 +31,29 @@ jobs:
       - run: pnpm test:integration
       - run: pnpm lint:package
       - run: pnpm size
+      - if: matrix.node == 22
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
+          retention-days: 1
+
+  # the built package on the Node versions that `engines` promises, with no dev tools
+  smoke:
+    needs: verify
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [18, 20, 22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - run: node scripts/smoke.mjs
+      - run: node scripts/smoke.mjs --notrace

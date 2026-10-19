@@ -37,10 +37,10 @@ The state of a key is dropped when that key goes idle, so keys can be unbounded 
 import { queue } from "nanoeffects/policies";
 
 bus.on(
-	"save",
-	queue(async (draft, { signal }) => {
-		await api.save(draft, { signal });
-	}),
+  "save",
+  queue(async (draft, { signal }) => {
+    await api.save(draft, { signal });
+  }),
 );
 
 bus.emit("save", a); // runs now

@@ -47,7 +47,10 @@ export const createCommand = <
 			throw new MissingHandlerError(`No handler for command "${type}"`);
 		}
 
-		return handler(payload, ctx ?? createTask<E>({ type, payload }).ctx);
+		return handler(
+			payload,
+			ctx ?? createTask<E>({ event: { type, payload } }).ctx,
+		);
 	};
 
 	return Object.assign(run, { type });

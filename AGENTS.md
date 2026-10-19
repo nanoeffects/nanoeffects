@@ -11,6 +11,8 @@ pnpm format        # biome check --write --unsafe ./src
 pnpm vitest run    # all tests (fake timers where time matters)
 pnpm build         # tsdown: dist/ and dist/notrace/, then scripts/notrace-types.mjs
 pnpm test:integration  # the real Redux Toolkit, Zustand, MobX, Jotai, and Vite and webpack bundling the packed package (needs `pnpm build` first; it builds when dist is missing)
+pnpm consumer-check  # a clean project installs the package from npm (or a tarball: pass a path), type-checks and runs the README example
+pnpm smoke         # the built dist on a plain Node, no dev tools (CI runs it on Node 18, 20, 22, 24; the dev tools need Node 22+)
 pnpm lint:package  # publint and attw on the packed package
 pnpm size          # size-limit: bundle size of each entry (brotli), limits in package.json
 pnpm verify        # all of the above in one go (what CI runs)
@@ -50,7 +52,7 @@ Unit tests sit next to the file they test (`x.ts`, `x.test.ts`).
 - **An aborted task delivers no result.** Promises reject with the abort reason; `ctx.emit` and `ctx.on` do nothing after an abort. One shared `onAbort` hub per signal (one real listener each) keeps thousands of subscribers cheap.
 - **Tracing is a contract, not a feature of the bus.** `Tracer` in `src/core/tracer.ts`; events `{ id, parent?, type, effect, phase, payload, error? }`; phases `start|done|error|cancel|drop`; sampling is per root task. The causal parent comes from `currentEmitter()`, which `ctx.emit` sets for the time of the synchronous emit.
 - **`notrace` build.** `TRACE` in `src/core/flag.ts` reads `__NANOEFFECTS_TRACE__`; the second tsdown build defines it as `false`. `scripts/notrace-types.mjs` rewrites `trace?: Tracer;` of `BusOptions` to `never` in the `.d.ts` of that build, so it must keep matching that exact line in `src/core/bus.ts`. The package exports have the `notrace` condition for `.`, `effects`, `policies`, `actions`.
-- **User fields in the context** are typed through the event map: `type Events = {...} & WithContext<{ store: Store }>` (a type-only symbol key in `src/core/bus.ts`, read by `ContextOf<E>`), filled with `createBus({ context })`, which can also be a function of the task (`ContextOption`). `createEffectsMiddleware` uses the function form to give each task a `store` that knows which task dispatches. Library fields win over them. There is no global interface any more.
+- **User fields in the context** are typed through the event map: `type Events = {...} & WithContext<{ store: Store }>` (a type-only symbol key in `src/core/bus.ts`, read by `ContextOf<E>`), filled with `createBus({ context })`, which can also be a function of the task (`ContextOption`); `createEffectsMiddleware` uses the function form to give each task a `store` that knows which task dispatches. `createTask` takes one object, `{ event, bus?, tracer?, parent? }`. Library fields win over them. There is no global interface any more.
 - **`bus.commands` is a mutable field**: `registerModules` sets its own registry when the bus has none, and `emit` reads `bus.commands` each time.
 - **Modules are known by name**: mounting a module whose name is taken unmounts the old one first (hot reload, see `docs/hmr.md`).
 - **`onUnhandled`** is called for an event without listeners (not for commands).
@@ -72,6 +74,15 @@ Unit tests sit next to the file they test (`x.ts`, `x.test.ts`).
 - `createAction("x")` without generics returns a `FreeActionCreator`: it keeps the literal type, and the payload type comes from the event map (the overloads of `On` in `src/core/bus.ts` put it before `ActionCreator<P>` and commands; keep that order). `createAction<Payload>("x")` gives the payload type instead.
 - `src/tests/types.test.ts` checks what users see from the type checker (inference of handlers, policies, effects, commands; wrong calls with `@ts-expect-error`). `pnpm tsgo` runs it. A `@ts-expect-error` must sit above the line where TypeScript reports the error, which for a failed overload is the first argument of `bus.on`, not the inner call.
 - Tests use fake timers for anything with time; `createHarness()` gives a bus that records its trace and fresh task contexts (`harness.ctx()`).
+
+## Releasing
+
+npm publishing goes through GitHub Actions with npm trusted publishing (no token): the package settings on npmjs.com name this repository and the workflow `release.yml`. To release:
+
+1. Write the notes under `## <version>` in `CHANGELOG.md`, and set the same `version` in `package.json` (`npm version <x> --no-git-tag-version`).
+2. `pnpm verify` (what CI runs), commit.
+3. Tag and push: `git tag v<version> && git push origin main v<version>`. The `Release` workflow checks that the tag, `package.json` and the changelog agree, runs `verify` and `smoke`, publishes with provenance, and creates the GitHub release from the changelog.
+4. After the release, `pnpm consumer-check` installs `nanoeffects@latest` into a clean project, type-checks the README example and runs it. Do not publish from a laptop: provenance works only from Actions, and a published version cannot be replaced.
 
 ## Tooling notes
 

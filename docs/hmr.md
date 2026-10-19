@@ -22,8 +22,8 @@ const hot = import.meta.hot;
 export const bus: Bus<Events> = hot?.data.bus ?? createBus<Events>();
 export const app: ModuleApi<Events> = hot?.data.app ?? registerModules(bus);
 if (hot) {
-	hot.data.bus = bus;
-	hot.data.app = app;
+  hot.data.bus = bus;
+  hot.data.app = app;
 }
 ```
 
@@ -32,8 +32,8 @@ On the first run `hot.data` is empty and the bus and the app are made; on a relo
 ```ts
 // user.module.ts: the module, and nothing else
 export const userModule = createModule<Events>("user", (m) => {
-	m.handle(getUser, fetchUser);
-	m.on("login", latest(loadProfile));
+  m.handle(getUser, fetchUser);
+  m.on("login", latest(loadProfile));
 });
 ```
 
@@ -63,7 +63,7 @@ A plain `bus.on` returns the function that unsubscribes. Give it to the dispose 
 
 ```ts
 if (import.meta.hot) {
-	import.meta.hot.dispose(bus.on("search", latest(runSearch)));
+  import.meta.hot.dispose(bus.on("search", latest(runSearch)));
 }
 ```
 

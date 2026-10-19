@@ -8,13 +8,13 @@ An abort only raises a flag: your code decides to stop. `nanoeffects/effects` ha
 import { cancellable } from "nanoeffects/effects";
 
 bus.on(
-	"wait",
-	latest((_, ctx) =>
-		cancellable(ctx, ({ resolve, onCancel }) => {
-			const timer = setTimeout(resolve, 5000);
-			onCancel(() => clearTimeout(timer));
-		}),
-	),
+  "wait",
+  latest((_, ctx) =>
+    cancellable(ctx, ({ resolve, onCancel }) => {
+      const timer = setTimeout(resolve, 5000);
+      onCancel(() => clearTimeout(timer));
+    }),
+  ),
 );
 ```
 
@@ -28,8 +28,8 @@ bus.on(
 import { onAbort } from "nanoeffects/effects";
 
 bus.on("connect", (url, ctx) => {
-	const socket = new WebSocket(url);
-	onAbort(ctx, () => socket.close());
+  const socket = new WebSocket(url);
+  onAbort(ctx, () => socket.close());
 });
 ```
 
@@ -39,8 +39,8 @@ bus.on("connect", (url, ctx) => {
 
 ```ts
 const { user, posts } = await allSettled(ctx, {
-	user: ({ signal }) => fetchUser(id, { signal }),
-	posts: ({ signal }) => fetchPosts(id, { signal }),
+  user: ({ signal }) => fetchUser(id, { signal }),
+  posts: ({ signal }) => fetchPosts(id, { signal }),
 });
 
 if (user.status === "fulfilled") render(user.value);
@@ -52,7 +52,7 @@ A task context has `on` and `off`, like the bus. A subscription made with `ctx.o
 
 ```ts
 bus.on("watch", (_, ctx) => {
-	ctx.on("tick", (n) => console.log(n)); // gone when this task aborts
+  ctx.on("tick", (n) => console.log(n)); // gone when this task aborts
 });
 ```
 
@@ -66,13 +66,13 @@ bus.on("watch", (_, ctx) => {
 import { take, timeout } from "nanoeffects/effects";
 
 bus.on("login", async (user, ctx) => {
-	const reason = await take(ctx, "logout"); // resolves on the next logout
-	cleanup(user, reason);
+  const reason = await take(ctx, "logout"); // resolves on the next logout
+  cleanup(user, reason);
 
-	// wait for a matching event, but not longer than 5 s
-	const id = await timeout(ctx, 5000, ({ signal }) =>
-		take(ctx, "saved", { signal, predicate: (id) => id === draft.id }),
-	);
+  // wait for a matching event, but not longer than 5 s
+  const id = await timeout(ctx, 5000, ({ signal }) =>
+    take(ctx, "saved", { signal, predicate: (id) => id === draft.id }),
+  );
 });
 ```
 
@@ -86,18 +86,18 @@ bus.on("login", async (user, ctx) => {
 import { poll, retry, timeout } from "nanoeffects/effects";
 
 bus.on("load", async (id, ctx) => {
-	// up to 4 attempts, backoff between them; stops when the task aborts
-	const user = await retry(ctx, () => fetchUser(id, { signal: ctx.signal }), {
-		times: 4,
-		delay: (attempt) => 2 ** attempt * 100,
-		shouldRetry: (error) => !isFatal(error),
-	});
+  // up to 4 attempts, backoff between them; stops when the task aborts
+  const user = await retry(ctx, () => fetchUser(id, { signal: ctx.signal }), {
+    times: 4,
+    delay: (attempt) => 2 ** attempt * 100,
+    shouldRetry: (error) => !isFatal(error),
+  });
 
-	// aborts the starter's signal and rejects with a TimeoutError after 5 s
-	const data = await timeout(ctx, 5000, ({ signal }) => fetchData(id, { signal }));
+  // aborts the starter's signal and rejects with a TimeoutError after 5 s
+  const data = await timeout(ctx, 5000, ({ signal }) => fetchData(id, { signal }));
 
-	// calls refresh every 10 s; resolves when the task aborts
-	await poll(ctx, () => refresh(), 10_000);
+  // calls refresh every 10 s; resolves when the task aborts
+  await poll(ctx, () => refresh(), 10_000);
 });
 ```
 

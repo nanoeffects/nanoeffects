@@ -6,7 +6,7 @@ type ReduxConnection = {
 };
 
 export type ReduxExtension = {
-	connect: (options?: { name?: string }) => ReduxConnection;
+	connect: (options?: { name?: string; maxAge?: number }) => ReduxConnection;
 };
 
 export type ReduxDevtoolsOptions = {
@@ -14,6 +14,20 @@ export type ReduxDevtoolsOptions = {
 	name?: string;
 	/** Defaults to `globalThis.__REDUX_DEVTOOLS_EXTENSION__`. */
 	extension?: ReduxExtension;
+	/**
+	 * Also send the start of every task as an action. Default `false`: a task
+	 * is one action, sent when it ends, and the tasks that are running are in
+	 * the state.
+	 */
+	starts?: boolean;
+	/**
+	 * How deep in the tree of tasks to show: `0` is the handler tasks only, `1`
+	 * also the effects they start (`retry`, `timeout`, ...), and so on. The
+	 * attempts and the starters under them are hidden at the default, `1`.
+	 */
+	depth?: number;
+	/** The number of actions that DevTools keeps; its own default is 50. */
+	maxAge?: number;
 };
 
 export type ReduxDevtoolsState = {
@@ -24,9 +38,12 @@ export type ReduxDevtoolsState = {
 const noop = () => {};
 
 /**
- * Trace logger that sends every task phase to Redux DevTools as an action
- * `type/effect/phase`, with the running tasks as state. Read-only: there is
- * no time travel. Does nothing when the extension is not installed.
+ * Trace logger that sends the tasks to Redux DevTools as actions
+ * `type/effect/phase`, with the running tasks as state. By default it is quiet:
+ * a task is one action, when it ends, and only the handler tasks and the
+ * effects they start are shown (see `starts` and `depth` to show more).
+ * Read-only: there is no time travel. Does nothing when the extension is not
+ * installed.
  *
  * @example
  * ```ts
@@ -47,8 +64,14 @@ export const reduxDevtools = (
 		return noop;
 	}
 
-	const connection = extension.connect({ name: options.name ?? "nanoeffects" });
+	const { starts = false, depth: shownDepth = 1, maxAge } = options;
+	const connection = extension.connect({
+		name: options.name ?? "nanoeffects",
+		...(maxAge !== void 0 && { maxAge }),
+	});
 	const running = new Map<number, { type: string; effect: string }>();
+	// how deep each task that has not ended is: its parent is one level up
+	const depths = new Map<number, number>();
 	const snapshot = (): ReduxDevtoolsState => ({
 		running: Object.fromEntries(running),
 	});
@@ -56,10 +79,22 @@ export const reduxDevtools = (
 	connection.init(snapshot());
 
 	return ({ error, ...event }) => {
+		const parentDepth =
+			event.parent === void 0 ? -1 : (depths.get(event.parent) ?? -1);
+		const depth = parentDepth + 1;
+		const shown = depth <= shownDepth;
+
 		if (event.phase === "start") {
-			running.set(event.id, { type: event.type, effect: event.effect });
+			depths.set(event.id, depth);
+			if (shown) {
+				running.set(event.id, { type: event.type, effect: event.effect });
+			}
 		} else {
+			depths.delete(event.id);
 			running.delete(event.id);
+		}
+		if (!shown || (event.phase === "start" && !starts)) {
+			return;
 		}
 
 		connection.send(

@@ -9,7 +9,7 @@ import { createBus } from "nanoeffects";
 import { createTracer } from "nanoeffects/trace";
 
 const bus = createBus<Events>({
-	trace: createTracer((event) => console.log(event)),
+  trace: createTracer((event) => console.log(event)),
 });
 ```
 
@@ -36,7 +36,7 @@ Phases:
 
 ```ts
 bus.on("load", async (id, ctx) => {
-	await all(ctx, { user: () => fetchUser(id), posts: () => fetchPosts(id) });
+  await all(ctx, { user: () => fetchUser(id), posts: () => fetchPosts(id) });
 });
 ```
 
@@ -49,7 +49,7 @@ import { createBus } from "nanoeffects";
 import { consoleLogger, createTracer, reduxDevtools } from "nanoeffects/trace";
 
 const bus = createBus<Events>({
-	trace: createTracer([reduxDevtools({ name: "app" }), consoleLogger()]),
+  trace: createTracer([reduxDevtools({ name: "app" }), consoleLogger()]),
 });
 ```
 
@@ -57,7 +57,7 @@ const bus = createBus<Events>({
 
 | Logger                  | What it does                                                                         |
 | ----------------------- | ------------------------------------------------------------------------------------ |
-| `reduxDevtools()`       | Sends each phase to Redux DevTools as `type/effect/phase`; state is `{ running }`.   |
+| `reduxDevtools()`       | Sends tasks to Redux DevTools as `type/effect/phase`; state is `{ running }`.        |
 | `consoleLogger()`       | Prints one line per phase, indented by task depth.                                   |
 | `performanceLogger()`   | Records User Timing measures for the Timings track of the browser Performance panel. |
 | `createTraceRecorder()` | Keeps events in `recorder.events`, for tests.                                        |
@@ -68,15 +68,28 @@ const bus = createBus<Events>({
 
 ```ts
 createTracer(logger, {
-	sample: 0.05, // trace 5% of the handler calls (a share, or a function of { type, payload })
-	filter: (event) => event.phase === "error", // and keep only failures
+  sample: 0.05, // trace 5% of the handler calls (a share, or a function of { type, payload })
+  filter: (event) => event.phase === "error", // and keep only failures
 });
 ```
 
 - `sample` is decided once per root task (one handler call) and every task below it follows, so a trace is never cut in the middle. Tasks that are not sampled cost almost nothing: their effects run without tracing.
 - `filter` runs on each event before any logger sees it.
 
-Notes on `reduxDevtools`: it is read-only (the bus owns no state, so there is no time travel) and does nothing when the extension is not installed.
+Notes on `reduxDevtools`: it is read-only (the bus owns no state, so there is no time travel) and does nothing when the extension is not installed. It has its own instance in the DevTools picker, apart from your store.
+
+It is quiet by default, so the log stays readable:
+
+- **A task is one action**, sent when it ends (`done`, `error`, `cancel`, `drop`). The tasks that are running are in the state, `{ running }`. `starts: true` also sends every start.
+- **Only the top is shown**: the handler tasks and the effects they start (`retry`, `timeout`, ...). The attempts and starters under them are hidden. `depth: 0` shows the handler tasks only, `depth: 3` more, `Infinity` everything.
+- `maxAge: 200` sets how many actions DevTools keeps (its own default is 50).
+
+```ts
+reduxDevtools({ name: "app", depth: 0 }); // one line per handler call
+reduxDevtools({ name: "app", starts: true, depth: Infinity }); // everything, for a hunt for a bug
+```
+
+For more control, `createTracer(logger, { filter, sample })` cuts events before any logger sees them.
 
 To write your own, return a `TraceLogger`:
 
@@ -84,7 +97,7 @@ To write your own, return a `TraceLogger`:
 import type { TraceLogger } from "nanoeffects";
 
 const errorsOnly = (): TraceLogger => (event) => {
-	if (event.phase === "error") report(event.error);
+  if (event.phase === "error") report(event.error);
 };
 ```
 

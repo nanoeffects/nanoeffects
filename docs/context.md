@@ -13,4 +13,3 @@ The fields are in the context of handlers, `ctx.run`, listeners added with `ctx.
 
 - The fields of the library (`signal`, `emit`, `run`, ...) win when the names are the same.
 - `context` can also be a function, `(task) => fields`, called with `{ type, payload }` of each task, for fields that depend on the task.
-- Several stores are fields of one object: `WithContext<{ stores: { user: UserStore; cart: CartStore } }>`.

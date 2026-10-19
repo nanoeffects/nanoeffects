@@ -92,16 +92,18 @@
 	"scripts": {
 		"build": "tsdown && node scripts/notrace-types.mjs",
 		"prepublishOnly": "pnpm build",
-		"check": "biome check ./src ./examples ./integration",
-		"format": "npx @biomejs/biome check --write --unsafe ./src ./examples ./integration",
+		"check": "biome check ./src ./examples ./integration ./scripts",
+		"format": "npx @biomejs/biome check --write --unsafe ./src ./examples ./integration ./scripts",
 		"tsgo": "tsc --noEmit",
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"prepare": "lefthook install",
 		"lint:package": "publint && attw --pack . --profile esm-only",
 		"size": "size-limit",
-		"verify": "pnpm tsgo && pnpm check && pnpm test && pnpm build && pnpm test:integration && pnpm lint:package && pnpm size",
-		"test:integration": "vitest run --config vitest.integration.config.ts"
+		"verify": "pnpm tsgo && pnpm check && pnpm test && pnpm build && pnpm test:integration && pnpm smoke && pnpm lint:package && pnpm size",
+		"test:integration": "vitest run --config vitest.integration.config.ts",
+		"smoke": "node scripts/smoke.mjs && node scripts/smoke.mjs --notrace",
+		"consumer-check": "node scripts/consumer-check.mjs"
 	},
 	"devDependencies": {
 		"@arethetypeswrong/cli": "^0.18.5",

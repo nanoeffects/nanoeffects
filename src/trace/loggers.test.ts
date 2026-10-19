@@ -257,7 +257,12 @@ describe("reduxDevtools", () => {
 		return {
 			connection,
 			extension,
-			log: reduxDevtools({ extension, name: "app" }),
+			log: reduxDevtools({
+				extension,
+				name: "app",
+				starts: true,
+				depth: Number.POSITIVE_INFINITY,
+			}),
 		};
 	};
 
@@ -361,7 +366,7 @@ describe("reduxDevtools", () => {
 		};
 		global.__REDUX_DEVTOOLS_EXTENSION__ = { connect: () => connection };
 		try {
-			reduxDevtools()(event());
+			reduxDevtools()(event({ phase: "done" }));
 
 			expect(connection.send).toHaveBeenCalledTimes(1);
 		} finally {
@@ -369,7 +374,7 @@ describe("reduxDevtools", () => {
 		}
 	});
 
-	it("works end to end on a bus", async () => {
+	it("works end to end on a bus: one action for a task, when it ends", async () => {
 		const connection = { init: vi.fn(), send: vi.fn() };
 		const bus = createBus<TestEvents>({
 			trace: createTracer(
@@ -382,6 +387,113 @@ describe("reduxDevtools", () => {
 		await Promise.resolve();
 		const types = connection.send.mock.calls.map((call) => call[0].type);
 
-		expect(types).toEqual(["t/run/start", "t/run/done"]);
+		expect(types).toEqual(["t/run/done"]);
+	});
+});
+
+describe("reduxDevtools, quiet by default", () => {
+	const setup = (options: Parameters<typeof reduxDevtools>[0] = {}) => {
+		const connection = { init: vi.fn(), send: vi.fn() };
+		const extension: ReduxExtension = { connect: vi.fn(() => connection) };
+
+		return {
+			connection,
+			extension,
+			log: reduxDevtools({ extension, ...options }),
+			types: () =>
+				connection.send.mock.calls.map(
+					([action]) => (action as { type: string }).type,
+				),
+		};
+	};
+
+	it("a task is one action, sent when it ends; the running task is in the state", () => {
+		const { connection, log, types } = setup();
+		log(event({ id: 1 }));
+		expect(connection.send).not.toHaveBeenCalled();
+		log(event({ id: 1, phase: "done" }));
+
+		expect(types()).toEqual(["search/latest/done"]);
+		expect(connection.send.mock.calls[0]?.[1]).toEqual({ running: {} });
+	});
+
+	it("the running tasks are in the state of the next action", () => {
+		const { connection, log } = setup();
+		log(event({ id: 1 }));
+		log(event({ id: 2, type: "save", effect: "leading" }));
+		log(event({ id: 2, type: "save", effect: "leading", phase: "done" }));
+
+		expect(connection.send.mock.calls[0]?.[1]).toEqual({
+			running: { 1: { type: "search", effect: "latest" } },
+		});
+	});
+
+	it("shows the handler tasks and the effects they start, not the attempts under them", () => {
+		const { log, types } = setup();
+		log(event({ id: 1, phase: "start" }));
+		log(event({ id: 2, parent: 1, effect: "retry", phase: "start" }));
+		log(event({ id: 3, parent: 2, effect: "run", phase: "start" }));
+		log(event({ id: 3, parent: 2, effect: "run", phase: "error" }));
+		log(event({ id: 2, parent: 1, effect: "retry", phase: "done" }));
+		log(event({ id: 1, phase: "done" }));
+
+		expect(types()).toEqual(["search/retry/done", "search/latest/done"]);
+	});
+
+	it("depth 0 shows only the handler tasks, a deeper depth shows more", () => {
+		const roots = setup({ depth: 0 });
+		const deep = setup({ depth: 2 });
+		for (const { log } of [roots, deep]) {
+			log(event({ id: 1 }));
+			log(event({ id: 2, parent: 1, effect: "retry" }));
+			log(event({ id: 3, parent: 2, effect: "run" }));
+			log(event({ id: 3, parent: 2, effect: "run", phase: "done" }));
+			log(event({ id: 2, parent: 1, effect: "retry", phase: "done" }));
+			log(event({ id: 1, phase: "done" }));
+		}
+
+		expect(roots.types()).toEqual(["search/latest/done"]);
+		expect(deep.types()).toEqual([
+			"search/run/done",
+			"search/retry/done",
+			"search/latest/done",
+		]);
+	});
+
+	it("a dropped task that never started is shown by the depth of its parent", () => {
+		const { log, types } = setup();
+		log(event({ id: 1 }));
+		log(event({ id: 5, parent: 1, effect: "throttle", phase: "drop" }));
+
+		expect(types()).toEqual(["search/throttle/drop"]);
+	});
+
+	it("starts: true sends the start of each shown task", () => {
+		const { log, types } = setup({ starts: true });
+		log(event({ id: 1 }));
+		log(event({ id: 1, phase: "done" }));
+
+		expect(types()).toEqual(["search/latest/start", "search/latest/done"]);
+	});
+
+	it("passes maxAge to DevTools only when it is given", () => {
+		const given = setup({ maxAge: 500, name: "app" });
+		const absent = setup({ name: "app" });
+
+		expect(given.extension.connect).toHaveBeenCalledWith({
+			name: "app",
+			maxAge: 500,
+		});
+		expect(absent.extension.connect).toHaveBeenCalledWith({ name: "app" });
+	});
+
+	it("forgets the tasks that ended", () => {
+		const { connection, log } = setup();
+		for (let id = 1; id <= 50; id++) {
+			log(event({ id }));
+			log(event({ id, phase: "done" }));
+		}
+
+		expect(connection.send.mock.calls.at(-1)?.[1]).toEqual({ running: {} });
 	});
 });
