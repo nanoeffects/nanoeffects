@@ -255,10 +255,10 @@ describe("actions, commands and jobs", () => {
 
 	it("a job gives a promise of the result", () => {
 		const loaded = createAction<User, "user/loaded">("user/loaded");
-		const loadUser = createJob(
+		const { command: loadUser } = createJob(
 			"user/load",
 			async (id: string) => ({ id, name: "a" }),
-			{ done: loaded },
+			{ success: loaded },
 		);
 		expectTypeOf(bus.emit(loadUser, "1")).resolves.toEqualTypeOf<
 			User | undefined
@@ -524,5 +524,54 @@ describe("commands on the bus", () => {
 			// @ts-expect-error an event is neither a command nor a module
 			moduleContext.use({ type: "greet", payload: "x" });
 		});
+	});
+});
+
+describe("a job", () => {
+	type Item = { id: number };
+	const fetchItem = async (id: string): Promise<Item> => ({ id: Number(id) });
+
+	it("returns the command and two actions, made from strings with the literal types", () => {
+		const { command, successAction, failAction } = createJob(
+			"item/load",
+			fetchItem,
+			{
+				success: "item/loaded",
+				fail: "item/failed",
+			},
+		);
+
+		expectTypeOf(command.type).toEqualTypeOf<"item/load">();
+		expectTypeOf(successAction.type).toEqualTypeOf<"item/loaded">();
+		expectTypeOf(failAction.type).toEqualTypeOf<"item/failed">();
+		expectTypeOf(successAction({ id: 1 }).payload).toEqualTypeOf<Item>();
+		expectTypeOf(failAction(new Error("x")).payload).toEqualTypeOf<unknown>();
+	});
+
+	it("makes the missing actions with the types <type>/success and <type>/fail", () => {
+		const { successAction, failAction } = createJob("item/load", fetchItem);
+
+		expectTypeOf(successAction.type).toEqualTypeOf<"item/load/success">();
+		expectTypeOf(failAction.type).toEqualTypeOf<"item/load/fail">();
+	});
+
+	it("returns a given action creator as it is, with its own type", () => {
+		const loaded = createAction<Item, "item/loaded">("item/loaded");
+		const { successAction } = createJob("item/load", fetchItem, {
+			success: loaded,
+		});
+
+		expectTypeOf(successAction).toEqualTypeOf(loaded);
+	});
+
+	it("a command or a plain object as a target is an error", () => {
+		const wrongCalls = () => {
+			const show = createCommand("ui/show", (_: Item) => {});
+			// @ts-expect-error a target is a string or an action creator
+			createJob("item/load", fetchItem, { success: show });
+			// @ts-expect-error a plain action object is not a target either
+			createJob("item/load", fetchItem, { fail: { type: "item/failed" } });
+		};
+		expectTypeOf(wrongCalls).toBeFunction();
 	});
 });

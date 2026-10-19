@@ -4,106 +4,153 @@ import { deferred } from "../tests/test-helpers";
 import { createTraceRecorder } from "../trace/recorder";
 import { createTracer } from "../trace/tracer";
 import { createAction } from "./action";
-import { createCommand, createCommands } from "./command";
+import { createCommands } from "./command";
 import { createJob } from "./job";
 
-type Events = {
-	loaded: string;
-	failed: Error;
-	log: string;
-};
+type Events = Record<string, unknown>;
 
 const setup = () => {
 	const recorder = createTraceRecorder<Events>();
 	const bus = createBus<Events>({ trace: createTracer(recorder) });
 	const commands = createCommands(bus);
+
 	return { bus, commands, recorder };
 };
 
+const loadUser = async (id: string) => `user ${id}`;
+const failing = async () => {
+	throw new Error("boom");
+};
+
 describe("createJob", () => {
-	describe("done", () => {
-		it("sends the result to an event type", async () => {
-			const { bus } = setup();
-			const handler = vi.fn();
-			bus.on("loaded", handler);
-			const job = createJob("user/load", async (id: string) => `user ${id}`, {
-				done: "loaded",
+	describe("what it returns", () => {
+		it("is the command and the two actions", () => {
+			const { command, successAction, failAction } = createJob(
+				"user/load",
+				loadUser,
+			);
+
+			expect(command.type).toBe("user/load");
+			expect(typeof successAction).toBe("function");
+			expect(typeof failAction).toBe("function");
+		});
+
+		it("makes action creators from strings, with the result and the error as payload", () => {
+			const { successAction, failAction } = createJob("user/load", loadUser, {
+				success: "user/loaded",
+				fail: "user/failed",
 			});
-			await bus.emit(job, "1");
+
+			expect(successAction.type).toBe("user/loaded");
+			expect(failAction.type).toBe("user/failed");
+			expect(successAction("user 1")).toEqual({
+				type: "user/loaded",
+				payload: "user 1",
+			});
+			expect(failAction(new Error("boom")).payload).toBeInstanceOf(Error);
+		});
+
+		it("returns an action creator that was given, the very same one", () => {
+			const loaded = createAction<string, "user/loaded">("user/loaded");
+			const failed = createAction<Error, "user/failed">("user/failed");
+			const { successAction, failAction } = createJob("user/load", loadUser, {
+				success: loaded,
+				fail: failed,
+			});
+
+			expect(successAction).toBe(loaded);
+			expect(failAction).toBe(failed);
+		});
+
+		it("makes the missing ones with the types <type>/success and <type>/fail", () => {
+			const { successAction, failAction } = createJob("user/load", loadUser);
+
+			expect(successAction.type).toBe("user/load/success");
+			expect(failAction.type).toBe("user/load/fail");
+		});
+
+		it("a string for one and the default for the other", () => {
+			const { successAction, failAction } = createJob("user/load", loadUser, {
+				success: "loaded",
+			});
+
+			expect(successAction.type).toBe("loaded");
+			expect(failAction.type).toBe("user/load/fail");
+		});
+	});
+
+	describe("success", () => {
+		it("emits the success action with the result, and a listener of the made action gets it", async () => {
+			const { bus } = setup();
+			const { command, successAction } = createJob("user/load", loadUser);
+			const handler = vi.fn();
+			bus.on(successAction, handler);
+			await bus.emit(command, "1");
 
 			expect(handler.mock.calls[0]?.[0]).toBe("user 1");
 		});
 
-		it("sends the result to an action creator", async () => {
+		it("a listener of the type as a string gets it too", async () => {
+			const { bus } = setup();
+			const { command } = createJob("user/load", loadUser, {
+				success: "loaded",
+			});
+			const handler = vi.fn();
+			bus.on("loaded", handler);
+			await bus.emit(command, "1");
+
+			expect(handler.mock.calls[0]?.[0]).toBe("user 1");
+		});
+
+		it("works with a given action creator", async () => {
 			const { bus } = setup();
 			const loaded = createAction<string, "user/loaded">("user/loaded");
+			const { command } = createJob("user/load", loadUser, { success: loaded });
 			const handler = vi.fn();
 			bus.on(loaded, handler);
-			const job = createJob("user/load", async (id: string) => `user ${id}`, {
-				done: loaded,
-			});
-			await bus.emit(job, "1");
+			await bus.emit(command, "1");
 
 			expect(handler.mock.calls[0]?.[0]).toBe("user 1");
-		});
-
-		it("sends the result to a command and runs its handler", async () => {
-			const { bus } = setup();
-			const show = vi.fn((text: string) => text.length);
-			const display = createCommand("ui/show", show);
-			const job = createJob("user/load", async () => "hello", {
-				done: display,
-			});
-			await bus.emit(job, void 0);
-
-			expect(show.mock.calls[0]?.[0]).toBe("hello");
-		});
-
-		it("sends the result as the payload of a plain action", async () => {
-			const { bus } = setup();
-			const handler = vi.fn();
-			bus.on("loaded", handler);
-			const job = createJob("user/load", async () => "payload", {
-				done: { type: "loaded" },
-			});
-			await bus.emit(job, void 0);
-
-			expect(handler.mock.calls[0]?.[0]).toBe("payload");
 		});
 
 		it("works for a sync handler too, and still returns a promise", async () => {
 			const { bus } = setup();
+			const { command, successAction } = createJob(
+				"user/load",
+				(id: string) => `user ${id}`,
+			);
 			const handler = vi.fn();
-			bus.on("loaded", handler);
-			const job = createJob("user/load", (value: number) => `n=${value}`, {
-				done: "loaded",
-			});
-			const result = bus.emit(job, 2);
+			bus.on(successAction, handler);
+			const result = bus.emit(command, "1");
 
 			expect(result).toBeInstanceOf(Promise);
-			await expect(result).resolves.toBe("n=2");
-			expect(handler.mock.calls[0]?.[0]).toBe("n=2");
+			await expect(result).resolves.toBe("user 1");
+			expect(handler).toHaveBeenCalledTimes(1);
 		});
 
-		it("sends the result before the caller continues", async () => {
+		it("is sent before the caller continues", async () => {
 			const { bus } = setup();
 			const order: string[] = [];
-			bus.on("loaded", () => order.push("outlet"));
-			const job = createJob("user/load", async () => "x", { done: "loaded" });
-			await bus.emit(job, void 0).then(() => order.push("caller"));
+			const { command, successAction } = createJob("user/load", loadUser);
+			bus.on(successAction, () => {
+				order.push("action");
+			});
+			await bus.emit(command, "1");
+			order.push("caller");
 
-			expect(order).toEqual(["outlet", "caller"]);
+			expect(order).toEqual(["action", "caller"]);
 		});
 
-		it("sends nothing while the handler is still running", async () => {
+		it("is not sent while the handler is still running", async () => {
 			const { bus } = setup();
-			const handler = vi.fn();
-			bus.on("loaded", handler);
 			const gate = deferred<string>();
-			const job = createJob("user/load", () => gate.promise, {
-				done: "loaded",
-			});
-			const result = bus.emit(job, void 0);
+			const { command, successAction } = createJob(
+				"user/load",
+				() => gate.promise,
+			);
+			const handler = vi.fn();
+			bus.on(successAction, handler);
+			const result = bus.emit(command, void 0);
 			expect(handler).not.toHaveBeenCalled();
 			gate.resolve("late");
 			await result;
@@ -111,136 +158,94 @@ describe("createJob", () => {
 			expect(handler).toHaveBeenCalledTimes(1);
 		});
 
-		it("does not send the error outlet on success", async () => {
+		it("does not send the fail action on success", async () => {
 			const { bus } = setup();
-			const failed = vi.fn();
-			bus.on("failed", failed);
-			const job = createJob("user/load", async () => "ok", {
-				done: "loaded",
-				fail: "failed",
-			});
-			await bus.emit(job, void 0);
+			const { command, failAction } = createJob("user/load", loadUser);
+			const handler = vi.fn();
+			bus.on(failAction, handler);
+			await bus.emit(command, "1");
 
-			expect(failed).not.toHaveBeenCalled();
+			expect(handler).not.toHaveBeenCalled();
 		});
 
 		it("gives each emit its own result", async () => {
 			const { bus } = setup();
 			const seen: string[] = [];
-			bus.on("loaded", (result) => seen.push(result));
-			const job = createJob("user/load", async (id: string) => `user ${id}`, {
-				done: "loaded",
-			});
-			await Promise.all([bus.emit(job, "1"), bus.emit(job, "2")]);
+			const { command, successAction } = createJob("user/load", loadUser);
+			bus.on(successAction, (result) => seen.push(result));
+			await Promise.all([bus.emit(command, "1"), bus.emit(command, "2")]);
 
 			expect(seen.sort()).toEqual(["user 1", "user 2"]);
 		});
 	});
 
-	describe("fail", () => {
-		it("sends the error to the fail outlet and resolves with undefined", async () => {
+	describe("failure", () => {
+		it("sends the error to the fail action and resolves with undefined", async () => {
 			const { bus } = setup();
-			const failed = vi.fn();
-			bus.on("failed", failed);
-			const error = new Error("boom");
-			const job = createJob(
-				"user/load",
-				async () => {
-					throw error;
-				},
-				{ fail: "failed" },
-			);
+			const { command, failAction } = createJob("user/load", failing);
+			const handler = vi.fn();
+			bus.on(failAction, handler);
+			const result = await bus.emit(command, void 0);
 
-			await expect(bus.emit(job, void 0)).resolves.toBeUndefined();
-			expect(failed.mock.calls[0]?.[0]).toBe(error);
+			expect(result).toBeUndefined();
+			expect(handler.mock.calls[0]?.[0]).toBeInstanceOf(Error);
 		});
 
-		it("does not send the result outlet on failure", async () => {
+		it("an error is always handled, also when no options were given", async () => {
 			const { bus } = setup();
-			const loaded = vi.fn();
-			bus.on("loaded", loaded);
-			const job = createJob(
-				"user/load",
-				async () => {
-					throw new Error("boom");
-				},
-				{ done: "loaded", fail: "failed" },
-			);
-			await bus.emit(job, void 0);
+			const { command } = createJob("user/load", failing);
 
-			expect(loaded).not.toHaveBeenCalled();
+			await expect(bus.emit(command, void 0)).resolves.toBeUndefined();
+		});
+
+		it("does not send the success action on failure", async () => {
+			const { bus } = setup();
+			const { command, successAction } = createJob("user/load", failing);
+			const handler = vi.fn();
+			bus.on(successAction, handler);
+			await bus.emit(command, void 0);
+
+			expect(handler).not.toHaveBeenCalled();
 		});
 
 		it("routes an error thrown synchronously too", async () => {
 			const { bus } = setup();
-			const failed = vi.fn();
-			bus.on("failed", failed);
-			const job = createJob(
-				"user/load",
-				() => {
-					throw new Error("sync boom");
-				},
-				{ fail: "failed" },
-			);
-			await bus.emit(job, void 0);
+			const { command, failAction } = createJob("user/load", () => {
+				throw new Error("sync boom");
+			});
+			const handler = vi.fn();
+			bus.on(failAction, handler);
+			await bus.emit(command, void 0);
 
-			expect(failed.mock.calls[0]?.[0]).toEqual(new Error("sync boom"));
+			expect(handler.mock.calls[0]?.[0]).toMatchObject({
+				message: "sync boom",
+			});
 		});
 
-		it("sends the error to an action creator", async () => {
+		it("works with a given action creator", async () => {
 			const { bus } = setup();
 			const failed = createAction<Error, "user/failed">("user/failed");
+			const { command } = createJob("user/load", failing, { fail: failed });
 			const handler = vi.fn();
 			bus.on(failed, handler);
-			const job = createJob(
+			await bus.emit(command, void 0);
+
+			expect(handler.mock.calls[0]?.[0]).toBeInstanceOf(Error);
+		});
+
+		it("an error of a listener of the success action rejects the call and is not sent to fail", async () => {
+			const { bus } = setup();
+			const { command, successAction, failAction } = createJob(
 				"user/load",
-				async () => {
-					throw new Error("boom");
-				},
-				{ fail: failed },
+				loadUser,
 			);
-			await bus.emit(job, void 0);
-
-			expect(handler.mock.calls[0]?.[0]).toEqual(new Error("boom"));
-		});
-
-		it("rejects when there is no fail outlet", async () => {
-			const { bus } = setup();
-			const job = createJob(
-				"user/load",
-				async () => {
-					throw new Error("boom");
-				},
-				{ done: "loaded" },
-			);
-
-			await expect(bus.emit(job, void 0)).rejects.toThrow("boom");
-		});
-
-		it("behaves like a command when there are no outlets", async () => {
-			const { bus } = setup();
-			const ok = createJob("a", async () => 1);
-			const bad = createJob("b", async () => {
-				throw new Error("boom");
-			});
-
-			await expect(bus.emit(ok, void 0)).resolves.toBe(1);
-			await expect(bus.emit(bad, void 0)).rejects.toThrow("boom");
-		});
-
-		it("an error thrown by a result listener rejects the call and is not sent to fail", async () => {
-			const { bus } = setup();
 			const failed = vi.fn();
-			bus.on("failed", failed);
-			bus.on("loaded", () => {
+			bus.on(successAction, () => {
 				throw new Error("listener boom");
 			});
-			const job = createJob("user/load", async () => "x", {
-				done: "loaded",
-				fail: "failed",
-			});
+			bus.on(failAction, failed);
 
-			await expect(bus.emit(job, void 0)).rejects.toThrow("listener boom");
+			await expect(bus.emit(command, "1")).rejects.toThrow("listener boom");
 			expect(failed).not.toHaveBeenCalled();
 		});
 	});
@@ -248,54 +253,48 @@ describe("createJob", () => {
 	describe("handlers", () => {
 		it("routes the outcome of a handler bound with commands.handle", async () => {
 			const { bus, commands } = setup();
+			const { command, successAction } = createJob<string, string>("user/load");
+			commands.handle(command, async (id) => `bound ${id}`);
 			const handler = vi.fn();
-			bus.on("loaded", handler);
-			const job = createJob<string, string>("user/load", void 0, {
-				done: "loaded",
-			});
-			commands.handle(job, async (id) => `bound ${id}`);
-			await bus.emit(job, "7");
+			bus.on(successAction, handler);
+			await bus.emit(command, "1");
 
-			expect(handler.mock.calls[0]?.[0]).toBe("bound 7");
+			expect(handler.mock.calls[0]?.[0]).toBe("bound 1");
 		});
 
 		it("routes the failure of a bound handler", async () => {
 			const { bus, commands } = setup();
-			const failed = vi.fn();
-			bus.on("failed", failed);
-			const job = createJob<string, string>("user/load", void 0, {
-				fail: "failed",
-			});
-			commands.handle(job, async () => {
+			const { command, failAction } = createJob<string, string>("user/load");
+			commands.handle(command, async () => {
 				throw new Error("bound boom");
 			});
-			await bus.emit(job, "7");
+			const handler = vi.fn();
+			bus.on(failAction, handler);
+			await bus.emit(command, "1");
 
-			expect(failed.mock.calls[0]?.[0]).toEqual(new Error("bound boom"));
+			expect(handler.mock.calls[0]?.[0]).toMatchObject({
+				message: "bound boom",
+			});
 		});
 
-		it("a bound handler replaces the default one, and the outlets stay", async () => {
+		it("a bound handler replaces the default one, and the actions stay", async () => {
 			const { bus, commands } = setup();
+			const { command, successAction } = createJob("user/load", loadUser);
+			commands.handle(command, async () => "replaced");
 			const handler = vi.fn();
-			bus.on("loaded", handler);
-			const job = createJob("user/load", async () => "default", {
-				done: "loaded",
-			});
-			commands.handle(job, async () => "override");
-			await bus.emit(job, void 0);
+			bus.on(successAction, handler);
+			await bus.emit(command, "1");
 
-			expect(handler.mock.calls[0]?.[0]).toBe("override");
+			expect(handler.mock.calls[0]?.[0]).toBe("replaced");
 		});
 
 		it("throws at once when there is no handler at all, and sends nothing", () => {
 			const { bus } = setup();
+			const { command, failAction } = createJob<string, string>("user/load");
 			const failed = vi.fn();
-			bus.on("failed", failed);
-			const job = createJob<string, string>("user/load", void 0, {
-				fail: "failed",
-			});
+			bus.on(failAction, failed);
 
-			expect(() => bus.emit(job, "1")).toThrow(
+			expect(() => bus.emit(command, "1")).toThrow(
 				'No handler for command "user/load"',
 			);
 			expect(failed).not.toHaveBeenCalled();
@@ -304,115 +303,98 @@ describe("createJob", () => {
 		it("gives the handler the payload and a task context", async () => {
 			const { bus } = setup();
 			const seen: unknown[] = [];
-			const job = createJob("user/load", async (id: string, ctx) => {
+			const { command } = createJob("user/load", async (id: string, ctx) => {
 				seen.push(id, ctx.type);
 				return id;
 			});
-			await bus.emit(job, "3");
+			await bus.emit(command, "3");
 
 			expect(seen).toEqual(["3", "user/load"]);
 		});
 	});
 
-	describe("without a registry on the bus", () => {
-		it("still routes the outcome of its own handler", async () => {
+	describe("a bus without a registry", () => {
+		it("still routes the outcome of the own handler, and the failure", async () => {
 			const bus = createBus<Events>();
-			const handler = vi.fn();
-			bus.on("loaded", handler);
-			const job = createJob("user/load", async (id: string) => `user ${id}`, {
-				done: "loaded",
-			});
-			await bus.emit(job, "1");
+			const ok = createJob("user/ok", loadUser);
+			const bad = createJob("user/bad", failing);
+			const success = vi.fn();
+			const fail = vi.fn();
+			bus.on(ok.successAction, success);
+			bus.on(bad.failAction, fail);
+			await bus.emit(ok.command, "1");
+			await bus.emit(bad.command, void 0);
 
-			expect(handler.mock.calls[0]?.[0]).toBe("user 1");
-		});
-
-		it("still routes the failure", async () => {
-			const bus = createBus<Events>();
-			const failed = vi.fn();
-			bus.on("failed", failed);
-			const job = createJob(
-				"user/load",
-				async () => {
-					throw new Error("boom");
-				},
-				{ fail: "failed" },
-			);
-
-			await expect(bus.emit(job, void 0)).resolves.toBeUndefined();
-			expect(failed).toHaveBeenCalledTimes(1);
+			expect(success.mock.calls[0]?.[0]).toBe("user 1");
+			expect(fail.mock.calls[0]?.[0]).toBeInstanceOf(Error);
 		});
 	});
 
 	describe("abort", () => {
-		it("sends no outlet once the task was aborted", async () => {
+		it("sends no success action once the task was aborted", async () => {
 			const { bus } = setup();
-			const loaded = vi.fn();
-			bus.on("loaded", loaded);
-			const job = createJob(
+			const { command, successAction } = createJob(
 				"user/load",
 				async (_: string, ctx) => {
 					ctx.abort();
 					return "x";
 				},
-				{ done: "loaded" },
 			);
+			const handler = vi.fn();
+			bus.on(successAction, handler);
 
-			await expect(bus.emit(job, "1")).resolves.toBe("x");
-			expect(loaded).not.toHaveBeenCalled();
+			await expect(bus.emit(command, "1")).resolves.toBe("x");
+			expect(handler).not.toHaveBeenCalled();
 		});
 
-		it("sends no error outlet once the task was aborted", async () => {
+		it("sends no fail action once the task was aborted", async () => {
 			const { bus } = setup();
-			const failed = vi.fn();
-			bus.on("failed", failed);
-			const job = createJob(
+			const { command, failAction } = createJob(
 				"user/load",
 				async (_: string, ctx) => {
 					ctx.abort();
 					throw new Error("boom");
 				},
-				{ fail: "failed" },
 			);
+			const handler = vi.fn();
+			bus.on(failAction, handler);
 
-			await expect(bus.emit(job, "1")).resolves.toBeUndefined();
-			expect(failed).not.toHaveBeenCalled();
+			await expect(bus.emit(command, "1")).resolves.toBeUndefined();
+			expect(handler).not.toHaveBeenCalled();
 		});
 	});
 
 	describe("direct call", () => {
-		it("runs the handler and returns a promise, with no outlets", async () => {
-			const loaded = vi.fn();
-			const job = createJob("user/load", (id: string) => `user ${id}`, {
-				done: "loaded",
-			});
-			const result = job("1");
+		it("runs the handler and returns a promise, with no actions", async () => {
+			const { command, successAction } = createJob(
+				"user/load",
+				(id: string) => `user ${id}`,
+			);
+			const result = command("1");
 
 			expect(result).toBeInstanceOf(Promise);
 			await expect(result).resolves.toBe("user 1");
-			expect(loaded).not.toHaveBeenCalled();
+			expect(successAction.type).toBe("user/load/success");
 		});
 
 		it("rejects when the handler fails", async () => {
-			const job = createJob("user/load", async () => {
-				throw new Error("boom");
-			});
+			const { command } = createJob("user/load", failing);
 
-			await expect(job(void 0)).rejects.toThrow("boom");
+			await expect(command(void 0)).rejects.toThrow("boom");
 		});
 
 		it("throws when there is no handler", () => {
-			const job = createJob<string, string>("user/load");
+			const { command } = createJob<string, string>("user/load");
 
-			expect(() => job("1")).toThrow("No handler");
+			expect(() => command("1")).toThrow("No handler");
 		});
 	});
 
 	describe("trace", () => {
 		it("reports the run as a command", async () => {
 			const { bus, recorder } = setup();
-			const job = createJob("user/load", async () => "x", { done: "loaded" });
-			await bus.emit(job, void 0);
+			const { command } = createJob("user/load", async () => "x");
+			await bus.emit(command, void 0);
 
 			expect(
 				recorder.events.map((event) => `${event.effect}/${event.phase}`),

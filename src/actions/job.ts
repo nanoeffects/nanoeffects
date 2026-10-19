@@ -1,22 +1,25 @@
-import type { Command, Context, Emittable } from "../core/bus";
+import type { Command, Context } from "../core/bus";
 import type { EventMap, Task } from "../core/types";
+import { type ActionCreator, createAction } from "./action";
 import { createCommand, MissingHandlerError } from "./command";
 
-const send = (
-	ctx: Context<EventMap>,
-	target: Emittable<EventMap>,
-	payload: unknown,
-) => {
-	const emit = ctx.emit as (event: unknown, payload?: unknown) => unknown;
+// what a given outcome can be besides a string: an action creator, made by `createAction`
+type Creator = {
+	(...args: never[]): { type: string; payload?: unknown };
+	readonly type: string;
+};
 
-	if (typeof target === "string") {
-		emit(target, payload);
-	} else if (typeof target === "function") {
-		// an action creator is an event of its type; a command runs its handler
-		emit("match" in target ? target.type : target, payload);
-	} else {
-		emit({ type: target.type, payload });
-	}
+type Outcome = string | Creator;
+
+// an action creator for an outcome: a string makes one, a creator is used as it is
+const creatorOf = (target: Outcome): Creator =>
+	typeof target === "string" ? createAction(target) : target;
+
+// the action of the outcome, emitted as the task that ran the job
+const send = (ctx: Context<EventMap>, creator: Creator, payload: unknown) => {
+	const emit = ctx.emit as (event: unknown) => unknown;
+
+	emit(Reflect.apply(creator, null, [payload]));
 };
 
 // a sync throw becomes a rejection; a missing handler is a mistake, so it is thrown
@@ -31,29 +34,48 @@ const attempt = <T>(fn: () => T): Promise<Awaited<T>> => {
 	}
 };
 
+/** What `createJob` returns: the command of the job and the actions of its outcome. */
+export type Job<
+	P,
+	R,
+	T extends string,
+	S extends Outcome,
+	F extends Outcome,
+> = {
+	command: Command<P, Promise<Awaited<R> | undefined>> & { readonly type: T };
+	/** Made from a string with the result as its payload, or the creator that was given. */
+	successAction: S extends string ? ActionCreator<Awaited<R>, S> : S;
+	/** Made from a string with the error as its payload, or the creator that was given. */
+	failAction: F extends string ? ActionCreator<unknown, F> : F;
+};
+
 /**
- * Creates a command whose outcome is sent on: when the handler succeeds, its
- * result goes to `done`, and when it fails, the error goes to `fail`. Each is
- * anything `emit` takes as its first argument, and receives the result (or the
- * error) as the payload: an event type, an action creator, a command, or a
- * plain action. It is made for the case where nobody waits for the result and
- * the bus carries it on, like `createAsyncThunk` or an effector effect.
+ * Creates a job: a command whose outcome is sent on as actions. When the
+ * handler succeeds, `successAction(result)` is emitted on the bus, and when it
+ * fails, `failAction(error)`. It is made for the case where nobody waits for
+ * the result and the bus carries it on, like `createAsyncThunk` or an effector
+ * effect. It returns the three together: `{ command, successAction, failAction }`.
  *
- * `bus.emit(job, payload)` returns a promise of the result. When `fail` is set
- * the error counts as handled: it goes to `fail` and the promise resolves with
- * `undefined`; without `fail` the promise rejects. The outcome is routed by the
- * bus, also for a handler bound with `commands.handle`, and is skipped once the
- * task is aborted. Calling the job directly runs only its handler.
+ * `success` and `fail` are a type string, from which the job makes an action
+ * creator with `createAction`, or an action creator that exists already, which
+ * is used and returned as it is. A missing one is made with the type
+ * `<type>/success` or `<type>/fail`.
+ *
+ * `bus.emit(command, payload)` returns a promise of the result. An error of the
+ * handler always counts as handled: it goes to `failAction` and the promise
+ * resolves with `undefined`; a command is the tool for a result that must reject.
+ * The actions are emitted as the task that ran the job, also for a handler bound
+ * with `commands.handle`, and are skipped once the task is aborted. A missing
+ * handler is not an outcome: `emit` throws `MissingHandlerError`. Calling the
+ * command directly runs only its handler.
  *
  * @example
  * ```ts
- * const loaded = createAction<User>("user/loaded");
- * const failed = createAction<Error>("user/failed");
+ * const { command: loadUser, successAction: userLoaded, failAction: userFailed } =
+ *   createJob("user/load", fetchUser, { success: "user/loaded", fail: "user/failed" });
  *
- * const loadUser = createJob("user/load", fetchUser, { done: loaded, fail: failed });
- *
- * bus.on(loaded, (user) => render(user));
- * bus.emit(loadUser, "1"); // loaded(user) or failed(error) comes later
+ * bus.on(userLoaded, (user) => render(user));
+ * bus.emit(loadUser, "1"); // userLoaded(user) or userFailed(error) comes later
  * ```
  */
 export const createJob = <
@@ -61,17 +83,21 @@ export const createJob = <
 	R = void,
 	T extends string = string,
 	E extends EventMap = EventMap,
+	S extends Outcome = `${T}/success`,
+	F extends Outcome = `${T}/fail`,
 >(
 	type: T,
 	handler?: Task<P, E, R>,
 	outcomes: {
-		/** Gets the result when the handler succeeds. */
-		done?: Emittable<E>;
-		/** Gets the error when the handler fails. */
-		fail?: Emittable<E>;
+		/** Gets the result when the handler succeeds: a type to make an action creator of, or an action creator. */
+		success?: S;
+		/** Gets the error when the handler fails: a type to make an action creator of, or an action creator. */
+		fail?: F;
 	} = {},
-): Command<P, Promise<Awaited<R> | undefined>> & { readonly type: T } => {
+): Job<P, R, T, S, F> => {
 	const command = createCommand<P, R, T, E>(type, handler);
+	const successAction = creatorOf(outcomes.success ?? `${type}/success`);
+	const failAction = creatorOf(outcomes.fail ?? `${type}/fail`);
 
 	// runs `base` and sends its outcome on
 	const route = (
@@ -84,16 +110,11 @@ export const createJob = <
 
 		return outcome.then(
 			(value) => {
-				if (outcomes.done) {
-					send(task, outcomes.done, value);
-				}
+				send(task, successAction, value);
 				return value;
 			},
 			(error: unknown) => {
-				if (!outcomes.fail) {
-					throw error;
-				}
-				send(task, outcomes.fail, error);
+				send(task, failAction, error);
 			},
 		);
 	};
@@ -112,5 +133,9 @@ export const createJob = <
 		(payload: never, ctx: never) =>
 			route(base, payload, ctx);
 
-	return Object.assign(run, { type, wrap });
+	return {
+		command: Object.assign(run, { type, wrap }),
+		successAction: successAction as Job<P, R, T, S, F>["successAction"],
+		failAction: failAction as Job<P, R, T, S, F>["failAction"],
+	};
 };

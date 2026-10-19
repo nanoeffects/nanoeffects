@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **BREAKING:** `createJob(type, handler, { success, fail })` returns `{ command, successAction, failAction }`; a string makes the action creator (a missing one gets `<type>/success` or `<type>/fail`), a creator that was given is returned as it is, and an error of the handler is always handled. The option `done` is now `success`, and a command or a plain action is no longer a target.
+- **BREAKING:** `createBus` has no `commands` option: `createCommands(bus, bindings?)` attaches the registry to a bus and returns it.
+- `m.use(...)` in a module brings commands that carry a handler as well as sub-modules.
+- `retry`, `timeout` and `poll` also wrap a Task, so they go into `on(...)` with the policies and run with `ctx.run(...)`.
+- `reduxDevtools` is quiet by default: a task is one action, when it ends (`starts`, `depth`, `maxAge` to change that).
+
 ## 0.1.0
 
 First release.

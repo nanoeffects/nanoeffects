@@ -100,7 +100,7 @@ describe("tracing of commands", () => {
 
 		it("reports a job as a command run", async () => {
 			const { app, recorder } = setup();
-			const job = createJob("user/load", async () => "x", { done: "loaded" });
+			const { command: job } = createJob("user/load", async () => "x");
 			await app.bus.emit(job, void 0);
 
 			expect(
@@ -214,53 +214,15 @@ describe("tracing of commands", () => {
 	});
 
 	describe("jobs", () => {
-		it("a command used as the result outlet is a child of the job", async () => {
-			const { app, startOf } = setup();
-			const show = createCommand("ui/show", (text: string) => text.length);
-			const job = createJob("user/load", async () => "hello", { done: show });
-			await app.bus.emit(job, void 0);
-
-			expect(startOf("ui/show")?.parent).toBe(startOf("user/load")?.id);
-		});
-
-		it("a command used as the error outlet is a child of the job", async () => {
-			const { app, startOf } = setup();
-			const report = createCommand("ui/report", (_: Error) => {});
-			const job = createJob(
-				"user/load",
-				async () => {
-					throw new Error("boom");
-				},
-				{ fail: report },
-			);
-			await app.bus.emit(job, void 0);
-
-			expect(startOf("ui/report")?.parent).toBe(startOf("user/load")?.id);
-		});
-
-		it("an action creator used as an outlet does not add a task", async () => {
+		it("the actions of a job do not add a task", async () => {
 			const { app, starts } = setup();
 			const loaded = createAction<string, "loaded">("loaded");
-			const job = createJob("user/load", async () => "x", { done: loaded });
+			const { command: job } = createJob("user/load", async () => "x", {
+				success: loaded,
+			});
 			await app.bus.emit(job, void 0);
 
 			expect(starts().map((event) => event.type)).toEqual(["user/load"]);
-		});
-
-		it("the job ends after its outlet command has run", async () => {
-			const { app, recorder } = setup();
-			const show = createCommand("ui/show", (text: string) => text.length);
-			const job = createJob("user/load", async () => "hi", { done: show });
-			await app.bus.emit(job, void 0);
-
-			expect(
-				recorder.events.map((event) => `${event.type}/${event.phase}`),
-			).toEqual([
-				"user/load/start",
-				"ui/show/start",
-				"ui/show/done",
-				"user/load/done",
-			]);
 		});
 	});
 

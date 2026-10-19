@@ -18,8 +18,11 @@ const getUser = createCommand("user/get", (id: string, { signal }) => fetchUser(
 // a contract without a handler: the code that sends mail is elsewhere
 const sendMail = createCommand<Mail, void>("mail/send");
 
-// a command whose outcome is sent on as events
-const loadUser = createJob("user/load", fetchUser, { done: userLoaded, fail: loadFailed });
+// a command whose outcome is sent on as actions: the command and its two actions together
+const { command: loadUser, successAction, failAction } = createJob("user/load", fetchUser, {
+  success: userLoaded, // an action creator that exists: used and returned as it is
+  fail: "user/failed", // a string: the job makes the action creator
+});
 ```
 
 **Actions.** `createAction(type)` returns a creator, with no generics: it keeps the literal type, and the bus checks the payload against its event map (`bus.emit(userLoaded(5))` is an error when `"user/loaded"` is a `User`). Without an event map give the payload type, `createAction<User>("user/loaded")`. The creator: `userLoaded(user)` is `{ type, payload }`, `userLoaded.type` is the type, `userLoaded.match(action)` narrows an action. `createAction(type, prepare)` builds the payload from several arguments. A creator works as the event of its type: `bus.emit(userLoaded(user))`, `bus.on(userLoaded, fn)`.
@@ -40,7 +43,12 @@ unbind(); // the command's own handler is back; the latest binding wins
 
 A command with no handler anywhere throws `No handler for command "..."` from `emit`. The registry lives in `nanoeffects/actions`, so a bus without one carries none of this code; without it `emit(command, payload)` simply runs the command's own handler. `createCommands(bus)` sets the registry as `bus.commands`, and a second call on the same bus replaces it. There is no `commands` option in `createBus`; a custom runner is assigned, `bus.commands = { run }`.
 
-**Jobs.** `createJob(type, handler, { done, fail })` is a command that sends its outcome on, for when nobody waits for the result. `done` receives the result and `fail` receives the error; each is anything `emit` takes: an event type, an action creator, a command, or a plain action. `bus.emit(job, payload)` still returns a promise of the result. With `fail` set the error counts as handled: it goes to `fail` and the promise resolves with `undefined`; without it the promise rejects. The outcome is routed also for a handler bound with `commands.handle`, and is not sent once the task is aborted.
+**Jobs.** `createJob(type, handler, { success, fail })` makes a command that sends its outcome on as actions, for when nobody waits for the result, and returns `{ command, successAction, failAction }`. When the handler succeeds, `successAction(result)` is emitted on the bus, and when it fails, `failAction(error)`.
+
+- `success` and `fail` are a string, from which the job makes an action creator with `createAction` (the payload is the result, or the error), or an action creator that exists already, which is used and returned as it is. A missing one is made with the type `<type>/success` or `<type>/fail`.
+- `bus.emit(command, payload)` returns a promise of the result. An error of the handler always counts as handled: it goes to `failAction` and the promise resolves with `undefined`. For a result that must reject, use a command.
+- The actions are emitted as the task that ran the job, also for a handler bound with `commands.handle`, and are not sent once the task is aborted. A missing handler is not an outcome: `emit` throws `No handler for command "..."`.
+- Calling `command(payload)` directly runs only the handler.
 
 ## Modules
 

@@ -9,7 +9,7 @@ export {
 	createCommand,
 	createCommands,
 } from "./command";
-export { createJob } from "./job";
+export { createJob, type Job } from "./job";
 export {
 	createModule,
 	type Module,
