@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Removing listeners no longer slows down as their number grows: unsubscribing 50 000 listeners in the order they were added took seconds and now takes milliseconds.
+
 ## 0.3.0
 
 - **BREAKING:** `createJob` returns the command itself, with the action creators of its outcome as properties, `job.success` and `job.fail`; `{ command, successAction, failAction }` is gone. Options, defaults and routing are unchanged.

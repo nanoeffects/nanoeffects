@@ -63,7 +63,7 @@ Unit tests sit next to the file they test (`x.ts`, `x.test.ts`).
 - **Timers use `setTimer`/`clearTimer`** (`src/utils/timer.ts`), never `setTimeout` directly: waits over 2^31 - 1 ms are split, `Infinity` holds no timer, negative or `NaN` is 0.
 - **Options that are `null`** (plain JavaScript callers) fall back to defaults: read options with `??`, not with destructuring defaults.
 - **`throttle` and `debounce` follow lodash** (and patronum): verified by `src/policies/lodash-parity.test.ts` with random call sequences against the real lodash (a devDependency). `throttle` has a re-entrancy guard (`busy`) so a call made from inside `fn` waits; the leading-only modes use no timers.
-- **`store.remove(key, task)` removes one registration** of a task that was added twice. Arrays handed out by `get` are copied on the next change (copy on write), which keeps 50 000 subscribers fast.
+- **`store.remove(key, task)` removes one registration** of a task that was added twice. The store keeps a `Map` of task to count (in the order of the first add), so adding and removing cost the same at 50 000 subscribers; `get` builds the array once and hands out that same array until the next change, so an emit that still walks it is not disturbed. A task added twice is listed twice next to its first place, and one that was removed and added again goes to the end.
 - **Queue:** the slot is freed before the caller is resolved; aborting a running call resolves it with `undefined` at once; a waiting call that is already aborted when its turn comes is skipped.
 - **Commands:** the bus runs `options.commands?.run ?? callCommand`. A handler bound in the registry wins over the command's own. A missing handler throws `MissingHandlerError` synchronously, also for jobs.
 

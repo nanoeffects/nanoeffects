@@ -72,4 +72,39 @@ describe("store", () => {
 
 		expect(store.get(anyEventType)).toEqual([task]);
 	});
+
+	it("a task that is added twice is listed twice, next to its first place", () => {
+		const store = createStore<Events>();
+		const repeated = () => {};
+		const other = () => {};
+		store.add("a", repeated);
+		store.add("a", other);
+		store.add("a", repeated);
+
+		expect(store.get("a")).toEqual([repeated, repeated, other]);
+	});
+
+	it("a task that is removed and added again goes to the end", () => {
+		const store = createStore<Events>();
+		const first = () => {};
+		const second = () => {};
+		const off = store.add("a", first);
+		store.add("a", second);
+		off();
+		store.add("a", first);
+
+		expect(store.get("a")).toEqual([second, first]);
+	});
+
+	it("tens of thousands of listeners are removed in the order they were added without slowing down", () => {
+		const store = createStore<Events>();
+		const offs = Array.from({ length: 50_000 }, () => store.add("a", () => {}));
+		const start = performance.now();
+		for (const off of offs) {
+			off();
+		}
+
+		expect(store.get("a")).toEqual([]);
+		expect(performance.now() - start).toBeLessThan(500);
+	});
 });
