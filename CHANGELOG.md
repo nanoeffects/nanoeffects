@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1
+
+- **BREAKING:** `nanoeffectsMiddleware` is no longer exported from `nanoeffects/redux`; `createEffectsMiddleware` is the one entry, and its `bus` takes modules, tracing and the rest (`effects.bus.use(...)`).
+
 ## 0.2.0
 
 - **BREAKING:** `registerModules(bus, modules)` is replaced by `bus.use(modulePlugin(modules))`; `bus.use(plugin)` calls a plugin, a function of the bus, and returns what it returns.
@@ -19,4 +23,4 @@ First release.
 - Effects (`nanoeffects/effects`): `retry`, `timeout`, `poll`, `delay`, `take`, `all`, `allSettled`, `race`, `cancellable`, `onAbort`. `retry`, `timeout` and `poll` also wrap a Task, `retry(task, options)`, `timeout(ms, task)`, `poll(ms, task, options)`, so they go into `on(...)` with the policies and run with `ctx.run(...)`; the `ctx`-first calls are unchanged.
 - Actions, commands, jobs and modules (`nanoeffects/actions`). The registry of command handlers is attached to a bus with `createCommands(bus)`; in a module `m.use(...)` brings sub-modules and commands that carry a handler, and `m.handle` gives an explicit handler.
 - Tracing (`nanoeffects/trace`) with Redux DevTools, console and performance loggers, and the `notrace` build.
-- Redux adapters (`nanoeffects/redux`): `createEffectsMiddleware`, `nanoeffectsMiddleware`.
+- Redux adapter (`nanoeffects/redux`): `createEffectsMiddleware`.
