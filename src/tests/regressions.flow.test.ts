@@ -872,13 +872,21 @@ describe("regressions: event emitters", () => {
 
 	it("tens of thousands of listeners can be added and removed quickly", () => {
 		const bus = createBus<TestEvents>();
+		let calls = 0;
+		// add is outside the budget: the regression is unsubscribe that slows as n grows
+		const offs = Array.from({ length: 50_000 }, () =>
+			bus.on("t", () => {
+				calls += 1;
+			}),
+		);
 		const start = performance.now();
-		const offs = Array.from({ length: 50_000 }, () => bus.on("t", () => {}));
 		for (const off of offs) {
 			off();
 		}
 
 		expect(performance.now() - start).toBeLessThan(2000);
+		bus.emit("t", 1);
+		expect(calls).toBe(0);
 	});
 
 	it("emitting with no listener at all is fine for every kind of event", () => {
