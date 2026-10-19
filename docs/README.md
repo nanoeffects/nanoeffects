@@ -1,5 +1,8 @@
 # Documentation
 
+Start with the [Guide](guide.md): from a bare bus to modules, one step at a time. The pages below are the reference.
+
+- [Guide](guide.md)
 - [Policies](policies.md): `latest`, `leading`, `debounce`, `throttle`, `queue`, `key`
 - [Effects and cancellation](effects.md): `retry`, `timeout`, `poll`, `take`, `all`, `allSettled`, `race`, `ctx.on`
 - [Actions, commands, jobs and modules](actions.md)

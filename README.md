@@ -5,27 +5,42 @@
 [![size](https://img.shields.io/bundlephobia/minzip/nanoeffects)](https://bundlephobia.com/package/nanoeffects)
 [![license](https://img.shields.io/npm/l/nanoeffects)](LICENSE)
 
-A typed event bus where every handler is a task with an `AbortSignal`. Policies (`latest`, `debounce`, `throttle`, `queue`) and effects (`retry`, `timeout`, `poll`) are plain functions around the handler.
+A small typed event bus. Handlers are tasks with an `AbortSignal`, and policies (`latest`, `debounce`, `throttle`, `queue`) and effects (`retry`, `timeout`) are plain functions that go straight into `on`.
 
 ```ts
 import { createBus } from "nanoeffects";
-import { retry } from "nanoeffects/effects";
-import { latest } from "nanoeffects/policies";
 
-type Events = { search: string; results: Item[] };
+type Events = { greet: string };
 
 const bus = createBus<Events>();
 
-// a new search aborts the previous one, the request is retried
+const unbind = bus.on("greet", (name) => console.log(`hello ${name}`));
+
+bus.emit("greet", "Ada"); // hello Ada
+unbind(); // `on` returns the unsubscribe function, as in nanoevents
+```
+
+`emit` takes the event as a string, as an object `{ type, payload }` (a Redux action fits as it is), or as a function with a `type`, a command that runs and returns its result:
+
+```ts
+bus.emit("greet", "Ada");
+bus.emit({ type: "greet", payload: "Ada" });
+bus.emit(double, 21); // a command: runs, returns 42
+```
+
+Then the same bus with a policy, no other change:
+
+```ts
+import { latest } from "nanoeffects/policies";
+
+// a newer search aborts the older one
 bus.on(
   "search",
   latest(async (query, ctx) => {
-    const items = await retry(ctx, () => api.search(query, { signal: ctx.signal }));
-    ctx.emit("results", items); // does nothing if the task was aborted
+    const items = await api.search(query, { signal: ctx.signal });
+    ctx.emit("results", items);
   }),
 );
-
-bus.emit("search", "nano");
 ```
 
 - **Tiny.** `createBus` is about 1.2 kB gzip; every other entry is bundled only when imported.
@@ -70,7 +85,7 @@ The event map (`type Events = { name: Payload }`) is optional: `createBus()` tak
 
 ## Docs
 
-[Policies](docs/policies.md) · [Effects](docs/effects.md) · [Actions, commands, modules](docs/actions.md) · [Context fields](docs/context.md) · [Errors](docs/errors.md) · [Tracing](docs/tracing.md) · [Redux, Zustand, MobX](docs/stores.md) · [Observable](docs/observable.md) · [Hot reload](docs/hmr.md) · [Semantics](docs/semantics.md) · [Examples](examples)
+[**Guide**](docs/guide.md) · [Policies](docs/policies.md) · [Effects](docs/effects.md) · [Actions, commands, modules](docs/actions.md) · [Context fields](docs/context.md) · [Errors](docs/errors.md) · [Tracing](docs/tracing.md) · [Redux, Zustand, MobX](docs/stores.md) · [Observable](docs/observable.md) · [Hot reload](docs/hmr.md) · [Semantics](docs/semantics.md) · [Examples](examples)
 
 ## Development
 
