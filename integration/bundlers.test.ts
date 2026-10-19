@@ -111,6 +111,20 @@ beforeAll(() => {
 		JSON.stringify({ name: "app", type: "module" }),
 	);
 	writeFileSync(join(app, "main.js"), entry);
+	// uses the dev entry: what it does shows whether the diagnostics are in the bundle
+	writeFileSync(
+		join(app, "dev.js"),
+		`import { createBus } from "nanoeffects";
+		import { connectDev } from "nanoeffects/dev";
+		export const run = async () => {
+			const bus = createBus();
+			const original = bus.on;
+			const disconnect = connectDev(bus, { maxListeners: 1, log: () => {} });
+			const untouched = bus.on === original;
+			disconnect();
+			return { untouched };
+		};`,
+	);
 	// the same without the entries that have no notrace build: for the size comparison
 	writeFileSync(
 		join(app, "core.js"),
@@ -136,13 +150,19 @@ const viteBundle = async (
 	input: string,
 	name: string,
 	conditions: string[] = [],
+	mode: "production" | "development" = "production",
 ) => {
 	const outDir = join(app, `out-vite-${name}`);
+	// `vite build` picks the production or development condition from NODE_ENV, which Vitest sets to "test"
+	const nodeEnv = process.env.NODE_ENV;
+	process.env.NODE_ENV = mode;
 	await viteBuild({
 		root: app,
+		mode,
 		configFile: false,
 		logLevel: "silent",
-		resolve: { conditions },
+		// an explicit list replaces the defaults of Vite, among them the production or development condition
+		resolve: conditions.length > 0 ? { conditions } : {},
 		build: {
 			outDir,
 			emptyOutDir: true,
@@ -150,6 +170,8 @@ const viteBundle = async (
 			lib: { entry: join(app, input), formats: ["es"], fileName: "bundle" },
 			target: "es2022",
 		},
+	}).finally(() => {
+		process.env.NODE_ENV = nodeEnv;
 	});
 
 	return join(outDir, "bundle.js");
@@ -159,13 +181,14 @@ const webpackBundle = async (
 	input: string,
 	name: string,
 	conditionNames?: string[],
+	mode: "production" | "development" = "production",
 ) => {
 	const outDir = join(app, `out-webpack-${name}`);
 	const stats = await new Promise<webpack.Stats>((resolve, reject) => {
 		webpack(
 			{
 				context: app,
-				mode: "production",
+				mode,
 				entry: join(app, input),
 				target: "node",
 				optimization: { minimize: false },
@@ -256,5 +279,66 @@ describe("webpack", () => {
 		]);
 
 		expect(await runCommonJs(file)).toEqual(expected);
+	});
+});
+
+describe("the dev entry in a bundle", () => {
+	it("Vite, production: connectDev is a no-op and none of the diagnostics are bundled", async () => {
+		const file = await viteBundle("dev.js", "dev-production");
+
+		expect(readFileSync(file, "utf8")).not.toContain("not unsubscribed");
+		expect(await (await importBundle(file)).run()).toEqual({ untouched: true });
+	});
+
+	it("Vite, development: the diagnostics are bundled and connectDev wraps bus.on", async () => {
+		const file = await viteBundle(
+			"dev.js",
+			"dev-development",
+			[],
+			"development",
+		);
+
+		expect(readFileSync(file, "utf8")).toContain("not unsubscribed");
+		expect(await (await importBundle(file)).run()).toEqual({
+			untouched: false,
+		});
+	});
+
+	it("webpack, production: connectDev is a no-op and none of the diagnostics are bundled", async () => {
+		const file = await webpackBundle("dev.js", "dev-production");
+
+		expect(readFileSync(file, "utf8")).not.toContain("not unsubscribed");
+		expect(await runCommonJs(file)).toEqual({ untouched: true });
+	});
+
+	it("webpack, development: the diagnostics are bundled and connectDev wraps bus.on", async () => {
+		const file = await webpackBundle(
+			"dev.js",
+			"dev-development",
+			void 0,
+			"development",
+		);
+
+		expect(readFileSync(file, "utf8")).toContain("not unsubscribed");
+		expect(await runCommonJs(file)).toEqual({ untouched: false });
+	});
+
+	it("an app that does not import the entry has none of it, in either mode", async () => {
+		const viteDevelopment = readFileSync(
+			await viteBundle("core.js", "no-dev-development", [], "development"),
+			"utf8",
+		);
+		const webpackDevelopment = readFileSync(
+			await webpackBundle(
+				"core.js",
+				"no-dev-development",
+				void 0,
+				"development",
+			),
+			"utf8",
+		);
+
+		expect(viteDevelopment).not.toContain("not unsubscribed");
+		expect(webpackDevelopment).not.toContain("not unsubscribed");
 	});
 });

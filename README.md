@@ -67,6 +67,7 @@ ESM only, no dependencies, types included.
 | `nanoeffects/actions`    | `createAction`, `createCommand`, `createJob`, `createModule`, `registerModules` |
 | `nanoeffects/redux`      | `createEffectsMiddleware`, `nanoeffectsMiddleware`                            |
 | `nanoeffects/observable` | `createObserve`: an event as an Observable (RxJS)                             |
+| `nanoeffects/dev`        | `connectDev`: warnings about listeners that pile up and messages about modules; a no-op in production |
 | `nanoeffects/trace`      | `createTracer` and the loggers                                                |
 
 ## The task context
@@ -85,7 +86,7 @@ The event map (`type Events = { name: Payload }`) is optional: `createBus()` tak
 
 ## Docs
 
-[**Guide**](docs/guide.md) · [Policies](docs/policies.md) · [Effects](docs/effects.md) · [Actions, commands, modules](docs/actions.md) · [Context fields](docs/context.md) · [Errors](docs/errors.md) · [Tracing](docs/tracing.md) · [Redux, Zustand, MobX](docs/stores.md) · [Observable](docs/observable.md) · [Hot reload](docs/hmr.md) · [Semantics](docs/semantics.md) · [Examples](examples)
+[**Guide**](docs/guide.md) · [Policies](docs/policies.md) · [Effects](docs/effects.md) · [Actions, commands, modules](docs/actions.md) · [Context fields](docs/context.md) · [Errors](docs/errors.md) · [Tracing](docs/tracing.md) · [Redux, Zustand, MobX](docs/stores.md) · [Observable](docs/observable.md) · [Hot reload and dev diagnostics](docs/hmr.md) · [Semantics](docs/semantics.md) · [Examples](examples)
 
 ## Development
 

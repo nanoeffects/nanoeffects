@@ -21,6 +21,7 @@ export default defineConfig([
 			trace: "src/trace/index.ts",
 			actions: "src/actions/index.ts",
 			redux: "src/store/redux/index.ts",
+			dev: "src/dev/index.ts",
 		},
 		dts: true,
 		clean: true,
@@ -38,6 +39,14 @@ export default defineConfig([
 		outDir: "dist/notrace",
 		define: { __NANOEFFECTS_TRACE__: "false" },
 		dts: true,
+		clean: false,
+	},
+	{
+		// `nanoeffects/dev` as it is in production: a no-op, picked with the `production` export condition
+		...shared,
+		entry: { dev: "src/dev/noop.ts" },
+		outDir: "dist/production",
+		dts: false,
 		clean: false,
 	},
 ]);

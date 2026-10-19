@@ -34,6 +34,7 @@ src/policies/           latest, leading, debounce, throttle, queue, keyed (byKey
 src/actions/            createAction, createCommand(s), createJob, createModule, registerModules
 src/store/redux/        nanoeffectsMiddleware: Redux middleware that emits actions to the bus (no dependency on redux)
 src/observable.ts       createObserve: an event of the bus as a TC39 Observable (entry nanoeffects/observable, no notrace build)
+src/dev/                connectDev: leak warning and module messages; wraps bus.on and app.mount, no dev code in core or actions; `noop.ts` is the production build
 src/trace/              createTracer + loggers (console, performance, recorder, redux devtools)
 src/utils/              onAbort hub, linkedController, delay, setTimer/clearTimer, raceAbort, promise, report
 src/tests/              tests that cross modules (flows, fuzz, scenarios, regressions.*) and test-helpers.ts
@@ -57,6 +58,7 @@ Unit tests sit next to the file they test (`x.ts`, `x.test.ts`).
 - **User fields in the context** are typed through the event map: `type Events = {...} & WithContext<{ store: Store }>` (a type-only symbol key in `src/core/bus.ts`, read by `ContextOf<E>`), filled with `createBus({ context })`, which can also be a function of the task (`ContextOption`); `createEffectsMiddleware` uses the function form to give each task a `store` that knows which task dispatches. `createTask` takes one object, `{ event, bus?, tracer?, parent? }`. Library fields win over them. There is no global interface any more.
 - **Commands are attached to a bus that exists**: `createBus` has no `commands` option. `createCommands(bus, bindings?)` makes the registry and sets `bus.commands`; `registerModules` does it when the bus has none; a custom runner is `bus.commands = { run }`. `emit` reads `bus.commands` each time. `m.use(...)` in a module brings sub-modules and commands that carry a handler (a command is bound to itself); `m.handle` gives an explicit handler. Do not bring the constructor option back.
 - **Modules are known by name**: mounting a module whose name is taken unmounts the old one first (hot reload, see `docs/hmr.md`).
+- **Dev diagnostics are a separate entry, `nanoeffects/dev`**, and are a no-op in production by the `production` export condition (a second build of `src/dev/noop.ts` in `dist/production/`), not by a flag. Core and actions carry no dev code: `connectDev` wraps `bus.on`, `app.mount` and `app.unmount` and `disconnect` restores them.
 - **`onUnhandled`** is called for an event without listeners (not for commands).
 - **Timers use `setTimer`/`clearTimer`** (`src/utils/timer.ts`), never `setTimeout` directly: waits over 2^31 - 1 ms are split, `Infinity` holds no timer, negative or `NaN` is 0.
 - **Options that are `null`** (plain JavaScript callers) fall back to defaults: read options with `??`, not with destructuring defaults.

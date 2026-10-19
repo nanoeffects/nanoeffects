@@ -11,5 +11,5 @@ Start with the [Guide](guide.md): from a bare bus to modules, one step at a time
 - [Tracing](tracing.md): loggers, Redux DevTools, sampling, the `notrace` build
 - [Redux, Zustand, MobX](stores.md)
 - [Observable: events as streams](observable.md): `createObserve` for RxJS and friends
-- [Hot reload](hmr.md)
+- [Hot reload and dev diagnostics](hmr.md): modules replaced by name, `connectDev`
 - [Semantics](semantics.md)

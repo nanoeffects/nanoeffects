@@ -87,6 +87,14 @@
 		"./observable": {
 			"types": "./dist/observable.d.ts",
 			"import": "./dist/observable.js"
+		},
+		"./dev": {
+			"production": {
+				"types": "./dist/dev.d.ts",
+				"default": "./dist/production/dev.js"
+			},
+			"types": "./dist/dev.d.ts",
+			"import": "./dist/dev.js"
 		}
 	},
 	"scripts": {
@@ -162,6 +170,16 @@
 			"name": "observable",
 			"path": "dist/observable.js",
 			"limit": "0.5 kB"
+		},
+		{
+			"name": "dev",
+			"path": "dist/dev.js",
+			"limit": "1 kB"
+		},
+		{
+			"name": "dev (production)",
+			"path": "dist/production/dev.js",
+			"limit": "100 B"
 		}
 	]
 }

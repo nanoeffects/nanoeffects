@@ -6,6 +6,7 @@
 - **BREAKING:** `createBus` has no `commands` option: `createCommands(bus, bindings?)` attaches the registry to a bus and returns it.
 - `m.use(...)` in a module brings commands that carry a handler as well as sub-modules.
 - `retry`, `timeout` and `poll` also wrap a Task, so they go into `on(...)` with the policies and run with `ctx.run(...)`.
+- `nanoeffects/dev`: `connectDev(bus, { app })` warns about listeners that pile up and reports modules that are mounted, replaced and unmounted. In a production build it is a no-op (the `production` export condition).
 - `reduxDevtools` is quiet by default: a task is one action, when it ends (`starts`, `depth`, `maxAge` to change that).
 
 ## 0.1.0
