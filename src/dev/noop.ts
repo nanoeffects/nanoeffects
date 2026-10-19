@@ -1,6 +1,7 @@
-import type { ConnectDev } from "./types";
+import type { DevPlugin } from "./types";
 
 const disconnect = () => {};
+const plugin = () => disconnect;
 
-/** The production build of `connectDev`: it touches nothing and returns a function that does nothing. */
-export const connectDev: ConnectDev = () => disconnect;
+/** The production build of `devPlugin`: a plugin that touches nothing and returns a function that does nothing. */
+export const devPlugin: DevPlugin = () => plugin;

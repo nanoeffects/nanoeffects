@@ -24,7 +24,7 @@ const entry = `
 import { createBus } from "nanoeffects";
 import { debounce, latest, queue, throttle } from "nanoeffects/policies";
 import { all, retry, timeout } from "nanoeffects/effects";
-import { createAction, createModule, registerModules } from "nanoeffects/actions";
+import { createAction, createModule, modulePlugin } from "nanoeffects/actions";
 import { nanoeffectsMiddleware } from "nanoeffects/redux";
 import { createObserve } from "nanoeffects/observable";
 
@@ -46,7 +46,7 @@ export const run = async () => {
 	const both = await all({}, { one: async () => 1, two: async () => 2 });
 	const timed = await timeout({}, 1000, async () => "in time");
 
-	const app = registerModules(bus, [createModule("m", (m) => { m.on("hello", () => seen.push("hello")); })]);
+	const app = bus.use(modulePlugin([createModule("m", (m) => { m.on("hello", () => seen.push("hello")); })]));
 	bus.emit("hello");
 	app.dispose();
 	bus.emit("hello");
@@ -96,12 +96,15 @@ beforeAll(() => {
 		{ cwd: root },
 	)
 		.toString()
-		.trim();
+		.trim()
+		// a lifecycle hook may print before the name (seen on CI with Node 22): the name is the last line
+		.split("\n")
+		.pop();
 	const target = join(app, "node_modules", "nanoeffects");
 	mkdirSync(target, { recursive: true });
 	execFileSync("tar", [
 		"-xzf",
-		join(app, packed),
+		join(app, packed ?? ""),
 		"-C",
 		target,
 		"--strip-components=1",
@@ -115,11 +118,11 @@ beforeAll(() => {
 	writeFileSync(
 		join(app, "dev.js"),
 		`import { createBus } from "nanoeffects";
-		import { connectDev } from "nanoeffects/dev";
+		import { devPlugin } from "nanoeffects/dev";
 		export const run = async () => {
 			const bus = createBus();
 			const original = bus.on;
-			const disconnect = connectDev(bus, { maxListeners: 1, log: () => {} });
+			const disconnect = bus.use(devPlugin({ maxListeners: 1, log: () => {} }));
 			const untouched = bus.on === original;
 			disconnect();
 			return { untouched };
@@ -283,14 +286,14 @@ describe("webpack", () => {
 });
 
 describe("the dev entry in a bundle", () => {
-	it("Vite, production: connectDev is a no-op and none of the diagnostics are bundled", async () => {
+	it("Vite, production: devPlugin is a no-op and none of the diagnostics are bundled", async () => {
 		const file = await viteBundle("dev.js", "dev-production");
 
 		expect(readFileSync(file, "utf8")).not.toContain("not unsubscribed");
 		expect(await (await importBundle(file)).run()).toEqual({ untouched: true });
 	});
 
-	it("Vite, development: the diagnostics are bundled and connectDev wraps bus.on", async () => {
+	it("Vite, development: the diagnostics are bundled and devPlugin wraps bus.on", async () => {
 		const file = await viteBundle(
 			"dev.js",
 			"dev-development",
@@ -304,14 +307,14 @@ describe("the dev entry in a bundle", () => {
 		});
 	});
 
-	it("webpack, production: connectDev is a no-op and none of the diagnostics are bundled", async () => {
+	it("webpack, production: devPlugin is a no-op and none of the diagnostics are bundled", async () => {
 		const file = await webpackBundle("dev.js", "dev-production");
 
 		expect(readFileSync(file, "utf8")).not.toContain("not unsubscribed");
 		expect(await runCommonJs(file)).toEqual({ untouched: true });
 	});
 
-	it("webpack, development: the diagnostics are bundled and connectDev wraps bus.on", async () => {
+	it("webpack, development: the diagnostics are bundled and devPlugin wraps bus.on", async () => {
 		const file = await webpackBundle(
 			"dev.js",
 			"dev-development",

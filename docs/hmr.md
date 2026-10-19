@@ -15,22 +15,22 @@ A `bus.on` outside a module returns the function that unsubscribes: hand it to t
 
 ## `nanoeffects/dev`
 
-`connectDev(bus, { app })` reports what is easy to miss while developing:
+`bus.use(devPlugin({ app }))` reports what is easy to miss while developing:
 
 ```ts
-import { connectDev } from "nanoeffects/dev";
+import { devPlugin } from "nanoeffects/dev";
 
-const app = registerModules(bus, [userModule]);
-connectDev(bus, { app });
+const app = bus.use(modulePlugin([userModule]));
+bus.use(devPlugin({ app }));
 ```
 
 - **Listeners that pile up.** When more than `maxListeners` (default 10) listeners of one event were added and not unsubscribed, one warning names the event and the count: a file that is reloaded and subscribes again, or an unsubscribe that is never called. The count follows the function that `on` returns, and `bus.off(event, fn)` is not seen.
 - **Modules.** With `app` it logs `module "user" mounted`, `replaced` when a module of the same name was mounted, and `unmounted`. Only what goes through `app.mount` and `app.unmount` is reported, not sub-modules.
 - **Options.** `leaks: false` and `modules: false` switch a diagnostic off, `maxListeners` sets the limit, `log` receives the messages instead of the console.
-- **Disconnect.** `connectDev` returns the function that stops the diagnostics and puts `bus.on` and `app.mount` back.
+- **Disconnect.** `bus.use(devPlugin(...))` returns the function that stops the diagnostics and puts `bus.on` and `app.mount` back.
 
 It changes no behavior: it wraps `bus.on`, `app.mount` and `app.unmount` and adds messages.
 
 ### In production
 
-`nanoeffects/dev` is a no-op in a production build. `package.json` maps it to an empty build under the `production` export condition, which Vite and webpack set in production mode, so `connectDev(bus, { app })` can stay without a guard: it touches nothing and costs a few bytes. If you want even the call gone, guard it (`if (import.meta.env.DEV)` in Vite). An app that does not import the entry does not carry it.
+`nanoeffects/dev` is a no-op in a production build. `package.json` maps it to an empty build under the `production` export condition, which Vite and webpack set in production mode, so `bus.use(devPlugin({ app }))` can stay without a guard: it touches nothing and costs a few bytes. If you want even the call gone, guard it (`if (import.meta.env.DEV)` in Vite). An app that does not import the entry does not carry it.

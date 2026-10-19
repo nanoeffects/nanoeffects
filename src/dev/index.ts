@@ -1,2 +1,2 @@
-export { connectDev } from "./connect";
-export type { ConnectDev, DevOptions } from "./types";
+export { devPlugin } from "./plugin";
+export type { DevOptions, DevPlugin } from "./types";

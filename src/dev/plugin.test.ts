@@ -1,18 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
-import { createModule, registerModules } from "../actions";
+import { createModule, modulePlugin } from "../actions";
 import { createBus } from "../core/bus";
 import type { TestEvents } from "../tests/test-helpers";
-import { connectDev } from "./connect";
-import { connectDev as connectNoop } from "./noop";
+import { devPlugin as noopPlugin } from "./noop";
+import { devPlugin } from "./plugin";
 import type { DevOptions } from "./types";
 
 const setup = (options: DevOptions<TestEvents> = {}) => {
 	const messages: string[] = [];
 	const bus = createBus<TestEvents>();
-	const disconnect = connectDev(bus, {
-		log: (m) => messages.push(m),
-		...options,
-	});
+	const disconnect = bus.use(
+		devPlugin({
+			log: (m) => messages.push(m),
+			...options,
+		}),
+	);
 
 	return { bus, messages, disconnect };
 };
@@ -22,7 +24,7 @@ const subscribe = (
 	times: number,
 ) => Array.from({ length: times }, () => bus.on("t", () => {}));
 
-describe("connectDev: listeners that pile up", () => {
+describe("devPlugin: listeners that pile up", () => {
 	it("warns once when more than the limit are added, naming the event and the count", () => {
 		const { bus, messages } = setup({ maxListeners: 10 });
 		subscribe(bus, 11);
@@ -105,16 +107,18 @@ describe("connectDev: listeners that pile up", () => {
 	});
 });
 
-describe("connectDev: modules", () => {
+describe("devPlugin: modules", () => {
 	const withApp = (options: DevOptions<TestEvents> = {}) => {
 		const messages: string[] = [];
 		const bus = createBus<TestEvents>();
-		const app = registerModules(bus);
-		const disconnect = connectDev(bus, {
-			app,
-			log: (m) => messages.push(m),
-			...options,
-		});
+		const app = bus.use(modulePlugin());
+		const disconnect = bus.use(
+			devPlugin({
+				app,
+				log: (m) => messages.push(m),
+				...options,
+			}),
+		);
 
 		return { bus, app, messages, disconnect };
 	};
@@ -189,17 +193,19 @@ describe("connectDev: modules", () => {
 	});
 });
 
-describe("connectDev: options", () => {
+describe("devPlugin: options", () => {
 	it("leaks: false checks no listeners, but reports modules", () => {
 		const messages: string[] = [];
 		const bus = createBus<TestEvents>();
-		const app = registerModules(bus);
-		connectDev(bus, {
-			app,
-			leaks: false,
-			maxListeners: 1,
-			log: (m) => messages.push(m),
-		});
+		const app = bus.use(modulePlugin());
+		bus.use(
+			devPlugin({
+				app,
+				leaks: false,
+				maxListeners: 1,
+				log: (m) => messages.push(m),
+			}),
+		);
 		subscribe(bus, 5);
 		app.mount(createModule<TestEvents>("user", () => {}));
 
@@ -209,13 +215,15 @@ describe("connectDev: options", () => {
 	it("modules: false reports no modules, but checks listeners", () => {
 		const messages: string[] = [];
 		const bus = createBus<TestEvents>();
-		const app = registerModules(bus);
-		connectDev(bus, {
-			app,
-			modules: false,
-			maxListeners: 1,
-			log: (m) => messages.push(m),
-		});
+		const app = bus.use(modulePlugin());
+		bus.use(
+			devPlugin({
+				app,
+				modules: false,
+				maxListeners: 1,
+				log: (m) => messages.push(m),
+			}),
+		);
 		app.mount(createModule<TestEvents>("user", () => {}));
 		subscribe(bus, 2);
 
@@ -235,8 +243,8 @@ describe("connectDev: options", () => {
 		const info = vi.spyOn(console, "info").mockImplementation(() => {});
 		const messages: string[] = [];
 		const bus = createBus<TestEvents>();
-		const app = registerModules(bus);
-		connectDev(bus, { app, maxListeners: 1, log: (m) => messages.push(m) });
+		const app = bus.use(modulePlugin());
+		bus.use(devPlugin({ app, maxListeners: 1, log: (m) => messages.push(m) }));
 		subscribe(bus, 2);
 		app.mount(createModule<TestEvents>("user", () => {}));
 
@@ -251,8 +259,8 @@ describe("connectDev: options", () => {
 		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 		const info = vi.spyOn(console, "info").mockImplementation(() => {});
 		const bus = createBus<TestEvents>();
-		const app = registerModules(bus);
-		connectDev(bus, { app, maxListeners: 1 });
+		const app = bus.use(modulePlugin());
+		bus.use(devPlugin({ app, maxListeners: 1 }));
 		subscribe(bus, 2);
 		app.mount(createModule<TestEvents>("user", () => {}));
 
@@ -263,18 +271,20 @@ describe("connectDev: options", () => {
 	});
 });
 
-describe("connectDev: disconnect", () => {
+describe("devPlugin: disconnect", () => {
 	it("restores bus.on and the app, and reports nothing afterwards", () => {
 		const messages: string[] = [];
 		const bus = createBus<TestEvents>();
-		const app = registerModules(bus);
+		const app = bus.use(modulePlugin());
 		const { on } = bus;
 		const { mount, unmount } = app;
-		const disconnect = connectDev(bus, {
-			app,
-			maxListeners: 1,
-			log: (m) => messages.push(m),
-		});
+		const disconnect = bus.use(
+			devPlugin({
+				app,
+				maxListeners: 1,
+				log: (m) => messages.push(m),
+			}),
+		);
 		expect(bus.on).not.toBe(on);
 		disconnect();
 
@@ -296,7 +306,7 @@ describe("connectDev: disconnect", () => {
 	});
 });
 
-describe("connectDev: behavior is unchanged", () => {
+describe("devPlugin: behavior is unchanged", () => {
 	it("a connected bus delivers events and unsubscribes as a bus does", () => {
 		const { bus } = setup();
 		const seen: number[] = [];
@@ -322,8 +332,8 @@ describe("connectDev: behavior is unchanged", () => {
 
 	it("a connected app mounts, replaces and unmounts modules as before", () => {
 		const bus = createBus<TestEvents>();
-		const app = registerModules(bus);
-		connectDev(bus, { app, log: () => {} });
+		const app = bus.use(modulePlugin());
+		bus.use(devPlugin({ app, log: () => {} }));
 		const seen: string[] = [];
 		const version = (label: string) =>
 			createModule<TestEvents>("user", (moduleContext) => {
@@ -341,17 +351,15 @@ describe("connectDev: behavior is unchanged", () => {
 	});
 });
 
-describe("the production build of connectDev", () => {
+describe("the production build of devPlugin", () => {
 	it("returns a function that does nothing and leaves bus.on and the app untouched", () => {
 		const bus = createBus<TestEvents>();
-		const app = registerModules(bus);
+		const app = bus.use(modulePlugin());
 		const { on } = bus;
 		const { mount, unmount } = app;
-		const disconnect = connectNoop(bus, {
-			app,
-			maxListeners: 1,
-			log: () => {},
-		});
+		const disconnect = bus.use(
+			noopPlugin({ app, maxListeners: 1, log: () => {} }),
+		);
 		subscribe(bus, 5);
 
 		expect(bus.on).toBe(on);
