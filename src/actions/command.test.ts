@@ -24,6 +24,34 @@ const setup = () => {
 
 describe("createCommand", () => {
 	describe("a command with a handler", () => {
+		it("calling the command builds an action and does not run the handler", () => {
+			const handler = vi.fn((value: number) => value * 2);
+			const double = createCommand("math/double", handler);
+
+			expect(double(21)).toEqual({ type: "math/double", payload: 21 });
+			expect(handler).not.toHaveBeenCalled();
+		});
+
+		it("emit of a command call runs the handler and returns its result", () => {
+			const { bus } = setup();
+			const double = createCommand("math/double", (value: number) => value * 2);
+			const seen: number[] = [];
+			bus.on(double, (value) => seen.push(value));
+
+			expect(bus.emit(double(21))).toBe(42);
+			expect(seen).toEqual([21]);
+		});
+
+		it("a plain action of the same type does not run the command", () => {
+			const { bus } = setup();
+			const handler = vi.fn((value: number) => value * 2);
+			const double = createCommand("t", handler);
+			bus.on(double, () => {});
+
+			expect(bus.emit({ type: "t", payload: 21 })).toBeUndefined();
+			expect(handler).not.toHaveBeenCalled();
+		});
+
 		it("emit returns what the handler returns", () => {
 			const { bus } = setup();
 			const double = createCommand("math/double", (value: number) => value * 2);
@@ -135,23 +163,22 @@ describe("createCommand", () => {
 			await expect(second).resolves.toBe("result b");
 		});
 
-		it("calls the handler itself with no bus, with a live context", () => {
-			let aborted: boolean | null = null;
-			const command = createCommand("a/b", (value: number, ctx) => {
-				aborted = ctx.signal.aborted;
-				return value + 1;
-			});
+		it("a contract call builds an action without throwing", () => {
+			const command = createCommand<number, number>("a/b");
 
-			expect(command(1)).toBe(2);
-			expect(aborted).toBe(false);
+			expect(command(1)).toEqual({ type: "a/b", payload: 1 });
 		});
 	});
 
 	describe("a command without a handler", () => {
-		it("throws when called directly", () => {
+		it("throws from emit when nothing is bound, not from the call", () => {
+			const { bus } = setup();
 			const command = createCommand<number, number>("a/b");
 
-			expect(() => command(1)).toThrow('No handler for command "a/b"');
+			expect(command(1)).toEqual({ type: "a/b", payload: 1 });
+			expect(() => bus.emit(command(1))).toThrow(
+				'No handler for command "a/b"',
+			);
 		});
 
 		it("throws from emit when nothing is bound, after telling the listeners", () => {
@@ -244,7 +271,7 @@ describe("createCommand", () => {
 
 			expect(first.bus.emit(command, 1)).toBe(111);
 			expect(second.bus.emit(command, 1)).toBe(1);
-			expect(command(1)).toBe(1);
+			expect(command(1)).toEqual({ type: "a/b", payload: 1 });
 		});
 
 		it("commandsPlugin binds the list it is given", () => {

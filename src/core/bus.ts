@@ -52,17 +52,63 @@ export type EventLike<E extends EventMap> = {
 }[Keys<E>];
 
 /**
- * A typed request for a result. `bus.emit(command, payload)` runs the handler
- * of the command as a task and returns what it returns. Made by
+ * Brands `{ type, payload }` from a command call so `emit` can run the command.
+ * Not enumerable on the object.
+ */
+export const commandCall = Symbol("nanoeffects.commandCall");
+
+/**
+ * What `command(payload)` returns: an action-shaped value that `emit` runs as
+ * that command. A plain `{ type, payload }` without this brand is notify-only.
+ */
+export type CommandCall<P = unknown, R = unknown> = {
+	type: string;
+	payload: P;
+	readonly [commandCall]: Command<P, R>;
+};
+
+/**
+ * A typed request for a result. Calling it builds `{ type, payload }` like
+ * `createAction`; `bus.emit(command(payload))` (or `bus.emit(command, payload)`)
+ * runs the handler as a task and returns what it returns. Made by
  * `createCommand` in `nanoeffects/actions`.
  */
 export type Command<P = never, R = unknown> = {
-	(payload: P, ctx?: never): R;
+	(payload: P): CommandCall<P, R>;
 	readonly type: string;
 	/** Wraps the handler that really runs, e.g. to route its outcome. */
 	readonly wrap?: (
 		run: (payload: never, ctx: never) => unknown,
 	) => (payload: never, ctx: never) => unknown;
+};
+
+/** Builds a branded command call for `emit`. */
+export const makeCommandCall = <P, R>(
+	command: Command<P, R>,
+	type: string,
+	payload: P,
+): CommandCall<P, R> => {
+	const action = { type, payload } as CommandCall<P, R>;
+	Object.defineProperty(action, commandCall, {
+		value: command,
+		enumerable: false,
+	});
+	return action;
+};
+
+/** The command to run for an emit argument, if any. */
+export const commandOf = (
+	event: unknown,
+): Command<never, unknown> | undefined => {
+	if (typeof event === "function") {
+		const loose: unknown = event;
+		return loose as Command<never, unknown>;
+	}
+	if (typeof event === "object" && event !== null && commandCall in event) {
+		const call = event as CommandCall<unknown, unknown>;
+		const loose: unknown = call[commandCall];
+		return loose as Command<never, unknown>;
+	}
 };
 
 /**
@@ -82,15 +128,18 @@ const callCommand: Commands["run"] = (command, payload, ctx) =>
 export type Emittable<E extends EventMap> =
 	| EventKey<E>
 	| Command
+	| CommandCall
 	| EventLike<E>;
 
 export type Emit<E extends EventMap> = {
 	<K extends EventKey<E>>(event: K, ...payload: PayloadOf<E[K]>): void;
+	/** Before Handler: a command is callable too, and must return its result type. */
+	<P, R>(command: Command<P, R>, ...payload: PayloadOf<P>): R;
+	<P, R>(call: CommandCall<P, R>): R;
 	<K extends EventKey<E>, R>(
 		event: Handler<E, R, K>,
 		...payload: PayloadOf<E[K]>
 	): R;
-	<P, R>(command: Command<P, R>, ...payload: PayloadOf<P>): R;
 	(event: EventLike<E>): void;
 };
 
@@ -279,17 +328,18 @@ export const createBus = <Events extends EventMap>(
 		const key = eventKey(event);
 		const data = eventPayload<Events>(event, payload);
 		const action = { type: key, payload: data };
+		const command = commandOf(event);
 
 		const handlers = [...events.get(key), ...events.get(anyEventType)];
 		// a command always has a handler to run, so only events can go unheard
-		if (handlers.length === 0 && typeof event !== "function") {
+		if (handlers.length === 0 && !command) {
 			options.onUnhandled?.(action);
 		}
 		for (const fn of handlers) {
 			callHandler(fn, action);
 		}
 
-		if (typeof event === "function") {
+		if (command) {
 			const { ctx } = createTask({
 				event: action,
 				bus,
@@ -298,14 +348,14 @@ export const createBus = <Events extends EventMap>(
 			});
 			const run = bus.commands?.run ?? callCommand;
 
-			return traceRun(ctx, "command", () => run(event, data, ctx));
+			return traceRun(ctx, "command", () => run(command, data, ctx));
 		}
 	};
 
 	const bus: Bus<Events> = {
 		on,
 		off,
-		emit,
+		emit: emit as Emit<Events>,
 		use: (plugin) => plugin(bus),
 		context: options.context,
 		trace: options.trace,

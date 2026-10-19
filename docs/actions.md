@@ -27,7 +27,7 @@ const loadUser = createJob("user/load", fetchUser, {
 
 **Actions.** `createAction(type)` returns a creator, with no generics: it keeps the literal type, and the bus checks the payload against its event map (`bus.emit(userLoaded(5))` is an error when `"user/loaded"` is a `User`). Without an event map give the payload type, `createAction<User>("user/loaded")`. The creator: `userLoaded(user)` is `{ type, payload }`, `userLoaded.type` is the type, `userLoaded.match(action)` narrows an action. `createAction(type, prepare)` builds the payload from several arguments. A creator works as the event of its type: `bus.emit(userLoaded(user))`, `bus.on(userLoaded, fn)`.
 
-**Commands.** `bus.emit(command, payload)` tells the listeners of the command's type, then runs its handler as a task, with a context, and returns the result. The handler can be wrapped in a policy, `createCommand("search", latest(fn))`. Calling `command(payload)` runs its own handler without a bus. `command.match(action)` tells whether an action has the command's type and narrows it, as `match` of an action creator does.
+**Commands.** Calling a command builds `{ type, payload }` like `createAction`. `bus.emit(command(payload))` (or `bus.emit(command, payload)`) tells the listeners of the command's type, then runs its handler as a task, with a context, and returns the result. The handler can be wrapped in a policy, `createCommand("search", latest(fn))`. `command.match(action)` tells whether an action has the command's type and narrows it, as `match` of an action creator does.
 
 **Where handlers are registered.** The command may carry a handler. The bus gets the handlers bound to commands from a registry, `commandsPlugin`, and a handler bound there wins over the command's own. The registry belongs to one bus, as an effector scope does with `fork({ handlers })`, so each bus (each test) can have its own.
 
@@ -41,14 +41,14 @@ const unbind = commands.handle(getUser, async () => fakeUser); // later, e.g. in
 unbind(); // the command's own handler is back; the latest binding wins
 ```
 
-A command with no handler anywhere throws `No handler for command "..."` from `emit`. The registry lives in `nanoeffects/actions`, so a bus without one carries none of this code; without it `emit(command, payload)` simply runs the command's own handler. `bus.use(commandsPlugin())` sets the registry as `bus.commands`, and a second one on the same bus replaces it. There is no `commands` option in `createBus`; a custom runner is assigned, `bus.commands = { run }`.
+A command with no handler anywhere throws `No handler for command "..."` from `emit` (the call itself only builds the action). The registry lives in `nanoeffects/actions`, so a bus without one carries none of this code; without it `emit` simply runs the command's own handler. `bus.use(commandsPlugin())` sets the registry as `bus.commands`, and a second one on the same bus replaces it. There is no `commands` option in `createBus`; a custom runner is assigned, `bus.commands = { run }`.
 
 **Jobs.** `createJob(type, handler, { success, fail })` makes a command that sends its outcome on as actions, for when nobody waits for the result, and returns the command itself, with the two actions on it: `loadUser.success` and `loadUser.fail`. When the handler succeeds, `loadUser.success(result)` is emitted on the bus, and when it fails, `loadUser.fail(error)`.
 
 - `success` and `fail` are a string, from which the job makes an action creator with `createAction` (the payload is the result, or the error), or an action creator that exists already, which is used and returned as it is. A missing one is made with the type `<type>/success` or `<type>/fail`.
-- `bus.emit(command, payload)` returns a promise of the result. An error of the handler always counts as handled: it goes to `loadUser.fail` and the promise resolves with `undefined`. For a result that must reject, use a command.
+- `bus.emit(loadUser(id))` returns a promise of the result. An error of the handler always counts as handled: it goes to `loadUser.fail` and the promise resolves with `undefined`. For a result that must reject, use a command.
 - The actions are emitted as the task that ran the job, also for a handler bound with `commands.handle`, and are not sent once the task is aborted. A missing handler is not an outcome: `emit` throws `No handler for command "..."`.
-- Calling `command(payload)` directly runs only the handler.
+- Calling the job builds `{ type, payload }` like a command; it does not run the handler until `emit`.
 
 ## Modules
 

@@ -68,17 +68,17 @@ bus.emit(moved({ x: 3, y: 2 })); // what an action creator makes is such an obje
 bus.on(moved, ({ x }) => console.log(x)); // and it names the event in `on` too
 ```
 
-The third way is a function. A function with a `type` is a **command**: `emit` tells the subscribers of its type, then runs it, and **returns what it returns**.
+The third way is a **command**. Calling it builds `{ type, payload }` like an action creator; `emit` tells the subscribers of its type, then runs it, and **returns what it returns**.
 
 ```ts
 import { createAction, createCommand } from "nanoeffects/actions";
 
 const double = createCommand("math/double", (value: number) => value * 2);
 
-bus.emit(double, 21); // 42
+bus.emit(double(21)); // 42
 ```
 
-Strings are for the plain case, objects for actions that other code already makes, functions for requests that need a result.
+Strings are for the plain case, objects for actions that other code already makes, command calls for requests that need a result.
 
 ## 5. A command needs a handler
 
@@ -92,10 +92,10 @@ const getUser = createCommand<string, Promise<User>>("user/get"); // no handler 
 const bus = createBus<Events>();
 const commands = bus.use(commandsPlugin()); // the handlers of this bus
 
-bus.emit(getUser, "1"); // throws: No handler for command "user/get"
+bus.emit(getUser("1")); // throws: No handler for command "user/get"
 
 const unregister = commands.handle(getUser, (id) => api.user(id));
-const user = await bus.emit(getUser, "1"); // what the handler returned
+const user = await bus.emit(getUser("1")); // what the handler returned
 
 unregister(); // the command has no handler again
 ```

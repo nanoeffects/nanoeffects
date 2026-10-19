@@ -99,7 +99,7 @@ export const step4 = () => {
 	bus.emit("moved", { x: 1, y: 2 }); // a string, and the payload next to it
 	bus.emit({ type: "moved", payload: { x: 2, y: 2 } }); // an object, as a Redux action is
 	bus.emit(moved({ x: 3, y: 2 })); // what an action creator makes is such an object
-	seen.push(bus.emit(double, 21)); // a function with a `type`: a command, it runs and returns its result
+	seen.push(bus.emit(double(21))); // a command call: runs on the bus, returns its result
 
 	return seen;
 };
@@ -113,7 +113,7 @@ export const step5 = async () => {
 	const commands = bus.use(commandsPlugin()); // the handlers of this bus
 
 	try {
-		bus.emit(getUser, "1"); // nobody handles it: an error says so
+		bus.emit(getUser("1")); // nobody handles it: an error says so
 	} catch (error) {
 		seen.push((error as Error).message);
 	}
@@ -122,12 +122,12 @@ export const step5 = async () => {
 		id,
 		name: `user ${id}`,
 	}));
-	const user = await bus.emit(getUser, "1"); // the result of the handler
+	const user = await bus.emit(getUser("1")); // the result of the handler
 	seen.push(user.name);
 
 	unregister(); // the handler is gone: the command has none again
 	try {
-		bus.emit(getUser, "1");
+		bus.emit(getUser("1"));
 	} catch (error) {
 		seen.push((error as Error).message);
 	}
@@ -249,8 +249,8 @@ export const step10 = () => {
 
 	const app = bus.use(modulePlugin([greeting]));
 	bus.emit("greet", "Ada");
-	seen.push(bus.emit(getUser, "1") instanceof Promise);
-	seen.push(bus.emit(double, 2));
+	seen.push(bus.emit(getUser("1")) instanceof Promise);
+	seen.push(bus.emit(double(2)));
 	app.unmount(greeting); // everything the module did is undone
 	bus.emit("greet", "Bob");
 

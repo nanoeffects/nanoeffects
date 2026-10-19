@@ -1,5 +1,5 @@
 import type { Bus, Command, Commands, Context } from "../core/bus";
-import { createTask } from "../core/context";
+import { makeCommandCall } from "../core/bus";
 import { eventKey } from "../core/event";
 import type { EventMap, Task, UnsubscribeCallback } from "../core/types";
 
@@ -17,17 +17,18 @@ export type MadeCommand<P, R, T extends string> = Command<P, R> & {
 };
 
 /**
- * Creates a command: a typed request for a result. `bus.emit(command, payload)`
- * runs its handler as a task, with a context, and returns what the handler
- * returns. Listeners of the command's type are told first, as for any event.
+ * Creates a command: a typed request for a result. Calling it builds
+ * `{ type, payload }` like `createAction`. `bus.emit(command(payload))` (or
+ * `bus.emit(command, payload)`) runs its handler as a task, with a context, and
+ * returns what the handler returns. Listeners of the command's type are told
+ * first, as for any event.
  *
  * The handler is optional. A command without one is only a contract, and the
  * bus gets its implementation from the `commands` registry (see
  * `commandsPlugin` and `bindHandler`). A handler bound there wins over the one
  * the command was created with, so a test can give a bus its own implementation.
  *
- * A handler can be wrapped in a policy, e.g. `latest(fn)`. Calling the command
- * directly, `command(payload)`, runs its own handler outside of any bus.
+ * A handler can be wrapped in a policy, e.g. `latest(fn)`.
  * `command.match(action)` tells whether an action has the type of the command,
  * as it does for an action creator.
  *
@@ -38,9 +39,9 @@ export type MadeCommand<P, R, T extends string> = Command<P, R> & {
  * );
  * const sendMail = createCommand<Mail, void>("mail/send"); // implemented elsewhere
  *
+ * const bus = createBus<Events>();
  * bus.use(commandsPlugin([bindHandler(sendMail, smtpSend)]));
- * const bus = createBus({ commands });
- * const user = await bus.emit(getUser, "1");
+ * const user = await bus.emit(getUser("1"));
  *
  * commands.handle(getUser, async () => fakeUser); // in a test
  * ```
@@ -54,23 +55,29 @@ export const createCommand = <
 	type: T,
 	handler?: Task<P, E, R>,
 ): MadeCommand<P, R, T> => {
-	const run = (payload: P, ctx?: Context<E>): R => {
-		if (!handler) {
-			throw new MissingHandlerError(`No handler for command "${type}"`);
-		}
-
-		return handler(
-			payload,
-			ctx ?? createTask<E>({ event: { type, payload } }).ctx,
-		);
-	};
-
 	const match = (action: {
 		type: string;
 		payload?: unknown;
 	}): action is { type: T; payload: P } => action.type === type;
 
-	return Object.assign(run, { type, match });
+	// with a context the bus is running it; without, build the call for emit
+	function invoke(payload: P, ctx?: Context<E>) {
+		if (typeof ctx === "object") {
+			if (!handler) {
+				throw new MissingHandlerError(`No handler for command "${type}"`);
+			}
+			return handler(payload, ctx);
+		}
+		return makeCommandCall(command, type, payload);
+	}
+
+	const command = Object.assign(invoke, { type, match }) as MadeCommand<
+		P,
+		R,
+		T
+	>;
+
+	return command;
 };
 
 /** A command (or its type) with the handler to bind to it; `bindHandler` makes one. */
@@ -91,7 +98,14 @@ export type Binding<E extends EventMap = EventMap> = readonly [
 export const bindHandler = <P, R, E extends EventMap>(
 	command: Command<P, R>,
 	fn: Task<P, E, R>,
-): Binding<E> => [command, fn];
+): Binding<E> => {
+	const looseCommand: unknown = command;
+	const looseTask: unknown = fn;
+	return [
+		looseCommand as Command<never, unknown>,
+		looseTask as Task<never, E, unknown>,
+	];
+};
 
 /**
  * The plugin that gives a bus the handlers bound to commands:

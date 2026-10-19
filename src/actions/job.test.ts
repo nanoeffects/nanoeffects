@@ -369,26 +369,32 @@ describe("createJob", () => {
 	});
 
 	describe("direct call", () => {
-		it("runs the handler and returns a promise, with no actions", async () => {
-			const command = createJob("user/load", (id: string) => `user ${id}`);
+		it("builds an action and does not run the handler", () => {
+			const handler = vi.fn((id: string) => `user ${id}`);
+			const command = createJob("user/load", handler);
 			const { success: successAction } = command;
-			const result = command("1");
 
-			expect(result).toBeInstanceOf(Promise);
-			await expect(result).resolves.toBe("user 1");
+			expect(command("1")).toEqual({ type: "user/load", payload: "1" });
+			expect(handler).not.toHaveBeenCalled();
 			expect(successAction.type).toBe("user/load/success");
 		});
 
-		it("rejects when the handler fails", async () => {
-			const command = createJob("user/load", failing);
+		it("emit of the call runs the job and routes success", async () => {
+			const { bus } = setup();
+			const command = createJob("user/load", (id: string) => `user ${id}`);
+			const handler = vi.fn();
+			bus.on(command.success, handler);
 
-			await expect(command(void 0)).rejects.toThrow("boom");
+			await expect(bus.emit(command("1"))).resolves.toBe("user 1");
+			expect(handler).toHaveBeenCalledWith("user 1", expect.anything());
 		});
 
-		it("throws when there is no handler", () => {
+		it("a contract job call builds an action; emit throws with no handler", () => {
+			const { bus } = setup();
 			const command = createJob<string, string>("user/load");
 
-			expect(() => command("1")).toThrow("No handler");
+			expect(command("1")).toEqual({ type: "user/load", payload: "1" });
+			expect(() => bus.emit(command("1"))).toThrow("No handler");
 		});
 	});
 

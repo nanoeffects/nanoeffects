@@ -44,7 +44,7 @@ export const userModule = createModule<Events>("user", (m) => {
 const bus = createBus<Events>();
 const app = bus.use(modulePlugin([userModule]));
 
-export const user = bus.emit(getUser, "1"); // answered by the handler of the module
+export const user = bus.emit(getUser("1")); // answered by the handler of the module
 export const unmount = app.mount(
 	createModule<Events>("audit", (m) => {
 		m.on(userLoaded, (loaded) => console.log("audit", loaded.id));

@@ -20,12 +20,12 @@ bus.emit("greet", "Ada"); // hello Ada
 unbind(); // `on` returns the unsubscribe function, as in nanoevents
 ```
 
-`emit` takes the event as a string, as an object `{ type, payload }` (a Redux action fits as it is), or as a function with a `type`, a command that runs and returns its result:
+`emit` takes the event as a string, as an object `{ type, payload }` (a Redux action fits as it is), or as what a creator returns — including a command call, which runs and returns its result:
 
 ```ts
 bus.emit("greet", "Ada");
 bus.emit({ type: "greet", payload: "Ada" });
-bus.emit(double, 21); // a command: runs, returns 42
+bus.emit(double(21)); // a command: runs, returns 42
 ```
 
 Then the same bus with a policy, no other change:

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **BREAKING:** Calling a command or job, `command(payload)`, builds `{ type, payload }` like `createAction` and no longer runs the handler. Use `bus.emit(command(payload))` (or still `bus.emit(command, payload)`) for the result.
 - Removing listeners no longer slows down as their number grows: unsubscribing 50 000 listeners in the order they were added took seconds and now takes milliseconds.
 
 ## 0.3.0

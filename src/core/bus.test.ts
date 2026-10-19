@@ -5,7 +5,7 @@ import {
 	deferred,
 	type TestEvents,
 } from "../tests/test-helpers";
-import { anyEventType, createBus } from "./bus";
+import { anyEventType, type Command, createBus, makeCommandCall } from "./bus";
 
 describe("bus", () => {
 	describe("emit and on", () => {
@@ -804,7 +804,15 @@ describe("onUnhandled", () => {
 	it("is not called for a command, which runs its own handler", () => {
 		const onUnhandled = vi.fn();
 		const bus = createBus<Events>({ onUnhandled });
-		const command = Object.assign((value: number) => value, { type: "double" });
+		function invoke(value: number, ctx?: unknown) {
+			if (typeof ctx === "object") {
+				return value * 2;
+			}
+			return makeCommandCall(command, "double", value);
+		}
+		const command = Object.assign(invoke, {
+			type: "double",
+		}) as Command<number, number>;
 		bus.emit(command, 3);
 
 		expect(onUnhandled).not.toHaveBeenCalled();

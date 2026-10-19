@@ -587,13 +587,12 @@ describe("a job", () => {
 		expectTypeOf(successAction).toEqualTypeOf(loaded);
 	});
 
-	it("a command or a plain object as a target is an error", () => {
+	it("a plain object as a target is an error", () => {
 		const wrongCalls = () => {
-			const show = createCommand("ui/show", (_: Item) => {});
-			// @ts-expect-error a target is a string or an action creator
-			createJob("item/load", fetchItem, { success: show });
-			// @ts-expect-error a plain action object is not a target either
-			createJob("item/load", fetchItem, { fail: { type: "item/failed" } });
+			createJob("item/load", fetchItem, {
+				// @ts-expect-error a plain action object is not a target
+				fail: { type: "item/failed" },
+			});
 		};
 		expectTypeOf(wrongCalls).toBeFunction();
 	});

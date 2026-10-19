@@ -1,4 +1,5 @@
 import type { Context } from "../core/bus";
+import { makeCommandCall } from "../core/bus";
 import type { EventMap, Task } from "../core/types";
 import { type ActionCreator, createAction } from "./action";
 import {
@@ -65,13 +66,13 @@ export type Job<
  * is used and returned as it is. A missing one is made with the type
  * `<type>/success` or `<type>/fail`.
  *
- * `bus.emit(command, payload)` returns a promise of the result. An error of the
+ * `bus.emit(job(payload))` returns a promise of the result. An error of the
  * handler always counts as handled: it goes to `job.fail` and the promise
  * resolves with `undefined`; a command is the tool for a result that must reject.
  * The actions are emitted as the task that ran the job, also for a handler bound
  * with `commands.handle`, and are skipped once the task is aborted. A missing
  * handler is not an outcome: `emit` throws `MissingHandlerError`. Calling the
- * command directly runs only its handler.
+ * job builds `{ type, payload }` like a command; it does not run the handler.
  *
  * @example
  * ```ts
@@ -81,7 +82,7 @@ export type Job<
  * });
  *
  * bus.on(loadUser.success, (user) => render(user));
- * bus.emit(loadUser, "1"); // loadUser.success(user) or loadUser.fail(error) comes later
+ * bus.emit(loadUser("1")); // loadUser.success(user) or loadUser.fail(error) comes later
  * ```
  */
 export const createJob = <
@@ -125,27 +126,26 @@ export const createJob = <
 		);
 	};
 
-	// with a context (a bus runs it) the outcome is routed; without, only the handler runs
-	const run = (payload: P, ctx?: Context<E>) => {
-		const result = ctx
-			? route(command, payload, ctx)
-			: attempt(() => command(payload));
-
-		return result as Promise<Awaited<R>>;
-	};
-
 	const wrap =
 		(base: (payload: never, ctx: never) => unknown) =>
 		(payload: never, ctx: never) =>
 			route(base, payload, ctx);
 
-	const job = Object.assign(run, {
+	// with a context the bus is running it; without, build the call for emit
+	function invoke(payload: P, ctx?: Context<E>) {
+		if (typeof ctx === "object") {
+			return route(command, payload, ctx);
+		}
+		return makeCommandCall(job, type, payload);
+	}
+
+	const job = Object.assign(invoke, {
 		type,
 		match: command.match,
 		wrap,
 		success: successAction,
 		fail: failAction,
-	});
+	}) as Job<P, R, T, S, F>;
 
-	return job as Job<P, R, T, S, F>;
+	return job;
 };
