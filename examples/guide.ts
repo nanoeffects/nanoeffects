@@ -179,21 +179,35 @@ export const step7 = () => {
 	return bus;
 };
 
-// 8. The first effects: retry and timeout; `ctx` goes first
+// 8. The first effects: retry and timeout wrap a handler, like a policy
+const searchTask = (query: string, { signal }: { signal: AbortSignal }) =>
+	api.search(query, { signal });
+
 export const step8 = () => {
 	const bus = createBus<Events>();
 
+	// 5 seconds for each try, up to 3 tries, and a newer query supersedes the whole thing
+	bus.on("typed", latest(retry(timeout(5000, searchTask), { times: 3 })));
+
+	// to use the result in a handler, `ctx.run` runs the wrapped Task as a child
 	bus.on(
-		"typed",
+		"search",
 		latest(async (query, ctx) => {
-			const items = await retry(
-				ctx,
-				() => timeout(ctx, 5000, ({ signal }) => api.search(query, { signal })),
-				{ times: 3 },
+			const items = await ctx.run(
+				retry(timeout(5000, searchTask), { times: 3 }),
+				query,
 			);
 			ctx.emit("results", items);
 		}),
 	);
+
+	// one call in the middle of a body: `ctx` first
+	bus.on("scroll", async (_position, ctx) => {
+		const items = await retry(ctx, () =>
+			api.search("more", { signal: ctx.signal }),
+		);
+		void items;
+	});
 
 	return bus;
 };

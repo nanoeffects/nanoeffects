@@ -1,5 +1,7 @@
+import type { Context } from "../core/bus";
+import type { EventMap, Task } from "../core/types";
 import { clearTimer, onAbort, setTimer, type Timer } from "../utils";
-import { runTraced, withGroup } from "./group";
+import { bodyOf, runTraced, withGroup } from "./group";
 
 export type PollOptions = {
 	/** Also call `fn` at once, not only after the first `ms`. Default `false`. */
@@ -11,33 +13,12 @@ export type PollOptions = {
 	waitForFn?: boolean;
 };
 
-/**
- * Calls `fn` every `ms`, like patronum `interval`: the first call comes after
- * `ms` (with `leading` also at once), and the next ticks keep a steady rate
- * whatever the duration of `fn`, so a slow `fn` may overlap with the next call
- * (`waitForFn` starts each pause when the call ends instead). `fn` gets the
- * number of the call, starting at 0.
- *
- * `ms` can be a function of the number of the call that the pause leads to, for
- * a growing or random pause: `(call) => Math.min(1000 * 2 ** call, 60_000)`.
- *
- * It stops when `ctx` aborts: the result then resolves, it does not reject, and
- * the pending timer is cleared. If a call throws, polling stops and the result
- * rejects.
- *
- * @example
- * ```ts
- * bus.on("watch", async (_, ctx) => {
- *   await poll(ctx, () => refresh(), 5000);
- *   cleanup(); // the task was aborted
- * });
- * ```
- */
-export const poll = (
+// What `poll` does for both of its forms: `call` runs one call in the context of its own
+const pollBody = (
 	ctx: { signal: AbortSignal },
-	fn: (tick: number) => unknown,
+	call: (child: Context<EventMap>, tick: number) => unknown,
 	ms: number | ((call: number) => number),
-	options: PollOptions = {},
+	options: PollOptions,
 ): Promise<void> => {
 	if (ctx.signal.aborted) {
 		return Promise.resolve();
@@ -75,11 +56,11 @@ export const poll = (
 					if (!waitForFn) {
 						schedule(started + 1);
 					}
-					call();
+					callOnce();
 				};
-				const call = () => {
+				const callOnce = () => {
 					const tick = started++;
-					runTraced(group, () => fn(tick)).then(
+					runTraced(group, (child) => call(child, tick)).then(
 						() => {
 							if (waitForFn && !group.signal.aborted) {
 								schedule(started);
@@ -94,7 +75,7 @@ export const poll = (
 
 				onAbort(group, stop);
 				if (leading) {
-					call();
+					callOnce();
 					if (!waitForFn) {
 						schedule(started);
 					}
@@ -108,3 +89,61 @@ export const poll = (
 		}
 	});
 };
+
+/**
+ * Calls a function every `ms`, like patronum `interval`: the first call comes
+ * after `ms` (with `leading` also at once), and the next ticks keep a steady
+ * rate whatever the duration of the function, so a slow one may overlap with
+ * the next call (`waitForFn` starts each pause when the call ends instead). An
+ * error stops the polling and rejects; an abort of the caller ends it without
+ * an error and clears the timer. Two forms:
+ *
+ * - `poll(ms, task, options)` wraps a Task `(payload, ctx) => result` and
+ *   returns a Task. Each call gets a context of its own, a child of the
+ *   caller's: `bus.on("watch", poll(10_000, refresh))`.
+ * - `poll(ctx, fn, ms, options)` is for one call inside a body; `fn` gets the
+ *   number of the call, starting at 0.
+ *
+ * `ms` can be a function of the number of the call that the pause leads to, for
+ * a growing or random pause: `(call) => Math.min(1000 * 2 ** call, 60_000)`.
+ *
+ * @example
+ * ```ts
+ * bus.on("watch", poll(10_000, (_, { signal }) => refresh({ signal })));
+ *
+ * bus.on("watch", async (_, ctx) => {
+ *   await poll(ctx, () => refresh(), 10_000);
+ * });
+ * ```
+ */
+type PollMs = number | ((call: number) => number);
+
+export function poll<P, E extends EventMap, R>(
+	ms: PollMs,
+	task: Task<P, E, R>,
+	options?: PollOptions,
+): Task<P, E, Promise<void>>;
+export function poll(
+	ctx: { signal: AbortSignal },
+	fn: (tick: number) => unknown,
+	ms: PollMs,
+	options?: PollOptions,
+): Promise<void>;
+export function poll(
+	first: PollMs | { signal: AbortSignal },
+	second: Task<unknown, EventMap, unknown> | ((tick: number) => unknown),
+	third?: PollMs | PollOptions,
+	fourth: PollOptions = {},
+): unknown {
+	if (typeof first !== "object") {
+		const task = second as Task<unknown, EventMap, unknown>;
+		const options = (third ?? {}) as PollOptions;
+
+		return (payload: unknown, ctx: Context<EventMap>) =>
+			pollBody(ctx, bodyOf(task, payload), first, options);
+	}
+	const fn = second as (tick: number) => unknown;
+	const ms = third as PollMs;
+
+	return pollBody(first, (_, tick) => fn(tick), ms, fourth);
+}

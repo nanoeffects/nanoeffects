@@ -1,6 +1,6 @@
 import type { Context } from "../core/bus";
 import { createSettle, forkTask, traceRun, traceTask } from "../core/context";
-import type { EffectName, EventMap } from "../core/types";
+import type { EffectName, EventMap, Task } from "../core/types";
 import { onAbort, raceAbort } from "../utils";
 
 /**
@@ -37,16 +37,31 @@ export const withGroup = async <T>(
 	}
 };
 
-/** Runs `fn` as a traced `run` child of `group`. */
+/** Runs `fn` as a traced `run` child of `group`; `fn` gets the context of that child. */
 export const runTraced = async <T>(
 	group: Context<EventMap>,
-	fn: () => T | PromiseLike<T>,
+	fn: (child: Context<EventMap>) => T | PromiseLike<T>,
 ): Promise<T> => {
 	const { ctx, unlink } = forkTask(group);
 
 	try {
-		return await traceRun(ctx, "run", fn);
+		return await traceRun(ctx, "run", () => fn(ctx));
 	} finally {
 		unlink();
 	}
 };
+
+/**
+ * A child task has the bus of its parent, so it is a `Context<E>` for the
+ * events `E` that the parent was a context of; the types of a group do not
+ * carry `E`.
+ */
+export const asContextOf = <E extends EventMap>(
+	child: Context<EventMap>,
+): Context<E> => child as Context<E>;
+
+/** The body of a Task form: calls `task` with the payload and the context of the child it is given. */
+export const bodyOf =
+	<R>(task: Task<unknown, EventMap, R>, payload: unknown) =>
+	(child: Context<EventMap>) =>
+		task(payload, asContextOf(child));

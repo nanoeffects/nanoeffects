@@ -14,6 +14,10 @@ declare const api: {
 	search(query: string, options: { signal: AbortSignal }): Promise<Item[]>;
 };
 
+// one try of the search; its signal ends it when a newer search comes or the time is up
+const searchTask = (query: string, { signal }: { signal: AbortSignal }) =>
+	api.search(query, { signal });
+
 export const bus = createBus<Events>({
 	onUnhandled: ({ type }) => console.warn(`Nobody listens to "${type}"`),
 });
@@ -24,10 +28,12 @@ bus.on(
 	debounce(
 		300,
 		latest(async (query, ctx) => {
-			const items = await retry(
-				ctx,
-				() => timeout(ctx, 5000, ({ signal }) => api.search(query, { signal })),
-				{ times: 3, delay: (attempt) => 2 ** attempt * 100 },
+			const items = await ctx.run(
+				retry(timeout(5000, searchTask), {
+					times: 3,
+					delay: (attempt) => 2 ** attempt * 100,
+				}),
+				query,
 			);
 			ctx.emit("results", items);
 		}),

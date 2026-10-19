@@ -33,8 +33,9 @@ export const startStarters = (group: Context<EventMap>, effects: Starters) => {
 			signal: child.ctx.signal,
 			abort: child.ctx.abort,
 		};
+		const start = () => starter(ctx);
 		const task = new Promise((resolve) =>
-			resolve(traceRun(child.ctx, "run", () => starter(ctx))),
+			resolve(traceRun(child.ctx, "run", start)),
 		).finally(child.unlink);
 
 		return { key, task, cancel: child.ctx.abort };

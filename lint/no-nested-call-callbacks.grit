@@ -1,0 +1,13 @@
+language js
+
+// () => outer(args, (x) => inner(x)): a callback that calls inside an arrow that calls
+`($params) => $body` where {
+	$body <: `$callee($args)`,
+	$args <: contains `($inner) => $innerBody`,
+	$innerBody <: `$innerCallee($innerArgs)`,
+	register_diagnostic(
+		span = $body,
+		message = "An arrow that calls a function with a callback that also calls one has too many operations on a line. Name the inner function, or give the arrow a block body.",
+		severity = "error"
+	)
+}

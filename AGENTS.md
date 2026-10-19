@@ -63,9 +63,13 @@ Unit tests sit next to the file they test (`x.ts`, `x.test.ts`).
 - **Queue:** the slot is freed before the caller is resolved; aborting a running call resolves it with `undefined` at once; a waiting call that is already aborted when its turn comes is skipped.
 - **Commands:** the bus runs `options.commands?.run ?? callCommand`. A handler bound in the registry wins over the command's own. A missing handler throws `MissingHandlerError` synchronously, also for jobs.
 
+## Changes with OpenSpec
+
+Larger changes are planned with OpenSpec (`openspec/`): `/opsx:propose "idea"` makes a change with `proposal.md`, a spec delta, `design.md` and `tasks.md` under `openspec/changes/<name>/`; planning stops there, and the owner starts `/opsx:apply` when the plan is accepted; `/opsx:archive` moves the delta into `openspec/specs/`. `openspec/config.yaml` holds the project context for the artifacts. `.claude/` and `.agents/` hold the generated commands and skills (`openspec update` refreshes them). Small fixes need no change.
+
 ## Code rules
 
-- **Readability lint (`lint/*.grit`, only for non-test `src`)**: no `as unknown as`, no casts inside call arguments, no two `?.` in one `const`/`let`/`return`, no ternary inside `??`, `||`, `&&`. Name the step or write a helper instead. Biome also limits cognitive complexity to 15 and forbids nested ternaries.
+- **Readability lint (`lint/*.grit`, for `src` and `examples`, not tests)**: no `as unknown as`, no casts inside call arguments, no two `?.` in one `const`/`let`/`return`, no ternary inside `??`, `||`, `&&`, and no arrow that calls a function with a callback that also calls one (`() => timeout(ctx, 5000, ({ signal }) => api.search(q, { signal }))`: too many operations on a line). Name the inner function or the step, or write a helper instead. The rule is about the shape, so keep the same care in docs and tests. Biome also limits cognitive complexity to 15 and forbids nested ternaries.
 - **No `undefined` identifier** (`noRestrictedGlobals`): use `void 0`, `typeof x === "number"` and the like.
 - **`index.ts` files contain only re-exports.**
 - **Few extra types**, but add one where a signature gets hard to read (`Binding`, `Emittable`, `ModuleApi`). Do not make the code general ("implement" is too wide a name; name things by what they do).

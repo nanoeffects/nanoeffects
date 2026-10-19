@@ -57,6 +57,7 @@
 		{
 			"includes": [
 				"src/**",
+				"examples/**",
 				"!**/*.test.ts",
 				"!src/tests/test-helpers.ts",
 				"!src/lodash.d.ts"
@@ -65,7 +66,8 @@
 				"./lint/no-double-cast.grit",
 				"./lint/no-cast-in-arguments.grit",
 				"./lint/no-long-optional-chain.grit",
-				"./lint/no-ternary-operand.grit"
+				"./lint/no-ternary-operand.grit",
+				"./lint/no-nested-call-callbacks.grit"
 			]
 		},
 		{

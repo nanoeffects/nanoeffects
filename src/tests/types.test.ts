@@ -407,3 +407,76 @@ describe("an action without generics", () => {
 		}
 	});
 });
+
+describe("effects as Tasks", () => {
+	type Item = { id: number };
+	const api = {
+		search: async (
+			_query: string,
+			_options: { signal: AbortSignal },
+		): Promise<Item[]> => [],
+	};
+	type Events = { search: string; scroll: number; results: Item[] };
+	const typed = createBus<Events>();
+	const search = async (query: string, { signal }: { signal: AbortSignal }) =>
+		api.search(query, { signal });
+
+	it("retry, timeout and poll in on(...) infer the payload and the context from the event", () => {
+		typed.on(
+			"search",
+			latest(
+				retry(
+					timeout(5000, (query, ctx) => {
+						expectTypeOf(query).toEqualTypeOf<string>();
+						expectTypeOf(ctx).toEqualTypeOf<Context<Events>>();
+						return api.search(query, { signal: ctx.signal });
+					}),
+					{ times: 3 },
+				),
+			),
+		);
+		typed.on(
+			"scroll",
+			poll(1000, (position, ctx) => {
+				expectTypeOf(position).toEqualTypeOf<number>();
+				expectTypeOf(ctx.signal).toEqualTypeOf<AbortSignal>();
+			}),
+		);
+	});
+
+	it("a wrapped Task is a Task: it goes through ctx.run and gives its result", () => {
+		typed.on("search", async (query, ctx) => {
+			const items = await ctx.run(retry(search), query);
+			expectTypeOf(items).toEqualTypeOf<Item[]>();
+
+			const guarded = await ctx.run(timeout(100, search), query);
+			expectTypeOf(guarded).toEqualTypeOf<Item[]>();
+		});
+	});
+
+	it("the ctx form is unchanged", () => {
+		typed.on("search", async (query, ctx) => {
+			const items = await retry(ctx, () =>
+				api.search(query, { signal: ctx.signal }),
+			);
+			expectTypeOf(items).toEqualTypeOf<Item[]>();
+
+			const text = await timeout(ctx, 100, async () => "text");
+			expectTypeOf(text).toEqualTypeOf<string>();
+
+			expectTypeOf(poll(ctx, () => {}, 100)).resolves.toBeVoid();
+		});
+	});
+
+	it("wrong calls are errors", () => {
+		const wrongCalls = () => {
+			// @ts-expect-error the options of retry have no such field
+			retry(search, { time: 3 });
+			// @ts-expect-error the limit is a number
+			timeout("100", search);
+			// @ts-expect-error the pause is a number or a function
+			poll("100", search);
+		};
+		expectTypeOf(wrongCalls).toBeFunction();
+	});
+});

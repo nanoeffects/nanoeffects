@@ -1,25 +1,15 @@
+import type { Context } from "../core/bus";
 import { forkTask, traceRun } from "../core/context";
-import type { EventMap } from "../core/types";
+import type { EventMap, Task } from "../core/types";
 import { clearTimer, raceAbort, setTimer } from "../utils";
-import { withGroup } from "./group";
+import { bodyOf, withGroup } from "./group";
 import type { Starter } from "./run";
 
-/**
- * Runs `starter`; if it takes longer than `ms`, aborts its signal and rejects
- * with a `TimeoutError` (a `DOMException`, like `AbortSignal.timeout`), even
- * if the starter ignores the signal. If `ctx` aborts, rejects with its reason.
- *
- * @example
- * ```ts
- * bus.on("load", async (id, ctx) => {
- *   const data = await timeout(ctx, 5000, ({ signal }) => fetchData(id, { signal }));
- * });
- * ```
- */
-export const timeout = <T>(
+// What `timeout` does for both of its forms: `run` gets the child that the time limit aborts
+const timeoutBody = <T>(
 	ctx: { signal?: AbortSignal },
 	ms: number,
-	starter: Starter<T>,
+	run: (child: Context<EventMap>) => T | PromiseLike<T>,
 ): Promise<T> =>
 	withGroup("timeout", ctx, async (group) => {
 		const child = forkTask<EventMap>(group);
@@ -33,11 +23,7 @@ export const timeout = <T>(
 
 		try {
 			return await raceAbort(
-				Promise.resolve(
-					traceRun(child.ctx, "run", () =>
-						starter({ signal: child.ctx.signal, abort: child.ctx.abort }),
-					),
-				),
+				Promise.resolve(traceRun(child.ctx, "run", () => run(child.ctx))),
 				child.ctx,
 			);
 		} finally {
@@ -45,3 +31,52 @@ export const timeout = <T>(
 			child.unlink();
 		}
 	});
+
+/**
+ * Runs a function; if it takes longer than `ms`, aborts its signal and rejects
+ * with a `TimeoutError` (a `DOMException`, like `AbortSignal.timeout`), even if
+ * it ignores the signal. If the caller aborts, rejects with its reason. Two
+ * forms:
+ *
+ * - `timeout(ms, task)` wraps a Task `(payload, ctx) => result` and returns a
+ *   Task. The Task gets a context of its own whose `signal` the time limit
+ *   aborts: `bus.on("load", latest(timeout(5000, load)))`.
+ * - `timeout(ctx, ms, starter)` is for one call inside a body; `starter` gets
+ *   `{ signal, abort }`.
+ *
+ * @example
+ * ```ts
+ * bus.on("load", timeout(5000, (id, { signal }) => fetchData(id, { signal })));
+ *
+ * bus.on("load", async (id, ctx) => {
+ *   const data = await timeout(ctx, 5000, ({ signal }) => fetchData(id, { signal }));
+ * });
+ * ```
+ */
+export function timeout<P, E extends EventMap, R>(
+	ms: number,
+	task: Task<P, E, R>,
+): Task<P, E, Promise<Awaited<R>>>;
+export function timeout<T>(
+	ctx: { signal?: AbortSignal },
+	ms: number,
+	starter: Starter<T>,
+): Promise<T>;
+export function timeout(
+	first: number | { signal?: AbortSignal },
+	second: number | Task<unknown, EventMap, unknown>,
+	third?: Starter<unknown>,
+): unknown {
+	if (typeof first === "number") {
+		const task = second as Task<unknown, EventMap, unknown>;
+
+		return (payload: unknown, ctx: Context<EventMap>) =>
+			timeoutBody(ctx, first, bodyOf(task, payload));
+	}
+	const ms = second as number;
+	const starter = third as Starter<unknown>;
+
+	return timeoutBody(first, ms, (child) =>
+		starter({ signal: child.signal, abort: child.abort }),
+	);
+}

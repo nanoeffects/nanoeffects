@@ -150,25 +150,30 @@ More in [policies](policies.md).
 
 ## 8. The first effects
 
-An **effect** is a function you call inside a handler for something an async handler usually needs. They all take `ctx` first, so an abort of the task stops them too.
+An **effect** adds what an async handler usually needs. `retry` and `timeout` wrap a handler the way a policy does, so they go into `on` with the policies and need no `ctx`:
 
 ```ts
 import { retry, timeout } from "nanoeffects/effects";
 
+const search = (query: string, { signal }) => api.search(query, { signal });
+
+// 5 seconds for each try, up to 3 tries, and a newer query supersedes the whole thing
+bus.on("typed", latest(retry(timeout(5000, search), { times: 3 })));
+```
+
+When the handler needs the result, `ctx.run` runs the wrapped function as a child task: it is aborted with the handler, and it is the one place where `ctx` is written.
+
+```ts
 bus.on(
-  "typed",
+  "search",
   latest(async (query, ctx) => {
-    const items = await retry(
-      ctx,
-      () => timeout(ctx, 5000, ({ signal }) => api.search(query, { signal })),
-      { times: 3 },
-    );
+    const items = await ctx.run(retry(timeout(5000, search), { times: 3 }), query);
     ctx.emit("results", items);
   }),
 );
 ```
 
-`timeout` gives the request five seconds, `retry` tries it up to three times, and `latest` aborts the whole thing when a newer query comes.
+For one call in the middle of a handler, the effect takes `ctx` first: `await retry(ctx, () => api.search(q, { signal: ctx.signal }))`. More in [effects](effects.md).
 
 ## 9. Several things at once, and waiting
 

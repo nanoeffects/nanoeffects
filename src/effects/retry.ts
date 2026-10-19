@@ -1,5 +1,7 @@
+import type { Context } from "../core/bus";
+import type { EventMap, Task } from "../core/types";
 import { delay } from "../utils";
-import { runTraced, withGroup } from "./group";
+import { bodyOf, runTraced, withGroup } from "./group";
 
 export type RetryOptions = {
 	/** Total number of attempts, the first one included. Default 3. */
@@ -13,21 +15,6 @@ export type RetryOptions = {
 	shouldRetry?: (error: unknown, attempt: number) => boolean;
 };
 
-/**
- * Calls `fn` until it succeeds or `times` attempts are used, then throws the
- * last error. `fn` gets the number of the attempt, starting at 1. If `ctx`
- * aborts, retrying stops and the result rejects with the abort reason.
- *
- * @example
- * ```ts
- * bus.on("load", async (id, ctx) => {
- *   const user = await retry(ctx, () => fetchUser(id, { signal: ctx.signal }), {
- *     times: 4,
- *     delay: (attempt) => 2 ** attempt * 100,
- *   });
- * });
- * ```
- */
 const pauseFor = (
 	wait: NonNullable<RetryOptions["delay"]>,
 	attempt: number,
@@ -42,27 +29,77 @@ const settingsOf = (options: RetryOptions): Settings => ({
 	shouldRetry: options.shouldRetry ?? (() => true),
 });
 
-export const retry = <T>(
+// What `retry` does for both of its forms: `attempt` runs one try in the context of its own
+const retryBody = <T>(
 	ctx: { signal?: AbortSignal },
-	fn: (attempt: number) => T | PromiseLike<T>,
-	options: RetryOptions = {},
+	attempt: (child: Context<EventMap>, number: number) => T | PromiseLike<T>,
+	options: RetryOptions,
 ): Promise<T> =>
 	withGroup("retry", ctx, async (group) => {
 		const { times, delay: wait, shouldRetry } = settingsOf(options);
 
-		for (let attempt = 1; ; attempt++) {
+		for (let number = 1; ; number++) {
 			try {
-				return await runTraced(group, () => fn(attempt));
+				return await runTraced(group, (child) => attempt(child, number));
 			} catch (error) {
 				group.signal.throwIfAborted();
-				if (attempt >= times || !shouldRetry(error, attempt)) {
+				if (number >= times || !shouldRetry(error, number)) {
 					throw error;
 				}
 
-				const ms = pauseFor(wait, attempt, error);
+				const ms = pauseFor(wait, number, error);
 				if (ms > 0) {
 					await delay(group, ms);
 				}
 			}
 		}
 	});
+
+/**
+ * Calls a function until it succeeds or `times` attempts are used, then throws
+ * the last error. If the caller aborts, retrying stops and the result rejects
+ * with the abort reason. Two forms:
+ *
+ * - `retry(task, options)` wraps a Task `(payload, ctx) => result` and returns
+ *   a Task. Each attempt gets a context of its own, a child of the caller's, so
+ *   it can go straight into `on` and into `ctx.run`:
+ *   `bus.on("load", latest(retry(load, { times: 4 })))`. The number of the
+ *   attempt is not passed; use the other form when it is needed.
+ * - `retry(ctx, fn, options)` is for one call inside a body. `fn` gets the
+ *   number of the attempt, starting at 1.
+ *
+ * @example
+ * ```ts
+ * bus.on("load", latest(retry(loadUser, { times: 4, delay: (attempt) => 2 ** attempt * 100 })));
+ *
+ * bus.on("load", async (id, ctx) => {
+ *   const user = await retry(ctx, () => fetchUser(id, { signal: ctx.signal }), { times: 4 });
+ * });
+ * ```
+ */
+type RetryFn<T> = (attempt: number) => T | PromiseLike<T>;
+
+export function retry<P, E extends EventMap, R>(
+	task: Task<P, E, R>,
+	options?: RetryOptions,
+): Task<P, E, Promise<Awaited<R>>>;
+export function retry<T>(
+	ctx: { signal?: AbortSignal },
+	fn: RetryFn<T>,
+	options?: RetryOptions,
+): Promise<T>;
+export function retry(
+	first: object,
+	second?: RetryOptions | RetryFn<unknown>,
+	third: RetryOptions = {},
+): unknown {
+	if (typeof first === "function") {
+		const task = first as Task<unknown, EventMap, unknown>;
+
+		return (payload: unknown, ctx: Context<EventMap>) =>
+			retryBody(ctx, bodyOf(task, payload), (second as RetryOptions) ?? {});
+	}
+	const fn = second as RetryFn<unknown>;
+
+	return retryBody(first, (_, number) => fn(number), third);
+}
