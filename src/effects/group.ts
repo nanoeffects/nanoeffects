@@ -13,6 +13,8 @@ export const withGroup = async <T>(
 	effect: EffectName,
 	parent: { signal?: AbortSignal | undefined } | undefined,
 	body: (group: Context<EventMap>) => Promise<T>,
+	// called once the group has reported its end, with whether it failed
+	afterSettle?: (failed: boolean) => void,
 ): Promise<T> => {
 	parent?.signal?.throwIfAborted();
 	const { ctx: group, unlink } = forkTask<EventMap>(parent ?? {});
@@ -24,9 +26,11 @@ export const withGroup = async <T>(
 	try {
 		const value = await raceAbort(body(group), parent);
 		settle("done");
+		afterSettle?.(false);
 		return value;
 	} catch (error) {
 		settle("error", error);
+		afterSettle?.(true);
 		throw error;
 	} finally {
 		unlink();

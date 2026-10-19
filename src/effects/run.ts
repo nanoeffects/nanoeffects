@@ -1,6 +1,7 @@
-import { createSettle, forkTask, traceRun, traceTask } from "../core/context";
+import type { Context } from "../core/bus";
+import { forkTask, traceRun } from "../core/context";
 import type { EffectName, EventMap } from "../core/types";
-import { onAbort, raceAbort } from "../utils";
+import { withGroup } from "./group";
 
 /** Context passed into `race` / `all` effect starters. */
 export type EffectContext = {
@@ -22,43 +23,63 @@ export const emptyResult = (effects: Starters): Record<string, unknown> =>
 	>;
 
 /**
- * Starts every starter under one group that follows `parent`; throws
- * `parent.reason` if it is already aborted. `cancelAll` aborts every effect,
- * `unfollowParent` removes the abort listener from `parent`, `settle` reports
- * how the group ended, `until` makes a wait end when `parent` aborts. When
- * `parent` is a bus task, the group (`effect`) and each starter (`run`) are
- * traced.
+ * Starts every starter as a traced `run` child of `group`. `tasks` are their
+ * promises by key, `cancelAll` aborts them all.
  */
-export const startEffects = (
-	effects: Starters,
-	effect: EffectName,
-	parent?: { signal?: AbortSignal },
-) => {
-	parent?.signal?.throwIfAborted();
-	const group = forkTask<EventMap>(parent ?? {});
-	const settle = createSettle(group.ctx, effect);
+export const startStarters = (group: Context<EventMap>, effects: Starters) => {
+	const children = Object.entries(effects).map(([key, starter]) => {
+		const child = forkTask(group);
+		const ctx: EffectContext = {
+			signal: child.ctx.signal,
+			abort: child.ctx.abort,
+		};
+		const task = new Promise((resolve) =>
+			resolve(traceRun(child.ctx, "run", () => starter(ctx))),
+		).finally(child.unlink);
 
-	traceTask(group.ctx, effect, "start");
-	onAbort(group.ctx, () => settle("cancel"));
+		return { key, task, cancel: child.ctx.abort };
+	});
 
 	return {
-		tasks: Object.entries(effects).map(([key, starter]) => {
-			const child = forkTask(group.ctx);
-			const ctx: EffectContext = {
-				signal: child.ctx.signal,
-				abort: child.ctx.abort,
-			};
-
-			return [
-				key,
-				new Promise((resolve) =>
-					resolve(traceRun(child.ctx, "run", () => starter(ctx))),
-				).finally(child.unlink),
-			] as const;
-		}),
-		cancelAll: () => group.ctx.abort(),
-		unfollowParent: group.unlink,
-		settle,
-		until: <T>(work: Promise<T>) => raceAbort(work, parent),
+		tasks: children.map(({ key, task }) => [key, task] as const),
+		cancelAll: () => {
+			for (const child of children) {
+				child.cancel();
+			}
+		},
 	};
+};
+
+/**
+ * What `all`, `allSettled` and `race` share: run the starters as one traced
+ * group of `ctx`, and gather their promises with `gather`. `cancelAfter` tells
+ * when the starters still running are cancelled: when the group failed (`all`),
+ * or whenever it is over (`race`).
+ */
+export const runGroup = <T>(
+	effect: EffectName,
+	ctx: { signal?: AbortSignal },
+	effects: Starters,
+	gather: (
+		tasks: ReadonlyArray<readonly [string, Promise<unknown>]>,
+	) => Promise<T>,
+	cancelAfter: "failure" | "end",
+): Promise<T> => {
+	let cancelAll = () => {};
+
+	return withGroup(
+		effect,
+		ctx,
+		async (group) => {
+			const started = startStarters(group, effects);
+			cancelAll = started.cancelAll;
+
+			return gather(started.tasks);
+		},
+		(failed) => {
+			if (failed || cancelAfter === "end") {
+				cancelAll();
+			}
+		},
+	);
 };

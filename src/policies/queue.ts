@@ -1,7 +1,7 @@
 import { traceRun, traceTask } from "../core/context";
 import type { EventMap, Task } from "../core/types";
 import { onAbort } from "../utils";
-import { byKey, type KeyOption, noop } from "./keyed";
+import { type KeyOption, keyed, noop } from "./keyed";
 
 export type QueueOptions<P = never> = KeyOption<P> & {
 	/** How many calls may run at the same time. Default 1. */
@@ -54,7 +54,7 @@ export const queue = <P, E extends EventMap, R>(
 ): Task<P, E, Promise<Awaited<R> | undefined>> => {
 	const create = (onIdle: () => void) => createQueue(fn, options, onIdle);
 
-	return options.key ? byKey(options.key, create) : create(noop);
+	return keyed(options.key, create);
 };
 
 const createQueue = <P, E extends EventMap, R>(

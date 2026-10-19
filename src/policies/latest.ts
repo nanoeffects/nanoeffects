@@ -2,7 +2,7 @@ import type { Context } from "../core/bus";
 import { createSettle, forkTask, traceTask } from "../core/context";
 import type { EffectName, EventMap, Task } from "../core/types";
 import { isPromise, onAbort } from "../utils";
-import { byKey, type KeyOption, noop } from "./keyed";
+import { type KeyOption, keyed, noop } from "./keyed";
 
 export type LatestOptions<P = never> = KeyOption<P>;
 
@@ -41,7 +41,7 @@ export const latest = <P, E extends EventMap, R>(
 			onIdle,
 		);
 
-	return options.key ? byKey(options.key, create) : create(noop);
+	return keyed(options.key, create);
 };
 
 /**

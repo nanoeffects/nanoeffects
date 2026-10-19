@@ -1,5 +1,5 @@
 import type { Starter, Starters } from "./run";
-import { emptyResult, startEffects } from "./run";
+import { emptyResult, runGroup } from "./run";
 
 const settled = (
 	task: Promise<unknown>,
@@ -39,27 +39,25 @@ export function allSettled<const T extends readonly Starter<unknown>[]>(
 ): Promise<{
 	-readonly [K in keyof T]: PromiseSettledResult<Awaited<ReturnType<T[K]>>>;
 }>;
-export async function allSettled(
+export function allSettled(
 	ctx: { signal?: AbortSignal },
 	effects: Starters,
 ): Promise<unknown> {
-	const run = startEffects(effects, "allSettled", ctx);
+	return runGroup(
+		"allSettled",
+		ctx,
+		effects,
+		async (tasks) => {
+			const outcomes = await Promise.all(
+				tasks.map(([, task]) => settled(task)),
+			);
+			const result = emptyResult(effects);
+			for (const [index, [key]] of tasks.entries()) {
+				result[key] = outcomes[index];
+			}
 
-	try {
-		const outcomes = await run.until(
-			Promise.all(run.tasks.map(([, task]) => settled(task))),
-		);
-		const result = emptyResult(effects);
-		for (const [index, [key]] of run.tasks.entries()) {
-			result[key] = outcomes[index];
-		}
-		run.settle("done");
-		return result;
-	} catch (error) {
-		run.settle("error", error);
-		run.cancelAll();
-		throw error;
-	} finally {
-		run.unfollowParent();
-	}
+			return result;
+		},
+		"failure",
+	);
 }

@@ -42,3 +42,15 @@ export const byKey = <P, E extends EventMap, R>(
 		return instance(payload, ctx);
 	};
 };
+
+/**
+ * A policy with an instance per key when `key` is given, one instance
+ * otherwise. `create` makes an instance; it gets `onIdle`, to be called when
+ * the instance holds nothing any more.
+ *
+ * @internal
+ */
+export const keyed = <P, E extends EventMap, R>(
+	key: ((payload: P) => unknown) | undefined,
+	create: (onIdle: () => void) => Task<P, E, R>,
+): Task<P, E, R> => (key ? byKey(key, create) : create(noop));

@@ -1,7 +1,7 @@
 import { traceRun, traceTask } from "../core/context";
 import type { EventMap, Task } from "../core/types";
 import { after, onAbort } from "../utils";
-import { byKey, type KeyOption, noop } from "./keyed";
+import { type KeyOption, keyed } from "./keyed";
 
 export type LeadingOptions<P = never> = KeyOption<P>;
 
@@ -66,5 +66,5 @@ export const leading = <P, E extends EventMap, R>(
 		};
 	};
 
-	return options.key ? byKey(options.key, create) : create(noop);
+	return keyed(options.key, create);
 };

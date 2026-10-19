@@ -1,5 +1,5 @@
 import type { Starter, Starters } from "./run";
-import { emptyResult, startEffects } from "./run";
+import { emptyResult, runGroup } from "./run";
 
 export type RaceStarter<T> = Starter<T>;
 
@@ -28,33 +28,27 @@ export function race<const T extends readonly RaceStarter<unknown>[]>(
 	ctx: { signal?: AbortSignal },
 	effects: T,
 ): Promise<{ -readonly [K in keyof T]?: Awaited<ReturnType<T[K]>> }>;
-export async function race(
+export function race(
 	ctx: { signal?: AbortSignal },
 	effects: Starters,
 ): Promise<unknown> {
 	const result = emptyResult(effects);
 	if (Object.keys(effects).length === 0) {
-		return result;
+		return Promise.resolve(result);
 	}
 
-	const run = startEffects(effects, "race", ctx);
+	return runGroup(
+		"race",
+		ctx,
+		effects,
+		async (tasks) => {
+			const [key, value] = await Promise.race(
+				tasks.map(([key, task]) => task.then((value) => [key, value] as const)),
+			);
+			result[key] = value;
 
-	try {
-		const [key, value] = await run.until(
-			Promise.race(
-				run.tasks.map(([key, task]) =>
-					task.then((value) => [key, value] as const),
-				),
-			),
-		);
-		result[key] = value;
-		run.settle("done");
-		return result;
-	} catch (error) {
-		run.settle("error", error);
-		throw error;
-	} finally {
-		run.unfollowParent();
-		run.cancelAll();
-	}
+			return result;
+		},
+		"end",
+	);
 }

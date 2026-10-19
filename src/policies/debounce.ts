@@ -1,7 +1,7 @@
 import { traceRun, traceTask } from "../core/context";
 import type { EventMap, Task } from "../core/types";
 import { clearTimer, delay, onAbort, setTimer, type Timer } from "../utils";
-import { byKey, type KeyOption, noop } from "./keyed";
+import { type KeyOption, keyed, noop } from "./keyed";
 import { latestWith } from "./latest";
 
 type DebounceResult<R> =
@@ -44,7 +44,7 @@ export const debounce = <P, E extends EventMap, R>(
 	const create = (onIdle: () => void) =>
 		createDebounce(ms, fn, options, onIdle);
 
-	return options.key ? byKey(options.key, create) : create(noop);
+	return keyed(options.key, create);
 };
 
 // Without a trailing run there is nothing to wait for, so no timer is needed:

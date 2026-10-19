@@ -2,7 +2,7 @@ import type { Context } from "../core/bus";
 import { traceRun, traceTask } from "../core/context";
 import type { EventMap, Task } from "../core/types";
 import { clearTimer, setTimer, type Timer } from "../utils";
-import { byKey, type KeyOption, noop } from "./keyed";
+import { type KeyOption, keyed, noop } from "./keyed";
 
 type Pending<P, E extends EventMap, R> = {
 	payload: P;
@@ -52,7 +52,7 @@ export const throttle = <P, E extends EventMap, R>(
 	const create = (onIdle: () => void) =>
 		createThrottle(ms, fn, options, onIdle);
 
-	return options.key ? byKey(options.key, create) : create(noop);
+	return keyed(options.key, create);
 };
 
 // The algorithm of lodash `debounce` with `maxWait` equal to the wait, which is

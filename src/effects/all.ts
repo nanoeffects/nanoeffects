@@ -1,5 +1,5 @@
 import type { Starter, Starters } from "./run";
-import { emptyResult, startEffects } from "./run";
+import { emptyResult, runGroup } from "./run";
 
 /**
  * Runs all starters; waits for every result. On failure or parent abort, cancels the rest.
@@ -24,27 +24,23 @@ export function all<const T extends readonly Starter<unknown>[]>(
 	ctx: { signal?: AbortSignal },
 	effects: T,
 ): Promise<{ -readonly [K in keyof T]: Awaited<ReturnType<T[K]>> }>;
-export async function all(
+export function all(
 	ctx: { signal?: AbortSignal },
 	effects: Starters,
 ): Promise<unknown> {
-	const run = startEffects(effects, "all", ctx);
+	return runGroup(
+		"all",
+		ctx,
+		effects,
+		async (tasks) => {
+			const values = await Promise.all(tasks.map(([, task]) => task));
+			const result = emptyResult(effects);
+			for (const [index, [key]] of tasks.entries()) {
+				result[key] = values[index];
+			}
 
-	try {
-		const values = await run.until(
-			Promise.all(run.tasks.map(([, task]) => task)),
-		);
-		const result = emptyResult(effects);
-		for (const [index, [key]] of run.tasks.entries()) {
-			result[key] = values[index];
-		}
-		run.settle("done");
-		return result;
-	} catch (error) {
-		run.settle("error", error);
-		run.cancelAll();
-		throw error;
-	} finally {
-		run.unfollowParent();
-	}
+			return result;
+		},
+		"failure",
+	);
 }
