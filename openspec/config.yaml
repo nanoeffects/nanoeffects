@@ -4,7 +4,10 @@ context: |
   Read AGENTS.md first: it holds the decisions that are easy to undo by mistake.
   The size of `createBus` is a feature (1.2 kB brotli): a change that grows
   src/core needs a measured reason. Public API changes need a CHANGELOG entry and
-  an update of docs/ and examples/ (type-checked). Artifacts are written in English.
+  an   update of docs/ and examples/ (type-checked). User docs follow the
+  Documentation section in AGENTS.md (README A–B only, project levels,
+  section gate, JS-first / types only when they pay off). Artifacts are
+  written in English.
 
 rules:
   tasks:

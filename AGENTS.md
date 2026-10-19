@@ -1,6 +1,6 @@
 # nanoeffects: guide for AI assistants and contributors (AGENTS.md)
 
-A typed event bus where each handler is a task with a context (`AbortSignal`, `emit`, `on`, `run`), plus policies (`latest`, `debounce`, `throttle`, `queue`, ...), effects (`retry`, `timeout`, `poll`, `all`, `take`, ...), commands/actions/jobs, modules and tracing. `README.md` is the short entry and `docs/` the user documentation (every example in `examples/` is type-checked with the project through `tsconfig` paths); this file is what you need to change the code without breaking its decisions. The owner talks to you in Russian, in short requests: answer in Russian.
+A typed event bus where each handler is a task with a context (`AbortSignal`, `emit`, `on`, `run`), plus policies (`latest`, `debounce`, `throttle`, `queue`, ...), effects (`retry`, `timeout`, `poll`, `all`, `take`, ...), commands/actions/jobs, modules and tracing. `README.md` is the short entry and `docs/` the user documentation (every example in `examples/` is type-checked with the project through `tsconfig` paths); how to write those pages is in [Documentation](#documentation). This file is what you need to change the code without breaking its decisions. The owner talks to you in Russian, in short requests: answer in Russian.
 
 ## Commands
 
@@ -39,16 +39,106 @@ src/trace/              createTracer + loggers (console, performance, recorder, 
 src/utils/              onAbort hub, linkedController, delay, setTimer/clearTimer, raceAbort, promise, report
 src/tests/              tests that cross modules (flows, fuzz, scenarios, regressions.*) and test-helpers.ts
 integration/            tests with the real libraries and bundlers (own vitest config: vitest.integration.config.ts)
-docs/, examples/        user documentation; examples are type-checked with the project (tsconfig paths map `nanoeffects/*` to `src`)
+docs/, examples/        user documentation (see Documentation); examples are type-checked (tsconfig paths map `nanoeffects/*` to `src`)
 lint/                   GritQL readability rules (see below); excluded from biome's formatter on purpose
 scripts/                notrace-types.mjs (postbuild)
 ```
 
 Unit tests sit next to the file they test (`x.ts`, `x.test.ts`).
 
+## Documentation
+
+Goal: the lowest practical onboarding cost for JavaScript developers. A reader should see what the library is for, install it, and apply it without studying internals. Frame docs by **project level** (what kind of app), not by package surface (every entry / every effect).
+
+**Main principle:** help them start as soon as possible; only reveal the complexity their project level needs. Prefer dropping a section to adding “just in case” content. A full API list helps someone who already knows they need it — it does **not** help a beginner.
+
+**Readability** (how fast a reader finds the answer and finishes the task). Orient to [Microsoft Writing Style Guide](https://learn.microsoft.com/en-us/style-guide/welcome/), [Google developer docs style](https://developers.google.com/style), and [Diátaxis](https://diataxis.fr/) (tutorials / how-to / reference / explanation — do not mix them in one section). Good docs are not “as short as possible”: as simple as the domain allows, detailed enough that the reader does not guess missing steps. Do not judge quality only by sentence length or an automated readability score.
+
+1. **One paragraph, one idea.** Lead with the main point, then detail. Split mixed topics.
+2. **Short sentences.** Prefer simple grammar; break stacked conditions into separate steps (~15–25 words is a useful target for instructions, not a hard cap).
+3. **Lists and tables when they scan better.** Numbered = ordered steps; bullets = independent items; tables = compare options / errors / config. Do not list every sentence.
+4. **Predictable headings.** Name the job (`Configure the Redux middleware`), not a vague noun (`Middleware`). Keep heading levels consecutive.
+5. **Direct language.** Active voice and concrete verbs (`Run`, `Create`, `Configure`, `Verify`). Passive only when the actor is unknown or unimportant.
+6. **Concrete examples.** Real commands / configs; say what to replace, prerequisites, and the expected result. Examples must match the described behavior.
+7. **One term, one meaning.** Define a specialized word on first use; expand abbreviations the audience may not know. Do not rename the same thing for variety (`workspace` vs `project` if they differ in the product).
+8. **Write for scanning.** Important facts first; call out warnings and limits; link related pages; never bury a critical condition at the end of a long paragraph. Descriptive link text (not “click here”).
+9. **Must / should / can stay consistent.** `must` = required; `should` = recommended; `can` / `may` = allowed. Same words, same force, across pages.
+10. **Instructions:** prerequisites before steps; warnings state the risk and how to avoid it; errors state cause, when they happen, and the fix. Drop duplicate prose, but keep a page usable on its own.
+
+### README (strict)
+
+The README is **only** levels **A → B**. Everything else is a link into `docs/`.
+
+1. **Benefit** (what problem it solves) → **Install** → **minimal bus** (`on` / `emit` / unbind) → optionally **one** policy example (`latest` for overlapping async) → short **Docs** jump by *need* → a few value bullets.
+2. **Do not put on the README:** package Entries tables, full `ctx` field tables, every emit shape, command/module tours, full effects lists, long Docs link rows, TypeScript event maps / `WithContext` / generics “to look complete”.
+3. **One example = one job.** No second overlapping demo. No unrelated imports.
+4. **JavaScript-shaped snippets** (no `Events` map unless the README’s job is typing — it is not). `examples/*.ts` may stay typed for `pnpm tsgo`; the README must still read as copy-paste JS.
+5. Before adding a README block: *If a level-A reader removes it, can they still install and run the bus example?* If yes, it does not belong here — link to `docs/` instead.
+
+### Project levels (ask “what project?”, not “what API?”)
+
+| Level | Project shape | First need | Doc entry |
+| ----- | ------------- | ---------- | --------- |
+| **A** | Small app, widget, prototype; rare races | Small bus | README: bus only |
+| **B** | SPA with async UI (search, submit, leave page) | Bus + policies | README → one `latest`; then `docs/policies.md` |
+| **C** | Unreliable network / long flows | Selective effects | One effect per job; full list = reference |
+| **D** | Domain logic off the UI | Commands / jobs / modules | `docs/actions.md` + modules example |
+| **E** | Existing Redux / Zustand / MobX | Integration recipe | `docs/stores.md` |
+| **F** | Long-lived platform needs | Trace, HMR, semantics, entry map | Reference only |
+
+Policies are **B+**, not A. Level **D**: show examples without a UI framework when that is the point.
+
+### Section gate (every page, including README)
+
+1. Which project level is this page for?
+2. Next step for that reader, or a **catalog** (entries, all effects, all `ctx` fields, full Docs dump)?
+3. If we remove it, can A/B still succeed? If yes → reference link, not this page.
+
+### JavaScript first; TypeScript only when it pays off
+
+- **Default: JS.** Show a working plain-JS (or untyped) example first. Add a TypeScript variant only when it is **strictly necessary** — the point of the page is typing, or the reader cannot safely adapt the recipe without the checker.
+- **Never teach with types up front.** Do not open a section or example with `type Events = … & WithContext<…>`; that looks like required app-wide setup. Put types in a trailing “Typing (optional)” block, or omit them.
+- **If a type appears, explain it next to it.** Every `type` / utility (`WithContext`, `Events`, `RootState`, generics) gets a short **what it is** and **why it is here** (usually: “checker only; runtime already does X”). Unexplained type blocks are not allowed.
+- Types **never** wire runtime behavior. `WithContext`, event maps, and generics on `createEffectsMiddleware` do not connect a store “across the app”; middleware / `context: { store }` do.
+- **`examples/*.ts`:** the file may stay `.ts` for `pnpm tsgo`, but the **recipe the reader copies** must match the JS docs path. Quarantine checker-only types in a labeled block with those what/why comments; point at the JS snippet in `docs/` as the primary copy-paste.
+- **Redux recipes:** show RTK (`createSlice` / `createAction` from `@reduxjs/toolkit`) for actions. Do not invent a parallel action layer with `nanoeffects/actions` in store docs — the library’s job there is the middleware and policies.
+
+### New API / new concept
+
+Do not drop a block of unfamiliar calls (`m.on` + `m.handle` + `m.use`, …) without a story. Order: (1) **problem** without it, (2) **when** to use it, (3) **what this call does** and why this shape, (4) code. Prefer one **real case** (feature / screen / domain) over a tour of names. Several methods in one snippet → label each line or introduce one at a time. Method catalogs belong in reference.
+
+### Guide and `docs/`
+
+- Guide = ladder A → B → (C) → D; types late or optional.
+- Reference pages: who/when in the first lines; one minimal example; then the catalog.
+- Describe inputs, result, limits, side effects. Rare options after the base case.
+- Everyday JS wording; explain a specialized term on first use. No duplication of README in `docs/` and vice versa.
+
+### Clarity checklist
+
+What / when? Install? Main action? Result? How to adapt? Where are more options? For a new API: problem, why this call, what if I skip it? For a type block: does this change runtime, or only the checker?
+
+**Readability review:** heading + first lines state the goal; one idea per paragraph; steps in order; terms consistent; example reproducible; prerequisites / limits / errors explicit; no unexplained abbreviations or vague pronouns; page scannable via headings / lists / tables; reader can finish the task without guessing or extra hops.
+
+### Code examples
+
+Correct, current, copy-ready. Common path first. No dead helpers / types / imports. Same naming. State env setup when required. Docs prose: JS fences when the snippet is untyped. `examples/*.ts`: recipe-shaped; checker types quarantined and explained (see above).
+
+**Low cognitive load in code.** One step per line in teaching examples. Do not nest `await` inside another call (`dispatch(fn(await …))`), chain three new APIs on one line, or pack fetch + transform + emit into a single expression. Name the intermediate (`const user = await …; store.dispatch(userLoaded(user))`). Dense one-liners belong in reference for experts, not in README / guide / first recipe.
+
+**Comment nanoeffects calls in the snippet.** Next to each use of a library API (`createBus`, `createEffectsMiddleware`, `latest`, `retry`, `createModule`, …) put a short comment on what it does in this example — even if the prose above already said it. Readers skim code first. Foreign APIs (RTK `createAction`, `configureStore`) may get a one-word tag (`// RTK`) when mixed with ours so the boundary is obvious.
+
+**Names in a snippet must be local.** Every variable, function, or import a reader sees used (`double`, `getUser`, `api`, `bus`, …) is defined in **that same snippet**, or in the immediately preceding snippet on the same page that the text treats as one continuous example. Do not rely on “from an earlier section” for names that are not restated — a reader skimming §9 should not need §7 open. Placeholders (`api.user`) are fine if named as external; invented bindings must appear.
+
+### Readiness
+
+A JS developer who has not read the source can quickly see the purpose, install and run the minimal example, adapt it, and find one further feature without reading every page.
+
+**Non-goal:** docs are not for business analysts. BA tooling is a later product idea, not a documentation requirement.
+
 ## Decisions that are easy to undo by mistake
 
-- **`createBus` stays tiny** (about 1.2 kB gzip). Anything optional goes to another entry: tracing machinery is in `nanoeffects/trace`, commands in `nanoeffects/actions`. The bus only knows two interfaces, `Tracer` and `Commands`. Measure before and after a change to `src/core`: bundle `createBus` with rolldown and gzip it.
+- **`createBus` stays tiny** (about 1.3 kB gzip). Anything optional goes to another entry: tracing machinery is in `nanoeffects/trace`, commands in `nanoeffects/actions`. The bus only knows two interfaces, `Tracer` and `Commands`. Measure before and after a change to `src/core`: bundle `createBus` with rolldown and gzip it.
 - **A plugin is a function of the bus.** `bus.use(plugin)` is one line, `plugin(bus)`, and returns what the plugin returns; modules are `bus.use(modulePlugin(modules))`, and `nanoeffects/dev` is a plugin as well. The bus exposes `context`, `trace` and `commands` for them. There is no list of plugins, no order, no merging of results and no plugin option in `createBus` (`composeBus` was built and removed as too much): do not add them unless the owner asks.
 - **`ctx` is the first argument of every effect** (`retry(ctx, fn, options)`), so `...rest` can follow later. Outside a task pass `{}` or anything with a `signal`.
 - **`emit` is a plain synchronous loop.** The first handler error stops the rest and is thrown, unless `onError` is set; then handlers are isolated. Async rejections are not handled without `onError`.

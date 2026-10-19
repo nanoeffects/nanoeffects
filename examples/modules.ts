@@ -1,12 +1,6 @@
-// Commands and modules: what a domain does, apart from the code that does it.
+// Domain on the bus, no UI: the "user" feature mounts and unmounts as one unit.
 import { createBus } from "nanoeffects";
-import {
-	createAction,
-	createCommand,
-	createJob,
-	createModule,
-	modulePlugin,
-} from "nanoeffects/actions";
+import { createCommand, createModule, modulePlugin } from "nanoeffects/actions";
 
 type User = { id: string; name: string };
 type Events = { "user/loaded": User };
@@ -16,37 +10,20 @@ declare const fetchUser: (
 	options: { signal: AbortSignal },
 ) => Promise<User>;
 
-const userLoaded = createAction("user/loaded"); // the payload type comes from `Events`
-
-// a request for a result: only the contract, the module below says how it is answered
+// createCommand without a handler — contract; the module answers while mounted
 export const getUser = createCommand<string, Promise<User>>("user/get");
-// a job: a command that sends its outcome on as actions; strings make them, a creator is used as it is
-export const loadUser = createJob("user/load", fetchUser, {
-	success: userLoaded,
-	fail: "user/failed",
-});
-// a command that carries its handler: a module only has to bring it
+// createCommand with a handler — m.use only registers it for the module’s life
 export const saveUser = createCommand("user/save", (user: User) => user.id);
 
+// createModule — one feature; unmount undoes handle / use / on
 export const userModule = createModule<Events>("user", (m) => {
-	// registered for as long as the module is mounted, removed with it
 	m.handle(getUser, (id, { signal }) => fetchUser(id, { signal }));
-	m.use(saveUser); // listed, with no handler written again
-	m.on(userLoaded, (user) => console.log(`loaded ${user.name}`));
-	m.spawn(async (_, ctx) => {
-		// background work that ends with the module
-		await new Promise((resolve) =>
-			ctx.signal.addEventListener("abort", resolve),
-		);
-	});
+	m.use(saveUser);
+	m.on("user/loaded", (user) => console.log(`loaded ${user.name}`));
 });
 
 const bus = createBus<Events>();
-const app = bus.use(modulePlugin([userModule]));
+// modulePlugin — mount modules on the bus
+bus.use(modulePlugin([userModule]));
 
-export const user = bus.emit(getUser("1")); // answered by the handler of the module
-export const unmount = app.mount(
-	createModule<Events>("audit", (m) => {
-		m.on(userLoaded, (loaded) => console.log("audit", loaded.id));
-	}),
-);
+export const user = bus.emit(getUser("1"));

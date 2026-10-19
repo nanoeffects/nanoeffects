@@ -1,20 +1,122 @@
 # Effects and cancellation
 
-An abort only raises a flag: your code decides to stop. `nanoeffects/effects` has helpers for the usual cases.
+Use this page for retry, timeouts, waiting, or parallel work — not as the first page for a small bus. Pick **one** helper for your job; the rest is reference.
 
-`delay(ctx, ms)` waits and rejects on abort (`ms` can be a function). `cancellable(ctx, executor)` is a promise tied to the task signal; it works like `new Promise`, but the executor gets one object, `{ resolve, reject, onCancel }`, with `onCancel` for cleanups:
+An abort only raises a flag. Your code decides to stop. Start with `retry` / `timeout` on a handler (see [Guide §5](guide.md#5-add-retry-and-timeout)).
 
-```ts
+## Wrap a handler with retry and timeout
+
+`retry`, `timeout`, and `poll` have two forms:
+
+- **Task wrapper** — take a function `(payload, ctx) => result` and return one. Pass them into `on` next to policies (no `ctx` in their arguments).
+- **Call inside a body** — take `ctx` first.
+
+The first argument tells them apart: a function (`retry`), a number (`timeout`), or a number/function (`poll`) is a wrapper; an object is `ctx`.
+
+```js
+import { createBus } from "nanoeffects";
+import { poll, retry, timeout } from "nanoeffects/effects";
+import { latest } from "nanoeffects/policies";
+
+const bus = createBus();
+const loadUser = (id, { signal }) => fetchUser(id, { signal });
+
+// timeout — one try must finish within 5 s
+const loadOnce = timeout(5000, loadUser);
+// retry — up to 4 attempts with backoff
+const loadWithRetry = retry(loadOnce, {
+  times: 4,
+  delay: (attempt) => 2 ** attempt * 100,
+  shouldRetry: (error) => !isFatal(error),
+});
+// latest — a newer load aborts the older retry chain
+bus.on("load", latest(loadWithRetry));
+
+// poll — call refresh every 10 s until the task aborts
+bus.on("watch", poll(10_000, (_, { signal }) => refresh({ signal })));
+
+// ctx.run — run a wrapped Task as a child (aborted with the handler)
+bus.on("open", async (id, ctx) => {
+  const load = retry(timeout(5000, loadUser));
+  const user = await ctx.run(load, id);
+  ctx.emit("opened", user);
+});
+
+// ctx-first form — one call inside a body
+bus.on("load", async (id, ctx) => {
+  const user = await retry(
+    ctx,
+    () => fetchUser(id, { signal: ctx.signal }),
+    { times: 4 },
+  );
+  const data = await timeout(ctx, 5000, ({ signal }) => {
+    return fetchData(id, { signal });
+  });
+  await poll(ctx, () => refresh(), 10_000);
+  ctx.emit("ready", { user, data });
+});
+```
+
+Use the wrapper for a whole handler or a whole `ctx.run`. Use the `ctx` form for one call in the middle of a body.
+
+Each attempt or call of a wrapper gets its own child context. Abort of the caller reaches it. Abort of one attempt (a timeout) does not reach the caller. The attempt number is passed only in the `ctx` form.
+
+### Options for retry, timeout, and poll
+
+**`retry`**
+
+- `times` — total attempts (default `3`).
+- `delay` — number or `(attempt, error) => ms`.
+- `shouldRetry(error, attempt)` — stop early.
+- `fn` gets the attempt number starting at `1`.
+- On abort, rejects with the abort reason.
+
+**`timeout`**
+
+- Error is a `DOMException` named `TimeoutError` (like `AbortSignal.timeout`).
+- Rejects even if the starter ignores its signal.
+
+**`poll`** (like patronum `interval`)
+
+- First call after `ms`. `leading: true` also calls at once.
+- Next ticks keep a steady rate whatever the duration of `fn`, so a slow `fn` can overlap the next call.
+- `waitForFn: true` starts each pause when the call ends — calls never overlap.
+- `fn` gets the call number from `0`.
+- An error from `fn` stops polling and rejects. An abort ends it normally and clears the timer.
+
+A pause can be a function wherever a time is given (backoff or jitter):
+
+```js
+retry(ctx, load, { times: 5, delay: (attempt) => 2 ** attempt * 100 }); // 200, 400, 800, …
+poll(ctx, refresh, (call) => Math.min(1000 * 2 ** call, 60_000)); // slows to once a minute
+await delay(ctx, () => 200 + Math.random() * 200); // 200–400 ms
+```
+
+All three are traced: the effect is a group (`retry`, `timeout`, `poll`) and each attempt or call is a `run` child.
+
+## Tie a promise to the task signal
+
+`delay(ctx, ms)` waits and rejects on abort (`ms` can be a function).
+
+`cancellable(ctx, executor)` is a promise tied to the task signal. It works like `new Promise`, but the executor gets `{ resolve, reject, onCancel }`.
+
+```js
+import { createBus } from "nanoeffects";
 import { cancellable } from "nanoeffects/effects";
+import { latest } from "nanoeffects/policies";
 
+const bus = createBus();
+
+// cancellable — promise tied to the task signal; onCancel for cleanups
+// latest — a newer wait aborts the older timer
 bus.on(
   "wait",
-  latest((_, ctx) =>
-    cancellable(ctx, ({ resolve, onCancel }) => {
+  latest((_, ctx) => {
+    return cancellable(ctx, ({ resolve, onCancel }) => {
       const timer = setTimeout(resolve, 5000);
       onCancel(() => clearTimeout(timer));
-    }),
-  ),
+    });
+  }),
 );
 ```
 
@@ -22,48 +124,48 @@ bus.on(
 - If the task is already aborted, the executor does not run.
 - After the promise settles, the abort listener is removed and cleanups are dropped.
 
-`onAbort(ctx, fn)` runs `fn(reason)` on abort (at once if already aborted) and returns a function that unsubscribes:
+## Run cleanup on abort
 
-```ts
+`onAbort(ctx, fn)` runs `fn(reason)` on abort (at once if already aborted) and returns a function that unsubscribes.
+
+```js
+import { createBus } from "nanoeffects";
 import { onAbort } from "nanoeffects/effects";
+
+const bus = createBus();
 
 bus.on("connect", (url, ctx) => {
   const socket = new WebSocket(url);
+  // onAbort — run cleanup when this task aborts
   onAbort(ctx, () => socket.close());
 });
 ```
 
-## allSettled
+## Wait for the next event with `take`
 
-`allSettled(ctx, effects)` is `all` that waits for every starter and never fails because of one: each result is `{ status: "fulfilled", value }` or `{ status: "rejected", reason }`, in the shape of the input (object or array). Nothing is cancelled when a starter fails. Only an abort of `ctx` rejects it.
+A task context has `on` and `off`, like the bus. A subscription made with `ctx.on` ends when the task aborts:
 
-```ts
-const { user, posts } = await allSettled(ctx, {
-  user: ({ signal }) => fetchUser(id, { signal }),
-  posts: ({ signal }) => fetchPosts(id, { signal }),
-});
+```js
+import { createBus } from "nanoeffects";
 
-if (user.status === "fulfilled") render(user.value);
-```
+const bus = createBus();
 
-## Subscribing from a task: ctx.on, ctx.off, take
-
-A task context has `on` and `off`, like the bus. A subscription made with `ctx.on` ends when the task aborts, so it cannot outlive the work that needed it:
-
-```ts
 bus.on("watch", (_, ctx) => {
   ctx.on("tick", (n) => console.log(n)); // gone when this task aborts
 });
 ```
 
-- The returned function unsubscribes sooner. After the task is aborted, `ctx.on` does nothing.
-- A policy passes its handler a child context, so under `latest` the subscriptions of a superseded run end with it.
-- `ctx.off` is the bus `off`: `ctx.off(event)` clears every handler of the event, not only the task's.
+- The returned function unsubscribes sooner. After abort, `ctx.on` does nothing.
+- Under `latest`, subscriptions of a superseded run end with that run.
+- `ctx.off(event)` clears every handler of the event on the bus, not only the task’s.
 
 `take(ctx, event, options?)` waits for the next `event` and resolves with its payload:
 
-```ts
+```js
+import { createBus } from "nanoeffects";
 import { take, timeout } from "nanoeffects/effects";
+
+const bus = createBus();
 
 bus.on("login", async (user, ctx) => {
   const reason = await take(ctx, "logout"); // resolves on the next logout
@@ -71,67 +173,44 @@ bus.on("login", async (user, ctx) => {
 
   // wait for a matching event, but not longer than 5 s
   const id = await timeout(ctx, 5000, ({ signal }) =>
-    take(ctx, "saved", { signal, predicate: (id) => id === draft.id }),
+    take(ctx, "saved", { signal, predicate: (savedId) => savedId === draft.id }),
   );
 });
 ```
 
-- It sees only events emitted after the call, takes one, and unsubscribes.
-- `options.predicate` skips payloads it rejects; `options.signal` stops the wait, which is how a `race` or `timeout` starter cancels it.
-- On abort of the task or of `options.signal` it unsubscribes and rejects with the abort reason. It is traced as a `take` group.
+- Sees only events emitted after the call, takes one, and unsubscribes.
+- `options.predicate` skips payloads it rejects.
+- `options.signal` stops the wait (how a `race` or `timeout` starter cancels it).
+- On abort of the task or of `options.signal`, unsubscribes and rejects with the abort reason.
 
-## retry, timeout, poll
+## Run several starters together
 
-These three have two forms. As a **Task wrapper** they take a function `(payload, ctx) => result` and return one, so they go straight into `on`, next to the policies, with no `ctx` in their arguments. As a **call inside a body** they take `ctx` first.
+`all(ctx, effects)` runs starters together. One failure cancels the rest. Shape of the input (object or array) is preserved in the result.
 
-```ts
-import { poll, retry, timeout } from "nanoeffects/effects";
+`allSettled(ctx, effects)` waits for every starter and never fails because of one. Each result is `{ status: "fulfilled", value }` or `{ status: "rejected", reason }`. Nothing is cancelled when a starter fails. Only an abort of `ctx` rejects it.
 
-const loadUser = (id: string, { signal }) => fetchUser(id, { signal });
+```js
+import { createBus } from "nanoeffects";
+import { allSettled } from "nanoeffects/effects";
 
-// wrappers: up to 4 attempts with a backoff, each within 5 s; a newer call supersedes the older
-bus.on(
-  "load",
-  latest(
-    retry(timeout(5000, loadUser), {
-      times: 4,
-      delay: (attempt) => 2 ** attempt * 100,
-      shouldRetry: (error) => !isFatal(error),
-    }),
-  ),
-);
+const bus = createBus();
 
-// calls refresh every 10 s until the task is aborted
-bus.on("watch", poll(10_000, (_, { signal }) => refresh({ signal })));
-
-// a wrapped Task runs as a child of a handler with ctx.run: the only place where ctx is written
 bus.on("open", async (id, ctx) => {
-  const user = await ctx.run(retry(timeout(5000, loadUser)), id);
-});
+  const { user, posts } = await allSettled(ctx, {
+    user: ({ signal }) => fetchUser(id, { signal }),
+    posts: ({ signal }) => fetchPosts(id, { signal }),
+  });
 
-// one call inside a body: ctx first
-bus.on("load", async (id, ctx) => {
-  const user = await retry(ctx, () => fetchUser(id, { signal: ctx.signal }), { times: 4 });
-  const data = await timeout(ctx, 5000, ({ signal }) => fetchData(id, { signal }));
-  await poll(ctx, () => refresh(), 10_000);
+  if (user.status === "fulfilled") {
+    render(user.value);
+  }
 });
 ```
 
-Use the wrapper form for a whole handler or a whole `ctx.run`, and the `ctx` form for one call in the middle of a body. The forms are told apart by the first argument: a function (`retry`), a number (`timeout`), a number or a function (`poll`) is a wrapper; an object is `ctx`. Each attempt or call of a wrapper gets a context of its own, a child of the caller's, so an abort of the caller reaches it and an abort of one attempt (a timeout) does not reach the caller. The attempt number is passed only in the `ctx` form.
+`race(ctx, effects)` settles with the first starter that finishes and cancels the others.
 
-- `retry`: `times` is the total number of attempts (default 3), `delay` is a number or `(attempt, error) => ms`, `shouldRetry(error, attempt)` can stop early. `fn` gets the attempt number, starting at 1. On abort it rejects with the abort reason.
-- `timeout`: the error is a `DOMException` named `TimeoutError`, like `AbortSignal.timeout`. It rejects even if the starter ignores its signal.
-- `poll`: like patronum `interval`. The first call comes after `ms` (`leading: true` also calls at once), and the next ticks keep a steady rate whatever the duration of `fn`, so a slow `fn` can overlap with the next call; `waitForFn: true` starts each pause when the call ends instead, so calls never overlap. `fn` gets the call number from 0. An error from `fn` stops polling and rejects; an abort ends it normally and clears the timer.
-- A pause can be a function wherever a time is given, for backoff or jitter: `retry`'s `delay` gets `(attempt, error)`, `poll`'s `ms` gets the number of the call the pause leads to, and `delay` itself takes a function called once when it starts:
+## Pass `ctx` outside a task
 
-```ts
-retry(ctx, load, { times: 5, delay: (attempt) => 2 ** attempt * 100 }); // 200, 400, 800, ...
-poll(ctx, refresh, (call) => Math.min(1000 * 2 ** call, 60_000)); // slows down to once a minute
-await delay(ctx, () => 200 + Math.random() * 200); // 200 to 400 ms
-```
-
-- All three are traced: the effect is a group (`retry`, `timeout`, `poll`) and each attempt or call is a `run` child.
-
-The other effects wait inside a body, so `ctx` is their first argument: `delay(ctx, ms)`, `all(ctx, effects)`, `allSettled(ctx, effects)`, `race(ctx, effects)`, `cancellable(ctx, executor)`, `onAbort(ctx, fn)`, `take(ctx, event, options)`, and `retry`, `timeout` and `poll` in their `ctx` form. It is required; outside a task pass `{}` or any object with a `signal`.
+Effects that wait inside a body take `ctx` first: `delay`, `all`, `allSettled`, `race`, `cancellable`, `onAbort`, `take`, and the `ctx` forms of `retry` / `timeout` / `poll`. Outside a task, pass `{}` or any object with a `signal`.
 
 For `fetch` and other APIs that take a signal, pass `ctx.signal`. A timeout without `race`: `AbortSignal.any([ctx.signal, AbortSignal.timeout(5000)])`.

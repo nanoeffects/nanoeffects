@@ -1,0 +1,33 @@
+---
+description: Readability and structure for README, docs/, and examples
+globs: README.md,docs/**/*.md,examples/**
+alwaysApply: false
+---
+
+# Docs readability
+
+Full project rules: `AGENTS.md` → **Documentation**. Style anchors: Microsoft Writing Style Guide, Google developer docs style, Diátaxis (do not mix tutorial / how-to / reference / explanation in one section).
+
+## Must
+
+- One paragraph = one idea; lead with the point.
+- Short sentences; split stacked conditions into steps.
+- Numbered lists for ordered steps; bullets for independent items; tables to compare. Do not list every sentence.
+- Headings name the job (`Configure authentication`), not a vague noun (`Authentication`).
+- Active voice; instruction verbs: `Run`, `Create`, `Configure`, `Verify`.
+- Prerequisites before steps; warnings = risk + how to avoid; errors = cause + when + fix.
+- One term per entity; define jargon / expand abbreviations on first use.
+- Scan first: important facts and limits early; descriptive link text (not “click here”).
+- `must` / `should` / `can` with stable meaning across pages.
+- Examples: real, copy-ready, say what to replace and the expected result; match described behavior.
+- As simple as the domain allows — detailed enough that the reader does not guess. Prefer dropping a section to padding.
+
+## Snippets (nanoeffects)
+
+- JS-first; types only when the page teaches typing or inference fails.
+- One job per example; every name used is defined in that snippet (or the continuous block above).
+- Comment each nanoeffects API in the code; one step per line in teaching examples.
+
+## Before merge
+
+Reader can install / run / adapt from this page alone? Critical limits visible without reading every paragraph?

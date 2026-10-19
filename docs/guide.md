@@ -1,30 +1,284 @@
 # Guide
 
-From a bus with two calls to an app with modules, one step at a time. Every step builds on the one before, and the code is in [`examples/guide.ts`](../examples/guide.ts), where it is type-checked and run by a test.
+Climb one step at a time: small bus → policies → effects → commands and modules. Stop when your project has what it needs.
 
-## 1. A bus
+| Your project | Stop after |
+| ------------ | ---------- |
+| Widget / prototype | §1–2 |
+| SPA with async UI | §3–4 |
+| Unreliable network / long flows | §5–6 |
+| Domain logic off the UI | §7–9 |
 
-`on` subscribes, `emit` calls the subscribers, and `on` returns the function that unsubscribes, as in nanoevents.
+Runnable code for every step: [`examples/guide.ts`](../examples/guide.ts).
 
-```ts
+## 1. Create a bus
+
+`on` subscribes. `emit` calls the subscribers. `on` returns the unsubscribe function.
+
+```js
+import { createBus } from "nanoeffects";
+
+const bus = createBus(); // event bus; each handler call is a task
+
+const unbind = bus.on("greet", (name) => {
+  console.log(`hello ${name}`);
+});
+
+bus.emit("greet", "Ada"); // hello Ada
+unbind();
+bus.emit("greet", "Bob"); // nobody listens
+```
+
+Handlers run at once, in subscription order.
+
+## 2. Use the handler context
+
+The second argument is the **task** context for this call. Emit further events through it. Pass `ctx.signal` to `fetch` when you cancel work.
+
+```js
 import { createBus } from "nanoeffects";
 
 const bus = createBus();
 
-const unbind = bus.on("greet", (name) => console.log(`hello ${name}`));
-
-bus.emit("greet", "Ada"); // hello Ada
-unbind();
-bus.emit("greet", "Bob"); // nobody listens now
+bus.on("moved", ({ x, y }, ctx) => {
+  if (x < 0) {
+    ctx.emit("outOfBounds", { x, y });
+  }
+});
 ```
 
-The handlers run at once, in the order they subscribed. That is all a bus is; the rest of the guide is what you can put on top.
+`ctx` has `signal`, `abort`, `emit`, `on`, and `run`. An aborted task stops emitting and delivers no result.
 
-## 2. Types
+## 3. Abort the previous run with `latest`
 
-Describe the events once, and `on` and `emit` are checked. An event without data is `void`.
+A handler is often called again before the last call finished (typing, double-clicks). A **policy** wraps the handler and decides what happens then. Start with `latest`: a newer call aborts the older one through `signal`.
+
+```js
+import { createBus } from "nanoeffects";
+import { latest } from "nanoeffects/policies";
+
+const bus = createBus();
+
+// latest — a newer run aborts the older one
+bus.on(
+  "search",
+  latest(async (query, { signal }) => {
+    await api.search(query, { signal });
+  }),
+);
+```
+
+Same `on`, same handler shape. More in [Policies](policies.md).
+
+## 4. Pick another policy when overlap differs
+
+| Policy | When calls overlap |
+| ------ | ------------------ |
+| `latest` | previous call is aborted |
+| `leading` | new calls drop while one runs |
+| `debounce` | runs after a pause |
+| `throttle` | at most once per window |
+| `queue` | one after another |
+
+```js
+import { createBus } from "nanoeffects";
+import { debounce, latest, queue, throttle } from "nanoeffects/policies";
+
+const bus = createBus();
+
+// throttle — at most once per 100 ms
+bus.on("scroll", throttle(100, (position) => {
+  updateScrollbar(position);
+}));
+
+// debounce — run after 300 ms of quiet
+bus.on("typed", debounce(300, (text) => {
+  validate(text);
+}));
+
+// queue — one save after another, in order
+bus.on(
+  "save",
+  queue(async (draft, { signal }) => {
+    await api.save(draft, { signal });
+  }),
+);
+
+// nest: wait for quiet, then keep only the latest search
+const searchLatest = latest(async (query, { signal }) => {
+  await api.search(query, { signal });
+});
+bus.on("search", debounce(300, searchLatest));
+```
+
+Full options: [Policies](policies.md).
+
+## 5. Add retry and timeout
+
+An **effect** adds what an async handler usually needs. `retry` and `timeout` wrap a handler like a policy, so they go into `on` with no `ctx` in their arguments.
+
+```js
+import { createBus } from "nanoeffects";
+import { retry, timeout } from "nanoeffects/effects";
+import { latest } from "nanoeffects/policies";
+
+const bus = createBus();
+
+const search = (query, { signal }) => api.search(query, { signal });
+
+// timeout — fail one try after 5 s
+const searchOnce = timeout(5000, search);
+// retry — up to 3 tries
+const searchWithRetry = retry(searchOnce, { times: 3 });
+
+// latest — a newer typed query aborts the whole retry chain
+bus.on("typed", latest(searchWithRetry));
+```
+
+When the handler itself needs the result, `ctx.run` runs the wrapped function as a child task (aborted with the parent):
+
+```js
+import { createBus } from "nanoeffects";
+import { retry, timeout } from "nanoeffects/effects";
+import { latest } from "nanoeffects/policies";
+
+const bus = createBus();
+const search = (query, { signal }) => api.search(query, { signal });
+
+bus.on(
+  "search",
+  latest(async (query, ctx) => {
+    const load = retry(timeout(5000, search), { times: 3 });
+    const items = await ctx.run(load, query); // child task; aborted with this one
+    ctx.emit("results", items);
+  }),
+);
+```
+
+For one call in the middle of a body: `await retry(ctx, () => api.search(q, { signal: ctx.signal }))`. More in [Effects](effects.md).
+
+## 6. Run work in parallel or wait for an event
+
+```js
+import { createBus } from "nanoeffects";
+import { all, take } from "nanoeffects/effects";
+
+const bus = createBus();
+
+// all — run together; one failure cancels the rest
+bus.on("search", async (id, ctx) => {
+  const { user, posts } = await all(ctx, {
+    user: ({ signal }) => api.user(id, { signal }),
+    posts: ({ signal }) => api.posts(id, { signal }),
+  });
+  ctx.emit("loaded", { user, posts });
+});
+
+// take — wait for the next event of that name
+bus.on("typed", async (query, ctx) => {
+  const position = await take(ctx, "scroll");
+  ctx.emit("scrolled", { query, position });
+});
+```
+
+More in [Effects](effects.md).
+
+## 7. Name events three ways
+
+`emit` and `on` take a string, an object `{ type, payload }` (a Redux action fits), or a function with a `type` property (action creators and commands).
+
+```js
+import { createBus } from "nanoeffects";
+import { createAction, createCommand } from "nanoeffects/actions";
+
+const bus = createBus();
+
+bus.emit("moved", { x: 1, y: 2 });
+bus.emit({ type: "moved", payload: { x: 2, y: 2 } });
+
+// createAction — names an event; calling it builds { type, payload }
+const moved = createAction("moved");
+bus.emit(moved({ x: 3, y: 2 }));
+bus.on(moved, ({ x }) => console.log(x));
+
+// createCommand — like an action, but emit runs a handler and returns its result
+const double = createCommand("math/double", (value) => value * 2);
+bus.emit(double(21)); // 42
+```
+
+Use strings for the plain case. Use objects when other code already builds actions. Use commands when you need a result from `emit`.
+
+## 8. Register a command handler
+
+A command may carry its handler, or only be a **contract** (name + types) with the work registered elsewhere — another file, or a fake in a test.
+
+```js
+import { createBus } from "nanoeffects";
+import { createCommand, commandsPlugin } from "nanoeffects/actions";
+
+const getUser = createCommand("user/get"); // contract — no handler yet
+
+const bus = createBus();
+// commandsPlugin — registry of handlers for this bus
+const commands = bus.use(commandsPlugin());
+
+bus.emit(getUser("1")); // throws: No handler for command "user/get"
+
+const unregister = commands.handle(getUser, (id) => api.user(id));
+const user = await bus.emit(getUser("1"));
+
+unregister();
+```
+
+Each bus has its own registry. A [module](#9-mount-a-domain-as-a-module) can register handlers and remove them on unmount. More in [Actions](actions.md).
+
+## 9. Mount a domain as a module
+
+**Problem.** A feature owns several things on the bus: who answers `getUser`, who listens to `greet`, maybe a command that already carries its handler. With plain `bus.on` / `commands.handle` you must remember every unsubscribe when the feature goes away. Miss one and listeners pile up.
+
+**When.** Domain logic lives on the bus, off the UI, and you need one mount / one unmount for that feature. Skip modules while a few top-level `bus.on` calls are enough.
+
+**What you do.** `createModule(name, setup)` describes the feature. `bus.use(modulePlugin([…]))` mounts it. `app.unmount(module)` undoes everything the setup registered.
+
+```js
+import { createBus } from "nanoeffects";
+import { createCommand, createModule, modulePlugin } from "nanoeffects/actions";
+
+const getUser = createCommand("user/get"); // contract — no handler yet
+const double = createCommand("math/double", (value) => value * 2); // carries its handler
+
+const bus = createBus();
+
+// createModule — one feature; name is stable for hot reload replace
+const greeting = createModule("greeting", (m) => {
+  // m.on — like bus.on, removed automatically on unmount
+  m.on("greet", (name) => console.log(`hello ${name}`));
+
+  // m.handle — this module answers getUser while mounted
+  m.handle(getUser, (id) => api.user(id));
+
+  // m.use — register a command that already has a handler, for this module’s life
+  m.use(double);
+});
+
+// modulePlugin — mount modules on the bus
+const app = bus.use(modulePlugin([greeting]));
+bus.emit("greet", "Ada"); // hello Ada
+app.unmount(greeting); // greet listener and getUser binding are gone
+```
+
+- **`m.on`** — same job as `bus.on`, scoped to the module’s lifetime.
+- **`m.handle`** — bind a handler to a contract command; gone on unmount.
+- **`m.use`** — bring a command that already carries a handler (or a sub-module). Prefer `handle` when the handler must die with the feature.
+
+Modules also make [hot reload](hmr.md) work. Full API in [Actions](actions.md); a longer recipe in [`examples/modules.ts`](../examples/modules.ts).
+
+## 10. Add types when you want checking (optional)
+
+Describe events once when you want `on` / `emit` checked. An event without data is `void`. Skip this while you are learning the bus.
 
 ```ts
+// Events — event name → payload for this bus (checker only)
 type Events = {
   greet: string;
   moved: { x: number; y: number };
@@ -36,194 +290,31 @@ const bus = createBus<Events>();
 bus.on("moved", ({ x, y }) => console.log(x + y));
 bus.emit("moved", { x: 1, y: 2 });
 bus.emit("reset");
-bus.emit("moved", { x: "1" }); // error: x is a number
-bus.emit("jumped", 1); // error: there is no such event
+// bus.emit("moved", { x: "1" }); // error
+// bus.emit("jumped", 1); // error
 ```
 
-The map is optional: a bus without it takes any string and gives the payload as `unknown`.
+Without a map, any string event is allowed and the payload is `unknown`.
 
-## 3. The context of a handler
+## 11. Isolate errors and warn on typos
 
-The second argument is the context of this call. A handler can emit events through it.
+```js
+import { createBus } from "nanoeffects";
 
-```ts
-bus.on("moved", ({ x, y }, ctx) => {
-  if (x < 0) ctx.emit("outOfBounds", { x, y });
+const bus = createBus({
+  onError: (error) => report(error), // isolate failing handlers
+  onUnhandled: ({ type }) => console.warn(`nobody listens to ${type}`),
 });
 ```
 
-Each call of a handler is a **task**, and `ctx` is what the task knows about itself: its `signal`, a way to `abort` it, and `emit`, `on`, `run`. A task that is aborted stops emitting.
-
-## 4. Three ways to name an event
-
-`emit` and `on` take the event as a string, as an object `{ type, payload }`, or as a function that has a `type` property.
-
-```ts
-bus.emit("moved", { x: 1, y: 2 }); // a string, and the payload next to it
-
-bus.emit({ type: "moved", payload: { x: 2, y: 2 } }); // an object, the shape of a Redux action
-
-const moved = createAction("moved");
-bus.emit(moved({ x: 3, y: 2 })); // what an action creator makes is such an object
-bus.on(moved, ({ x }) => console.log(x)); // and it names the event in `on` too
-```
-
-The third way is a **command**. Calling it builds `{ type, payload }` like an action creator; `emit` tells the subscribers of its type, then runs it, and **returns what it returns**.
-
-```ts
-import { createAction, createCommand } from "nanoeffects/actions";
-
-const double = createCommand("math/double", (value: number) => value * 2);
-
-bus.emit(double(21)); // 42
-```
-
-Strings are for the plain case, objects for actions that other code already makes, command calls for requests that need a result.
-
-## 5. A command needs a handler
-
-A command made with a function carries its handler, as above. More often it is only a contract, a name with the types of the request and the result, and the code that does the work is registered separately: in another file, or a fake one in a test.
-
-```ts
-import { createCommand, commandsPlugin } from "nanoeffects/actions";
-
-const getUser = createCommand<string, Promise<User>>("user/get"); // no handler yet
-
-const bus = createBus<Events>();
-const commands = bus.use(commandsPlugin()); // the handlers of this bus
-
-bus.emit(getUser("1")); // throws: No handler for command "user/get"
-
-const unregister = commands.handle(getUser, (id) => api.user(id));
-const user = await bus.emit(getUser("1")); // what the handler returned
-
-unregister(); // the command has no handler again
-```
-
-- `handle` returns the function that removes the handler, like `on`.
-- If a command has several handlers, the one registered last runs. A handler registered here wins over the one the command was made with.
-- Each bus has its own registry, so every test can bring its own handlers.
-- A [module](#10-modules) registers handlers for itself and removes them when it is unmounted.
-
-## 6. The first policy
-
-Often a handler is called again before the last call has finished: a user types another letter, a button is clicked twice. A **policy** wraps the handler and decides what happens then. It is used in place of the handler:
-
-```ts
-import { latest } from "nanoeffects/policies";
-
-// a newer search aborts the older one
-bus.on(
-  "search",
-  latest(async (query, { signal }) => {
-    await api.search(query, { signal });
-  }),
-);
-```
-
-The aborted call learns about it through `signal`: pass it to `fetch` and the request is cancelled. Nothing else changes: the handler is the same function with the same arguments.
-
-## 7. More policies
-
-| Policy     | When calls overlap                          |
-| ---------- | ------------------------------------------- |
-| `latest`   | the previous call is aborted                |
-| `leading`  | new calls are dropped while one runs        |
-| `debounce` | runs after a pause in the calls             |
-| `throttle` | runs at most once in a time window          |
-| `queue`    | one after another, in order                 |
-
-Even a plain function works, it is just called less often. And policies nest:
-
-```ts
-import { debounce, queue, throttle } from "nanoeffects/policies";
-
-bus.on("scroll", throttle(100, (position) => updateScrollbar(position)));
-bus.on("typed", debounce(300, (text) => validate(text)));
-bus.on("save", queue(async (draft, { signal }) => api.save(draft, { signal })));
-
-// wait for quiet, then keep only the latest
-bus.on("search", debounce(300, latest(async (query, { signal }) => api.search(query, { signal }))));
-```
-
-More in [policies](policies.md).
-
-## 8. The first effects
-
-An **effect** adds what an async handler usually needs. `retry` and `timeout` wrap a handler the way a policy does, so they go into `on` with the policies and need no `ctx`:
-
-```ts
-import { retry, timeout } from "nanoeffects/effects";
-
-const search = (query: string, { signal }) => api.search(query, { signal });
-
-// 5 seconds for each try, up to 3 tries, and a newer query supersedes the whole thing
-bus.on("typed", latest(retry(timeout(5000, search), { times: 3 })));
-```
-
-When the handler needs the result, `ctx.run` runs the wrapped function as a child task: it is aborted with the handler, and it is the one place where `ctx` is written.
-
-```ts
-bus.on(
-  "search",
-  latest(async (query, ctx) => {
-    const items = await ctx.run(retry(timeout(5000, search), { times: 3 }), query);
-    ctx.emit("results", items);
-  }),
-);
-```
-
-For one call in the middle of a handler, the effect takes `ctx` first: `await retry(ctx, () => api.search(q, { signal: ctx.signal }))`. More in [effects](effects.md).
-
-## 9. Several things at once, and waiting
-
-```ts
-import { all, take } from "nanoeffects/effects";
-
-bus.on("search", async (id, ctx) => {
-  const { user, posts } = await all(ctx, {
-    user: ({ signal }) => api.user(id, { signal }),
-    posts: ({ signal }) => api.posts(id, { signal }),
-  });
-});
-
-bus.on("typed", async (query, ctx) => {
-  const position = await take(ctx, "scroll"); // resolves with the next scroll
-});
-```
-
-`all` runs the starters together and fails, and cancels the rest, when one fails. `take` waits for the next event of a name. `ctx.on` subscribes as the task and ends with it. More in [effects](effects.md).
-
-## 10. Modules
-
-A module is what one part of the app does, in one place: its handlers, its commands, its background tasks. Unmounting it undoes all of that.
-
-```ts
-import { createModule, modulePlugin } from "nanoeffects/actions";
-
-const greeting = createModule<Events>("greeting", (m) => {
-  m.on("greet", (name) => console.log(`hello ${name}`));
-  m.handle(getUser, (id) => api.user(id)); // a contract gets its handler here
-  m.use(double); // a command that carries a handler: the module brings it
-});
-
-const app = bus.use(modulePlugin([greeting]));
-app.unmount(greeting); // the subscriptions and the handler are gone
-```
-
-Modules are also what makes [hot reload](hmr.md) work. More in [actions](actions.md).
-
-## 11. Errors and typos
-
-```ts
-const bus = createBus<Events>({
-  onError: (error) => report(error), // a failing handler does not stop the others
-  onUnhandled: ({ type }) => console.warn(`nobody listens to ${type}`), // a typo in a name
-});
-```
-
-More in [errors](errors.md).
+More in [Errors](errors.md).
 
 ## Where next
 
-[Context fields](context.md) (a store or a client in every task) · [Tracing](tracing.md) · [Redux, Zustand, MobX](stores.md) · [Semantics](semantics.md)
+| Need | Page |
+| ---- | ---- |
+| Store or client on every task | [Context fields](context.md) |
+| Redux / Zustand / MobX | [Stores](stores.md) |
+| Observe tasks | [Tracing](tracing.md) |
+| Guarantees | [Semantics](semantics.md) |
+| Which import | [Package entries](package.md) |

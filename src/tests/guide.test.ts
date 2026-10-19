@@ -19,16 +19,20 @@ describe("docs/guide.md", () => {
 		expect(step1()).toEqual(["hello Ada"]);
 	});
 
-	it("2. typed events", () => {
-		expect(step2()).toEqual([3]);
+	it("2. a handler emits through its context", () => {
+		expect(step2()).toEqual(["out at -1"]);
 	});
 
-	it("3. a handler emits through its context", () => {
-		expect(step3()).toEqual(["out at -1"]);
+	it("3, 4, 5. policies and effects are handlers", () => {
+		expect(() => [step3(), step4(), step5()]).not.toThrow();
 	});
 
-	it("4. three ways to name an event", () => {
-		expect(step4()).toEqual([
+	it("6. take waits for the next event", async () => {
+		expect(await step6()).toEqual(["nano at 40"]);
+	});
+
+	it("7. three ways to name an event", () => {
+		expect(step7()).toEqual([
 			"string 1",
 			"action 1",
 			"string 2",
@@ -39,24 +43,20 @@ describe("docs/guide.md", () => {
 		]);
 	});
 
-	it("5. a command needs a registered handler", async () => {
-		expect(await step5()).toEqual([
+	it("8. a command needs a registered handler", async () => {
+		expect(await step8()).toEqual([
 			'No handler for command "user/get"',
 			"user 1",
 			'No handler for command "user/get"',
 		]);
 	});
 
-	it("6, 7, 8. policies and effects are handlers", () => {
-		expect(() => [step6(), step7(), step8()]).not.toThrow();
+	it("9. a module is undone as a whole, with its commands", () => {
+		expect(step9()).toEqual(["hello Ada", true, 4]);
 	});
 
-	it("9. take waits for the next event", async () => {
-		expect(await step9()).toEqual(["nano at 40"]);
-	});
-
-	it("10. a module is undone as a whole, with its commands", () => {
-		expect(step10()).toEqual(["hello Ada", true, 4]);
+	it("10. typed events", () => {
+		expect(step10()).toEqual([3]);
 	});
 
 	it("11. errors and typos", () => {
