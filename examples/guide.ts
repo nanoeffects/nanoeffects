@@ -6,7 +6,7 @@ import {
 	createCommand,
 	createCommands,
 	createModule,
-	registerModules,
+	modulePlugin,
 } from "nanoeffects/actions";
 import { all, retry, take, timeout } from "nanoeffects/effects";
 import { debounce, latest, queue, throttle } from "nanoeffects/policies";
@@ -247,7 +247,7 @@ export const step10 = () => {
 		m.use(double); // a command that carries a handler: the module brings it
 	});
 
-	const app = registerModules(bus, [greeting]);
+	const app = bus.use(modulePlugin([greeting]));
 	bus.emit("greet", "Ada");
 	seen.push(bus.emit(getUser, "1") instanceof Promise);
 	seen.push(bus.emit(double, 2));

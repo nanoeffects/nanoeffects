@@ -2,14 +2,14 @@ import { describe, expect, it, vi } from "vitest";
 import { createBus, type WithContext } from "../core/bus";
 import { createApp, type TestEvents } from "../tests/test-helpers";
 import { createCommand, createCommands } from "./command";
-import { createModule, type ModuleContext, registerModules } from "./module";
+import { createModule, type ModuleContext, modulePlugin } from "./module";
 
-describe("registerModules", () => {
+describe("modulePlugin", () => {
 	it("mounts the given modules and mounts more later", () => {
 		const setup = vi.fn();
 		const bus = createBus<TestEvents>();
 		createCommands(bus);
-		const app = registerModules(bus, [createModule("first", setup)]);
+		const app = bus.use(modulePlugin([createModule("first", setup)]));
 		const later = createModule<TestEvents>("second", setup);
 		const unmount = app.mount(later);
 
@@ -25,11 +25,13 @@ describe("registerModules", () => {
 		const bus = createBus<StoreEvents>({ context });
 		createCommands(bus);
 		let seen: unknown = null;
-		registerModules(bus, [
-			createModule<StoreEvents>("m", (moduleContext) => {
-				seen = moduleContext.store;
-			}),
-		]);
+		bus.use(
+			modulePlugin([
+				createModule<StoreEvents>("m", (moduleContext) => {
+					seen = moduleContext.store;
+				}),
+			]),
+		);
 
 		expect(seen).toBe(context.store);
 	});
@@ -64,11 +66,13 @@ describe("registerModules", () => {
 	it("brings its own registry when the bus has none, and the bus runs its commands", () => {
 		const bus = createBus<TestEvents>();
 		const double = createCommand<number, number>("double");
-		const app = registerModules(bus, [
-			createModule("math", (moduleContext) => {
-				moduleContext.handle(double, (value: number) => value * 2);
-			}),
-		]);
+		const app = bus.use(
+			modulePlugin([
+				createModule("math", (moduleContext) => {
+					moduleContext.handle(double, (value: number) => value * 2);
+				}),
+			]),
+		);
 
 		expect(bus.emit(double, 4)).toBe(8);
 		expect(bus.commands).toBe(app.commands);
@@ -77,7 +81,7 @@ describe("registerModules", () => {
 	it("uses the registry that the bus was made with", () => {
 		const bus = createBus<TestEvents>();
 		const commands = createCommands(bus);
-		const app = registerModules(bus);
+		const app = bus.use(modulePlugin());
 
 		expect(app.commands).toBe(commands);
 	});
@@ -87,24 +91,28 @@ describe("registerModules", () => {
 		bus.commands = { run: () => 0 };
 
 		expect(() =>
-			registerModules(bus, [
-				createModule("math", (moduleContext) => {
-					moduleContext.handle(createCommand("x"), () => {});
-				}),
-			]),
+			bus.use(
+				modulePlugin([
+					createModule("math", (moduleContext) => {
+						moduleContext.handle(createCommand("x"), () => {});
+					}),
+				]),
+			),
 		).toThrow("createCommands");
 	});
 
 	it("modules that bind nothing work on a plain bus", () => {
 		const bus = createBus<TestEvents>();
 		const seen: number[] = [];
-		registerModules(bus, [
-			createModule("listener", (moduleContext) => {
-				moduleContext.on("t", (value) => {
-					seen.push(value);
-				});
-			}),
-		]);
+		bus.use(
+			modulePlugin([
+				createModule("listener", (moduleContext) => {
+					moduleContext.on("t", (value) => {
+						seen.push(value);
+					});
+				}),
+			]),
+		);
 		bus.emit("t", 3);
 
 		expect(seen).toEqual([3]);
@@ -114,7 +122,7 @@ describe("registerModules", () => {
 describe("replacing a module by its name (hot reload)", () => {
 	const watch = () => {
 		const bus = createBus<TestEvents>();
-		const app = registerModules(bus);
+		const app = bus.use(modulePlugin());
 		const calls: string[] = [];
 		const version = (label: string) =>
 			createModule<TestEvents>("user", (moduleContext) => {
@@ -150,7 +158,7 @@ describe("replacing a module by its name (hot reload)", () => {
 
 	it("the old commands are unbound, and the new ones answer", () => {
 		const bus = createBus<TestEvents>();
-		const app = registerModules(bus);
+		const app = bus.use(modulePlugin());
 		const double = createCommand<number, number>("double");
 		const moduleWith = (factor: number) =>
 			createModule<TestEvents>("math", (moduleContext) => {
@@ -184,7 +192,7 @@ describe("replacing a module by its name (hot reload)", () => {
 
 	it("sub-modules are replaced by name inside their parent", () => {
 		const bus = createBus<TestEvents>();
-		const app = registerModules(bus);
+		const app = bus.use(modulePlugin());
 		const calls: string[] = [];
 		const child = (label: string) =>
 			createModule<TestEvents>("child", (moduleContext) => {
@@ -224,7 +232,7 @@ describe("replacing a module by its name (hot reload)", () => {
 describe("use with commands", () => {
 	const setup = () => {
 		const bus = createBus<TestEvents>();
-		const app = registerModules(bus);
+		const app = bus.use(modulePlugin());
 
 		return { bus, app };
 	};
@@ -352,5 +360,97 @@ describe("use with commands", () => {
 		);
 
 		expect([bus.emit(double, 2), bus.emit(triple, 2)]).toEqual([4, 6]);
+	});
+});
+
+describe("modulePlugin as a plugin", () => {
+	it("mounts the given modules at once, in the order given", () => {
+		const bus = createBus<TestEvents>();
+		const order: string[] = [];
+		const named = (name: string) =>
+			createModule<TestEvents>(name, () => {
+				order.push(name);
+			});
+		bus.use(modulePlugin([named("first"), named("second"), named("third")]));
+
+		expect(order).toEqual(["first", "second", "third"]);
+	});
+
+	it("returns the api: mount, unmount, isMounted, dispose and commands", () => {
+		const bus = createBus<TestEvents>();
+		const app = bus.use(modulePlugin<TestEvents>());
+
+		expect(Object.keys(app).sort()).toEqual([
+			"commands",
+			"dispose",
+			"isMounted",
+			"mount",
+			"unmount",
+		]);
+	});
+
+	it("with no modules given nothing is mounted", () => {
+		const bus = createBus<TestEvents>();
+		const setup = vi.fn();
+		const app = bus.use(modulePlugin<TestEvents>());
+
+		expect(setup).not.toHaveBeenCalled();
+		expect(app.isMounted(createModule("x", setup))).toBe(false);
+	});
+
+	it("mounts later and unmounts through the returned api", () => {
+		const bus = createBus<TestEvents>();
+		const seen: string[] = [];
+		const user = createModule<TestEvents>("user", (moduleContext) => {
+			moduleContext.on("t", () => {
+				seen.push("heard");
+			});
+		});
+		const app = bus.use(modulePlugin<TestEvents>());
+		app.mount(user);
+		bus.emit("t", 1);
+		app.unmount(user);
+		bus.emit("t", 2);
+
+		expect(seen).toEqual(["heard"]);
+	});
+
+	it("a module of the same name replaces the mounted one", () => {
+		const bus = createBus<TestEvents>();
+		const calls: string[] = [];
+		const version = (label: string) =>
+			createModule<TestEvents>("user", (moduleContext) => {
+				moduleContext.on("t", () => {
+					calls.push(label);
+				});
+			});
+		const app = bus.use(modulePlugin([version("old")]));
+		app.mount(version("new"));
+		bus.emit("t", 1);
+
+		expect(calls).toEqual(["new"]);
+	});
+
+	it("dispose unmounts every module of the plugin", () => {
+		const bus = createBus<TestEvents>();
+		const aborted = vi.fn();
+		const app = bus.use(
+			modulePlugin([
+				createModule<TestEvents>("a", (moduleContext) => {
+					moduleContext.signal.addEventListener("abort", aborted);
+				}),
+			]),
+		);
+		app.dispose();
+
+		expect(aborted).toHaveBeenCalledTimes(1);
+	});
+
+	it("two plugins on one bus share the registry of the bus", () => {
+		const bus = createBus<TestEvents>();
+		const first = bus.use(modulePlugin<TestEvents>());
+		const second = bus.use(modulePlugin<TestEvents>());
+
+		expect(second.commands).toBe(first.commands);
 	});
 });

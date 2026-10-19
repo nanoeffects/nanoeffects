@@ -15,5 +15,5 @@ export {
 	type Module,
 	type ModuleApi,
 	type ModuleContext,
-	registerModules,
+	modulePlugin,
 } from "./module";

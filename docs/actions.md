@@ -52,7 +52,7 @@ A command with no handler anywhere throws `No handler for command "..."` from `e
 
 ## Modules
 
-`registerModules(bus, modules)` from `nanoeffects/actions` assembles an app from modules and returns `mount`, `unmount`, `isMounted`, `dispose` and `commands`, the registry of command handlers. A module is what a domain of the app needs: the commands it handles, the events it listens to, its sub-modules and its background tasks.
+`bus.use(modulePlugin(modules))`, with `modulePlugin` from `nanoeffects/actions`, assembles an app from modules and returns `mount`, `unmount`, `isMounted`, `dispose` and `commands`, the registry of command handlers. A module is what a domain of the app needs: the commands it handles, the events it listens to, its sub-modules and its background tasks.
 
 ```ts
 const userModule = createModule<Events>("user", (m) => {
@@ -63,7 +63,7 @@ const userModule = createModule<Events>("user", (m) => {
 });
 
 const bus = createBus<Events>();
-const app = registerModules(bus, [userModule]);
+const app = bus.use(modulePlugin([userModule]));
 
 const unmount = app.mount(orderModule); // later, e.g. after a lazy import
 app.commands.handle(getUser, fakeUser); // in a test
@@ -72,7 +72,7 @@ app.dispose(); // unmounts every module
 
 - **Unmounting undoes everything** the module did: its subscriptions, its bound commands, its sub-modules and its background tasks, which are aborted.
 - **A module is known by its name.** Mounting a module whose name is taken replaces the mounted one. That is what hot reload needs: see [hmr.md](hmr.md).
-- **The registry.** If `createCommands(bus)` was called, that registry is used; otherwise `registerModules` attaches its own. Either way it is `bus.commands` and `app.commands`, so the commands that modules bind are the ones the bus runs.
+- **The registry.** If `createCommands(bus)` was called, that registry is used; otherwise the module plugin attaches its own. Either way it is `bus.commands` and `app.commands`, so the commands that modules bind are the ones the bus runs.
 - A disposed app cannot mount modules.
 - A module context is a task context plus `handle` (give a command a handler: for a contract, or to override), `use` (bring sub-modules and commands that carry a handler: `m.use(getUser, saveUser, subModule)`, in any order; the returned function undoes just that call) and `spawn` (a background task, aborted on unmount).
 - A command that carries a handler keeps answering after its module is unmounted: the handler is its own, and `use` only brings the command and tracks it in the registry. Use `handle` for a handler that should live only as long as the module.

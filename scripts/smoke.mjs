@@ -14,7 +14,7 @@ const load = (name) =>
 const { createBus } = await load("index");
 const { latest, debounce, queue, throttle } = await load("policies");
 const { retry, timeout, all, delay } = await load("effects");
-const { createAction, createModule, registerModules } = await load("actions");
+const { createAction, createModule, modulePlugin } = await load("actions");
 const { nanoeffectsMiddleware } = await load("redux");
 const { createObserve } = await load("observable");
 
@@ -51,9 +51,11 @@ const both = await all({}, { one: async () => 1, two: async () => 2 });
 const timed = await timeout({}, 1000, async () => "in time");
 await delay({}, 5);
 
-const app = registerModules(bus, [
-	createModule("m", (m) => m.on("hello", () => seen.push("hello"))),
-]);
+const app = bus.use(
+	modulePlugin([
+		createModule("m", (m) => m.on("hello", () => seen.push("hello"))),
+	]),
+);
 bus.emit("hello");
 app.dispose();
 bus.emit("hello");

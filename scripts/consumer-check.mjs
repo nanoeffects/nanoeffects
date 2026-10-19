@@ -48,7 +48,7 @@ writeFileSync(
 	`import { createBus } from "nanoeffects";
 import { retry } from "nanoeffects/effects";
 import { latest } from "nanoeffects/policies";
-import { createAction, createModule, registerModules } from "nanoeffects/actions";
+import { createAction, createModule, modulePlugin } from "nanoeffects/actions";
 import { createTracer, consoleLogger } from "nanoeffects/trace";
 
 type Item = { id: number };
@@ -74,7 +74,7 @@ bus.on("results", (items) => {
 });
 const loaded = createAction("results");
 void loaded;
-registerModules(bus, [createModule<Events>("m", () => {})]);
+bus.use(modulePlugin([createModule<Events>("m", () => {})]));
 
 bus.emit("search", "nano");
 await new Promise((resolve) => setTimeout(resolve, 20));

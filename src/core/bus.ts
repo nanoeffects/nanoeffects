@@ -178,9 +178,15 @@ export interface Bus<E extends EventMap> {
 	on: On<E>;
 	off: Off<E>;
 	emit: Emit<E>;
-	/** `BusOptions.context` and `.trace`, and `commands`, for what makes tasks of its own, like `registerModules`. */
+	/**
+	 * Calls `plugin` with the bus and returns what it returns: an api, a
+	 * function that undoes it. A plugin is any function of the bus; the bus keeps
+	 * no list of them. See `modulePlugin` in `nanoeffects/actions`.
+	 */
+	use<R>(plugin: (bus: Bus<E>) => R): R;
+	/** `BusOptions.context` and `.trace`, and `commands`, for what makes tasks of its own, like `modulePlugin`. */
 	readonly context?: ContextOption<E> | undefined;
-	/** What runs the commands; `createCommands(bus)` and `registerModules` set it. Without one a command runs its own handler. */
+	/** What runs the commands; `createCommands(bus)` and `modulePlugin` set it. Without one a command runs its own handler. */
 	commands?: Commands | undefined;
 	readonly trace?: Tracer | undefined;
 }
@@ -301,6 +307,7 @@ export const createBus = <Events extends EventMap>(
 		on,
 		off,
 		emit,
+		use: (plugin) => plugin(bus),
 		context: options.context,
 		trace: options.trace,
 	};

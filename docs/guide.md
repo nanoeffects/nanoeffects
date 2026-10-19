@@ -199,7 +199,7 @@ bus.on("typed", async (query, ctx) => {
 A module is what one part of the app does, in one place: its handlers, its commands, its background tasks. Unmounting it undoes all of that.
 
 ```ts
-import { createModule, registerModules } from "nanoeffects/actions";
+import { createModule, modulePlugin } from "nanoeffects/actions";
 
 const greeting = createModule<Events>("greeting", (m) => {
   m.on("greet", (name) => console.log(`hello ${name}`));
@@ -207,7 +207,7 @@ const greeting = createModule<Events>("greeting", (m) => {
   m.use(double); // a command that carries a handler: the module brings it
 });
 
-const app = registerModules(bus, [greeting]);
+const app = bus.use(modulePlugin([greeting]));
 app.unmount(greeting); // the subscriptions and the handler are gone
 ```
 

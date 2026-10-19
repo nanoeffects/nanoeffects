@@ -1,4 +1,4 @@
-import { type Module, registerModules } from "../actions";
+import { type Module, modulePlugin } from "../actions";
 import { type BusOptions, type Context, createBus } from "../core/bus";
 import type { EventMap } from "../core/types";
 import { createTraceRecorder } from "../trace/recorder";
@@ -52,7 +52,7 @@ export const createHarness = () => {
 /** A payload that is `undefined` at runtime, for events without data. */
 export const noPayload = Reflect.get({}, "none");
 
-/** A bus with `registerModules`, and its parts at hand, for tests of modules and commands. */
+/** A bus with `modulePlugin`, and its parts at hand, for tests of modules and commands. */
 export const createApp = <E extends EventMap = EventMap>(
 	options: Omit<BusOptions<E>, "commands"> & {
 		modules?: readonly Module<E>[];
@@ -60,7 +60,7 @@ export const createApp = <E extends EventMap = EventMap>(
 ) => {
 	const { modules, ...busOptions } = options;
 	const bus = createBus<E>(busOptions);
-	const app = registerModules(bus, modules);
+	const app = bus.use(modulePlugin(modules));
 
 	return { bus, ...app };
 };

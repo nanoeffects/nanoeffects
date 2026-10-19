@@ -64,10 +64,10 @@ ESM only, no dependencies, types included.
 | `nanoeffects`            | `createBus`, the types                                                        |
 | `nanoeffects/policies`   | `latest`, `leading`, `debounce`, `throttle`, `queue`                          |
 | `nanoeffects/effects`    | `retry`, `timeout`, `poll`, `delay`, `take`, `all`, `allSettled`, `race`      |
-| `nanoeffects/actions`    | `createAction`, `createCommand`, `createJob`, `createModule`, `registerModules` |
+| `nanoeffects/actions`    | `createAction`, `createCommand`, `createJob`, `createModule`, `modulePlugin` |
 | `nanoeffects/redux`      | `createEffectsMiddleware`, `nanoeffectsMiddleware`                            |
 | `nanoeffects/observable` | `createObserve`: an event as an Observable (RxJS)                             |
-| `nanoeffects/dev`        | `connectDev`: warnings about listeners that pile up and messages about modules; a no-op in production |
+| `nanoeffects/dev`        | `devPlugin`: warnings about listeners that pile up and messages about modules; a no-op in production |
 | `nanoeffects/trace`      | `createTracer` and the loggers                                                |
 
 ## The task context

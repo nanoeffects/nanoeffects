@@ -69,7 +69,7 @@ describe("public entries", () => {
 			"createCommands",
 			"createJob",
 			"createModule",
-			"registerModules",
+			"modulePlugin",
 		]);
 	});
 });

@@ -8,6 +8,7 @@ import {
 	createCommands,
 	createJob,
 	createModule,
+	modulePlugin,
 } from "../actions";
 import { type Context, createBus, type WithContext } from "../core/bus";
 import type { UnsubscribeCallback } from "../core/types";
@@ -573,5 +574,45 @@ describe("a job", () => {
 			createJob("item/load", fetchItem, { fail: { type: "item/failed" } });
 		};
 		expectTypeOf(wrongCalls).toBeFunction();
+	});
+});
+
+describe("bus.use", () => {
+	type Events = { greet: string };
+	const bus = createBus<Events>();
+
+	it("returns the type that the plugin returns", () => {
+		const api = bus.use(() => ({ hello: () => "hi" }));
+		expectTypeOf(api.hello()).toBeString();
+
+		const off = bus.use((given) => given.on("greet", () => {}));
+		expectTypeOf(off).toEqualTypeOf<UnsubscribeCallback>();
+	});
+
+	it("gives the plugin the bus with its events", () => {
+		bus.use((given) => {
+			given.on("greet", (name) => {
+				expectTypeOf(name).toEqualTypeOf<string>();
+			});
+		});
+	});
+
+	it("a plugin that is not a function of the bus is an error", () => {
+		const wrongCalls = () => {
+			// @ts-expect-error a plugin is a function
+			bus.use("not a plugin");
+			// @ts-expect-error a plugin gets the bus, not a number
+			bus.use((given: number) => given);
+		};
+		expectTypeOf(wrongCalls).toBeFunction();
+	});
+
+	it("modulePlugin gives the api of the modules, with the events from them", () => {
+		const user = createModule<Events>("user", () => {});
+		const app = bus.use(modulePlugin([user]));
+
+		expectTypeOf(app.mount(user)).toEqualTypeOf<UnsubscribeCallback>();
+		expectTypeOf(app.isMounted(user)).toEqualTypeOf<boolean>();
+		expectTypeOf(app.commands.handle).toBeFunction();
 	});
 });

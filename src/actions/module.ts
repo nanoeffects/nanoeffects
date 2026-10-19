@@ -69,7 +69,7 @@ export const createModule = <E extends EventMap = EventMap>(
 
 type Registry<E extends EventMap> = ReturnType<typeof createCommands<E>>;
 
-/** What `registerModules` returns. */
+/** What `modulePlugin` returns. */
 export type ModuleApi<E extends EventMap = EventMap> = {
 	/** The registry of command handlers of the bus: the one it was made with, or the app's own. */
 	commands: Registry<E>;
@@ -82,9 +82,9 @@ export type ModuleApi<E extends EventMap = EventMap> = {
 };
 
 /**
- * Assembles an app from modules on `bus`: mounts `modules` at once, in the
- * order given, and returns `mount`, `unmount`, `isMounted` and `dispose` for
- * the modules that come and go later. The bus runs the commands that the
+ * The plugin that assembles an app from modules: `bus.use(modulePlugin(modules))`
+ * mounts `modules` at once, in the order given, and returns `mount`, `unmount`,
+ * `isMounted`, `dispose` and `commands` for the modules that come and go later. The bus runs the commands that the
  * modules bind: if `createCommands(bus)` was called before, that registry is
  * used, otherwise the app attaches its own, as `app.commands`.
  *
@@ -100,7 +100,7 @@ export type ModuleApi<E extends EventMap = EventMap> = {
  * @example
  * ```ts
  * const bus = createBus<Events>();
- * const app = registerModules(bus, [userModule]);
+ * const app = bus.use(modulePlugin([userModule]));
  *
  * const unmount = app.mount(orderModule); // later, e.g. after a lazy import
  * unmount(); // or app.unmount(orderModule)
@@ -110,121 +110,123 @@ export type ModuleApi<E extends EventMap = EventMap> = {
  * app.dispose();
  * ```
  */
-export const registerModules = <E extends EventMap>(
-	bus: Bus<E>,
-	modules: readonly Module<E>[] = [],
-): ModuleApi<E> => {
-	// the bus runs what it was given; without commands the app attaches its registry
-	const given = bus.commands as Registry<E> | undefined;
-	const registry = given ?? createCommands(bus);
-	const commands = {
-		handle: (...args: Parameters<Registry<E>["handle"]>) => {
-			if (!registry.handle) {
-				throw new Error(
-					"registerModules: the `commands` of the bus is not a registry from `createCommands()`",
-				);
-			}
-			return Reflect.apply(registry.handle, null, args);
-		},
-	};
-	const root = createTask<E>({
-		event: { type: "app", payload: void 0 },
-		bus,
-		tracer: bus.trace,
-	});
-
-	// Mounts modules under `parent`, each in a task of its own: aborting that
-	// task undoes the module. A module that is mounted already is not run again.
-	const mounts = (parent: Context<E>) => {
-		const active = new Map<Module<E>, UnsubscribeCallback>();
-		const byName = new Map<string, Module<E>>();
-
-		const mount = (module: Module<E>): UnsubscribeCallback => {
-			const known = active.get(module);
-			if (known) {
-				return known;
-			}
-			// a module of the same name is replaced: this is how hot reload swaps a module
-			const replaced = byName.get(module.name);
-			if (replaced) {
-				active.get(replaced)?.();
-			}
-
-			const scope = forkTask(parent, module.name);
-			const task = scope.ctx;
-			const children = mounts(task);
-
-			const unmount = () => {
-				active.delete(module);
-				if (byName.get(module.name) === module) {
-					byName.delete(module.name);
+export const modulePlugin =
+	<E extends EventMap>(modules: readonly Module<E>[] = []) =>
+	(bus: Bus<E>): ModuleApi<E> => {
+		// the bus runs what it was given; without commands the app attaches its registry
+		const given = bus.commands as Registry<E> | undefined;
+		const registry = given ?? createCommands(bus);
+		const commands = {
+			handle: (...args: Parameters<Registry<E>["handle"]>) => {
+				if (!registry.handle) {
+					throw new Error(
+						"modulePlugin: the `commands` of the bus is not a registry from `createCommands()`",
+					);
 				}
-				task.abort();
-				scope.unlink();
-			};
-			active.set(module, unmount);
-			byName.set(module.name, module);
-
-			const handle = (target: unknown, fn?: unknown): UnsubscribeCallback => {
-				const unbind: UnsubscribeCallback = Reflect.apply(
-					commands.handle,
-					null,
-					[target, fn],
-				);
-				onAbort(task, unbind);
-				return unbind;
-			};
-			const use = (...items: Array<Module<E> | Command<never, unknown>>) => {
-				// a command (a function) is bound to itself: its own handler answers
-				const undos = items.map((item) =>
-					typeof item === "function"
-						? handle(item, item)
-						: children.mount(item),
-				);
-				return () => {
-					for (const undo of undos) {
-						undo();
-					}
-				};
-			};
-			const spawn = <P>(fn: Task<P, E, unknown>, ...payload: PayloadOf<P>) => {
-				task.run(fn, ...payload).catch((error: unknown) => {
-					if (!task.signal.aborted) {
-						throw error;
-					}
-				});
-			};
-
-			try {
-				module.setup(Object.assign(task, { handle, use, spawn }));
-			} catch (error) {
-				unmount();
-				throw error;
-			}
-
-			return unmount;
+				return Reflect.apply(registry.handle, null, args);
+			},
 		};
+		const root = createTask<E>({
+			event: { type: "app", payload: void 0 },
+			bus,
+			tracer: bus.trace,
+		});
+
+		// Mounts modules under `parent`, each in a task of its own: aborting that
+		// task undoes the module. A module that is mounted already is not run again.
+		const mounts = (parent: Context<E>) => {
+			const active = new Map<Module<E>, UnsubscribeCallback>();
+			const byName = new Map<string, Module<E>>();
+
+			const mount = (module: Module<E>): UnsubscribeCallback => {
+				const known = active.get(module);
+				if (known) {
+					return known;
+				}
+				// a module of the same name is replaced: this is how hot reload swaps a module
+				const replaced = byName.get(module.name);
+				if (replaced) {
+					active.get(replaced)?.();
+				}
+
+				const scope = forkTask(parent, module.name);
+				const task = scope.ctx;
+				const children = mounts(task);
+
+				const unmount = () => {
+					active.delete(module);
+					if (byName.get(module.name) === module) {
+						byName.delete(module.name);
+					}
+					task.abort();
+					scope.unlink();
+				};
+				active.set(module, unmount);
+				byName.set(module.name, module);
+
+				const handle = (target: unknown, fn?: unknown): UnsubscribeCallback => {
+					const unbind: UnsubscribeCallback = Reflect.apply(
+						commands.handle,
+						null,
+						[target, fn],
+					);
+					onAbort(task, unbind);
+					return unbind;
+				};
+				const use = (...items: Array<Module<E> | Command<never, unknown>>) => {
+					// a command (a function) is bound to itself: its own handler answers
+					const undos = items.map((item) =>
+						typeof item === "function"
+							? handle(item, item)
+							: children.mount(item),
+					);
+					return () => {
+						for (const undo of undos) {
+							undo();
+						}
+					};
+				};
+				const spawn = <P>(
+					fn: Task<P, E, unknown>,
+					...payload: PayloadOf<P>
+				) => {
+					task.run(fn, ...payload).catch((error: unknown) => {
+						if (!task.signal.aborted) {
+							throw error;
+						}
+					});
+				};
+
+				try {
+					module.setup(Object.assign(task, { handle, use, spawn }));
+				} catch (error) {
+					unmount();
+					throw error;
+				}
+
+				return unmount;
+			};
+
+			return {
+				mount,
+				unmount: (module: Module<E>) => active.get(module)?.(),
+				isMounted: (module: Module<E>) => active.has(module),
+			};
+		};
+
+		const apps = mounts(root.ctx);
+		for (const module of modules) {
+			apps.mount(module);
+		}
 
 		return {
-			mount,
-			unmount: (module: Module<E>) => active.get(module)?.(),
-			isMounted: (module: Module<E>) => active.has(module),
+			commands: registry,
+			mount: (module) => {
+				root.ctx.signal.throwIfAborted();
+				return apps.mount(module);
+			},
+			unmount: apps.unmount,
+			isMounted: apps.isMounted,
+			dispose: () => root.ctx.abort(),
 		};
 	};
-
-	const apps = mounts(root.ctx);
-	for (const module of modules) {
-		apps.mount(module);
-	}
-
-	return {
-		commands: registry,
-		mount: (module) => {
-			root.ctx.signal.throwIfAborted();
-			return apps.mount(module);
-		},
-		unmount: apps.unmount,
-		isMounted: apps.isMounted,
-		dispose: () => root.ctx.abort(),
-	};
-};

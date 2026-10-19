@@ -5,7 +5,7 @@ import {
 	createCommand,
 	createJob,
 	createModule,
-	registerModules,
+	modulePlugin,
 } from "nanoeffects/actions";
 
 type User = { id: string; name: string };
@@ -43,7 +43,7 @@ export const userModule = createModule<Events>("user", (m) => {
 });
 
 const bus = createBus<Events>();
-const app = registerModules(bus, [userModule]);
+const app = bus.use(modulePlugin([userModule]));
 
 export const user = bus.emit(getUser, "1"); // answered by the handler of the module
 export const unmount = app.mount(
