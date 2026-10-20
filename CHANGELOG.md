@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.4.0
+
 - `bus.once(event, fn)`: subscribe for one emit; the handler is removed before it runs. Returns an unsubscribe function.
 - `bus.off()` with no arguments clears every listener of every event (including `"*"`). `off(event)` / `off(event, fn)` are unchanged. `ctx.off` is the same API.
 - **BREAKING:** Calling a command or job, `command(payload)`, builds `{ type, payload }` like `createAction` and no longer runs the handler. Use `bus.emit(command(payload))` (or still `bus.emit(command, payload)`) for the result.
