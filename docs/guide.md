@@ -31,6 +31,22 @@ bus.emit("greet", "Bob"); // nobody listens
 
 Handlers run at once, in subscription order.
 
+`bus.once` is like `on`, but the handler runs at most once (it is removed before it is invoked). `bus.off("greet")` clears every listener of that event; `bus.off()` with no arguments clears **every** listener on the bus (including `"*"`). `ctx.off` is the same `off` as the bus’s — so `ctx.off()` also clears the whole bus.
+
+```js
+import { createBus } from "nanoeffects";
+
+const bus = createBus();
+
+// once — runs at most once, then unsubscribes
+bus.once("ready", () => console.log("ready"));
+bus.emit("ready"); // ready
+bus.emit("ready"); // nobody listens
+
+bus.on("tick", () => {});
+bus.off(); // clear every subscription
+```
+
 ## 2. Use the handler context
 
 The second argument is the **task** context for this call. Emit further events through it. Pass `ctx.signal` to `fetch` when you cancel work.

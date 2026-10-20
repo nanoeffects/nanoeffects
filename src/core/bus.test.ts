@@ -185,6 +185,72 @@ describe("bus", () => {
 				off();
 			}).not.toThrow();
 		});
+
+		it("off() with no arguments removes every listener, including *", () => {
+			const bus = createBus<TestEvents>();
+			const onT = vi.fn();
+			const onB = vi.fn();
+			const onAny = vi.fn();
+			bus.on("t", onT);
+			bus.on("b", onB);
+			bus.on("*", onAny);
+			bus.off();
+			bus.emit("t", 1);
+			bus.emit("b", "x");
+
+			expect(onT).not.toHaveBeenCalled();
+			expect(onB).not.toHaveBeenCalled();
+			expect(onAny).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("once", () => {
+		it("runs the handler once then removes it", () => {
+			const bus = createBus<TestEvents>();
+			const handler = vi.fn();
+			bus.once("t", handler);
+			bus.emit("t", 1);
+			bus.emit("t", 2);
+
+			expect(handler).toHaveBeenCalledTimes(1);
+			expect(handler).toHaveBeenCalledWith(1, expect.anything());
+		});
+
+		it("early unsubscribe prevents the run", () => {
+			const bus = createBus<TestEvents>();
+			const handler = vi.fn();
+			const unbind = bus.once("t", handler);
+			unbind();
+			bus.emit("t", 1);
+
+			expect(handler).not.toHaveBeenCalled();
+		});
+
+		it("unsubscribe after the run is harmless", () => {
+			const bus = createBus<TestEvents>();
+			const handler = vi.fn();
+			const unbind = bus.once("t", handler);
+			bus.emit("t", 1);
+
+			expect(() => unbind()).not.toThrow();
+			bus.emit("t", 2);
+			expect(handler).toHaveBeenCalledTimes(1);
+		});
+
+		it("once and on both run on the first emit; only on on the second", () => {
+			const bus = createBus<TestEvents>();
+			const order: string[] = [];
+			bus.once("t", () => {
+				order.push("once");
+			});
+			bus.on("t", () => {
+				order.push("on");
+			});
+			bus.emit("t", 1);
+			bus.emit("t", 2);
+
+			expect(order).toEqual(["once", "on", "on"]);
+		});
 	});
 
 	describe("task context", () => {

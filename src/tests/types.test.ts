@@ -45,6 +45,17 @@ describe("inference of handlers and policies", () => {
 		});
 	});
 
+	it("once takes the same payload as on; off() clears every listener", () => {
+		bus.once("search", (query, ctx) => {
+			expectTypeOf(query).toEqualTypeOf<string>();
+			expectTypeOf(ctx).toEqualTypeOf<Context<Events>>();
+		});
+		bus.off();
+		bus.off("search");
+		// @ts-expect-error the payload of search is a string
+		bus.once("search", (query: number) => query);
+	});
+
 	it("latest, leading, queue take the payload from the event", () => {
 		bus.on(
 			"loaded",

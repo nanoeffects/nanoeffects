@@ -19,6 +19,8 @@ export type Store<E extends EventMap> = {
 		<K extends Keys<E>>(key: K, task: Task<E[K], E>): UnsubscribeCallback;
 	};
 	remove: UnsubscribeTask<E>;
+	/** Drops every key; lists already handed out by `get` stay as they were. */
+	clear: () => void;
 };
 
 export const createStore = <E extends EventMap>(): Store<E> => {
@@ -50,6 +52,15 @@ export const createStore = <E extends EventMap>(): Store<E> => {
 		}
 	};
 
+	const clear = () => {
+		for (const key of Reflect.ownKeys(events)) {
+			delete events[key];
+		}
+		for (const key of Reflect.ownKeys(lists)) {
+			delete lists[key];
+		}
+	};
+
 	return {
 		get: (key: PropertyKey) => {
 			lists[key] ??= [...(events[key] ?? [])].flatMap(([task, count]) =>
@@ -67,5 +78,6 @@ export const createStore = <E extends EventMap>(): Store<E> => {
 			};
 		},
 		remove,
+		clear,
 	} as Store<E>;
 };

@@ -107,4 +107,27 @@ describe("store", () => {
 		expect(store.get("a")).toEqual([]);
 		expect(performance.now() - start).toBeLessThan(500);
 	});
+
+	it("clear removes every key, including the any-event key", () => {
+		const store = createStore<Events>();
+		store.add("a", () => {});
+		store.add("b", () => {});
+		store.add(anyEventType, () => {});
+		store.clear();
+
+		expect(store.get("a")).toEqual([]);
+		expect(store.get("b")).toEqual([]);
+		expect(store.get(anyEventType)).toEqual([]);
+	});
+
+	it("clear does not change a list that was already read", () => {
+		const store = createStore<Events>();
+		const task = () => {};
+		store.add("a", task);
+		const snapshot = store.get("a");
+		store.clear();
+
+		expect(snapshot).toEqual([task]);
+		expect(store.get("a")).toEqual([]);
+	});
 });

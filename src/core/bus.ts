@@ -162,6 +162,8 @@ export type On<E extends EventMap> = {
 };
 
 export type Off<E extends EventMap> = {
+	/** Removes every listener of every event (including `"*"`). */
+	(): void;
 	(event: AnyEvent): void;
 	(event: AnyEvent, fn: Task<EventPayload<E>, E>): void;
 	<K extends EventKey<E>>(event: K): void;
@@ -224,6 +226,11 @@ export type Context<E extends EventMap> = EventLike<E> &
 
 export interface Bus<E extends EventMap> {
 	on: On<E>;
+	/**
+	 * Like `on`, but the handler runs at most once: it is removed before it is
+	 * invoked, so a nested emit of the same event does not re-enter it.
+	 */
+	once: On<E>;
 	off: Off<E>;
 	emit: Emit<E>;
 	/**
@@ -285,10 +292,27 @@ export const createBus = <Events extends EventMap>(
 		fn: Task<EventPayload<Events>, Events>,
 	) => events.add(eventKey(event), fn);
 
-	const off = (
+	const once = (
 		event: Key | WithType<Key>,
+		fn: Task<EventPayload<Events>, Events>,
+	) => {
+		const unbind = on(event, (payload, ctx) => {
+			unbind();
+			return fn(payload, ctx);
+		});
+		return unbind;
+	};
+
+	const off = (
+		event?: Key | WithType<Key>,
 		fn?: Task<EventPayload<Events>, Events>,
-	) => events.remove(eventKey(event), fn);
+	) => {
+		if (event === void 0) {
+			events.clear();
+			return;
+		}
+		events.remove(eventKey(event), fn);
+	};
 
 	// runs one handler as a task; errors go to `onError` when there is one
 	const callHandler = (
@@ -354,7 +378,8 @@ export const createBus = <Events extends EventMap>(
 
 	const bus: Bus<Events> = {
 		on,
-		off,
+		once: once as On<Events>,
+		off: off as Off<Events>,
 		emit: emit as Emit<Events>,
 		use: (plugin) => plugin(bus),
 		context: options.context,
