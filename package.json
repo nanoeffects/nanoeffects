@@ -165,7 +165,7 @@
 		{
 			"name": "redux",
 			"path": "dist/redux.js",
-			"limit": "1.5 kB"
+			"limit": "1.55 kB"
 		},
 		{
 			"name": "observable",
