@@ -4,6 +4,7 @@ Use this page only when you already work in Observables / RxJS. Prefer `bus.on` 
 
 `createObserve(bus)` from `nanoeffects/observable` turns a bus event into an Observable that follows the TC39 proposal (`subscribe`, `unsubscribe`, `Symbol.observable`). RxJS and other stream libraries take it as it is. Nothing here depends on them.
 
+<!-- docs-check: skip - needs rxjs, which the project does not depend on -->
 ```js
 import { from } from "rxjs";
 import { debounceTime, distinctUntilChanged, switchMap } from "rxjs/operators";

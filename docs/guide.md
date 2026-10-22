@@ -294,6 +294,8 @@ Modules also make [hot reload](hmr.md) work. Full API in [Actions](actions.md); 
 Describe events once when you want `on` / `emit` checked. An event without data is `void`. Skip this while you are learning the bus.
 
 ```ts
+import { createBus } from "nanoeffects";
+
 // Events — event name → payload for this bus (checker only)
 type Events = {
   greet: string;

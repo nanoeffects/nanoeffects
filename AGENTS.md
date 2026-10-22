@@ -6,8 +6,9 @@ A typed event bus where each handler is a task with a context (`AbortSignal`, `e
 
 ```bash
 pnpm tsgo          # type check (tsc 7, strict, exactOptionalPropertyTypes, noUncheckedIndexedAccess)
-pnpm check         # biome check ./src, with the plugins from lint/
+pnpm check         # biome check ./src ./examples ./integration ./scripts, with the plugins from lint/
 pnpm format        # biome check --write --unsafe ./src
+pnpm docs:check    # type-checks the js/ts code blocks of docs/*.md against src (scripts/docs-check.mjs)
 pnpm vitest run    # all tests (fake timers where time matters)
 pnpm build         # tsdown: dist/ and dist/notrace/, then scripts/notrace-types.mjs
 pnpm test:integration  # the real Redux Toolkit, Zustand, MobX, Jotai, and Vite and webpack bundling the packed package (needs `pnpm build` first; it builds when dist is missing)
@@ -18,7 +19,7 @@ pnpm size          # size-limit: bundle size of each entry (brotli), limits in p
 pnpm verify        # all of the above in one go (what CI runs)
 ```
 
-Run `pnpm format && pnpm tsgo && pnpm check && pnpm vitest run && pnpm build` before you say that something is done. `format` may rewrite `void` to `undefined` in types: keep the `biome-ignore` on `Absent<P>` in `src/actions/action.ts`.
+Run `pnpm format && pnpm tsgo && pnpm check && pnpm docs:check && pnpm vitest run && pnpm build` before you say that something is done. `format` may rewrite `void` to `undefined` in types: keep the `biome-ignore` on `Absent<P>` in `src/actions/action.ts`.
 
 Do not commit, push or stage unless the owner asks. The working tree is often large and uncommitted on purpose.
 
@@ -113,6 +114,10 @@ Do not drop a block of unfamiliar calls (`m.on` + `m.handle` + `m.use`, …) wit
 - Reference pages: who/when in the first lines; one minimal example; then the catalog.
 - Describe inputs, result, limits, side effects. Rare options after the base case.
 - Everyday JS wording; explain a specialized term on first use. No duplication of README in `docs/` and vice versa.
+
+### Code blocks in `docs/` are type-checked
+
+`pnpm docs:check` checks every `js` and `ts` fence of `docs/*.md` on its own, with `nanoeffects/*` mapped to `src`. `js` blocks report only stale names (missing name, export, module, wrong argument count, unknown option), because a JavaScript reader gets no payload types. A name that the reader's app owns (`api`, `fetchUser`) is declared in `scripts/docs-stubs.d.ts`; add one only when a snippet needs it. A block that cannot be checked gets `<!-- docs-check: skip - reason -->` on the line before its fence.
 
 ### Clarity checklist
 

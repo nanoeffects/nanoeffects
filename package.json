@@ -108,8 +108,9 @@
 		"prepare": "lefthook install",
 		"lint:package": "publint && attw --pack . --profile esm-only",
 		"size": "size-limit",
-		"verify": "pnpm tsgo && pnpm check && pnpm test && pnpm build && pnpm test:integration && pnpm smoke && pnpm lint:package && pnpm size",
+		"verify": "pnpm tsgo && pnpm check && pnpm docs:check && pnpm test && pnpm build && pnpm test:integration && pnpm smoke && pnpm lint:package && pnpm size",
 		"test:integration": "vitest run --config vitest.integration.config.ts",
+		"docs:check": "node scripts/docs-check.mjs",
 		"smoke": "node scripts/smoke.mjs && node scripts/smoke.mjs --notrace",
 		"consumer-check": "node scripts/consumer-check.mjs"
 	},

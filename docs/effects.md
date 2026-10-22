@@ -87,9 +87,16 @@ Each attempt or call of a wrapper gets its own child context. Abort of the calle
 A pause can be a function wherever a time is given. For retries with a cap and jitter, see [Back off between retries](#back-off-between-retries):
 
 ```js
-retry(ctx, load, { times: 5, delay: (attempt) => 2 ** attempt * 100 }); // 200, 400, 800, …
-poll(ctx, refresh, (call) => Math.min(1000 * 2 ** call, 60_000)); // slows to once a minute
-await delay(ctx, () => 200 + Math.random() * 200); // 200–400 ms
+import { createBus } from "nanoeffects";
+import { delay, poll, retry } from "nanoeffects/effects";
+
+const bus = createBus();
+
+bus.on("sync", async (_, ctx) => {
+  retry(ctx, load, { times: 5, delay: (attempt) => 2 ** attempt * 100 }); // 200, 400, 800, …
+  poll(ctx, refresh, (call) => Math.min(1000 * 2 ** call, 60_000)); // slows to once a minute
+  await delay(ctx, () => 200 + Math.random() * 200); // 200–400 ms
+});
 ```
 
 All three are traced: the effect is a group (`retry`, `timeout`, `poll`) and each attempt or call is a `run` child.

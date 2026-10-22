@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `pnpm docs:check` type-checks the `js` and `ts` code blocks of `docs/` against the sources, so a stale snippet fails `verify` and CI. Fixes for the snippets it found are in `docs/effects.md` and `docs/guide.md`.
 - `backoff({ base, factor, max, jitter })` from `nanoeffects/effects`: builds the `delay` of `retry` (or `poll`): `base * factor ** (attempt - 1)`, at most `max`, with optional full jitter. `docs/effects.md` gets a "Back off between retries" recipe.
 - **BREAKING:** the `context` field of `Bus`, the slot that plugins read, is renamed to `ctx`. `createBus({ context })` is unchanged. It saves bytes in the bundle, which does not shorten property names.
 - `emitterPlugin()` from `nanoeffects/actions`: `bus.use(emitterPlugin())` adds `bus.emitter(action)`, a callback `(...args) => bus.emit(action(...args))` to pass to the subscription of a state manager (`$name.listen(bus.emitter(nameChanged))`). `createAction` and `bus.emit` are unchanged. `docs/stores.md` shows Nanostores, MobX, Valtio, Jotai and Zustand.

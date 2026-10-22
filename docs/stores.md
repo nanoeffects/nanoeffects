@@ -100,6 +100,7 @@ bus.on(
 
 Pass `emitNameChanged` to the subscription of your store. It sends the first argument of the call as the payload.
 
+<!-- docs-check: skip - five alternatives, one per store library, none of them installed here -->
 ```js
 // Nanostores: listen calls back with the new value (subscribe would call at once)
 const stop = $name.listen(emitNameChanged);

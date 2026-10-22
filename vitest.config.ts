@@ -24,7 +24,7 @@ export default defineConfig({
 		],
 	},
 	test: {
-		include: ["src/**/*.test.ts"],
+		include: ["src/**/*.test.ts", "scripts/**/*.test.mjs"],
 		// ArchUnitTS adds its matcher to the global `expect`
 		globals: true,
 	},
