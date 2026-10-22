@@ -240,7 +240,7 @@ export interface Bus<E extends EventMap> {
 	 */
 	use<R>(plugin: (bus: Bus<E>) => R): R;
 	/** `BusOptions.context` and `.trace`, and `commands`, for what makes tasks of its own, like `modulePlugin`. */
-	readonly context?: ContextOption<E> | undefined;
+	readonly ctx?: ContextOption<E> | undefined;
 	/** What runs the commands; `commandsPlugin` and `modulePlugin` set it. Without one a command runs its own handler. */
 	commands?: Commands | undefined;
 	readonly trace?: Tracer | undefined;
@@ -384,7 +384,7 @@ export const createBus = <Events extends EventMap>(
 		off: off as Off<Events>,
 		emit: emit as Emit<Events>,
 		use: (plugin) => plugin(bus),
-		context: options.context,
+		ctx: options.context,
 		trace: options.trace,
 	};
 

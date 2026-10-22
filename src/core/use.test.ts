@@ -58,11 +58,11 @@ describe("bus.use", () => {
 		const context = { label: "x" };
 		const bus = createBus<TestEvents>({ context: context as never });
 		const seen = bus.use((given) => ({
-			context: given.context,
+			ctx: given.ctx,
 			commands: given.commands,
 		}));
 
-		expect(seen.context).toBe(context);
+		expect(seen.ctx).toBe(context);
 		expect(seen.commands).toBeUndefined();
 	});
 });

@@ -61,7 +61,7 @@ type TaskBus<E extends EventMap> = {
 	on?: On<E> | undefined;
 	off?: Off<E> | undefined;
 	/** Fields the user adds to every context, or a function that makes them for a task; see `BusOptions.context`. */
-	context?: unknown;
+	ctx?: unknown;
 	/** Adds fields to each new context; see `Bus.addContext`. */
 	addContext?: ((ctx: object) => void) | undefined;
 };
@@ -158,7 +158,7 @@ export const createTask = <E extends EventMap>({
 	};
 
 	const ctx = asContext<E>({
-		...fieldsOf(bus?.context, event),
+		...fieldsOf(bus?.ctx, event),
 		type: event.type,
 		payload: event.payload,
 		signal,
@@ -202,7 +202,7 @@ export const forkTask = <E extends EventMap>(
 			on: parent.on,
 			off: parent.off,
 			// the fields of the parent context that are not the library's are the user's
-			context: parent,
+			ctx: parent,
 		},
 		tracer: meta?.tracer,
 		parent: { signal: parent.signal, ref: meta?.ref },
