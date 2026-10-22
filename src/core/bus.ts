@@ -244,6 +244,8 @@ export interface Bus<E extends EventMap> {
 	/** What runs the commands; `commandsPlugin` and `modulePlugin` set it. Without one a command runs its own handler. */
 	commands?: Commands | undefined;
 	readonly trace?: Tracer | undefined;
+	/** Called with every new task context to add fields to it, for what needs the task, like `effectsPlugin`. Chain to the previous one. */
+	addContext?: ((ctx: object) => void) | undefined;
 }
 
 export type BusOptions<E extends EventMap> = {

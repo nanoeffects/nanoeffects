@@ -22,6 +22,7 @@ describe("public entries", () => {
 			"allSettled",
 			"cancellable",
 			"delay",
+			"effectsPlugin",
 			"onAbort",
 			"poll",
 			"race",

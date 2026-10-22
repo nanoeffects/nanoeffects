@@ -17,6 +17,8 @@ import {
 	all,
 	allSettled,
 	cancellable,
+	delay,
+	effectsPlugin,
 	poll,
 	race,
 	retry,
@@ -646,5 +648,69 @@ describe("bus.use", () => {
 		expectTypeOf(app.mount(user)).toEqualTypeOf<UnsubscribeCallback>();
 		expectTypeOf(app.isMounted(user)).toEqualTypeOf<boolean>();
 		expectTypeOf(app.commands.handle).toBeFunction();
+	});
+});
+
+describe("effectsPlugin", () => {
+	type LoadEvents = { load: string };
+
+	it("types race and all when destructured from the task", () => {
+		const withEffects = createBus<LoadEvents>().use(
+			effectsPlugin({ race, all }),
+		);
+		withEffects.on("load", async (id, { race, all }) => {
+			expectTypeOf(id).toEqualTypeOf<string>();
+			const raced = await race({ data: () => id, other: () => 1 });
+			expectTypeOf(raced).toEqualTypeOf<{ data?: string; other?: number }>();
+			const both = await all({ a: () => 1, b: () => "x" });
+			expectTypeOf(both).toEqualTypeOf<{ a: number; b: string }>();
+			const pair = await all([() => 1, () => "x"]);
+			expectTypeOf(pair).toEqualTypeOf<[number, string]>();
+		});
+	});
+
+	it("take knows the events of the bus and delay takes ms", () => {
+		type Events = { load: string; saved: number };
+		const withEffects = createBus<Events>().use(effectsPlugin({ take, delay }));
+		withEffects.on("load", async (_, { take, delay }) => {
+			expectTypeOf(await take("saved")).toEqualTypeOf<number>();
+			expectTypeOf(delay).parameter(0).toEqualTypeOf<number | (() => number)>();
+			// @ts-expect-error "missing" is not an event of this bus
+			await take("missing");
+		});
+	});
+
+	it("wrong arguments of a bound effect are errors", () => {
+		const withEffects = createBus<LoadEvents>().use(effectsPlugin({ race }));
+		withEffects.on("load", async (_, { race }) => {
+			// @ts-expect-error race needs starters, not a number
+			await race(1);
+		});
+	});
+
+	it("an effect outside the supported ones is an error", () => {
+		// @ts-expect-error retry is not one of the effects that go on the task
+		effectsPlugin({ retry });
+	});
+
+	it("an effect that is already a context field is an error", () => {
+		const taken = createBus<LoadEvents & WithContext<{ race: number }>>();
+		// @ts-expect-error race is a context field of this bus already
+		taken.use(effectsPlugin({ race }));
+		const once = createBus<LoadEvents>().use(effectsPlugin({ race }));
+		// @ts-expect-error race was added by the first plugin
+		once.use(effectsPlugin({ race }));
+		once.use(effectsPlugin({ all }));
+	});
+
+	it("keeps the fields of an existing WithContext", () => {
+		type Store = { readonly name: string };
+		const withStore = createBus<LoadEvents & WithContext<{ store: Store }>>({
+			context: { store: { name: "main" } },
+		}).use(effectsPlugin({ all }));
+		withStore.on("load", async (_, { store, all }) => {
+			expectTypeOf(store).toEqualTypeOf<Store>();
+			expectTypeOf(await all({ a: () => 1 })).toEqualTypeOf<{ a: number }>();
+		});
 	});
 });

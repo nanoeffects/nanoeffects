@@ -19,6 +19,8 @@ That is enough in JavaScript. The fields appear on handlers, `ctx.run`, `ctx.on`
 
 Library fields (`signal`, `emit`, `run`, …) win on name clashes. `context` may be a function `(task) => fields` when the value depends on the task.
 
+To get `race`, `all`, `take` and the like on every task without passing `ctx`, see [`effectsPlugin`](effects.md#put-selected-effects-on-ctx).
+
 ## Type the fields (optional)
 
 `WithContext` on the event map only tells TypeScript that handlers of **this** bus have those fields. It does not wire anything at runtime and is not app-wide — another bus can have different fields or none.

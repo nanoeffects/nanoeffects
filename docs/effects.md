@@ -94,6 +94,38 @@ await delay(ctx, () => 200 + Math.random() * 200); // 200–400 ms
 
 All three are traced: the effect is a group (`retry`, `timeout`, `poll`) and each attempt or call is a `run` child.
 
+## Put selected effects on `ctx`
+
+If handlers call the same helpers often, put them on the task once. A handler then destructures them like `signal`, with no `ctx` argument. Only the effects you pass are imported, so the rest stay out of the bundle ([package entries](package.md)).
+
+```js
+import { createBus } from "nanoeffects";
+import { all, delay, effectsPlugin, race } from "nanoeffects/effects";
+
+// effectsPlugin — add race, all and delay to the context of every task; returns the same bus
+const bus = createBus().use(effectsPlugin({ race, all, delay }));
+
+bus.on("load", async (id, { race, all, delay }) => {
+  // race — same as race(ctx, …)
+  const result = await race({
+    data: ({ signal }) => fetchData(id, { signal }),
+    timeout: () => delay(5000), // delay — same as delay(ctx, 5000)
+  });
+  if ("timeout" in result) throw new Error("timed out");
+
+  // all — same as all(ctx, …)
+  const { user, posts } = await all({
+    user: ({ signal }) => fetchUser(id, { signal }),
+    posts: ({ signal }) => fetchPosts(id, { signal }),
+  });
+});
+```
+
+- Supported: `race`, `all`, `allSettled`, `take`, `delay`. The key is the effect name.
+- `retry`, `timeout` and `poll` are not supported: bound to the task they would look like their handler wrappers.
+- Fields from `createBus({ context })` stay. TypeScript rejects an effect whose name is already a context field of the bus, including one added by an earlier `effectsPlugin`.
+- Free forms keep working: `race(ctx, …)`.
+
 ## Tie a promise to the task signal
 
 `delay(ctx, ms)` waits and rejects on abort (`ms` can be a function).

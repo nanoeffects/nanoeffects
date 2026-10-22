@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `effectsPlugin({ race, all, … })` from `nanoeffects/effects`: puts `race`, `all`, `allSettled`, `take` and `delay` on every task context, bound to the task, so a handler can write `(id, { race })`. `bus.use(effectsPlugin(…))` returns the same bus typed with those fields. It uses the new `Bus.addContext` hook.
+
 ## 0.4.0
 
 - `bus.once(event, fn)`: subscribe for one emit; the handler is removed before it runs. Returns an unsubscribe function.

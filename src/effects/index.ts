@@ -6,6 +6,7 @@ export {
 	type CancellableHandle,
 	cancellable,
 } from "./cancellable";
+export { effectsPlugin } from "./plugin";
 export { type PollOptions, poll } from "./poll";
 export { type RaceStarter, race } from "./race";
 export { type RetryOptions, retry } from "./retry";

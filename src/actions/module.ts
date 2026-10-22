@@ -29,7 +29,9 @@ export type ModuleContext<E extends EventMap = EventMap> = Context<E> & {
 	 * a listener.
 	 */
 	use(
-		...items: Array<Module<E> | Command<never, unknown>>
+		...items: Array<
+			Module<E> | { readonly type: string; (payload: never): unknown }
+		>
 	): UnsubscribeCallback;
 	/**
 	 * Starts a background task that lives as long as the module: it is aborted
@@ -175,7 +177,11 @@ export const modulePlugin =
 					onAbort(task, unbind);
 					return unbind;
 				};
-				const use = (...items: Array<Module<E> | Command<never, unknown>>) => {
+				const use = (
+					...items: Array<
+						Module<E> | { readonly type: string; (payload: never): unknown }
+					>
+				) => {
 					// a command (a function) is bound to itself: its own handler answers
 					const undos = items.map((item) =>
 						typeof item === "function"

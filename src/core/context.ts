@@ -62,6 +62,8 @@ type TaskBus<E extends EventMap> = {
 	off?: Off<E> | undefined;
 	/** Fields the user adds to every context, or a function that makes them for a task; see `BusOptions.context`. */
 	context?: unknown;
+	/** Adds fields to each new context; see `Bus.addContext`. */
+	addContext?: ((ctx: object) => void) | undefined;
 };
 
 // the fields come from the user's `BusOptions.context`: an object, or a function of the task
@@ -166,6 +168,7 @@ export const createTask = <E extends EventMap>({
 		off: bus?.off ?? noop,
 		run,
 	});
+	bus?.addContext?.(ctx);
 	if (meta) {
 		metaOf.set(ctx, meta);
 	}
