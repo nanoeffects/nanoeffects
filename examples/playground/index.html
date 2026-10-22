@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>nanoeffects: search with debounce and latest</title>
+		<style>
+			body { font-family: system-ui, sans-serif; max-width: 32rem; margin: 2rem auto; padding: 0 1rem; }
+			input { width: 100%; padding: 0.5rem; font-size: 1rem; box-sizing: border-box; }
+			ul { padding-left: 1.25rem; }
+			.aborted { color: #b45309; }
+			.done { color: #15803d; }
+		</style>
+	</head>
+	<body>
+		<h1>Search with debounce and latest</h1>
+		<p>
+			Type fast: only one request starts, after 300 ms of quiet. Type again while
+			a request is running (each takes 800 ms): the older one is aborted.
+		</p>
+		<input id="query" placeholder="Type a query" autocomplete="off" />
+		<h2>Requests</h2>
+		<ul id="requests"></ul>
+		<h2>Last result</h2>
+		<p id="result">nothing yet</p>
+		<script type="module" src="./main.ts"></script>
+	</body>
+</html>

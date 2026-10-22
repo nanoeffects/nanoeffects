@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- A playground on StackBlitz (`examples/playground`): the search example with `debounce` and `latest` and a log of started, aborted and finished requests. README links to it.
 - `pnpm docs:check` type-checks the `js` and `ts` code blocks of `docs/` against the sources, so a stale snippet fails `verify` and CI. Fixes for the snippets it found are in `docs/effects.md` and `docs/guide.md`.
 - `backoff({ base, factor, max, jitter })` from `nanoeffects/effects`: builds the `delay` of `retry` (or `poll`): `base * factor ** (attempt - 1)`, at most `max`, with optional full jitter. `docs/effects.md` gets a "Back off between retries" recipe.
 - **BREAKING:** the `context` field of `Bus`, the slot that plugins read, is renamed to `ctx`. `createBus({ context })` is unchanged. It saves bytes in the bundle, which does not shorten property names.
