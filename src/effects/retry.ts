@@ -43,7 +43,8 @@ const retryBody = <T>(
 				return await runTraced(group, (child) => attempt(child, number));
 			} catch (error) {
 				group.signal.throwIfAborted();
-				if (number >= times || !shouldRetry(error, number)) {
+				// `!(number < times)`, not `>=`: a NaN `times` must stop after the first call, not retry forever
+				if (!(number < times) || !shouldRetry(error, number)) {
 					throw error;
 				}
 

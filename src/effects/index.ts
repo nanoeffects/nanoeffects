@@ -1,6 +1,7 @@
 export { delay, onAbort } from "../utils";
 export { all } from "./all";
 export { allSettled } from "./allSettled";
+export { type BackoffOptions, backoff } from "./backoff";
 export {
 	type CancellableExecutor,
 	type CancellableHandle,

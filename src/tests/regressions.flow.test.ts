@@ -3,6 +3,10 @@
 // p-queue:    #29, #23, #110, #87
 // bottleneck: #134, #95, #63
 // p-retry:    #25, #14, #78, #58, #36, #34
+// cockatiel:  #30 (backoff)
+// coder/mux:  #548 (backoff)
+// p-retry (signal listeners, hooks that throw), axios-retry (delay from the error),
+// cockatiel (timers while waiting): classes of defects, not single issues
 // RxJS:       #674, #5653
 // timers:     setTimeout limits (a wait over 2^31 - 1 ms fires at once)
 // emitters:   mitt, emittery, nanoevents
@@ -10,7 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createModule } from "../actions";
 import { createBus } from "../core/bus";
 import type { Task } from "../core/types";
-import { delay, poll, retry, timeout } from "../effects";
+import { backoff, delay, poll, retry, timeout } from "../effects";
 import { debounce, queue, throttle } from "../policies";
 import {
 	createApp,
@@ -571,6 +575,410 @@ describe("regressions: retries", () => {
 
 			await expect(result).rejects.toBe("stop");
 			expect(calls).toBe(1);
+		});
+	});
+});
+
+describe("regressions: backoff", () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+		vi.restoreAllMocks();
+	});
+
+	describe("cockatiel #30: the first delay is zero", () => {
+		it("the first pause is the base, not 0", () => {
+			expect(backoff({ base: 100 })(1)).toBe(100);
+		});
+
+		it("retry waits the base before the second attempt", async () => {
+			const handler = vi.fn(() => {
+				throw new Error("ERR");
+			});
+			retry({}, handler, { times: 2, delay: backoff({ base: 100 }) }).catch(
+				() => {},
+			);
+
+			await vi.advanceTimersByTimeAsync(99);
+			expect(handler).toHaveBeenCalledTimes(1);
+			await vi.advanceTimersByTimeAsync(1);
+			expect(handler).toHaveBeenCalledTimes(2);
+		});
+	});
+
+	describe("coder/mux #548: the counter is not reset too early or kept too long", () => {
+		it("a second retry call starts from the base again", async () => {
+			const delays: number[] = [];
+			const delay = backoff({ base: 100 });
+			const recording = (attempt: number) => {
+				const pause = delay(attempt);
+				delays.push(pause);
+				return pause;
+			};
+			const failing = () => {
+				throw new Error("ERR");
+			};
+
+			for (let run = 0; run < 2; run++) {
+				const result = retry({}, failing, { times: 3, delay: recording });
+				result.catch(() => {});
+				await vi.advanceTimersByTimeAsync(300);
+			}
+
+			expect(delays).toEqual([100, 200, 100, 200]);
+		});
+
+		it("one backoff function serves two retries at once", async () => {
+			const delay = backoff({ base: 100 });
+			const first = vi.fn(() => {
+				throw new Error("A");
+			});
+			const second = vi.fn(() => {
+				throw new Error("B");
+			});
+			retry({}, first, { times: 2, delay }).catch(() => {});
+			await vi.advanceTimersByTimeAsync(50);
+			retry({}, second, { times: 2, delay }).catch(() => {});
+
+			await vi.advanceTimersByTimeAsync(50);
+			expect(first).toHaveBeenCalledTimes(2);
+			expect(second).toHaveBeenCalledTimes(1);
+			await vi.advanceTimersByTimeAsync(50);
+			expect(second).toHaveBeenCalledTimes(2);
+		});
+	});
+
+	describe("RxJS retry({ delay }): a success must not leave a long pause behind", () => {
+		it("a call that succeeds after a failure does not slow the next call", async () => {
+			const delay = backoff({ base: 100 });
+			let calls = 0;
+			const flaky = () => {
+				calls++;
+				if (calls === 1) {
+					throw new Error("ERR");
+				}
+				return "ok";
+			};
+			const first = retry({}, flaky, { times: 3, delay });
+			await vi.advanceTimersByTimeAsync(100);
+			await expect(first).resolves.toBe("ok");
+
+			calls = 0;
+			const second = retry({}, flaky, { times: 3, delay });
+			await vi.advanceTimersByTimeAsync(100);
+			await expect(second).resolves.toBe("ok");
+		});
+	});
+
+	describe("overflow of the pause (growing delays in many backoff libraries)", () => {
+		it("many attempts never give a negative or NaN pause", () => {
+			const delay = backoff({ base: 100, jitter: true });
+
+			for (const attempt of [50, 1100, 100_000]) {
+				const pause = delay(attempt);
+				expect(Number.isNaN(pause)).toBe(false);
+				expect(pause).toBeGreaterThanOrEqual(0);
+			}
+		});
+
+		it("with max the pause stays at max however many attempts", () => {
+			expect(backoff({ base: 100, max: 5000 })(100_000)).toBe(5000);
+		});
+
+		it("a zero from Math.random times an infinite pause is not NaN", () => {
+			vi.spyOn(Math, "random").mockReturnValue(0);
+
+			expect(Number.isNaN(backoff({ jitter: true })(100_000))).toBe(false);
+		});
+
+		it("a pause over 2^31 - 1 ms waits the whole time, not at once", async () => {
+			const handler = vi.fn(() => {
+				throw new Error("ERR");
+			});
+			const day = 24 * 60 * 60 * 1000;
+			retry({}, handler, {
+				times: 2,
+				delay: backoff({ base: 30 * day }),
+			}).catch(() => {});
+
+			await vi.advanceTimersByTimeAsync(29 * day);
+			expect(handler).toHaveBeenCalledTimes(1);
+			await vi.advanceTimersByTimeAsync(1 * day);
+			expect(handler).toHaveBeenCalledTimes(2);
+		});
+	});
+
+	describe("odd attempts", () => {
+		it("attempt 0 (the first call of poll) is base / factor", () => {
+			expect(backoff({ base: 100 })(0)).toBe(50);
+		});
+
+		it("a NaN attempt is waited as 0 by the timers, not as a hang", async () => {
+			const handler = vi.fn(() => {
+				throw new Error("ERR");
+			});
+			retry({}, handler, {
+				times: 2,
+				delay: () => backoff()(Number.NaN),
+			}).catch(() => {});
+
+			await vi.advanceTimersByTimeAsync(0);
+			expect(handler).toHaveBeenCalledTimes(2);
+		});
+
+		it("a max of 0 gives no pause and no jitter error", () => {
+			expect(backoff({ base: 100, max: 0, jitter: true })(3)).toBe(0);
+		});
+	});
+});
+
+describe("regressions: retry in similar libraries", () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	describe("p-retry: hooks that throw", () => {
+		it("an error of shouldRetry rejects the call and stops retrying", async () => {
+			const handler = vi.fn(() => {
+				throw new Error("ERR");
+			});
+			const result = retry({}, handler, {
+				times: 5,
+				shouldRetry: () => {
+					throw new Error("hook");
+				},
+			});
+
+			await expect(result).rejects.toThrow("hook");
+			expect(handler).toHaveBeenCalledTimes(1);
+		});
+
+		it("an error of the delay function rejects the call and stops retrying", async () => {
+			const handler = vi.fn(() => {
+				throw new Error("ERR");
+			});
+			const result = retry({}, handler, {
+				times: 5,
+				delay: () => {
+					throw new Error("delay");
+				},
+			});
+
+			await expect(result).rejects.toThrow("delay");
+			expect(handler).toHaveBeenCalledTimes(1);
+		});
+	});
+
+	describe("p-retry: signal listeners", () => {
+		it("an abort after the call has finished does nothing", async () => {
+			const controller = new AbortController();
+			const handler = vi.fn(() => "ok");
+			await retry({ signal: controller.signal }, handler);
+
+			controller.abort();
+
+			expect(handler).toHaveBeenCalledTimes(1);
+		});
+
+		it("an already aborted signal does not call the function at all", async () => {
+			const controller = new AbortController();
+			controller.abort(new Error("stop"));
+			const handler = vi.fn(() => "ok");
+
+			await expect(
+				retry({ signal: controller.signal }, handler),
+			).rejects.toThrow("stop");
+			expect(handler).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("cockatiel: timers while waiting", () => {
+		it("an abort during the pause clears the timer", async () => {
+			const controller = new AbortController();
+			const handler = vi.fn(() => {
+				throw new Error("ERR");
+			});
+			const result = retry({ signal: controller.signal }, handler, {
+				times: 3,
+				delay: backoff({ base: 10_000 }),
+			});
+			result.catch(() => {});
+			await vi.advanceTimersByTimeAsync(0);
+			expect(vi.getTimerCount()).toBe(1);
+
+			controller.abort(new Error("stop"));
+			await vi.advanceTimersByTimeAsync(0);
+
+			expect(vi.getTimerCount()).toBe(0);
+			await vi.advanceTimersByTimeAsync(60_000);
+			expect(handler).toHaveBeenCalledTimes(1);
+			await expect(result).rejects.toThrow("stop");
+		});
+
+		it("the last failure leaves no timer behind", async () => {
+			const handler = vi.fn(() => {
+				throw new Error("ERR");
+			});
+			const result = retry({}, handler, {
+				times: 2,
+				delay: backoff({ base: 100 }),
+			});
+			result.catch(() => {});
+
+			await vi.advanceTimersByTimeAsync(100);
+			await expect(result).rejects.toThrow("ERR");
+			expect(vi.getTimerCount()).toBe(0);
+		});
+	});
+
+	describe("axios-retry: the pause depends on the error", () => {
+		it("delay gets the failed attempt and its error", async () => {
+			const delayArguments: unknown[][] = [];
+			const handler = vi.fn(() => {
+				throw Object.assign(new Error("429"), { retryAfter: 700 });
+			});
+			retry({}, handler, {
+				times: 2,
+				delay: (attempt, error) => {
+					delayArguments.push([attempt, (error as Error).message]);
+					return (error as { retryAfter: number }).retryAfter;
+				},
+			}).catch(() => {});
+
+			await vi.advanceTimersByTimeAsync(699);
+			expect(handler).toHaveBeenCalledTimes(1);
+			await vi.advanceTimersByTimeAsync(1);
+			expect(handler).toHaveBeenCalledTimes(2);
+			expect(delayArguments).toEqual([[1, "429"]]);
+		});
+
+		it("the larger of the backoff and the server's pause can be taken", async () => {
+			const exponential = backoff({ base: 100 });
+			const handler = vi.fn(() => {
+				throw Object.assign(new Error("429"), { retryAfter: 500 });
+			});
+			retry({}, handler, {
+				times: 3,
+				delay: (attempt, error) =>
+					Math.max(
+						exponential(attempt),
+						(error as { retryAfter: number }).retryAfter,
+					),
+			}).catch(() => {});
+
+			await vi.advanceTimersByTimeAsync(500);
+			expect(handler).toHaveBeenCalledTimes(2);
+			await vi.advanceTimersByTimeAsync(500);
+			expect(handler).toHaveBeenCalledTimes(3);
+		});
+	});
+
+	describe("a delay that is not a usable number", () => {
+		it.each([
+			["undefined", () => void 0],
+			["NaN", () => Number.NaN],
+			["negative", () => -50],
+		])("%s means no pause, not a hang", async (_name, delayFunction) => {
+			const handler = vi.fn(() => {
+				throw new Error("ERR");
+			});
+			retry({}, handler, {
+				times: 2,
+				delay: delayFunction as () => number,
+			}).catch(() => {});
+
+			await vi.advanceTimersByTimeAsync(0);
+
+			expect(handler).toHaveBeenCalledTimes(2);
+		});
+	});
+
+	describe("odd numbers of attempts", () => {
+		it.each([
+			[0, 1],
+			[-3, 1],
+			[Number.NaN, 1],
+		])(
+			"times %s still makes the first call (and no more than %s)",
+			async (times, calls) => {
+				const handler = vi.fn(() => {
+					throw new Error("ERR");
+				});
+
+				await retry({}, handler, { times }).catch(() => {});
+
+				expect(handler).toHaveBeenCalledTimes(calls);
+			},
+		);
+
+		it("a fractional times does not make an extra call", async () => {
+			const handler = vi.fn(() => {
+				throw new Error("ERR");
+			});
+
+			await retry({}, handler, { times: 2.5 }).catch(() => {});
+
+			expect(handler.mock.calls.length).toBeLessThanOrEqual(3);
+		});
+	});
+
+	describe("backoff with odd factors", () => {
+		it("a factor under 1 shrinks the pause, never negative", () => {
+			const delay = backoff({ base: 100, factor: 0.5 });
+
+			expect([delay(1), delay(2), delay(3)]).toEqual([100, 50, 25]);
+		});
+
+		it("a factor of 1 is a constant pause", () => {
+			const delay = backoff({ base: 100, factor: 1 });
+
+			expect([delay(1), delay(5), delay(50)]).toEqual([100, 100, 100]);
+		});
+
+		it("a factor of 0 gives the base once, then no pause", () => {
+			const delay = backoff({ base: 100, factor: 0 });
+
+			expect([delay(1), delay(2)]).toEqual([100, 0]);
+		});
+
+		it("a negative factor never gives a negative pause", () => {
+			const delay = backoff({ base: 100, factor: -2 });
+
+			for (const attempt of [1, 2, 3, 4]) {
+				expect(delay(attempt)).toBeGreaterThanOrEqual(0);
+			}
+		});
+
+		it("a fractional base is waited, not rounded to a hang", async () => {
+			const handler = vi.fn(() => {
+				throw new Error("ERR");
+			});
+			retry({}, handler, {
+				times: 2,
+				delay: backoff({ base: 0.5 }),
+			}).catch(() => {});
+
+			await vi.advanceTimersByTimeAsync(1);
+
+			expect(handler).toHaveBeenCalledTimes(2);
+		});
+	});
+
+	describe("a shared backoff and a changing Math.random", () => {
+		it("each pause draws its own random number", () => {
+			const draws = [0.1, 0.9];
+			vi.spyOn(Math, "random").mockImplementation(() => draws.shift() ?? 0);
+			const delay = backoff({ base: 100, factor: 1, jitter: true });
+
+			expect([delay(1), delay(1)]).toEqual([10, 90]);
+			vi.restoreAllMocks();
 		});
 	});
 });

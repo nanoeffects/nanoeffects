@@ -155,7 +155,7 @@
 		{
 			"name": "effects (all)",
 			"path": "dist/effects.js",
-			"limit": "2317 B"
+			"limit": "2.45 kB"
 		},
 		{
 			"name": "actions (all)",

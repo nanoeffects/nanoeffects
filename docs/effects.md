@@ -84,7 +84,7 @@ Each attempt or call of a wrapper gets its own child context. Abort of the calle
 - `fn` gets the call number from `0`.
 - An error from `fn` stops polling and rejects. An abort ends it normally and clears the timer.
 
-A pause can be a function wherever a time is given (backoff or jitter):
+A pause can be a function wherever a time is given. For retries with a cap and jitter, see [Back off between retries](#back-off-between-retries):
 
 ```js
 retry(ctx, load, { times: 5, delay: (attempt) => 2 ** attempt * 100 }); // 200, 400, 800, …
@@ -93,6 +93,44 @@ await delay(ctx, () => 200 + Math.random() * 200); // 200–400 ms
 ```
 
 All three are traced: the effect is a group (`retry`, `timeout`, `poll`) and each attempt or call is a `run` child.
+
+## Back off between retries
+
+Use this when a server or network fails under load. Retrying at once, or at the same fixed pause, sends every client back at the same moment and can keep the server down. Make the pause grow with each attempt, and add jitter so clients spread out.
+
+The shortest form is a `delay` function. It needs no import:
+
+```js
+import { retry } from "nanoeffects/effects";
+
+const loadWithRetry = retry(loadUser, {
+  times: 5,
+  delay: (attempt) => 2 ** attempt * 100, // 200, 400, 800, 1600 ms
+});
+```
+
+When you also want a cap and jitter, build the function with `backoff`:
+
+```js
+import { backoff, retry } from "nanoeffects/effects";
+
+const loadWithRetry = retry(loadUser, {
+  times: 5,
+  // backoff — pause 200, 400, 800, … ms, never over 5 s, a random part of it
+  delay: backoff({ base: 200, max: 5000, jitter: true }),
+});
+```
+
+| Option | Meaning |
+| ------ | ------- |
+| `base` | pause before the second attempt, in ms (default `100`) |
+| `factor` | each pause is this many times longer (default `2`) |
+| `max` | longest pause, in ms (default none) |
+| `jitter` | `true` picks a random pause from 0 up to the computed one (default `false`) |
+
+- With `jitter: true` a pause can be close to 0, so treat `base` as a scale, not a minimum.
+- `retry` counts attempts from 1. `poll` counts calls from 0, so with `poll` the first pause is `base / factor`.
+- The result is a plain function `(attempt) => ms`, so it also fits `delay(ctx, …)`.
 
 ## Put selected effects on `ctx`
 

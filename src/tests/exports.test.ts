@@ -20,6 +20,7 @@ describe("public entries", () => {
 		expect(Object.keys(effects).sort()).toEqual([
 			"all",
 			"allSettled",
+			"backoff",
 			"cancellable",
 			"delay",
 			"effectsPlugin",

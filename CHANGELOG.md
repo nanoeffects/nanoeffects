@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `backoff({ base, factor, max, jitter })` from `nanoeffects/effects`: builds the `delay` of `retry` (or `poll`): `base * factor ** (attempt - 1)`, at most `max`, with optional full jitter. `docs/effects.md` gets a "Back off between retries" recipe.
 - **BREAKING:** the `context` field of `Bus`, the slot that plugins read, is renamed to `ctx`. `createBus({ context })` is unchanged. It saves bytes in the bundle, which does not shorten property names.
 - `emitterPlugin()` from `nanoeffects/actions`: `bus.use(emitterPlugin())` adds `bus.emitter(action)`, a callback `(...args) => bus.emit(action(...args))` to pass to the subscription of a state manager (`$name.listen(bus.emitter(nameChanged))`). `createAction` and `bus.emit` are unchanged. `docs/stores.md` shows Nanostores, MobX, Valtio, Jotai and Zustand.
 - `effectsPlugin({ race, all, … })` from `nanoeffects/effects`: puts `race`, `all`, `allSettled`, `take` and `delay` on every task context, bound to the task, so a handler can write `(id, { race })`. `bus.use(effectsPlugin(…))` returns the same bus typed with those fields. It uses the new `Bus.addContext` hook.
