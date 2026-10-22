@@ -145,3 +145,92 @@ describe("checkBlocks", () => {
 		expect(leftovers).toEqual([]);
 	});
 });
+
+describe("jsx blocks", () => {
+	const component = [
+		'import { useState } from "react";',
+		'import { createBus } from "nanoeffects";',
+		"const bus = createBus();",
+		"export function Form() {",
+		'  const [name, setName] = useState("");',
+		'  return <form onSubmit={() => bus.emit("submit", name)}><input onChange={(event) => setName(event.target.value)} /></form>;',
+		"}",
+	];
+
+	it("passes a component that imports a declared module", () => {
+		const result = check(page(`${fence}jsx`, ...component, fence));
+
+		expect(result).toEqual({ errors: [], checked: 1, skipped: 0 });
+	});
+
+	it("fails a jsx block that imports a removed export", () => {
+		const result = check(
+			page(
+				`${fence}jsx`,
+				'import { removedThing } from "nanoeffects";',
+				"export const view = <p>{removedThing}</p>;",
+				fence,
+			),
+		);
+
+		expect(result.errors).toHaveLength(1);
+		expect(result.errors[0]).toMatchObject({ page: "docs/test.md", line: 2 });
+		expect(result.errors[0].message).toContain("removedThing");
+	});
+
+	it("fails a jsx block that imports an undeclared module", () => {
+		const result = check(
+			page(
+				`${fence}jsx`,
+				'import { thing } from "some-library";',
+				"export const view = <p>{thing}</p>;",
+				fence,
+			),
+		);
+
+		expect(result.errors).toHaveLength(1);
+		expect(result.errors[0].message).toContain("some-library");
+	});
+
+	it("reports a type error in a tsx block", () => {
+		const result = check(
+			page(
+				`${fence}tsx`,
+				"const count: number = 'text';",
+				"export const view = <p>{count}</p>;",
+				fence,
+			),
+		);
+
+		expect(result.errors).toHaveLength(1);
+	});
+});
+
+describe("named files", () => {
+	it("lets a block import the block that names its file", () => {
+		const result = check(
+			page(
+				`${fence}js`,
+				"// helper.js",
+				"export const greeting = 'hello';",
+				fence,
+				"",
+				`${fence}js`,
+				'import { greeting } from "./helper";',
+				"console.log(greeting);",
+				fence,
+			),
+		);
+
+		expect(result).toEqual({ errors: [], checked: 2, skipped: 0 });
+	});
+
+	it("still fails an import of a file that no block names", () => {
+		const result = check(
+			page(`${fence}js`, 'import { greeting } from "./helper";', fence),
+		);
+
+		expect(result.errors).toHaveLength(1);
+		expect(result.errors[0].message).toContain("./helper");
+	});
+});

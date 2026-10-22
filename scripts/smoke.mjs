@@ -59,9 +59,9 @@ const app = bus.use(
 bus.emit("hello");
 app.dispose();
 bus.emit("hello");
-const effects = createEffectsMiddleware();
-effects.bus.on("counter/added", (value) => seen.push(`added ${value}`));
-effects.middleware({
+const effectsBus = createBus();
+effectsBus.on("counter/added", (value) => seen.push(`added ${value}`));
+createEffectsMiddleware(effectsBus)({
 	dispatch: (action) => action,
 	getState: () => ({}),
 })((action) => action)({

@@ -4,7 +4,10 @@ import { onAbort } from "../utils";
 import { withGroup } from "./group";
 
 export type TakeOptions<P> = {
-	/** Wait for the first payload this accepts; others are skipped. */
+	/**
+	 * Wait for the first payload this accepts; others are skipped. A type guard
+	 * (`(payload): payload is T`) narrows the type of the result to `T`.
+	 */
 	predicate?: (payload: P) => boolean;
 	/** Stop waiting when this aborts, e.g. the signal of a `race` starter. */
 	signal?: AbortSignal | undefined;
@@ -27,14 +30,29 @@ export type TakeOptions<P> = {
  * const done = await timeout(ctx, 5000, ({ signal }) =>
  *   take(ctx, "saved", { signal, predicate: (id) => id === draftId }),
  * );
+ *
+ * // a type guard narrows the result: `failed` is `{ ok: false }`
+ * const failed = await take(ctx, "result", {
+ *   predicate: (result): result is { ok: false } => !result.ok,
+ * });
  * ```
  */
-export const take = <E extends EventMap, K extends Keys<E>>(
+export function take<E extends EventMap, K extends Keys<E>, T extends E[K]>(
+	ctx: Context<E>,
+	event: K,
+	options: TakeOptions<E[K]> & { predicate: (payload: E[K]) => payload is T },
+): Promise<T>;
+export function take<E extends EventMap, K extends Keys<E>>(
+	ctx: Context<E>,
+	event: K,
+	options?: TakeOptions<E[K]>,
+): Promise<E[K]>;
+export function take<E extends EventMap, K extends Keys<E>>(
 	ctx: Context<E>,
 	event: K,
 	options: TakeOptions<E[K]> = {},
-): Promise<E[K]> =>
-	withGroup(
+): Promise<E[K]> {
+	return withGroup(
 		"take",
 		ctx,
 		(group) =>
@@ -63,3 +81,4 @@ export const take = <E extends EventMap, K extends Keys<E>>(
 				stops.push(onAbort({ signal: options.signal }, fail));
 			}),
 	);
+}

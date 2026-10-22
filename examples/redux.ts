@@ -1,7 +1,7 @@
 // Redux recipe — actions from Redux Toolkit; nanoeffects only supplies the middleware + policies.
 // Prefer the JS snippet in docs/stores.md. This file is .ts for `pnpm tsgo`.
 import { createAction } from "@reduxjs/toolkit";
-import type { WithContext } from "nanoeffects";
+import { createBus, type WithContext } from "nanoeffects";
 import { latest } from "nanoeffects/policies";
 import { createEffectsMiddleware, type ReduxStoreApi } from "nanoeffects/redux";
 
@@ -25,13 +25,16 @@ type Events = {
 } & WithContext<{ store: ReduxStoreApi<RootState> }>;
 // --- end typing ---
 
-// bus + middleware: actions reach the bus after reducers; tasks get ctx.store
-export const effects = createEffectsMiddleware<Events>();
+// createBus — the bus of the app; it exists before the store
+export const bus = createBus<Events>();
 
-// configureStore({ reducer, middleware: (get) => get().concat(effects.middleware) })
+// createEffectsMiddleware — actions reach the bus after reducers; tasks get ctx.store
+export const middleware = createEffectsMiddleware(bus);
+
+// configureStore({ reducer, middleware: (get) => get().concat(middleware) })
 
 // latest — a newer run aborts the older one (nanoeffects/policies)
-effects.bus.on(
+bus.on(
 	userRequested,
 	latest(async (id, { store, signal }) => {
 		const user = await fetchUser(id, { signal });

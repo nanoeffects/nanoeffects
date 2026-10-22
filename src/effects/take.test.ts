@@ -86,6 +86,16 @@ describe("take", () => {
 			await expect(promise).resolves.toBe(3);
 		});
 
+		it("accepts a type guard", async () => {
+			const harness = createHarness();
+			const isThree = (value: number): value is 3 => value === 3;
+			const promise = take(harness.ctx(), "t", { predicate: isThree });
+			harness.bus.emit("t", 1);
+			harness.bus.emit("t", 3);
+
+			await expect(promise).resolves.toBe(3);
+		});
+
 		it("does not resolve while nothing matches", async () => {
 			const harness = createHarness();
 			const done = vi.fn();

@@ -109,7 +109,7 @@ The registry lives in `nanoeffects/actions`, so a bus without one carries none o
 
 **When.** You want one mount / one unmount for that domain. Skip modules while a few top-level `bus.on` calls are enough.
 
-`bus.use(modulePlugin(modules))` assembles an app from modules and returns `mount`, `unmount`, `isMounted`, `dispose`, and `commands`.
+`bus.use(modulePlugin(modules))` assembles an app from modules and returns `mount`, `unmount`, `isMounted`, `dispose`, `commands`, and `createModule`: the same as `createModule` below, with the context fields of the bus typed (see [TypeScript](typescript.md)).
 
 ```js
 import { createBus } from "nanoeffects";

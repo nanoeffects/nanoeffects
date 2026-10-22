@@ -51,9 +51,9 @@ export const run = async () => {
 	app.dispose();
 	bus.emit("hello");
 
-	const effects = createEffectsMiddleware();
-	effects.bus.on("counter/added", (value) => { seen.push("added " + value); });
-	const middleware = effects.middleware({ dispatch: (action) => action, getState: () => ({}) })((action) => action);
+	const effectsBus = createBus();
+	effectsBus.on("counter/added", (value) => { seen.push("added " + value); });
+	const middleware = createEffectsMiddleware(effectsBus)({ dispatch: (action) => action, getState: () => ({}) })((action) => action);
 	middleware({ type: "counter/added", payload: 5 });
 
 	const observed = [];

@@ -50,6 +50,7 @@ const bus = createBus();
 bus.on(
   "search",
   latest(async (query, ctx) => {
+    // signal — lets latest cancel this request, not only drop its result
     const items = await api.search(query, { signal: ctx.signal });
     ctx.emit("results", items);
   }),

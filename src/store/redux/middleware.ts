@@ -7,6 +7,8 @@ type ReduxAction = { type: string; payload?: unknown };
 export type NanoeffectsMiddlewareOptions = {
 	/** Return `false` for the actions that the bus should not get. Default: all of them. */
 	filter?: (action: ReduxAction) => boolean;
+	/** Receives an error that `emit` throws, so `dispatch` does not. Default: the error is thrown. */
+	onError?: (error: unknown, action: ReduxAction) => void;
 };
 
 const isAction = (value: unknown): value is ReduxAction =>
@@ -44,10 +46,22 @@ export const nanoeffectsMiddleware = <E extends EventMap>(
 	// the bus is typed for its own events; an action of a store can be any
 	const emit = bus.emit as (action: ReduxAction) => unknown;
 
+	// `emit` throws the first error of a handler unless the bus has an `onError`
+	const send = (action: ReduxAction) => {
+		try {
+			emit(action);
+		} catch (error) {
+			if (!options.onError) {
+				throw error;
+			}
+			options.onError(error, action);
+		}
+	};
+
 	return () => (next: (action: unknown) => unknown) => (action: unknown) => {
 		const result = next(action);
 		if (isAction(action) && (options.filter?.(action) ?? true)) {
-			emit(action);
+			send(action);
 		}
 
 		return result;

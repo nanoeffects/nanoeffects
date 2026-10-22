@@ -23,12 +23,32 @@ To get `race`, `all`, `take` and the like on every task without passing `ctx`, s
 
 ## Type the fields (optional)
 
-`WithContext` on the event map only tells TypeScript that handlers of **this** bus have those fields. It does not wire anything at runtime and is not app-wide — another bus can have different fields or none.
+In TypeScript, `contextPlugin` puts the fields on every task of **this** bus and takes their types from the value you pass. The event map holds only events. It does not wire anything across the app — another bus can have different fields or none.
+
+```ts
+import { contextPlugin, createBus } from "nanoeffects";
+
+// Events — event name → payload
+type Events = { save: Draft };
+
+// contextPlugin — every task gets ctx.store; the type is the type of `store`
+const bus = createBus<Events>().use(contextPlugin({ store }));
+
+bus.on("save", (draft, { store }) => store.put(draft));
+```
+
+- A function `(task) => fields` makes the fields per task. It gets `{ type, payload }`.
+- Several `contextPlugin` calls, `effectsPlugin` and the `context` option of `createBus` all add their fields to the same context.
+- A name that the bus already has is a type error. The fields of the library (`signal`, `emit`, `run`, …) win at runtime, and a field that the context already has is not replaced.
+- The plugin returns the same bus, so keep the result of the chain: `const bus = createBus().use(contextPlugin({ store }))`.
+
+### Name the fields in the event map instead
+
+`createBus<Events>({ context: { store } })` also types the fields, but through the event map: `WithContext` is checker-only and says which fields the handlers of this bus have. Use it when you cannot call `use`, for example for the bus that `createEffectsMiddleware` makes.
 
 ```ts
 import { createBus, type WithContext } from "nanoeffects";
 
-// Events — event name → payload
 // WithContext — checker-only: handlers also have ctx.store
 type Events = { save: Draft } & WithContext<{ store: Store }>;
 

@@ -83,6 +83,12 @@ export type ModuleApi<E extends EventMap = EventMap> = {
 	isMounted(module: Module<E>): boolean;
 	/** Unmounts every module; a disposed app cannot mount modules. */
 	dispose(): void;
+	/**
+	 * `createModule` with the event map of this bus: the module sees the context
+	 * fields of the bus without a type argument. It returns a plain module, not
+	 * mounted, with no link to this bus.
+	 */
+	createModule(name: string, setup: (m: ModuleContext<E>) => void): Module<E>;
 };
 
 /**
@@ -108,6 +114,11 @@ export type ModuleApi<E extends EventMap = EventMap> = {
  *
  * const unmount = app.mount(orderModule); // later, e.g. after a lazy import
  * unmount(); // or app.unmount(orderModule)
+ *
+ * // a module made from the app has the context fields of the bus, typed
+ * const userModule = app.createModule("user", (m) => {
+ *   m.on("loaded", (user, { store }) => store.put(user));
+ * });
  *
  * bus.emit(getUser, "1");
  * app.commands.handle(getUser, fakeUser); // in a test
@@ -236,5 +247,6 @@ export const modulePlugin =
 			unmount: apps.unmount,
 			isMounted: apps.isMounted,
 			dispose: () => root.ctx.abort(),
+			createModule,
 		};
 	};

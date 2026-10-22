@@ -224,6 +224,19 @@ export type Context<E extends EventMap> = EventLike<E> &
 		run<P, R>(fn: Task<P, E, R>, ...args: PayloadOf<P>): Promise<Awaited<R>>;
 	};
 
+/**
+ * The event map of a bus, with the context fields that plugins added. Use it to
+ * name the types of a bus in other files: `type AppEvents = EventsOf<typeof bus>`.
+ *
+ * @example
+ * ```ts
+ * const bus = createBus<Events>().use(effectsPlugin({ race }));
+ * type AppEvents = EventsOf<typeof bus>;
+ * type AppContext = Context<AppEvents>; // has `race`
+ * ```
+ */
+export type EventsOf<B> = B extends Bus<infer E extends EventMap> ? E : never;
+
 export interface Bus<E extends EventMap> {
 	on: On<E>;
 	/**

@@ -12,8 +12,14 @@ import {
 	emitterPlugin,
 	modulePlugin,
 } from "../actions";
-import { type Context, createBus, type WithContext } from "../core/bus";
-import type { UnsubscribeCallback } from "../core/types";
+import {
+	type Context,
+	createBus,
+	type EventsOf,
+	type WithContext,
+} from "../core/bus";
+import { contextPlugin } from "../core/context-plugin";
+import type { Task, UnsubscribeCallback } from "../core/types";
 import {
 	all,
 	allSettled,
@@ -27,6 +33,7 @@ import {
 	timeout,
 } from "../effects";
 import { debounce, latest, leading, queue, throttle } from "../policies";
+import { createEffectsMiddleware, type ReduxStoreApi } from "../store/redux";
 
 type User = { id: string; name: string };
 type Events = {
@@ -235,6 +242,21 @@ describe("results of effects", () => {
 		bus.on("search", async (_, ctx) => {
 			const user = await take(ctx, "loaded");
 			expectTypeOf(user).toEqualTypeOf<User>();
+		});
+	});
+
+	it("take narrows the result with a type guard predicate", () => {
+		type Admin = User & { admin: true };
+		const isAdmin = (user: User): user is Admin => "admin" in user;
+
+		bus.on("search", async (_, ctx) => {
+			const admin = await take(ctx, "loaded", { predicate: isAdmin });
+			expectTypeOf(admin).toEqualTypeOf<Admin>();
+
+			const anyone = await take(ctx, "loaded", {
+				predicate: (user) => user.id !== "",
+			});
+			expectTypeOf(anyone).toEqualTypeOf<User>();
 		});
 	});
 });
@@ -759,5 +781,181 @@ describe("emitterPlugin", () => {
 		withEmitter.emit(nameChanged, "Eva");
 		// @ts-expect-error the event map says a string
 		withEmitter.emit(nameChanged, 1);
+	});
+});
+
+describe("types of a bus in other files", () => {
+	type Store = { read(id: string): string };
+	type LoadEvents = { loaded: string } & WithContext<{ store: Store }>;
+
+	const appBus = createBus<LoadEvents>({
+		context: { store: { read: (id) => id } },
+	}).use(effectsPlugin({ race }));
+	type AppEvents = EventsOf<typeof appBus>;
+
+	it("EventsOf keeps the context fields of the plugins", () => {
+		expectTypeOf<AppEvents["loaded"]>().toEqualTypeOf<string>();
+		expectTypeOf<Context<AppEvents>["store"]>().toEqualTypeOf<Store>();
+		expectTypeOf<Context<AppEvents>["race"]>().toBeFunction();
+	});
+
+	it("EventsOf of something that is not a bus is never", () => {
+		expectTypeOf<EventsOf<string>>().toBeNever();
+	});
+
+	it("a task with the context of the app gives a command that sees the fields", () => {
+		const read: Task<string, AppEvents, string> = (id, ctx) =>
+			ctx.store.read(id);
+		const readItem = createCommand("item/read", read);
+		const module = createModule<AppEvents>("items", (items) => {
+			items.handle(readItem, read);
+			items.on("loaded", (_, ctx) => {
+				expectTypeOf(ctx.store).toEqualTypeOf<Store>();
+			});
+		});
+		expectTypeOf(module.name).toBeString();
+		expectTypeOf(appBus.emit(readItem("1"))).toEqualTypeOf<string>();
+	});
+
+	it("a command made without the app context sees an empty context", () => {
+		createCommand("item/plain", (_: string, ctx) => {
+			// @ts-expect-error the plain context has no `store`
+			void ctx.store;
+		});
+	});
+
+	it("app.createModule gives the module the fields of the bus without a type argument", () => {
+		const getItem = createCommand<string, Promise<string>>("item/get");
+		const app = appBus.use(modulePlugin());
+		const module = app.createModule("items", (items) => {
+			items.on("loaded", (_, ctx) => {
+				expectTypeOf(ctx.store).toEqualTypeOf<Store>();
+				expectTypeOf(ctx.race).toBeFunction();
+				// @ts-expect-error the bus has no such field
+				void ctx.nothing;
+			});
+			items.handle(getItem, async (id, ctx) => {
+				expectTypeOf(id).toEqualTypeOf<string>();
+				return ctx.store.read(id);
+			});
+			// @ts-expect-error the command promises a string
+			items.handle(getItem, async () => 1);
+		});
+		expectTypeOf(app.mount(module)).toEqualTypeOf<UnsubscribeCallback>();
+	});
+});
+
+describe("contextPlugin", () => {
+	type Store = { read(id: string): string };
+	type Logger = { log(message: string): void };
+	type UserEvents = { "user/loaded": User };
+	const store: Store = { read: (id) => id };
+	const logger: Logger = { log: () => {} };
+
+	it("infers the fields from the value and keeps the payloads of the event map", () => {
+		const bus = createBus<UserEvents>().use(contextPlugin({ store }));
+		bus.on("user/loaded", (user, ctx) => {
+			expectTypeOf(user).toEqualTypeOf<User>();
+			expectTypeOf(ctx.store).toEqualTypeOf<Store>();
+			// @ts-expect-error the bus has no such field
+			void ctx.nothing;
+		});
+	});
+
+	it("infers the fields on a bus without an event map", () => {
+		const bus = createBus().use(contextPlugin({ store }));
+		bus.on("anything", (_, ctx) => {
+			expectTypeOf(ctx.store).toEqualTypeOf<Store>();
+		});
+	});
+
+	it("infers the fields from a function of the task", () => {
+		const bus = createBus<UserEvents>().use(
+			contextPlugin((task) => ({ scope: task.type })),
+		);
+		bus.on("user/loaded", (_, ctx) => {
+			expectTypeOf(ctx.scope).toEqualTypeOf<string>();
+		});
+	});
+
+	it("merges with other plugins, in either order, and with WithContext", () => {
+		type Events = UserEvents & WithContext<{ store: Store }>;
+		const first = createBus<Events>()
+			.use(contextPlugin({ logger }))
+			.use(effectsPlugin({ race }));
+		first.on("user/loaded", (_, ctx) => {
+			expectTypeOf(ctx.store).toEqualTypeOf<Store>();
+			expectTypeOf(ctx.logger).toEqualTypeOf<Logger>();
+			expectTypeOf(ctx.race).toBeFunction();
+		});
+
+		const second = createBus<UserEvents>()
+			.use(effectsPlugin({ race }))
+			.use(contextPlugin({ store }))
+			.use(contextPlugin({ logger }));
+		second.on("user/loaded", (_, ctx) => {
+			expectTypeOf(ctx.race).toBeFunction();
+			expectTypeOf(ctx.store).toEqualTypeOf<Store>();
+			expectTypeOf(ctx.logger).toEqualTypeOf<Logger>();
+		});
+	});
+
+	it("EventsOf includes the fields of the plugin", () => {
+		const bus = createBus<UserEvents>().use(contextPlugin({ store }));
+		type AppEvents = EventsOf<typeof bus>;
+		expectTypeOf<AppEvents["user/loaded"]>().toEqualTypeOf<User>();
+		expectTypeOf<Context<AppEvents>["store"]>().toEqualTypeOf<Store>();
+	});
+
+	it("rejects a name that the bus has already", () => {
+		type Events = UserEvents & WithContext<{ store: Store }>;
+		const withStore = createBus<Events>();
+		// @ts-expect-error `store` is a field of the bus already
+		withStore.use(contextPlugin({ store }));
+
+		const twice = createBus<UserEvents>().use(contextPlugin({ store }));
+		// @ts-expect-error the earlier plugin gave `store`
+		twice.use(contextPlugin({ store }));
+	});
+
+	it("leaves the old form as it was", () => {
+		type Events = UserEvents & WithContext<{ store: Store }>;
+		const bus = createBus<Events>({ context: { store } });
+		expectTypeOf(bus).toEqualTypeOf<ReturnType<typeof createBus<Events>>>();
+		bus.on("user/loaded", (_, ctx) => {
+			expectTypeOf(ctx.store).toEqualTypeOf<Store>();
+		});
+	});
+});
+
+describe("createEffectsMiddleware", () => {
+	type State = { count: number };
+	type Events = { "user/requested": string } & WithContext<{
+		store: ReduxStoreApi<State>;
+	}>;
+
+	it("takes a bus, and ctx.store is typed by WithContext on its event map", () => {
+		const bus = createBus<Events>();
+		const middleware = createEffectsMiddleware(bus, {
+			filter: (action) => action.type !== "internal/tick",
+		});
+		expectTypeOf(middleware).toBeFunction();
+		bus.on("user/requested", (_id, { store }) => {
+			expectTypeOf(store.getState()).toEqualTypeOf<State>();
+		});
+	});
+
+	it("rejects the old call shapes", () => {
+		const bus = createBus<Events>();
+		// the calls are type errors and would throw, so they are never run
+		const wrongCalls = () => {
+			// @ts-expect-error the bus is the first argument
+			createEffectsMiddleware();
+			// @ts-expect-error the options of the bus belong to createBus
+			createEffectsMiddleware(bus, { onError: () => {} });
+			// @ts-expect-error the old form passed options only
+			createEffectsMiddleware({ filter: () => true });
+		};
+		expectTypeOf(wrongCalls).toBeFunction();
 	});
 });

@@ -14,7 +14,15 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const checkedLanguages = new Set(["js", "javascript", "ts", "typescript"]);
+const checkedLanguages = new Set([
+	"js",
+	"javascript",
+	"jsx",
+	"ts",
+	"typescript",
+	"tsx",
+]);
+const isJsx = (block) => block.language.endsWith("x");
 const skipMarker = /^<!--\s*docs-check:\s*skip\b.*-->$/;
 
 /**
@@ -78,8 +86,48 @@ function parseDiagnostics(output) {
 	return diagnostics;
 }
 
+// A block whose first line is a comment with a file name (`// registration.js`) is written under
+// that name, so a later block can import it as `./registration`.
+function fileNameOf(block, index) {
+	const named = /^\/\/ ([\w-]+)\.(?:jsx?|tsx?)$/.exec(
+		block.code.split("\n")[0],
+	);
+	if (named) {
+		return `${named[1]}${isJsx(block) ? ".tsx" : ".ts"}`;
+	}
+	return `block-${index}${isJsx(block) ? ".tsx" : ".ts"}`;
+}
+
+/** Writes each block as a module of its own and returns the blocks by file name. */
+function writeBlocks(dir, blocks) {
+	const names = new Map();
+	for (const [index, block] of blocks.entries()) {
+		const name = fileNameOf(block, index);
+		names.set(name, block);
+		// `export {}` makes the block a module, so `const bus` of two blocks do not clash
+		writeFileSync(join(dir, name), `${block.code}\nexport {};\n`);
+	}
+	return names;
+}
+
+/** The errors to report, with the page and the line in the page. */
+function errorsOf(diagnostics, names) {
+	const errors = [];
+	for (const diagnostic of diagnostics) {
+		const block = names.get(diagnostic.file.split("/").at(-1));
+		if (block && isPlainJs(block) && !isStaleName(diagnostic.message)) {
+			continue;
+		}
+		// `line` of the block is its fence; the code starts on the next line
+		const line = block ? block.line + diagnostic.line : 0;
+		const page = block ? block.page : diagnostic.file;
+		errors.push({ page, line, message: diagnostic.message });
+	}
+	return errors;
+}
+
 /**
- * Type-checks the blocks, each as its own module, with the options and paths of the root
+ * Type-checks the blocks (`jsx` and `tsx` too), each as its own module, with the options and paths of the root
  * tsconfig. The files live in a cache folder inside the project (so imports of installed
  * packages resolve) and are removed at the end.
  */
@@ -97,20 +145,14 @@ export function checkBlocks(blocks, { stubs } = {}) {
 	mkdirSync(cache, { recursive: true });
 	const dir = mkdtempSync(join(cache, "docs-check-"));
 	try {
-		const names = new Map();
-		for (const [index, block] of checked.entries()) {
-			const name = `block-${index}.ts`;
-			names.set(name, block);
-			// `export {}` makes the block a module, so `const bus` of two blocks do not clash
-			writeFileSync(join(dir, name), `${block.code}\nexport {};\n`);
-		}
+		const names = writeBlocks(dir, checked);
 		const files = stubs ? [stubs] : [];
 		writeFileSync(
 			join(dir, "tsconfig.json"),
 			JSON.stringify({
 				extends: join(root, "tsconfig.json"),
 				// blocks of plain JS have handlers with untyped parameters on purpose
-				compilerOptions: { noImplicitAny: false, types: [] },
+				compilerOptions: { noImplicitAny: false, types: [], jsx: "preserve" },
 				files: [...files, ...names.keys()].map((file) =>
 					file === stubs ? file : join(dir, file),
 				),
@@ -124,18 +166,8 @@ export function checkBlocks(blocks, { stubs } = {}) {
 			{ cwd: root, encoding: "utf8" },
 		);
 		const output = `${result.stdout}${result.stderr}`;
-		const errors = [];
 		const diagnostics = parseDiagnostics(output);
-		for (const diagnostic of diagnostics) {
-			const block = names.get(diagnostic.file.split("/").at(-1));
-			if (block && isPlainJs(block) && !isStaleName(diagnostic.message)) {
-				continue;
-			}
-			// `line` of the block is its fence; the code starts on the next line
-			const line = block ? block.line + diagnostic.line : 0;
-			const page = block ? block.page : diagnostic.file;
-			errors.push({ page, line, message: diagnostic.message });
-		}
+		const errors = errorsOf(diagnostics, names);
 		// a failure with no readable error is a broken run (bad config, crash), not a clean docs tree
 		if (result.status !== 0 && diagnostics.length === 0) {
 			errors.push({ page: "tsc", line: 0, message: output.trim() });

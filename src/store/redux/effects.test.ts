@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createAction } from "../../actions";
+import { createBus } from "../../core/bus";
+import { delay, effectsPlugin } from "../../effects";
 import { latest } from "../../policies";
 import { deferred } from "../../tests/test-helpers";
 import { createEffectsMiddleware, type ReduxStoreApi } from "./effects";
@@ -43,36 +45,39 @@ const createMiniRedux = (middlewares: Middleware[]) => {
 
 describe("createEffectsMiddleware", () => {
 	it("a handler gets the store of the middleware, and sees the state after the reducer", () => {
-		const effects = createEffectsMiddleware<Events>();
+		const bus = createBus<Events>();
+		const middleware = createEffectsMiddleware(bus);
 		const seen: number[] = [];
-		effects.bus.on(added, (_, ctx) => {
+		bus.on(added, (_, ctx) => {
 			seen.push(storeOf(ctx)?.getState().count ?? -1);
 		});
-		const store = createMiniRedux([effects.middleware]);
+		const store = createMiniRedux([middleware]);
 		store.dispatch(added(3));
 
 		expect(seen).toEqual([3]);
 	});
 
 	it("a handler can dispatch through ctx.store", () => {
-		const effects = createEffectsMiddleware<Events>();
-		effects.bus.on(added, (value, ctx) => {
+		const bus = createBus<Events>();
+		const middleware = createEffectsMiddleware(bus);
+		bus.on(added, (value, ctx) => {
 			const store = storeOf(ctx);
 			if (value === 1) {
 				store?.dispatch(added(10) as never);
 			}
 		});
-		const store = createMiniRedux([effects.middleware]);
+		const store = createMiniRedux([middleware]);
 		store.dispatch(added(1));
 
 		expect(store.getState().count).toBe(11);
 	});
 
 	it("effects with policies and abort work as on any bus", async () => {
-		const effects = createEffectsMiddleware<Events>();
+		const bus = createBus<Events>();
+		const middleware = createEffectsMiddleware(bus);
 		const gates = [deferred(), deferred()];
 		let index = 0;
-		effects.bus.on(
+		bus.on(
 			added,
 			latest(async (_, ctx) => {
 				await gates[index++]?.promise;
@@ -82,7 +87,7 @@ describe("createEffectsMiddleware", () => {
 				}
 			}),
 		);
-		const store = createMiniRedux([effects.middleware]);
+		const store = createMiniRedux([middleware]);
 		store.dispatch(added(1));
 		store.dispatch(added(1));
 		gates[0]?.resolve();
@@ -93,31 +98,43 @@ describe("createEffectsMiddleware", () => {
 		expect(store.getState().count).toBe(0);
 	});
 
-	it("keeps the other fields of the context", () => {
-		const effects = createEffectsMiddleware<Events>({
-			context: { extra: "kept" } as never,
+	it("keeps the fields that other plugins and the bus option put on the context", () => {
+		const bus = createBus<Events>({ context: { extra: "kept" } }).use(
+			effectsPlugin({ delay }),
+		);
+		const middleware = createEffectsMiddleware(bus);
+		const seen: unknown[] = [];
+		bus.on(added, (_, ctx) => {
+			seen.push(Reflect.get(ctx, "extra"), typeof Reflect.get(ctx, "delay"));
+			seen.push(typeof storeOf(ctx)?.dispatch);
 		});
-		let extra: unknown = null;
-		effects.bus.on(added, (_, ctx) => {
-			extra = Reflect.get(ctx, "extra");
-		});
-		createMiniRedux([effects.middleware]).dispatch(added(1));
+		createMiniRedux([middleware]).dispatch(added(1));
 
-		expect(extra).toBe("kept");
+		expect(seen).toEqual(["kept", "function", "function"]);
 	});
 
-	it("takes filter and the options of the bus", () => {
+	it("leaves the bus as it was for events that do not come from Redux", () => {
+		const bus = createBus<Events>();
+		createEffectsMiddleware(bus);
+		const handler = vi.fn();
+		bus.on(added, handler);
+		bus.emit(added(2));
+
+		expect(handler).toHaveBeenCalledTimes(1);
+	});
+
+	it("takes filter, and the bus keeps its own options", () => {
 		const onError = vi.fn();
-		const effects = createEffectsMiddleware<Events>({
-			onError,
+		const bus = createBus<Events>({ onError });
+		const middleware = createEffectsMiddleware(bus, {
 			filter: (action) => action.type !== "counter/reset",
 		});
 		const handler = vi.fn(() => {
 			throw new Error("boom");
 		});
-		effects.bus.on(added, handler);
-		effects.bus.on(reset, handler);
-		const store = createMiniRedux([effects.middleware]);
+		bus.on(added, handler);
+		bus.on(reset, handler);
+		const store = createMiniRedux([middleware]);
 
 		expect(() => store.dispatch(added(1))).not.toThrow();
 		store.dispatch(reset());
@@ -126,12 +143,13 @@ describe("createEffectsMiddleware", () => {
 	});
 
 	it("ctx.store is not there before the middleware is added to a store", () => {
-		const effects = createEffectsMiddleware<Events>();
+		const bus = createBus<Events>();
+		const _middleware = createEffectsMiddleware(bus);
 		let store: unknown = "not run";
-		effects.bus.on(added, (_, ctx) => {
+		bus.on(added, (_, ctx) => {
 			store = storeOf(ctx);
 		});
-		effects.bus.emit(added(1));
+		bus.emit(added(1));
 
 		expect(store).toBeUndefined();
 	});
@@ -139,12 +157,13 @@ describe("createEffectsMiddleware", () => {
 
 describe("createEffectsMiddleware: loops and errors", () => {
 	it("an action that a handler dispatches with its own type does not come back", () => {
-		const effects = createEffectsMiddleware<Events>();
+		const bus = createBus<Events>();
+		const middleware = createEffectsMiddleware(bus);
 		const handler = vi.fn((_value: number, ctx: object) => {
 			storeOf(ctx)?.dispatch(added(1) as never);
 		});
-		effects.bus.on(added, handler);
-		const store = createMiniRedux([effects.middleware]);
+		bus.on(added, handler);
+		const store = createMiniRedux([middleware]);
 		store.dispatch(added(1));
 
 		expect(handler).toHaveBeenCalledTimes(1);
@@ -152,25 +171,27 @@ describe("createEffectsMiddleware: loops and errors", () => {
 	});
 
 	it("an action of another type goes to the bus, so effects can chain", () => {
-		const effects = createEffectsMiddleware<Events>();
+		const bus = createBus<Events>();
+		const middleware = createEffectsMiddleware(bus);
 		const resets = vi.fn();
-		effects.bus.on(added, (_, ctx) => {
+		bus.on(added, (_, ctx) => {
 			storeOf(ctx)?.dispatch(reset() as never);
 		});
-		effects.bus.on(reset, resets);
-		createMiniRedux([effects.middleware]).dispatch(added(1));
+		bus.on(reset, resets);
+		createMiniRedux([middleware]).dispatch(added(1));
 
 		expect(resets).toHaveBeenCalledTimes(1);
 	});
 
 	it("also when the handler dispatches later, after an await", async () => {
-		const effects = createEffectsMiddleware<Events>();
+		const bus = createBus<Events>();
+		const middleware = createEffectsMiddleware(bus);
 		const handler = vi.fn(async (_value: number, ctx: object) => {
 			await Promise.resolve();
 			storeOf(ctx)?.dispatch(added(1) as never);
 		});
-		effects.bus.on(added, handler);
-		const store = createMiniRedux([effects.middleware]);
+		bus.on(added, handler);
+		const store = createMiniRedux([middleware]);
 		store.dispatch(added(1));
 		await Promise.resolve();
 		await Promise.resolve();
@@ -180,27 +201,40 @@ describe("createEffectsMiddleware: loops and errors", () => {
 	});
 
 	it("an action dispatched from outside the handlers still reaches the bus", () => {
-		const effects = createEffectsMiddleware<Events>();
+		const bus = createBus<Events>();
+		const middleware = createEffectsMiddleware(bus);
 		const handler = vi.fn();
-		effects.bus.on(added, handler);
-		const store = createMiniRedux([effects.middleware]);
+		bus.on(added, handler);
+		const store = createMiniRedux([middleware]);
 		store.dispatch(added(1));
 		store.dispatch(added(1));
 
 		expect(handler).toHaveBeenCalledTimes(2);
 	});
 
-	it("an error of a handler does not break dispatch, and goes to console.error by default", () => {
+	it("an error of a handler does not break dispatch, and goes to console.error when the bus has no onError", () => {
 		const log = vi.spyOn(console, "error").mockImplementation(() => {});
-		const effects = createEffectsMiddleware<Events>();
-		effects.bus.on(added, () => {
+		const bus = createBus<Events>();
+		const middleware = createEffectsMiddleware(bus);
+		bus.on(added, () => {
 			throw new Error("boom");
 		});
-		const store = createMiniRedux([effects.middleware]);
+		const store = createMiniRedux([middleware]);
 
 		expect(() => store.dispatch(added(1))).not.toThrow();
 		expect(store.getState().count).toBe(1);
 		expect(log).toHaveBeenCalledTimes(1);
 		log.mockRestore();
+	});
+
+	it("an error of a reducer still reaches the caller of dispatch", () => {
+		const bus = createBus<Events>();
+		const middleware = createEffectsMiddleware(bus);
+		const reducerFailure = () => {
+			throw new Error("reducer failed");
+		};
+		const store = createMiniRedux([middleware, () => () => reducerFailure]);
+
+		expect(() => store.dispatch(added(1))).toThrow("reducer failed");
 	});
 });

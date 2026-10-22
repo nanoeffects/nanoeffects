@@ -26,7 +26,8 @@ Rules that generated code often gets wrong:
 ## Domain logic and stores
 
 - [Actions, commands, jobs and modules](docs/actions.md): `createAction`, `createCommand`, `createJob`, `createModule`
-- [Connect Redux, Zustand, or MobX](docs/stores.md): the Redux middleware and callbacks of other stores
+- [Connect Redux, Zustand, MobX, or Pinia](docs/stores.md): the Redux middleware and callbacks of other stores
+- [Build a sign-up form in React](docs/react.md): a form with a username check, a submit that cannot fire twice, and retry
 - [Context fields](docs/context.md): put a store or client on every task
 
 ## TypeScript

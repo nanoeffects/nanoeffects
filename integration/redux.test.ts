@@ -4,7 +4,7 @@ import {
 	createSlice,
 	type PayloadAction,
 } from "@reduxjs/toolkit";
-import type { WithContext } from "nanoeffects";
+import { createBus, type WithContext } from "nanoeffects";
 import { createAction } from "nanoeffects/actions";
 import { latest } from "nanoeffects/policies";
 import { createEffectsMiddleware, type ReduxStoreApi } from "nanoeffects/redux";
@@ -37,19 +37,20 @@ describe("Redux Toolkit with the effects middleware", () => {
 	} & WithContext<{ store: ReduxStoreApi<State> }>;
 
 	const setup = () => {
-		const effects = createEffectsMiddleware<Events>();
+		const bus = createBus<Events>();
 		const store = configureStore({
 			reducer: counter.reducer,
-			middleware: (getDefault) => getDefault().concat(effects.middleware),
+			middleware: (getDefault) =>
+				getDefault().concat(createEffectsMiddleware(bus)),
 		});
 
-		return { effects, store };
+		return { bus, store };
 	};
 
 	it("slice actions reach the bus after the reducer, and a handler can dispatch", async () => {
-		const { effects, store } = setup();
+		const { bus, store } = setup();
 		const seen: string[] = [];
-		effects.bus.on("app/userRequested", async (id, { store: api }) => {
+		bus.on("app/userRequested", async (id, { store: api }) => {
 			seen.push(`log has ${api.getState().log.length} entries`);
 			store.dispatch(userLoaded({ id, name: `user ${id}` }));
 		});
@@ -61,9 +62,9 @@ describe("Redux Toolkit with the effects middleware", () => {
 	});
 
 	it("an action creator of the slice works as the event of its type", () => {
-		const { effects, store } = setup();
+		const { bus, store } = setup();
 		const handler = vi.fn();
-		effects.bus.on(userRequested, handler);
+		bus.on(userRequested, handler);
 		store.dispatch(userRequested("7"));
 
 		expect(handler).toHaveBeenCalledTimes(1);
@@ -71,9 +72,9 @@ describe("Redux Toolkit with the effects middleware", () => {
 	});
 
 	it("thunks go through and their actions reach the bus", async () => {
-		const { effects, store } = setup();
+		const { bus, store } = setup();
 		const handler = vi.fn();
-		effects.bus.on("app/userLoaded", handler);
+		bus.on("app/userLoaded", handler);
 		await store.dispatch(async (dispatch) => {
 			await wait();
 			dispatch(userLoaded({ id: "2", name: "late" }));
@@ -83,9 +84,9 @@ describe("Redux Toolkit with the effects middleware", () => {
 	});
 
 	it("latest aborts the previous request, and only the last result reaches the store", async () => {
-		const { effects, store } = setup();
+		const { bus, store } = setup();
 		const requests = new Map<string, (user: User) => void>();
-		effects.bus.on(
+		bus.on(
 			"app/userRequested",
 			latest(async (id, { store: api, signal }) => {
 				const user = await new Promise<User>((resolve) => {
@@ -110,12 +111,13 @@ describe("Redux Toolkit with the effects middleware", () => {
 
 	it("an error of a handler does not break dispatch, and goes to onError", () => {
 		const onError = vi.fn();
-		const effects = createEffectsMiddleware<Events>({ onError });
+		const bus = createBus<Events>({ onError });
 		const store = configureStore({
 			reducer: counter.reducer,
-			middleware: (getDefault) => getDefault().concat(effects.middleware),
+			middleware: (getDefault) =>
+				getDefault().concat(createEffectsMiddleware(bus)),
 		});
-		effects.bus.on("app/userRequested", () => {
+		bus.on("app/userRequested", () => {
 			throw new Error("boom");
 		});
 
@@ -126,8 +128,8 @@ describe("Redux Toolkit with the effects middleware", () => {
 
 	it("the default serializable and immutable checks do not complain", () => {
 		const log = vi.spyOn(console, "error").mockImplementation(() => {});
-		const { effects, store } = setup();
-		effects.bus.on("app/userRequested", (id, { store: api }) => {
+		const { bus, store } = setup();
+		bus.on("app/userRequested", (id, { store: api }) => {
 			api.dispatch(userLoaded({ id, name: "x" }));
 		});
 		store.dispatch(userRequested("1"));
@@ -137,13 +139,13 @@ describe("Redux Toolkit with the effects middleware", () => {
 	});
 
 	it("a handler does not loop on the action it handles", () => {
-		const { effects, store } = setup();
+		const { bus, store } = setup();
 		const handler = vi.fn(
 			(_: string, { store: api }: { store: ReduxStoreApi<State> }) => {
 				api.dispatch(userRequested("again"));
 			},
 		);
-		effects.bus.on("app/userRequested", handler);
+		bus.on("app/userRequested", handler);
 		store.dispatch(userRequested("1"));
 
 		expect(handler).toHaveBeenCalledTimes(1);

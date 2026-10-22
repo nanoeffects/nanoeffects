@@ -17,6 +17,7 @@ export {
 	type EventKey,
 	type EventLike,
 	type EventPayload,
+	type EventsOf,
 	type Handler,
 	type HandlerRef,
 	type Off,
@@ -25,6 +26,11 @@ export {
 	type WithPayload,
 	type WithType,
 } from "./core/bus";
+export {
+	type ContextTask,
+	contextPlugin,
+	type NoClash,
+} from "./core/context-plugin";
 export type { Tracer } from "./core/tracer";
 export type {
 	EffectName,

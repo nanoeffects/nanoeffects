@@ -1,4 +1,5 @@
-import type { Bus, ContextOf, WithContext } from "../core/bus";
+import type { Bus, WithContext } from "../core/bus";
+import type { NoClash } from "../core/context-plugin";
 import type { EventMap, Keys } from "../core/types";
 import type { delay } from "../utils";
 import type { all } from "./all";
@@ -62,13 +63,6 @@ type BoundOf<H extends Helpers, E extends EventMap> = {
 	[K in keyof H & keyof Bound<E>]: Bound<E>[K];
 };
 
-/** `unknown` when no passed effect is already a context field of the bus, else `never`: the call does not compile. */
-type NoClash<H extends Helpers, E extends EventMap> = [
-	keyof H & keyof ContextOf<E>,
-] extends [never]
-	? unknown
-	: never;
-
 type Effect = (ctx: object, ...args: unknown[]) => unknown;
 
 /**
@@ -95,7 +89,7 @@ type Effect = (ctx: object, ...args: unknown[]) => unknown;
 export const effectsPlugin =
 	<H extends Helpers>(helpers: H) =>
 	<E extends EventMap>(
-		bus: Bus<E> & NoClash<H, E>,
+		bus: Bus<E> & NoClash<BoundOf<H, E>, E>,
 	): Bus<E & WithContext<BoundOf<H, E>>> => {
 		const previous = bus.addContext;
 		const entries = Object.entries(helpers) as Array<[string, Effect]>;

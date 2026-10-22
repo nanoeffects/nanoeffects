@@ -164,7 +164,7 @@
 		{
 			"name": "actions (all)",
 			"path": "dist/actions.js",
-			"limit": "1835 B"
+			"limit": "1850 B"
 		},
 		{
 			"name": "redux",

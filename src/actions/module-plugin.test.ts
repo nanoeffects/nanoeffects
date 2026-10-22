@@ -376,12 +376,13 @@ describe("modulePlugin as a plugin", () => {
 		expect(order).toEqual(["first", "second", "third"]);
 	});
 
-	it("returns the api: mount, unmount, isMounted, dispose and commands", () => {
+	it("returns the api: mount, unmount, isMounted, dispose, createModule and commands", () => {
 		const bus = createBus<TestEvents>();
 		const app = bus.use(modulePlugin<TestEvents>());
 
 		expect(Object.keys(app).sort()).toEqual([
 			"commands",
+			"createModule",
 			"dispose",
 			"isMounted",
 			"mount",
@@ -452,5 +453,66 @@ describe("modulePlugin as a plugin", () => {
 		const second = bus.use(modulePlugin<TestEvents>());
 
 		expect(second.commands).toBe(first.commands);
+	});
+
+	describe("app.createModule", () => {
+		it("keeps the name and the setup", () => {
+			const setup = vi.fn();
+			const { createModule: createAppModule } = createApp<TestEvents>();
+			const module = createAppModule("user", setup);
+
+			expect(module.name).toBe("user");
+			expect(module.setup).toBe(setup);
+		});
+
+		it("does not run the setup on creation, and the app mounts it", () => {
+			const setup = vi.fn();
+			const app = createApp<TestEvents>();
+			const module = app.createModule("user", setup);
+
+			expect(setup).not.toHaveBeenCalled();
+			expect(app.isMounted(module)).toBe(false);
+
+			app.mount(module);
+
+			expect(setup).toHaveBeenCalledTimes(1);
+			expect(app.isMounted(module)).toBe(true);
+		});
+
+		it("mounts the same module on a second app", () => {
+			const setup = vi.fn();
+			const first = createApp<TestEvents>();
+			const second = createApp<TestEvents>();
+			const module = first.createModule("user", setup);
+
+			second.mount(module);
+
+			expect(setup).toHaveBeenCalledTimes(1);
+			expect(second.isMounted(module)).toBe(true);
+			expect(first.isMounted(module)).toBe(false);
+		});
+
+		it("gives the module the context of the bus", () => {
+			type StoreEvents = TestEvents & WithContext<{ store: { name: string } }>;
+			const context = { store: { name: "main" } };
+			const app = createApp<StoreEvents>({ context });
+			let seen: unknown = null;
+			app.mount(
+				app.createModule("m", (moduleContext) => {
+					seen = moduleContext.store;
+				}),
+			);
+
+			expect(seen).toBe(context.store);
+		});
+
+		it("is the same as createModule of the library", () => {
+			const setup = vi.fn();
+			const app = createApp<TestEvents>();
+
+			expect(app.createModule("same", setup)).toEqual(
+				createModule<TestEvents>("same", setup),
+			);
+		});
 	});
 });

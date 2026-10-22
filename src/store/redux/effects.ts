@@ -1,11 +1,5 @@
-import {
-	type Bus,
-	type BusOptions,
-	type ContextOf,
-	createBus,
-} from "../../core/bus";
+import type { Bus } from "../../core/bus";
 import type { EventMap } from "../../core/types";
-import { report } from "../../utils";
 import {
 	type NanoeffectsMiddlewareOptions,
 	nanoeffectsMiddleware,
@@ -17,97 +11,96 @@ export type ReduxStoreApi<State = unknown> = {
 	getState: () => State;
 };
 
-export type EffectsMiddlewareOptions<E extends EventMap> = Omit<
-	BusOptions<E>,
-	"context"
-> &
-	NanoeffectsMiddlewareOptions & {
-		/** More fields for the context of every task, next to `store`. */
-		context?: object;
-	};
+export type EffectsMiddlewareOptions = Pick<
+	NanoeffectsMiddlewareOptions,
+	"filter"
+>;
 
 /**
- * Creates a bus and the Redux middleware that feeds it: the effects of an app
- * in one place, without sagas. Every task gets `ctx.store`, the `dispatch` and
- * `getState` of the store, as soon as the middleware is added to it. Type it
- * in the event map:
+ * Makes the Redux middleware that feeds a bus you already have: the actions of
+ * the store reach its handlers, and every task gets `ctx.store`, the `dispatch`
+ * and `getState` of the store, as soon as Redux has installed the middleware.
+ * Type it in the event map of the bus:
  *
  * ```ts
  * type Events = { userRequested: string } & WithContext<{ store: ReduxStoreApi<RootState> }>;
  * ```
  *
- * Two things are looked after for you:
+ * Use one bus for one store: a second store would replace the first in the
+ * contexts. Two things are looked after for you:
  *
  * - **A handler does not loop on its own action.** An action that a handler
  *   dispatches through `ctx.store` and that has the type the handler works on
  *   does not go back to the bus (a handler of `a` that dispatches `a`). Other
  *   handlers of that type do not get it either. Longer cycles, `a` to `b` to
  *   `a`, are yours to avoid.
- * - **A failing handler does not break `dispatch`.** Errors go to `onError`,
- *   by default to `console.error`, as in Redux Toolkit listeners; reducers
- *   still throw to the caller.
+ * - **A failing handler does not break `dispatch`.** With `onError` on the bus
+ *   the bus isolates the handlers. Without it the error is written to
+ *   `console.error`, as in Redux Toolkit listeners. Reducers still throw to
+ *   the caller.
  *
  * @example
  * ```ts
- * const effects = createEffectsMiddleware<Events>();
+ * const bus = createBus<Events>();
  *
  * const store = configureStore({
  *   reducer,
- *   middleware: (getDefault) => getDefault().concat(effects.middleware),
+ *   middleware: (getDefault) => getDefault().concat(createEffectsMiddleware(bus)),
  * });
  *
- * effects.bus.on(userRequested, latest(async (id, { store, signal }) => {
+ * bus.on(userRequested, latest(async (id, { store, signal }) => {
  *   store.dispatch(userLoaded(await fetchUser(id, { signal })));
  * }));
  * ```
  */
-export const createEffectsMiddleware = <E extends EventMap = EventMap>(
-	options: EffectsMiddlewareOptions<E> = {},
+export const createEffectsMiddleware = <E extends EventMap>(
+	bus: Bus<E>,
+	options: EffectsMiddlewareOptions = {},
 ) => {
-	const { filter, context, onError, ...busOptions } = options;
 	let api: ReduxStoreApi | undefined;
 	// the type of the task that dispatched an action, without marking the action
 	const origins = new WeakMap<object, string>();
 
 	// each task gets its own `store`, which knows which task dispatches
-	const contextOf = (task: { type: string }): ContextOf<E> => {
-		const fields: object = {
-			...context,
-			store: api && {
-				getState: api.getState,
+	const previous = bus.addContext;
+	bus.addContext = (ctx) => {
+		previous?.(ctx);
+		const current = api;
+		if (!current) {
+			return;
+		}
+		const { type } = ctx as { type: string };
+		Object.assign(ctx, {
+			store: {
+				getState: current.getState,
 				dispatch: (action: unknown) => {
 					if (typeof action === "object" && action !== null) {
-						origins.set(action, task.type);
+						origins.set(action, type);
 					}
 					// the store types its own actions; here any action goes through
 					const forwarded = action as never;
-					return api?.dispatch(forwarded);
+					return current.dispatch(forwarded);
 				},
 			},
-		};
-
-		return fields as ContextOf<E>;
+		});
 	};
 
-	const bus: Bus<E> = createBus<E>({
-		...busOptions,
-		onError:
-			onError ??
-			((error, { type }) => {
-				report(`handler of "${type}" failed`, error);
-			}),
-		context: contextOf,
-	});
 	const forward = nanoeffectsMiddleware(bus, {
 		filter: (action) =>
-			origins.get(action) !== action.type && (filter?.(action) ?? true),
+			origins.get(action) !== action.type && (options.filter?.(action) ?? true),
+		// without an `onError` on the bus, `emit` throws the first error of a handler. Written as
+		// `report` does it, but not imported: from this entry `report` moves into a chunk of its
+		// own, and the bundle of `createBus` grows by 3 B (see the size limit).
+		onError: (error, { type }) => {
+			globalThis.console?.error(
+				`[nanoeffects] handler of "${type}" failed`,
+				error,
+			);
+		},
 	});
 
-	return {
-		bus,
-		middleware: (storeApi: ReduxStoreApi) => {
-			api = storeApi;
-			return forward();
-		},
+	return (storeApi: ReduxStoreApi) => {
+		api = storeApi;
+		return forward();
 	};
 };

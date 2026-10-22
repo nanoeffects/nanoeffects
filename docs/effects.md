@@ -256,7 +256,7 @@ bus.on("login", async (user, ctx) => {
 ```
 
 - Sees only events emitted after the call, takes one, and unsubscribes.
-- `options.predicate` skips payloads it rejects.
+- `options.predicate` skips payloads it rejects. In TypeScript, a type guard (`(payload): payload is Admin`) narrows the type of the result.
 - `options.signal` stops the wait (how a `race` or `timeout` starter cancels it).
 - On abort of the task or of `options.signal`, unsubscribes and rejects with the abort reason.
 

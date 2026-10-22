@@ -28,6 +28,8 @@ bus.on(
 	debounce(
 		300,
 		latest(async (query, ctx) => {
+			// latest aborts ctx.signal when a newer query arrives; passing it on cancels
+			// this request. Without it the old one keeps running and only its result is dropped
 			const items = await api.search(query, { signal: ctx.signal });
 			ctx.emit("results", items);
 		}),

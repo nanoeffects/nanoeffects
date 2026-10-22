@@ -12,6 +12,7 @@ describe("public entries", () => {
 		expect(Object.keys(main).sort()).toEqual([
 			"anyEventType",
 			"commandCall",
+			"contextPlugin",
 			"createBus",
 		]);
 	});

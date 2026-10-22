@@ -34,3 +34,18 @@ type Draft = any;
 interface ImportMeta {
 	env: any;
 }
+// libraries that the docs import but the project does not install: every import is `any`
+declare module "react";
+declare module "vue";
+declare module "pinia";
+declare module "nanostores";
+declare module "valtio";
+declare module "valtio/utils";
+// JSX of the docs: any tag, any props
+declare namespace JSX {
+	// biome-ignore lint/suspicious/noEmptyInterface: the type of an element is not checked
+	interface Element {}
+	interface IntrinsicElements {
+		[tag: string]: any;
+	}
+}
