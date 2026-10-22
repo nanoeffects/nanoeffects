@@ -9,6 +9,7 @@ pnpm tsgo          # type check (tsc 7, strict, exactOptionalPropertyTypes, noUn
 pnpm check         # biome check ./src ./examples ./integration ./scripts, with the plugins from lint/
 pnpm format        # biome check --write --unsafe ./src
 pnpm docs:check    # type-checks the js/ts code blocks of docs/*.md against src (scripts/docs-check.mjs)
+pnpm llms:check    # llms.txt links every docs page once and names only real entries (scripts/llms-full.mjs; `pnpm build` writes llms-full.txt)
 pnpm vitest run    # all tests (fake timers where time matters)
 pnpm build         # tsdown: dist/ and dist/notrace/, then scripts/notrace-types.mjs
 pnpm test:integration  # the real Redux Toolkit, Zustand, MobX, Jotai, and Vite and webpack bundling the packed package (needs `pnpm build` first; it builds when dist is missing)
@@ -19,7 +20,7 @@ pnpm size          # size-limit: bundle size of each entry (brotli), limits in p
 pnpm verify        # all of the above in one go (what CI runs)
 ```
 
-Run `pnpm format && pnpm tsgo && pnpm check && pnpm docs:check && pnpm vitest run && pnpm build` before you say that something is done. `format` may rewrite `void` to `undefined` in types: keep the `biome-ignore` on `Absent<P>` in `src/actions/action.ts`.
+Run `pnpm format && pnpm tsgo && pnpm check && pnpm docs:check && pnpm llms:check && pnpm vitest run && pnpm build` before you say that something is done. `format` may rewrite `void` to `undefined` in types: keep the `biome-ignore` on `Absent<P>` in `src/actions/action.ts`.
 
 Do not commit, push or stage unless the owner asks. The working tree is often large and uncommitted on purpose.
 
@@ -42,7 +43,8 @@ src/tests/              tests that cross modules (flows, fuzz, scenarios, regres
 integration/            tests with the real libraries and bundlers (own vitest config: vitest.integration.config.ts)
 docs/, examples/        user documentation (see Documentation); examples are type-checked (tsconfig paths map `nanoeffects/*` to `src`)
 lint/                   GritQL readability rules (see below); excluded from biome's formatter on purpose
-scripts/                notrace-types.mjs (postbuild)
+llms.txt                index of docs/ for AI assistants (by hand); llms-full.txt is built from it, not committed
+scripts/                notrace-types.mjs (postbuild), docs-check.mjs, llms-full.mjs
 ```
 
 Unit tests sit next to the file they test (`x.ts`, `x.test.ts`).
@@ -119,6 +121,10 @@ Do not drop a block of unfamiliar calls (`m.on` + `m.handle` + `m.use`, …) wit
 
 `pnpm docs:check` checks every `js` and `ts` fence of `docs/*.md` on its own, with `nanoeffects/*` mapped to `src`. `js` blocks report only stale names (missing name, export, module, wrong argument count, unknown option), because a JavaScript reader gets no payload types. A name that the reader's app owns (`api`, `fetchUser`) is declared in `scripts/docs-stubs.d.ts`; add one only when a snippet needs it. A block that cannot be checked gets `<!-- docs-check: skip - reason -->` on the line before its fence.
 
+### New docs page
+
+Add every new page of `docs/` to `llms.txt` (one link with a one-line description, in reading order): `pnpm llms:check` fails when one is missing.
+
 ### Clarity checklist
 
 What / when? Install? Main action? Result? How to adapt? Where are more options? For a new API: problem, why this call, what if I skip it? For a type block: does this change runtime, or only the checker?
@@ -164,7 +170,7 @@ A JS developer who has not read the source can quickly see the purpose, install 
 
 ## Changes with OpenSpec
 
-Larger changes are planned with OpenSpec (`openspec/`): `/opsx:propose "idea"` makes a change with `proposal.md`, a spec delta, `design.md` and `tasks.md` under `openspec/changes/<name>/`; planning stops there, and the owner starts `/opsx:apply` when the plan is accepted; `/opsx:archive` moves the delta into `openspec/specs/`. `openspec/config.yaml` holds the project context for the artifacts. `.claude/` and `.agents/` hold the generated commands and skills (`openspec update` refreshes them). Small fixes need no change.
+**Every change goes through OpenSpec.** Do not edit code, docs or scripts on a request to build, change or fix something until there is a change under `openspec/changes/` for it: propose first (`/opsx:propose`), stop when the artifacts are ready, and implement only on `/opsx:apply`. Update the artifacts when the work shows they are wrong, and archive the change when it is done. The only exception is when the owner says in the request to skip OpenSpec (a typo, a one-line fix, "just do it"). Planning uses `openspec/`: `/opsx:propose "idea"` makes a change with `proposal.md`, a spec delta, `design.md` and `tasks.md` under `openspec/changes/<name>/`; planning stops there, and the owner starts `/opsx:apply` when the plan is accepted; `/opsx:archive` moves the delta into `openspec/specs/`. `openspec/config.yaml` holds the project context for the artifacts. `.claude/` and `.agents/` hold the generated commands and skills (`openspec update` refreshes them).
 
 ## Code rules
 

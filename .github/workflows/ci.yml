@@ -27,6 +27,7 @@ jobs:
       - run: pnpm tsgo
       - run: pnpm check
       - run: pnpm docs:check
+      - run: pnpm llms:check
       - run: pnpm test
       - run: pnpm build
       - run: pnpm test:integration

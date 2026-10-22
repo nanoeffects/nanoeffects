@@ -1,4 +1,5 @@
 node_modules
 dist
+llms-full.txt
 *.tsbuildinfo
 .DS_Store

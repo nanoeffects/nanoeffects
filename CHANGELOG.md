@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `llms.txt` and `llms-full.txt` in the package, for AI assistants: an index with the rules that generated code often gets wrong, and the whole documentation in one file. `pnpm llms:check` fails when a page of `docs/` is missing from the index.
 - A playground on StackBlitz (`examples/playground`): the search example with `debounce` and `latest` and a log of started, aborted and finished requests. README links to it.
 - `pnpm docs:check` type-checks the `js` and `ts` code blocks of `docs/` against the sources, so a stale snippet fails `verify` and CI. Fixes for the snippets it found are in `docs/effects.md` and `docs/guide.md`.
 - `backoff({ base, factor, max, jitter })` from `nanoeffects/effects`: builds the `delay` of `retry` (or `poll`): `base * factor ** (attempt - 1)`, at most `max`, with optional full jitter. `docs/effects.md` gets a "Back off between retries" recipe.

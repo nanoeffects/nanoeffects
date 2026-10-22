@@ -1,0 +1,47 @@
+# nanoeffects
+
+> A small typed event bus for JavaScript and TypeScript apps. Each handler runs as a task with an `AbortSignal`, so in-flight work can be cancelled. Policies (`latest`, `debounce`, ...) and effects (`retry`, `timeout`, ...) are plain functions.
+
+Rules that generated code often gets wrong:
+
+- The package is ESM only. There is no default export and no `require`.
+- `const unbind = bus.on("event", handler)` subscribes and returns the unsubscribe function. There is no `subscribe` or `addListener`.
+- A handler gets the payload and a task context: `(payload, ctx)`. The context has `signal`, `emit`, `on`, `run`. Pass `ctx.signal` to `fetch`.
+- Effects take `ctx` as the first argument: `retry(ctx, fn, options)`, `timeout(ctx, ms, fn)`, `take(ctx, "event")`.
+- Policies wrap a handler: `bus.on("search", latest(async (query, ctx) => { ... }))`.
+- Each part is imported from its own path: `nanoeffects` (`createBus`), `nanoeffects/policies`, `nanoeffects/effects`, `nanoeffects/actions`, `nanoeffects/redux`, `nanoeffects/observable`, `nanoeffects/trace`, `nanoeffects/dev`.
+- `bus.emit(command(payload))` runs the command's handler and returns its result. Plain events return nothing.
+
+## Start here
+
+- [Guide](docs/guide.md): bus, handler context, policies, effects, commands and modules, step by step
+- [Package entries](docs/package.md): which import holds what
+
+## Async UI and unreliable networks
+
+- [Policies](docs/policies.md): `latest`, `leading`, `debounce`, `throttle`, `queue`, and `key`
+- [Effects and cancellation](docs/effects.md): `retry`, `timeout`, `poll`, `take`, `all`, `race`, `backoff`
+- [Errors and unheard events](docs/errors.md): `onError`, `onUnhandled`
+
+## Domain logic and stores
+
+- [Actions, commands, jobs and modules](docs/actions.md): `createAction`, `createCommand`, `createJob`, `createModule`
+- [Connect Redux, Zustand, or MobX](docs/stores.md): the Redux middleware and callbacks of other stores
+- [Context fields](docs/context.md): put a store or client on every task
+
+## TypeScript
+
+- [TypeScript in many files](docs/typescript.md): keep the types of the bus in commands and modules
+
+## Coming from another library
+
+- [Coming from redux-saga](docs/migrating-from-saga.md)
+- [Coming from Effector](docs/migrating-from-effector.md)
+- [Use nanoeffects next to RxJS](docs/migrating-from-rxjs.md)
+
+## Reference
+
+- [Semantics](docs/semantics.md): exact rules of emit, abort and ordering
+- [Trace tasks](docs/tracing.md): loggers, Redux DevTools, the `notrace` build
+- [Turn events into Observables](docs/observable.md): `createObserve`
+- [Hot reload and development diagnostics](docs/hmr.md): `devPlugin`
