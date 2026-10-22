@@ -155,12 +155,12 @@
 		{
 			"name": "effects (all)",
 			"path": "dist/effects.js",
-			"limit": "2.3 kB"
+			"limit": "2317 B"
 		},
 		{
 			"name": "actions (all)",
 			"path": "dist/actions.js",
-			"limit": "1.8 kB"
+			"limit": "1835 B"
 		},
 		{
 			"name": "redux",

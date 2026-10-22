@@ -71,6 +71,7 @@ describe("public entries", () => {
 			"createCommand",
 			"createJob",
 			"createModule",
+			"emitterPlugin",
 			"modulePlugin",
 		]);
 	});

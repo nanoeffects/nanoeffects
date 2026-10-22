@@ -9,6 +9,7 @@ import {
 	createCommand,
 	createJob,
 	createModule,
+	emitterPlugin,
 	modulePlugin,
 } from "../actions";
 import { type Context, createBus, type WithContext } from "../core/bus";
@@ -712,5 +713,51 @@ describe("effectsPlugin", () => {
 			expectTypeOf(store).toEqualTypeOf<Store>();
 			expectTypeOf(await all({ a: () => 1 })).toEqualTypeOf<{ a: number }>();
 		});
+	});
+});
+
+describe("emitterPlugin", () => {
+	type NameEvents = { "name/changed": string };
+
+	it("a creator without a payload type takes the payload of the event map", () => {
+		const withEmitter = createBus<NameEvents>().use(emitterPlugin());
+		const nameChanged = createAction("name/changed");
+		const emitNameChanged = withEmitter.emitter(nameChanged);
+
+		expectTypeOf(emitNameChanged).parameters.toEqualTypeOf<[payload: string]>();
+		// @ts-expect-error the event map says a string
+		emitNameChanged(1);
+	});
+
+	it("a creator with a payload type takes that payload", () => {
+		const withEmitter = createBus().use(emitterPlugin());
+		const emitAdded = withEmitter.emitter(
+			createAction<number>("counter/added"),
+		);
+
+		expectTypeOf(emitAdded).parameters.toEqualTypeOf<[payload: number]>();
+		// @ts-expect-error a number is expected
+		emitAdded("1");
+	});
+
+	it("takes the arguments of a prepare function", () => {
+		const withEmitter = createBus().use(emitterPlugin());
+		const renamed = createAction(
+			"user/renamed",
+			(id: string, name: string) => ({ payload: { id, name } }),
+		);
+
+		expectTypeOf(withEmitter.emitter(renamed)).parameters.toEqualTypeOf<
+			[id: string, name: string]
+		>();
+	});
+
+	it("bus.emit takes a creator and a payload", () => {
+		const withEmitter = createBus<NameEvents>().use(emitterPlugin());
+		const nameChanged = createAction("name/changed");
+
+		withEmitter.emit(nameChanged, "Eva");
+		// @ts-expect-error the event map says a string
+		withEmitter.emit(nameChanged, 1);
 	});
 });

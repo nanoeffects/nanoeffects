@@ -71,51 +71,57 @@ type Events = {
 const effects = createEffectsMiddleware<Events>();
 ```
 
-## Emit from Zustand
+## Emit from a state manager
 
-No adapter: the store notifies, you `emit` onto a normal bus.
+Zustand, MobX, Jotai, Valtio and Nanostores have no adapter. Each store tells you about a change with a callback, and you turn that call into an event of a normal bus.
+
+Writing `(name) => bus.emit(nameChanged(name))` for every subscription repeats the bus and the action. `emitterPlugin` adds `bus.emitter(action)`: it returns that callback for you. The action stays a plain `createAction`, so `bus.emit(nameChanged("Eva"))` and `bus.on(nameChanged, …)` work as before.
 
 ```js
 import { createBus } from "nanoeffects";
+import { createAction, emitterPlugin } from "nanoeffects/actions";
 import { latest } from "nanoeffects/policies";
 
-const bus = createBus(); // plain bus; no Redux middleware
+const bus = createBus().use(emitterPlugin()); // adds bus.emitter; returns the same bus
 
-const stop = store.subscribe((state, previous) => {
-  if (state.user === previous.user) return;
-  bus.emit("user/changed", state.user);
-});
+const nameChanged = createAction("name/changed"); // a plain action creator
 
-// latest — drop in-flight sync when the user changes again
+// bus.emitter: a callback (name) => bus.emit(nameChanged(name))
+const emitNameChanged = bus.emitter(nameChanged);
+
+// latest — drop the request in flight when the name changes again
 bus.on(
-  "user/changed",
-  latest(async (user, { signal }) => {
-    await sync(user, { signal });
+  nameChanged,
+  latest(async (name, { signal }) => {
+    await saveName(name, { signal });
   }),
 );
 ```
 
-## Emit from MobX
+Pass `emitNameChanged` to the subscription of your store. It sends the first argument of the call as the payload.
 
 ```js
-import { createBus } from "nanoeffects";
-import { latest } from "nanoeffects/policies";
-import { reaction } from "mobx";
+// Nanostores: listen calls back with the new value (subscribe would call at once)
+const stop = $name.listen(emitNameChanged);
 
-const bus = createBus();
+// MobX: reaction watches the expression and calls back with its value
+const stop = reaction(() => user.name, emitNameChanged);
 
-const stop = reaction(
-  () => store.user,
-  (user) => bus.emit("user/changed", user),
-);
+// Valtio: subscribeKey watches one field
+const stop = subscribeKey(state, "name", emitNameChanged);
 
-bus.on(
-  "user/changed",
-  latest(async (user, { signal }) => {
-    await sync(user, { signal });
-  }),
-);
+// Jotai: sub gives no value, read it yourself
+const stop = store.sub(nameAtom, () => emitNameChanged(store.get(nameAtom)));
+
+// Zustand with subscribeWithSelector: the selector picks the field, and the
+// callback is called only when it changes. Without a selector Zustand calls back
+// on every setState, with the whole state.
+const stop = store.subscribe((state) => state.name, emitNameChanged);
 ```
+
+These stores call back only when the value changed, so the emitter does not compare values. For a store that calls back on every change, select a smaller value first, as Zustand does above.
+
+Redux is different: use the middleware from the first section, it sends actions to the bus.
 
 Stop watching with what the store returned: `onAbort(ctx, stop)` inside a task, or `m.signal.addEventListener("abort", stop)` in a module.
 

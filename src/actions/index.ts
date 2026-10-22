@@ -9,6 +9,7 @@ export {
 	commandsPlugin,
 	createCommand,
 } from "./command";
+export { type EmitterApi, emitterPlugin } from "./emitter";
 export { createJob, type Job } from "./job";
 export {
 	createModule,
