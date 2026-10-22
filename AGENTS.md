@@ -194,4 +194,4 @@ npm publishing goes through GitHub Actions with npm trusted publishing (no token
 
 Done: bus with task contexts; policies with `key`; effects; commands, actions, jobs, modules; `context` option; tracing with loggers and the `notrace` build; about 1100 tests (lodash parity, fuzz, regressions from issues of other libraries).
 
-Done: the Redux adapters. Zustand and MobX have no adapter on purpose (`bindSource` was built and removed as too much; the README shows the plain recipe). Ideas the owner has talked about and not started: splitting `src/tests/regressions.flow.test.ts` by topic; a `sample: 0` fast path in the tracer. The owner said that "complicating can be done later": prefer the simple version first.
+Done: the Redux adapters. Zustand and MobX have no adapter on purpose (`bindSource` was built and removed as too much; the README shows the plain recipe). Ideas the owner has talked about and not started: a `sample: 0` fast path in the tracer. The owner said that "complicating can be done later": prefer the simple version first.
