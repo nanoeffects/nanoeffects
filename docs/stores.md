@@ -14,6 +14,7 @@ If you do not have a store yet, use `createBus` from the [Guide](guide.md).
   - [Jotai](#jotai)
   - [Zustand](#zustand)
   - [Pinia](#pinia)
+  - [React: sharing a value across components](#react-sharing-a-value-across-components)
   - [Callbacks on every change](#callbacks-on-every-change)
   - [Stop watching a store](#stop-watching-a-store)
   - [Give the store to every handler](#give-the-store-to-every-handler)
@@ -261,6 +262,241 @@ const stopResults = bus.on(searchLoaded, (items) => {
   search.results = items;
 });
 ```
+
+### React: sharing a value across components
+
+A value of your UI (a query, a filter, a name) often has two jobs. Several components read it and re-render when it changes, and the bus must hear about each change to start a handler. The recipes below differ in where the value lives. Pick the first one unless a handler must read the value.
+
+| The value lives in | Use when |
+| --- | --- |
+| A Context provider with `useState` | Only components read it. Plain React, one `useEmitter` call. |
+| A small store on `useSyncExternalStore` | A bus handler, a test or a timer must read it too. |
+| An atom of a store library | You already use Nanostores, Jotai and the like. |
+
+#### Plain React: Context and `useEmitter`
+
+Writing `useEffect(() => bus.emit(...), [value])` looks enough, but it emits on mount, emits twice on mount under StrictMode, and re-runs when the emit function is new on every render. `useEmitter` from `nanoeffects/react` avoids all three. It emits after a render commits with a changed value, never on mount, and compares with `Object.is`. You need React 18 or newer; no other entry of the package uses React.
+
+First the bus. `reactPlugin()` adds `bus.useEmitter`, and destructuring it gives a plain hook that you export:
+
+```js
+// react-search-bus.js
+import { createBus } from "nanoeffects";
+import { createAction } from "nanoeffects/actions";
+import { debounce, latest } from "nanoeffects/policies";
+import { reactPlugin } from "nanoeffects/react";
+
+export const bus = createBus().use(reactPlugin()); // the bus; reactPlugin adds bus.useEmitter
+export const { useEmitter } = bus; // a free hook: it does not read `this`
+
+export const queryChanged = createAction("query/changed");
+export const searchLoaded = createAction("search/loaded");
+
+// debounce — wait 300 ms of quiet; latest — a newer query aborts the older request
+bus.on(
+  queryChanged,
+  debounce(
+    300,
+    latest(async (query, ctx) => {
+      const items = await api.search(query, { signal: ctx.signal });
+      ctx.emit(searchLoaded(items)); // the result goes back to the bus as an event
+    }),
+  ),
+);
+```
+
+Then the provider. It holds the state, calls `useEmitter` once, and listens for the result. Every component below it only reads the context:
+
+```jsx
+// SearchProvider.jsx
+import { createContext, useContext, useEffect, useState } from "react";
+import { bus, queryChanged, searchLoaded, useEmitter } from "./react-search-bus";
+
+const SearchContext = createContext(null);
+
+export function SearchProvider({ children }) {
+  const [query, setQuery] = useState("");
+  const [items, setItems] = useState([]);
+
+  // React → bus: emits queryChanged(query) after every change of query, not on mount
+  useEmitter(queryChanged, query);
+
+  // bus → React: bus.on returns the unsubscribe function, which the effect returns
+  useEffect(() => bus.on(searchLoaded, setItems), []);
+
+  return (
+    <SearchContext.Provider value={{ query, setQuery, items }}>
+      {children}
+    </SearchContext.Provider>
+  );
+}
+
+export const useSearch = () => useContext(SearchContext);
+```
+
+```jsx
+// Search.jsx
+import { useSearch } from "./SearchProvider";
+
+// any number of components can read the same value
+export function SearchBox() {
+  const { query, setQuery } = useSearch();
+  return <input value={query} onChange={(event) => setQuery(event.target.value)} />;
+}
+
+export function Results() {
+  const { items } = useSearch();
+  return (
+    <ul>
+      {items.map((item) => (
+        <li key={item.id}>{item.title}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+Two limits to know:
+
+- **All consumers re-render** on any change of the context value. Split it into two contexts (`query` and `items`) if that is slow.
+- **A new object counts as a change.** For a value that is rebuilt with the same content, pass a third argument that says when two values are the same: `useEmitter(profileChanged, profile, (previous, next) => previous.id === next.id)`.
+
+`useEmitter` emits after the render, not at the moment of `setQuery`. To emit on every call, even with the same value, call an emitter from the event handler (`bus.emitter(action)`, see [Zustand](#zustand)) instead.
+
+#### A value that a handler must read
+
+A context is not visible to a bus handler. When a handler needs the current value, keep the value outside React. About twelve lines of `useSyncExternalStore` do it, and `contextPlugin` hands it to every handler as `ctx.query`:
+
+```jsx
+// value-store.js
+import { useSyncExternalStore } from "react";
+
+export function createValue(initial) {
+  let value = initial;
+  const listeners = new Set();
+
+  return {
+    get: () => value,
+    set(next) {
+      if (Object.is(next, value)) {
+        return; // no change, no notification: this also stops loops
+      }
+      value = next;
+      for (const listener of listeners) {
+        listener();
+      }
+    },
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+}
+
+export const useValue = (store) => useSyncExternalStore(store.subscribe, store.get);
+```
+
+```jsx
+// search-value.jsx
+import { createBus, contextPlugin } from "nanoeffects";
+import { createAction, emitterPlugin } from "nanoeffects/actions";
+import { createValue, useValue } from "./value-store";
+
+const query = createValue("");
+
+// emitterPlugin adds bus.emitter; contextPlugin puts `query` on every task as ctx.query
+const bus = createBus().use(emitterPlugin()).use(contextPlugin({ query }));
+
+const queryChanged = createAction("query/changed");
+const refreshed = createAction("search/refreshed");
+
+// store → bus: bus.emitter turns the action into a callback; one place, any number of setters
+const emitQueryChanged = bus.emitter(queryChanged);
+query.subscribe(() => emitQueryChanged(query.get()));
+
+// the handler reads the current value from ctx, whoever changed it
+bus.on(refreshed, async (_payload, ctx) => {
+  const items = await api.search(ctx.query.get(), { signal: ctx.signal });
+  console.log(items.length);
+});
+
+// any number of components read and write the same value
+export function SearchBox() {
+  const text = useValue(query);
+  return <input value={text} onChange={(event) => query.set(event.target.value)} />;
+}
+```
+
+#### A store library
+
+With Nanostores, Jotai or Zustand the value already lives outside React and has a subscription. Connect it to the bus once, as in [Nanostores](#nanostores), and read it in components with the library's own hook:
+
+```jsx
+// search-atom.jsx
+import { atom } from "nanostores";
+import { useStore } from "@nanostores/react";
+import { createBus } from "nanoeffects";
+import { createAction, emitterPlugin } from "nanoeffects/actions";
+
+const bus = createBus().use(emitterPlugin()); // adds bus.emitter
+const $query = atom("");
+const queryChanged = createAction("query/changed");
+
+// listen, not subscribe: listen skips the call with the current value at start
+$query.listen(bus.emitter(queryChanged));
+
+export function SearchBox() {
+  const query = useStore($query); // the hook of Nanostores; it re-renders on every change
+  return <input value={query} onChange={(event) => $query.set(event.target.value)} />;
+}
+```
+
+#### Do not emit inside a `useReducer` reducer
+
+React may run a reducer more than once for one dispatch (twice in StrictMode), so a `bus.emit` inside it fires twice. Dispatch to the reducer first, then emit, from one helper. Or keep the state in a reducer and pass it to `useEmitter` like any other value.
+
+```jsx
+// search-reducer.jsx
+import { useReducer } from "react";
+import { createBus } from "nanoeffects";
+import { createAction } from "nanoeffects/actions";
+
+const bus = createBus(); // the bus: created once
+
+const queryChanged = createAction("query/changed");
+const queryCleared = createAction("query/cleared");
+
+function reducer(state, action) {
+  if (queryChanged.match(action)) {
+    return action.payload;
+  }
+  if (queryCleared.match(action)) {
+    return "";
+  }
+  return state;
+}
+
+export function Search() {
+  const [query, dispatch] = useReducer(reducer, "");
+
+  // send: the reducer first, then the bus (bus.emit accepts an action)
+  function send(action) {
+    dispatch(action);
+    bus.emit(action);
+  }
+
+  return (
+    <div>
+      <input value={query} onChange={(event) => send(queryChanged(event.target.value))} />
+      <button type="button" onClick={() => send(queryCleared())}>
+        Clear
+      </button>
+    </div>
+  );
+}
+```
+
+A plain `dispatch` skips the bus, so call `send` everywhere.
 
 ### Callbacks on every change
 

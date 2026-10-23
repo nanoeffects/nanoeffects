@@ -39,6 +39,7 @@ declare module "react";
 declare module "vue";
 declare module "pinia";
 declare module "nanostores";
+declare module "@nanostores/react";
 declare module "valtio";
 declare module "valtio/utils";
 // JSX of the docs: any tag, any props

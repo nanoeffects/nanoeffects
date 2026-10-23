@@ -67,7 +67,48 @@ const search = latest(async (query, { signal }) => {
 bus.on("query-changed", debounce(300, search)); // debounce: run after 300 ms of quiet
 ```
 
-The store (`$items`) is not here. Keep it in Effector, or replace it with any store such as Zustand ([Stores](stores.md)), and update it from the `found` event.
+The store (`$items`) is not here. Keep it in Effector and update it from the `found` event, or replace it with a store of your choice. The next example does that with Zustand.
+
+### Keep the state in Zustand
+
+Without Effector, something must hold `$items`. A Zustand store does it: `create` replaces `createStore`, and `setState` replaces `.on(searchFx.doneData, …)`. The handler writes the result to the store directly, so the `found` event is not needed. A component reads the store with a selector, as `useUnit($items)` did.
+
+```jsx
+// search-zustand.jsx
+import { create } from "zustand";
+import { createBus } from "nanoeffects";
+import { debounce, latest } from "nanoeffects/policies";
+
+// create — Zustand: the store replaces $items
+const useSearchStore = create(() => ({ items: [] }));
+
+const bus = createBus(); // the bus: events and handlers
+
+// latest — a newer query aborts the request in flight; debounce — wait 300 ms of quiet
+const search = latest(async (query, { signal }) => {
+  const items = await api.search(query, { signal });
+  useSearchStore.setState({ items }); // Zustand: replaces .on(searchFx.doneData, …)
+});
+
+bus.on("query-changed", debounce(300, search));
+
+export function Search() {
+  const items = useSearchStore((state) => state.items); // Zustand: a selector reads items
+
+  return (
+    <div>
+      <input onChange={(event) => bus.emit("query-changed", event.target.value)} />
+      <ul>
+        {items.map((item) => (
+          <li key={item.id}>{item.title}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+`bus.emit("query-changed", …)` in `onChange` does the work of calling the `queryChanged` event. To also start a task when the store changes, see [Zustand in Stores](stores.md#zustand).
 
 ## Rewrite a form
 

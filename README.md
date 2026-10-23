@@ -15,7 +15,7 @@ npm install nanoeffects
 
 ESM only, no dependencies, types included.
 
-Want to try it first? [Open the playground](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/playground): a search box with `debounce` and `latest`, running in your browser, no install.
+Want to try it first? [Open the playground](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/playground) (or the [React one, with tracing](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/playground-react)): a search box with `debounce` and `latest`, running in your browser, no install.
 
 ## Create a bus
 
