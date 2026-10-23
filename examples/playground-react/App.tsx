@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
-import { bus } from "./bus";
+import { bus, useEmitter } from "./bus";
 import type { Item } from "./fake-api";
 
 export function App() {
+	const [query, setQuery] = useState("");
 	const [items, setItems] = useState<Item[]>([]);
+
+	// useEmitter — emits "typed" with the query after each change of query, not on mount
+	useEmitter("typed", query);
 
 	// bus.on returns the function that removes the listener; returning it unsubscribes on unmount
 	useEffect(() => bus.on("results", setItems), []);
@@ -17,9 +21,10 @@ export function App() {
 				the browser console to see every task.
 			</p>
 			<input
+				value={query}
 				placeholder="Type a query"
 				autoComplete="off"
-				onChange={(event) => bus.emit("typed", event.target.value)} // bus.emit — starts the search
+				onChange={(event) => setQuery(event.target.value)}
 			/>
 			<ul>
 				{items.map((item) => (

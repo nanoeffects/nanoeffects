@@ -1,6 +1,7 @@
 // The bus lives outside React: created once here, not in a component.
 import { createBus } from "nanoeffects";
 import { debounce, latest } from "nanoeffects/policies";
+import { reactPlugin } from "nanoeffects/react";
 import { consoleLogger, createTracer } from "nanoeffects/trace";
 import { api, type Item } from "./fake-api";
 
@@ -13,7 +14,9 @@ type Events = {
 // consoleLogger prints them to the browser console
 const trace = createTracer(consoleLogger());
 
-export const bus = createBus<Events>({ trace });
+// reactPlugin adds bus.useEmitter; destructuring it gives a hook to use in components
+export const bus = createBus<Events>({ trace }).use(reactPlugin());
+export const { useEmitter } = bus;
 
 // debounce — wait 300 ms of quiet; latest — abort the previous search
 bus.on(
