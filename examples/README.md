@@ -4,14 +4,13 @@ Run nanoeffects in a browser tab, or read a small recipe for one job. Start with
 
 ## Try it in the browser
 
-Both playgrounds are the same search box: type fast and only one request starts (`debounce`); type again while a request runs and the older one is aborted (`latest`). Each one lists the requests, so the abort is visible. No install: StackBlitz runs them.
+All three playgrounds are the same search box: type fast and only one request starts (`debounce`); type again while a request runs and the older one is aborted (`latest`). No install: StackBlitz runs them.
 
 | Playground | What is in it | Open |
 | --- | --- | --- |
-| [`playground`](playground) | Plain DOM and `main.ts`. The smallest setup. | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/playground) |
-| [`playground-react`](playground-react) | The same search in a React component, with the bus outside React. Every task is traced to a list on the page, the browser console and Redux DevTools. | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/playground-react) |
-
-Redux DevTools is a browser extension and is usually not visible inside the StackBlitz frame. Open the preview in its own tab to see the tasks there.
+| [`playground`](playground) | Plain DOM and `main.ts`. The smallest setup; the page lists the requests, so the abort is visible. | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/playground) |
+| [`playground-react`](playground-react) | The same search in a React component, with the bus outside React. Every task is printed to the browser console. | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/playground-react) |
+| [`playground-devtools`](playground-devtools) | The same search with its tasks sent to Redux DevTools. Redux DevTools is a browser extension: open the preview in its own tab and pick the instance named `search playground` in its list. | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/playground-devtools) |
 
 To run one on your machine:
 

@@ -35,7 +35,7 @@ The handler wiring in the playground SHALL be the wiring of `examples/search.ts`
 - **THEN** they differ only in the fake `api` and the code that draws the page
 
 ### Requirement: The playground does not break the project gates
-Every playground project (`examples/playground/` and `examples/playground-react/`) SHALL pass `pnpm check` and `pnpm tsgo`, SHALL NOT be part of the published package, and SHALL NOT change anything in `src/`.
+Every playground project (`examples/playground/`, `examples/playground-react/` and `examples/playground-devtools/`) SHALL pass `pnpm check` and `pnpm tsgo`, SHALL NOT be part of the published package, and SHALL NOT change anything in `src/`.
 
 #### Scenario: Gates after adding the playground
 - **WHEN** `pnpm verify` runs
@@ -45,8 +45,12 @@ Every playground project (`examples/playground/` and `examples/playground-react/
 - **WHEN** `pnpm verify` runs
 - **THEN** it passes, and `pnpm pack --dry-run` lists no file of `examples/playground/` or `examples/playground-react/`
 
+#### Scenario: Gates after adding the DevTools playground
+- **WHEN** `pnpm verify` runs
+- **THEN** it passes, and `pnpm pack --dry-run` lists no file of `examples/playground-devtools/`
+
 ### Requirement: The playground has a React variant
-The repository SHALL contain a second StackBlitz project, built from `examples/playground-react/`, that runs the same search flow as the DOM playground inside a React component. `examples/README.md` SHALL link to it next to the DOM playground; the main README SHALL NOT carry a second playground link or a second demo block.
+The repository SHALL contain a second StackBlitz project, built from `examples/playground-react/`, that runs the same search flow as the DOM playground inside a React component, with no state or helper beyond the bus, the component and the fake API. `examples/README.md` SHALL link to it next to the DOM playground; the main README SHALL NOT carry a second playground link or a second demo block.
 
 #### Scenario: A reader opens the React link
 - **WHEN** a reader opens the React playground link from `examples/README.md`
@@ -58,7 +62,7 @@ The repository SHALL contain a second StackBlitz project, built from `examples/p
 
 #### Scenario: A newer query aborts a slow one
 - **WHEN** a reader types a query, waits for its request to start, and then types another
-- **THEN** the first request is shown as aborted and only the second result is shown
+- **THEN** the console trace shows the first task as cancelled and only the second result is shown on the page
 
 #### Scenario: The README stays short
 - **WHEN** the README is read from top to bottom
@@ -75,21 +79,20 @@ The bus and its handlers SHALL be created once, at module level, in their own fi
 - **WHEN** the `bus.on("typed", debounce(..., latest(...)))` block of the React playground is compared with the one in `examples/search.ts`
 - **THEN** they differ only in the fake `api` and the code that draws the page
 
-### Requirement: The React playground shows tracing
-The React playground SHALL create its bus with a tracer. It SHALL list, on the page, the traced tasks as they start, finish, are aborted or fail, SHALL print the same events to the browser console, and SHALL send them to Redux DevTools, which does nothing when the extension is absent. The page text SHALL tell the reader where to look (the list, the console, DevTools). The tracer wiring SHALL carry a comment on each library call.
-
-#### Scenario: A newer query aborts a slow one
-- **WHEN** a reader types a query, waits for its request to start, and then types another
-- **THEN** the trace list shows the first task as cancelled and the second as done
+### Requirement: The React playground traces to the console
+The React playground SHALL create its bus with a tracer held in a constant, `createTracer(consoleLogger())`, with a comment on each library call, and its page text SHALL tell the reader to open the browser console. It SHALL NOT draw the trace on the page or send it to Redux DevTools.
 
 #### Scenario: Console
 - **WHEN** a reader types a query in the React playground
 - **THEN** the browser console shows the traced tasks of that query
 
-#### Scenario: No extension
-- **WHEN** the page opens in a browser without Redux DevTools
-- **THEN** the page works and the in-page trace list still fills
+### Requirement: The playground has a Redux DevTools variant
+The repository SHALL contain a StackBlitz project built from `examples/playground-devtools/` that runs the search flow of the DOM playground with the bus traced by `reduxDevtools({ name })`. Its page SHALL say that Redux DevTools is a browser extension, that the preview works best in its own tab, and that the instance is picked by its name in the DevTools instance list. `examples/README.md` SHALL link to it.
 
 #### Scenario: With the extension
-- **WHEN** the page opens in a browser with Redux DevTools
-- **THEN** the tasks appear there as actions
+- **WHEN** a reader opens the preview in its own tab with Redux DevTools installed and picks the instance by its name
+- **THEN** the tasks of the search appear there as actions
+
+#### Scenario: No extension
+- **WHEN** the page opens in a browser without Redux DevTools
+- **THEN** the page works and the search runs

@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- A React playground on StackBlitz (`examples/playground-react`): the same search in a component, with the bus outside React and the tasks traced to a list on the page, the browser console and Redux DevTools. README links to it.
+- A React playground on StackBlitz (`examples/playground-react`): the same search in a component, with the bus outside React and its tasks printed to the browser console. A separate `examples/playground-devtools` sends the tasks to Redux DevTools. `examples/README.md` indexes the playgrounds and recipes.
 - `nanoeffects/react`: `reactPlugin()` adds `bus.useEmitter(event, value, equals?)`, a React hook that emits `event` with `value` after a render commits with a changed value (`Object.is`, or your `equals`). It does not emit on mount or twice under StrictMode, and `export const { useEmitter } = bus` gives a free hook. `react` (>=18) is an optional peer dependency; no other entry imports it. `docs/stores.md` gets "React: sharing a value across components": a Context provider with `useEmitter`, a small `useSyncExternalStore` value that handlers can read through `ctx`, a Nanostores atom, and why not to emit inside a `useReducer` reducer.
 - `docs/migrating-from-effector.md`: "Keep the state in Zustand", the search with a Zustand store in place of `$items`.
 - `docs/migrating-from-effector.md`: "Rewrite a form", the form of the Effector Forms recipe next to its nanoeffects version (React state instead of `$form`, a handler instead of `sendFormFx`, the values in the event instead of `sample`), with three more rows in the equivalence table.

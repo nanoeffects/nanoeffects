@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>nanoeffects: tasks in Redux DevTools</title>
+		<style>
+			body { font-family: system-ui, sans-serif; max-width: 32rem; margin: 2rem auto; padding: 0 1rem; }
+			input { width: 100%; padding: 0.5rem; font-size: 1rem; box-sizing: border-box; }
+			ul { padding-left: 1.25rem; }
+		</style>
+	</head>
+	<body>
+		<h1>Tasks in Redux DevTools</h1>
+		<p>
+			Type a query: every search task is sent to Redux DevTools as an action
+			(a cancelled one too). Redux DevTools is a browser extension. Open this
+			preview in its own tab, then pick the instance named
+			<b>search playground</b> in the instance list of the extension.
+		</p>
+		<input id="query" placeholder="Type a query" autocomplete="off" />
+		<ul id="results"></ul>
+		<script type="module" src="./main.ts"></script>
+	</body>
+</html>
