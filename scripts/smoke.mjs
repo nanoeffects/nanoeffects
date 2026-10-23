@@ -7,9 +7,10 @@ import { pathToFileURL } from "node:url";
 const notrace = process.argv.includes("--notrace");
 const entry = (dir, name) =>
 	import(pathToFileURL(join(process.cwd(), "dist", dir, `${name}.js`)).href);
-// `observable` has no build without tracing: it has no tracing in it
+// `observable` and `react` have no build without tracing: they have no tracing in it
+const withoutTraceBuild = ["observable", "react"];
 const load = (name) =>
-	entry(notrace && name !== "observable" ? "notrace" : "", name);
+	entry(notrace && !withoutTraceBuild.includes(name) ? "notrace" : "", name);
 
 const { createBus } = await load("index");
 const { latest, debounce, queue, throttle } = await load("policies");
@@ -17,6 +18,12 @@ const { retry, timeout, all, delay } = await load("effects");
 const { createAction, createModule, modulePlugin } = await load("actions");
 const { createEffectsMiddleware } = await load("redux");
 const { createObserve } = await load("observable");
+// react is an optional peer dependency: the entry is checked only where it is installed
+const hasReact = await import("react").then(
+	() => true,
+	() => false,
+);
+const reactEntry = hasReact ? await load("react") : null;
 
 const fail = (message) => {
 	console.error(`smoke test failed: ${message}`);
@@ -89,6 +96,9 @@ if (retried !== 2 || both.one !== 1 || both.two !== 2 || timed !== "in time") {
 }
 if (observed.join() !== "again") {
 	fail("observable");
+}
+if (reactEntry && typeof reactEntry.reactPlugin !== "function") {
+	fail("react");
 }
 if (
 	[debounce, queue, throttle].some((policy) => typeof policy !== "function")

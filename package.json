@@ -90,6 +90,10 @@
 			"types": "./dist/observable.d.ts",
 			"import": "./dist/observable.js"
 		},
+		"./react": {
+			"types": "./dist/react.d.ts",
+			"import": "./dist/react.js"
+		},
 		"./dev": {
 			"production": {
 				"types": "./dist/dev.d.ts",
@@ -125,12 +129,17 @@
 		"@reduxjs/toolkit": "^2.13.0",
 		"@size-limit/esbuild": "^14.2.0",
 		"@size-limit/file": "^14.2.0",
+		"@types/react": "^19.3.0",
+		"@types/react-dom": "^19.3.0",
 		"archunit": "^2.5.4",
+		"happy-dom": "^21.0.4",
 		"jotai": "^3.0.1",
 		"lefthook": "2.2.1",
 		"lodash": "4.17.21",
 		"mobx": "^7.0.6",
 		"publint": "^0.3.25",
+		"react": "^19.3.1",
+		"react-dom": "^19.3.1",
 		"redux": "^5.0.1",
 		"size-limit": "^14.2.0",
 		"tsdown": "0.23.1",
@@ -177,6 +186,14 @@
 			"limit": "0.5 kB"
 		},
 		{
+			"name": "react",
+			"path": "dist/react.js",
+			"ignore": [
+				"react"
+			],
+			"limit": "320 B"
+		},
+		{
 			"name": "dev",
 			"path": "dist/dev.js",
 			"limit": "1 kB"
@@ -186,5 +203,13 @@
 			"path": "dist/production/dev.js",
 			"limit": "100 B"
 		}
-	]
+	],
+	"peerDependencies": {
+		"react": ">=18"
+	},
+	"peerDependenciesMeta": {
+		"react": {
+			"optional": true
+		}
+	}
 }

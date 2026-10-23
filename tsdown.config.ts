@@ -7,7 +7,8 @@ const shared = {
 	minify: true,
 	treeshake: true,
 	sourcemap: false,
-	unused: { level: "error" },
+	// react is an optional peer dependency of the `react` entry only; the other builds do not import it
+	unused: { level: "error", ignore: { peerDependencies: ["react"] } },
 } as const;
 
 export default defineConfig([
@@ -18,6 +19,7 @@ export default defineConfig([
 			effects: "src/effects/index.ts",
 			policies: "src/policies/index.ts",
 			observable: "src/observable.ts",
+			react: "src/react/index.ts",
 			trace: "src/trace/index.ts",
 			actions: "src/actions/index.ts",
 			redux: "src/store/redux/index.ts",

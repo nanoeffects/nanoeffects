@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { projectFiles } from "archunit";
 import { describe, expect, it } from "vitest";
 
@@ -8,6 +10,7 @@ const aboveCore = [
 	"src/dev/**",
 	"src/effects/**",
 	"src/policies/**",
+	"src/react/**",
 	"src/store/**",
 	"src/trace/**",
 ];
@@ -40,4 +43,18 @@ describe("architecture", () => {
 			expect(violations).toEqual([]);
 		});
 	}
+
+	// `react` is an optional peer dependency: only its own entry may import it
+	it("only src/react imports react", () => {
+		const importers = readdirSync("src", { recursive: true, encoding: "utf8" })
+			.filter((file) => file.endsWith(".ts") && !file.endsWith(".test.ts"))
+			.filter((file) => !file.startsWith(join("react", "")))
+			.filter((file) =>
+				/from "react(-dom)?(\/|")/.test(
+					readFileSync(join("src", file), "utf8"),
+				),
+			);
+
+		expect(importers).toEqual([]);
+	});
 });

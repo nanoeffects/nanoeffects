@@ -21,6 +21,7 @@ export default defineConfig({
 				replacement: src("store/redux/index.ts"),
 			},
 			{ find: /^nanoeffects\/observable$/, replacement: src("observable.ts") },
+			{ find: /^nanoeffects\/react$/, replacement: src("react/index.ts") },
 		],
 	},
 	test: {

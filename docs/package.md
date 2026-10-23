@@ -10,6 +10,7 @@ Imports are split so you only load what you use. `createBus` stays small; the re
 | `nanoeffects/actions` | `createAction`, `createCommand`, `createJob`, `createModule`, `modulePlugin`, `commandsPlugin` |
 | `nanoeffects/redux` | `createEffectsMiddleware` |
 | `nanoeffects/observable` | `createObserve` |
+| `nanoeffects/react` | `reactPlugin`: adds the `useEmitter` hook to a bus (needs React 18 or newer) |
 | `nanoeffects/dev` | `devPlugin` (no-op in production) |
 | `nanoeffects/trace` | `createTracer` and the loggers |
 

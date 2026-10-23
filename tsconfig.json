@@ -12,6 +12,7 @@
 		"erasableSyntaxOnly": true,
 		"noUncheckedIndexedAccess": true,
 		"exactOptionalPropertyTypes": true,
+		"jsx": "react-jsx",
 		"paths": {
 			"nanoeffects": ["./src/index.ts"],
 			"nanoeffects/effects": ["./src/effects/index.ts"],
@@ -20,6 +21,7 @@
 			"nanoeffects/trace": ["./src/trace/index.ts"],
 			"nanoeffects/redux": ["./src/store/redux/index.ts"],
 			"nanoeffects/observable": ["./src/observable.ts"],
+			"nanoeffects/react": ["./src/react/index.ts"],
 			"nanoeffects/dev": ["./src/dev/index.ts"]
 		}
 	},

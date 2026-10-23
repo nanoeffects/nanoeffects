@@ -9,7 +9,7 @@ Rules that generated code often gets wrong:
 - A handler gets the payload and a task context: `(payload, ctx)`. The context has `signal`, `emit`, `on`, `run`. Pass `ctx.signal` to `fetch`.
 - Effects take `ctx` as the first argument: `retry(ctx, fn, options)`, `timeout(ctx, ms, fn)`, `take(ctx, "event")`.
 - Policies wrap a handler: `bus.on("search", latest(async (query, ctx) => { ... }))`.
-- Each part is imported from its own path: `nanoeffects` (`createBus`), `nanoeffects/policies`, `nanoeffects/effects`, `nanoeffects/actions`, `nanoeffects/redux`, `nanoeffects/observable`, `nanoeffects/trace`, `nanoeffects/dev`.
+- Each part is imported from its own path: `nanoeffects` (`createBus`), `nanoeffects/policies`, `nanoeffects/effects`, `nanoeffects/actions`, `nanoeffects/redux`, `nanoeffects/observable`, `nanoeffects/react` (`reactPlugin`, adds `bus.useEmitter`; needs React), `nanoeffects/trace`, `nanoeffects/dev`.
 - `bus.emit(command(payload))` runs the command's handler and returns its result. Plain events return nothing.
 
 ## Start here

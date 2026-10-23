@@ -33,6 +33,7 @@ import {
 	timeout,
 } from "../effects";
 import { debounce, latest, leading, queue, throttle } from "../policies";
+import { reactPlugin } from "../react";
 import { createEffectsMiddleware, type ReduxStoreApi } from "../store/redux";
 
 type User = { id: string; name: string };
@@ -955,6 +956,48 @@ describe("createEffectsMiddleware", () => {
 			createEffectsMiddleware(bus, { onError: () => {} });
 			// @ts-expect-error the old form passed options only
 			createEffectsMiddleware({ filter: () => true });
+		};
+		expectTypeOf(wrongCalls).toBeFunction();
+	});
+});
+
+describe("reactPlugin", () => {
+	type ProfileEvents = {
+		"name/changed": string;
+		"profile/changed": { name: string };
+	};
+
+	it("adds useEmitter and types the value from the event", () => {
+		const bus = createBus<ProfileEvents>().use(reactPlugin());
+		const nameChanged = createAction<string>("name/changed");
+
+		expectTypeOf(bus.useEmitter).toBeFunction();
+		const calls = () => {
+			bus.useEmitter("name/changed", "Adam");
+			bus.useEmitter(nameChanged, "Adam");
+			bus.useEmitter(
+				"profile/changed",
+				{ name: "Adam" },
+				(previous, next) => previous.name === next.name,
+			);
+		};
+		expectTypeOf(calls).toBeFunction();
+	});
+
+	it("rejects a value of another type and a wrong comparison", () => {
+		const bus = createBus<ProfileEvents>().use(reactPlugin());
+		const nameChanged = createAction<string>("name/changed");
+		const wrongCalls = () => {
+			// @ts-expect-error the payload of name/changed is a string
+			bus.useEmitter("name/changed", 1);
+			// @ts-expect-error the creator takes a string
+			bus.useEmitter(nameChanged, 1);
+			bus.useEmitter(
+				// @ts-expect-error the comparison gets values of the payload type
+				"name/changed",
+				"Adam",
+				(previous: number) => previous > 0,
+			);
 		};
 		expectTypeOf(wrongCalls).toBeFunction();
 	});
