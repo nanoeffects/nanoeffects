@@ -46,10 +46,10 @@ Every playground project (`examples/playground/` and `examples/playground-react/
 - **THEN** it passes, and `pnpm pack --dry-run` lists no file of `examples/playground/` or `examples/playground-react/`
 
 ### Requirement: The playground has a React variant
-The repository SHALL contain a second StackBlitz project, built from `examples/playground-react/`, that runs the same search flow as the DOM playground inside a React component. The README SHALL link to it next to the DOM playground link, in the same sentence, without a new section or a second demo block.
+The repository SHALL contain a second StackBlitz project, built from `examples/playground-react/`, that runs the same search flow as the DOM playground inside a React component. `examples/README.md` SHALL link to it next to the DOM playground; the main README SHALL NOT carry a second playground link or a second demo block.
 
 #### Scenario: A reader opens the React link
-- **WHEN** a reader opens the React playground link
+- **WHEN** a reader opens the React playground link from `examples/README.md`
 - **THEN** a running page appears that uses `nanoeffects` from npm and React
 
 #### Scenario: Fast typing sends one request
@@ -59,6 +59,10 @@ The repository SHALL contain a second StackBlitz project, built from `examples/p
 #### Scenario: A newer query aborts a slow one
 - **WHEN** a reader types a query, waits for its request to start, and then types another
 - **THEN** the first request is shown as aborted and only the second result is shown
+
+#### Scenario: The README stays short
+- **WHEN** the README is read from top to bottom
+- **THEN** it has one playground link (the DOM one) and one link to the examples index
 
 ### Requirement: The React variant keeps the bus outside the component
 The bus and its handlers SHALL be created once, at module level, in their own file. The component SHALL subscribe with `bus.on` inside an effect and SHALL remove the listener when it unmounts. The `debounce` and `latest` wiring SHALL be the wiring of `examples/search.ts`, with a comment on each library call.
