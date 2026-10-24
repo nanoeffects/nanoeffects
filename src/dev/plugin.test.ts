@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createModule, modulePlugin } from "../actions";
 import { createBus } from "../core/bus";
+import { matchPlugin } from "../match";
 import type { TestEvents } from "../tests/test-helpers";
 import { devPlugin as noopPlugin } from "./noop";
 import { devPlugin } from "./plugin";
@@ -366,5 +367,100 @@ describe("the production build of devPlugin", () => {
 		expect(app.mount).toBe(mount);
 		expect(app.unmount).toBe(unmount);
 		expect(disconnect()).toBeUndefined();
+	});
+});
+
+describe("devPlugin and matchPlugin: any order", () => {
+	const always = () => true;
+	const handler = () => {};
+
+	// devPlugin first or second; the bus that comes out has both
+	const connect = (order: "match first" | "dev first") => {
+		const messages: string[] = [];
+		const raw = createBus<TestEvents>();
+		const devOptions = { log: (message: string) => messages.push(message) };
+		let disconnect = () => {};
+		const withMatch = () => raw.use(matchPlugin());
+		if (order === "match first") {
+			const bus = withMatch();
+			disconnect = bus.use(devPlugin(devOptions));
+			return { bus, messages, disconnect };
+		}
+		disconnect = raw.use(devPlugin(devOptions));
+		const bus = withMatch();
+
+		return { bus, messages, disconnect };
+	};
+
+	for (const order of ["match first", "dev first"] as const) {
+		describe(order, () => {
+			it('counts predicate subscriptions once, under "*"', () => {
+				const { bus, messages } = connect(order);
+				for (let index = 0; index < 11; index++) {
+					bus.on(always, handler);
+				}
+
+				expect(messages).toHaveLength(1);
+				expect(messages[0]).toContain('"*"');
+				expect(messages[0]).toContain("11");
+				expect(messages[0]).not.toContain("undefined");
+			});
+
+			it("counts them out again when they are unsubscribed", () => {
+				const { bus, messages } = connect(order);
+				const unbinds = Array.from({ length: 11 }, () =>
+					bus.on(always, handler),
+				);
+				messages.length = 0;
+				for (const unbind of unbinds) {
+					unbind();
+				}
+				for (let index = 0; index < 10; index++) {
+					bus.on(always, handler);
+				}
+
+				expect(messages).toEqual([]);
+			});
+
+			it("leaves predicates, once and off working after disconnect", () => {
+				const { bus, disconnect } = connect(order);
+				disconnect();
+				const seen: string[] = [];
+				bus.on(always, () => {
+					seen.push("on");
+				});
+				bus.once(always, () => {
+					seen.push("once");
+				});
+				const removed = vi.fn();
+				bus.on(always, removed);
+				bus.off(always, removed);
+
+				bus.emit("t", 1);
+
+				expect(seen).toEqual(["on", "once"]);
+				expect(removed).not.toHaveBeenCalled();
+			});
+
+			it("reports no more after disconnect", () => {
+				const { bus, messages, disconnect } = connect(order);
+				disconnect();
+				for (let index = 0; index < 15; index++) {
+					bus.on("t", handler);
+				}
+
+				expect(messages).toEqual([]);
+			});
+		});
+	}
+
+	it("puts bus.on back as it was when nothing wraps it after", () => {
+		const bus = createBus<TestEvents>();
+		const before = bus.on;
+		const disconnect = bus.use(devPlugin({ log: () => {} }));
+
+		disconnect();
+
+		expect(bus.on).toBe(before);
 	});
 });

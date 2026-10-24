@@ -23,7 +23,8 @@
 			"nanoeffects/observable": ["./src/observable.ts"],
 			"nanoeffects/react": ["./src/react/index.ts"],
 			"nanoeffects/dev": ["./src/dev/index.ts"],
-			"nanoeffects/scope": ["./src/scope/index.ts"]
+			"nanoeffects/scope": ["./src/scope/index.ts"],
+			"nanoeffects/match": ["./src/match/index.ts"]
 		}
 	},
 	"include": ["src", "examples", "integration"]

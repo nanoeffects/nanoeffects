@@ -33,6 +33,7 @@ import {
 	take,
 	timeout,
 } from "../effects";
+import { matchPlugin } from "../match";
 import { debounce, latest, leading, queue, throttle } from "../policies";
 import { reactPlugin } from "../react";
 import { effect } from "../scope";
@@ -1212,5 +1213,75 @@ describe("scope", () => {
 		});
 		// @ts-expect-error effect wants a function that takes a signal first
 		effect(format);
+	});
+});
+
+describe("matchPlugin", () => {
+	type Shop = {
+		"user/loaded": User;
+		"user/failed": string;
+		"order/placed": number;
+	};
+	const bus = createBus<Shop>().use(matchPlugin());
+
+	it("keeps the inference of an event name, a creator and a command", () => {
+		bus.on("order/placed", (count, ctx) => {
+			expectTypeOf(count).toEqualTypeOf<number>();
+			expectTypeOf(ctx.signal).toEqualTypeOf<AbortSignal>();
+		});
+		const placed = createAction("order/placed");
+		bus.on(placed, (count) => {
+			expectTypeOf(count).toEqualTypeOf<number>();
+		});
+		const double = createCommand("math/double", (value: number) => value * 2);
+		bus.on(double, (value) => {
+			expectTypeOf(value).toEqualTypeOf<number>();
+		});
+		// @ts-expect-error "missing" is not an event of this bus
+		bus.on("missing", () => {});
+	});
+
+	it("a type guard narrows the payload of the handler", () => {
+		const isLoaded = (action: {
+			type: string;
+			payload: unknown;
+		}): action is { type: "user/loaded"; payload: User } =>
+			action.type === "user/loaded";
+		bus.on(isLoaded, (user) => {
+			expectTypeOf(user).toEqualTypeOf<User>();
+		});
+		bus.once(isLoaded, (user) => {
+			expectTypeOf(user).toEqualTypeOf<User>();
+		});
+	});
+
+	it("a predicate that is not a guard gives the payloads of all the events", () => {
+		bus.on(
+			(action) => action.type.startsWith("user/"),
+			(payload) => {
+				expectTypeOf(payload).toEqualTypeOf<User | string | number>();
+			},
+		);
+	});
+
+	it("off takes the predicate and the handler", () => {
+		const predicate = (action: { type: string }) =>
+			action.type === "user/failed";
+		const handler = (payload: User | string | number) => {
+			void payload;
+		};
+		bus.on(predicate, handler);
+		bus.off(predicate, handler);
+		bus.off(predicate);
+		bus.off("order/placed");
+		bus.off();
+	});
+
+	it("a bus without the plugin does not take a predicate", () => {
+		const plain = createBus<Shop>();
+		const isPlaced = (action: { type: string }) =>
+			action.type === "order/placed";
+		// @ts-expect-error only matchPlugin lets on take a predicate
+		plain.on(isPlaced, () => {});
 	});
 });

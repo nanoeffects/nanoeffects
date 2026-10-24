@@ -78,6 +78,10 @@
 			"types": "./dist/scope.d.ts",
 			"import": "./dist/scope.js"
 		},
+		"./match": {
+			"types": "./dist/match.d.ts",
+			"import": "./dist/match.js"
+		},
 		"./trace": {
 			"types": "./dist/trace.d.ts",
 			"import": "./dist/trace.js"
@@ -178,6 +182,11 @@
 			"name": "actions (all)",
 			"path": "dist/actions.js",
 			"limit": "2.1 kB"
+		},
+		{
+			"name": "match (plugin)",
+			"path": "dist/match.js",
+			"limit": "0.5 kB"
 		},
 		{
 			"name": "scope (plugin and effect)",

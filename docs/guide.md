@@ -69,6 +69,74 @@ unbind();
 - An event that only `"*"` listens to counts as heard, so `onUnhandled` does not fire for it.
 - `bus.off("*")` removes every `"*"` listener; `bus.off()` clears the whole bus, `"*"` included.
 
+### Pick events with a function
+
+To listen to a group of events, such as every `user/*` event, `"*"` and a check of `ctx.type` do the job but leave the check to you. `matchPlugin` lets `on` take a function that picks the events. The function gets `{ type, payload }` of each event, and the handler runs when it returns true.
+
+<!-- docs-check: new -->
+
+```js
+// bus.js
+import { createBus } from "nanoeffects";
+import { matchPlugin } from "nanoeffects/match";
+
+// matchPlugin — lets on, once and off take a function that picks the events
+export const bus = createBus().use(matchPlugin());
+```
+
+```js
+// user.js
+import { createAction } from "nanoeffects/actions";
+
+export const userLoaded = createAction("user/loaded");
+export const userFailed = createAction("user/failed");
+```
+
+```js
+// user-handlers.js
+import { bus } from "./bus";
+
+// the function picks the events; the handler gets the payload and the context of each
+bus.on(
+  (action) => action.type.startsWith("user/"),
+  (payload, ctx) => {
+    console.log(ctx.type, payload);
+  },
+);
+```
+
+```js
+import { bus } from "./bus";
+import { userFailed, userLoaded } from "./user";
+
+bus.emit(userLoaded({ id: "1" })); // user/loaded { id: "1" }
+bus.emit("order/placed", 5); // not picked
+bus.emit(userFailed("boom")); // user/failed boom
+```
+
+- `once(fn, handler)` waits for the first event that `fn` accepts. `off(fn)` removes every handler of `fn`, and `off(fn, handler)` removes one.
+- An action creator or a command still means that one event: only a function with no `type` is a function that picks events.
+- The cost: the handler listens to `"*"`, so each event makes one task for each such subscription, also when the function says no, and an event that only such a subscription listens to counts as heard for `onUnhandled`. For a few known events, `on(creator, handler)` is cheaper.
+- It works in any order with the other plugins, `devPlugin` included.
+
+In TypeScript a function that is a type guard narrows the payload of the handler:
+
+```ts
+import { bus } from "./bus";
+
+type User = { id: string };
+
+// the guard says which event this is, and the handler gets its payload typed
+const isLoaded = (action: {
+  type: string;
+  payload: unknown;
+}): action is { type: "user/loaded"; payload: User } => action.type === "user/loaded";
+
+bus.on(isLoaded, (user) => console.log(user.id)); // user: User
+```
+
+`ctx.on` takes such a function at run time too, but its type does not know it yet.
+
 ## 2. Use the handler context
 
 The second argument is the **task** context for this call. Emit further events through it. Pass `ctx.signal` to `fetch` when you cancel work.
