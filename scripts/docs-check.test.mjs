@@ -225,6 +225,76 @@ describe("named files", () => {
 		expect(result).toEqual({ errors: [], checked: 2, skipped: 0 });
 	});
 
+	it("lets two sections name a file the same, and a continue marker joins them", () => {
+		const markdown = (second) =>
+			page(
+				"## One",
+				`${fence}js`,
+				"// bus.js",
+				"export const bus = 1;",
+				fence,
+				"## Two",
+				...second,
+				`${fence}js`,
+				'import { bus } from "./bus";',
+				"const text = bus.toFixed(1);",
+				fence,
+			);
+		const own = [`${fence}js`, "// bus.js", "export const bus = 2;", fence];
+		const apart = check(markdown(own));
+		const joined = check(markdown(["<!-- docs-check: continue -->"]));
+
+		expect(apart).toEqual({ errors: [], checked: 3, skipped: 0 });
+		expect(joined).toEqual({ errors: [], checked: 2, skipped: 0 });
+	});
+
+	it("starts new files at a new marker inside a section", () => {
+		const result = check(
+			page(
+				"## One",
+				`${fence}js`,
+				"// bus.js",
+				"export const bus = 1;",
+				fence,
+				"<!-- docs-check: new -->",
+				`${fence}js`,
+				"// bus.js",
+				"export const bus = 'two';",
+				fence,
+				`${fence}js`,
+				'import { bus } from "./bus";',
+				"const text = bus.toUpperCase();",
+				fence,
+			),
+		);
+
+		expect(result).toEqual({ errors: [], checked: 3, skipped: 0 });
+	});
+
+	it("lets two pages name a file the same", () => {
+		const first = extractBlocks(
+			page(`${fence}js`, "// bus.js", "export const bus = 1;", fence),
+			"docs/first.md",
+		);
+		const second = extractBlocks(
+			page(
+				`${fence}js`,
+				"// bus.js",
+				"export const bus = 'two';",
+				fence,
+				"",
+				`${fence}js`,
+				'import { bus } from "./bus";',
+				"const text = bus.toUpperCase();",
+				fence,
+			),
+			"docs/second.md",
+		);
+
+		const result = checkBlocks([...first, ...second], { stubs });
+		expect(result).toEqual({ errors: [], checked: 3, skipped: 0 });
+	});
+
 	it("still fails an import of a file that no block names", () => {
 		const result = check(
 			page(`${fence}js`, 'import { greeting } from "./helper";', fence),

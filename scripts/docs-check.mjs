@@ -10,7 +10,7 @@ import {
 	rmSync,
 	writeFileSync,
 } from "node:fs";
-import { dirname, join, relative } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -24,6 +24,20 @@ const checkedLanguages = new Set([
 ]);
 const isJsx = (block) => block.language.endsWith("x");
 const skipMarker = /^<!--\s*docs-check:\s*skip\b.*-->$/;
+// under a `##` heading: this section uses the files of the section before it
+const continueMarker = /^<!--\s*docs-check:\s*continue\b.*-->$/;
+// under any heading: from here the files are new, as in an example of its own
+const newMarker = /^<!--\s*docs-check:\s*new\b.*-->$/;
+
+// A `##` heading or a `new` marker starts the files of a new section, a `continue` marker goes back to the section before.
+function moveSection(files, text) {
+	if (/^## /.test(text) || newMarker.test(text.trim())) {
+		files.previous = files.section;
+		files.section += 1;
+	} else if (continueMarker.test(text.trim())) {
+		files.section = files.previous;
+	}
+}
 
 /**
  * Finds the fenced code blocks of a Markdown page.
@@ -33,7 +47,12 @@ export function extractBlocks(markdown, page) {
 	const lines = markdown.split("\n");
 	const blocks = [];
 	let open = null;
+	// the files of a block belong to its `##` section; a `continue` marker keeps the section before
+	const files = { section: 0, previous: 0 };
 	for (const [index, text] of lines.entries()) {
+		if (open === null) {
+			moveSection(files, text);
+		}
 		const fence = /^\s*```(\S*)/.exec(text);
 		if (open === null && fence) {
 			const before = lines[index - 1]?.trim() ?? "";
@@ -42,6 +61,7 @@ export function extractBlocks(markdown, page) {
 				line: index + 1,
 				language: fence[1].toLowerCase(),
 				skip: skipMarker.test(before),
+				section: files.section,
 				code: [],
 			};
 		} else if (open !== null && /^\s*```\s*$/.test(text)) {
@@ -87,7 +107,9 @@ function parseDiagnostics(output) {
 }
 
 // A block whose first line is a comment with a file name (`// registration.js`) is written under
-// that name, so a later block can import it as `./registration`.
+// that name in the folder of its `##` section, so a later block of the section can import it as
+// `./registration`. Another section or page may use the same name; a section that goes on with
+// the files of the one before it says so with `<!-- docs-check: continue -->` under its heading; `<!-- docs-check: new -->` starts new files in the middle of a section.
 function fileNameOf(block, index) {
 	const named = /^\/\/ ([\w-]+)\.(?:jsx?|tsx?)$/.exec(
 		block.code.split("\n")[0],
@@ -98,12 +120,17 @@ function fileNameOf(block, index) {
 	return `block-${index}${isJsx(block) ? ".tsx" : ".ts"}`;
 }
 
-/** Writes each block as a module of its own and returns the blocks by file name. */
+// The folder of the files of a section of a page: two sections can both name a file `bus.js` or
+// `events.js` without one replacing the other, as two examples would be two apps.
+const folderOf = (block) => `${basename(block.page, ".md")}-${block.section}`;
+
+/** Writes each block as a module of its own and returns the blocks by file name (with the folder of the page). */
 function writeBlocks(dir, blocks) {
 	const names = new Map();
 	for (const [index, block] of blocks.entries()) {
-		const name = fileNameOf(block, index);
+		const name = join(folderOf(block), fileNameOf(block, index));
 		names.set(name, block);
+		mkdirSync(join(dir, folderOf(block)), { recursive: true });
 		// `export {}` makes the block a module, so `const bus` of two blocks do not clash
 		writeFileSync(join(dir, name), `${block.code}\nexport {};\n`);
 	}
@@ -114,7 +141,7 @@ function writeBlocks(dir, blocks) {
 function errorsOf(diagnostics, names) {
 	const errors = [];
 	for (const diagnostic of diagnostics) {
-		const block = names.get(diagnostic.file.split("/").at(-1));
+		const block = names.get(diagnostic.file.split("/").slice(-2).join("/"));
 		if (block && isPlainJs(block) && !isStaleName(diagnostic.message)) {
 			continue;
 		}
