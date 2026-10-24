@@ -47,6 +47,28 @@ bus.on("tick", () => {});
 bus.off(); // clear every subscription
 ```
 
+### Listen to every event
+
+`bus.on("*", fn)` runs for every event of the bus. It is for logging, debugging, or forwarding events elsewhere. The handler gets the payload and the task context as usual, and `ctx.type` is the name of the event.
+
+```js
+import { createBus } from "nanoeffects";
+
+const bus = createBus();
+
+// "*" — runs for every event, after the listeners of that event
+const unbind = bus.on("*", (payload, ctx) => {
+  console.log(ctx.type, payload);
+});
+
+bus.emit("greet", "Ada"); // greet Ada
+bus.emit("moved", { x: 1, y: 2 }); // moved { x: 1, y: 2 }
+unbind();
+```
+
+- An event that only `"*"` listens to counts as heard, so `onUnhandled` does not fire for it.
+- `bus.off("*")` removes every `"*"` listener; `bus.off()` clears the whole bus, `"*"` included.
+
 ## 2. Use the handler context
 
 The second argument is the **task** context for this call. Emit further events through it. Pass `ctx.signal` to `fetch` when you cancel work.
