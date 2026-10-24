@@ -22,7 +22,7 @@ export const loadUser = createCommand(
 
 		return race({ user: load, timeout: giveUp });
 	},
-	{ effects: { fetchUser, race, delay } },
+	{ $effects: { fetchUser, race, delay } },
 );
 
 // scopePlugin — switches scopes on for this bus; without it the scope is ignored
@@ -37,5 +37,5 @@ const fakeFetchUser = async (
 	id: string,
 ): Promise<User> => ({ id, name: "test" });
 export const fake = bus.emit(loadUser("1"), {
-	effects: { fetchUser: fakeFetchUser },
+	$effects: { fetchUser: fakeFetchUser },
 });

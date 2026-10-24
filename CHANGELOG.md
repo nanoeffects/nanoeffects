@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **BREAKING:** the key of a scope that holds the bound functions is `$effects`, not `effects`: `createCommand("user/get", handler, { api, $effects: { race } })`. A key named `effects` is now an ordinary field of the context. Migrate: rename `effects` to `$effects` in every scope (`createCommand`, `createAction`, `createModule`, `createJob` and the second argument of `emit`). A scope that is not renamed raises no error: its `effects` object goes on `ctx` as a plain field and nothing in it is bound, so a function you call from `ctx` is missing. `effectsPlugin`, `effect(fn)` and the types are unchanged.
 - `createJob`: when the `success` or `fail` action has a scope of its own, its listeners see the job's fields with the action's own fields over them (fields and `effects` merged one level deep). Before, the job's scope replaced the action's. The handler of the job is not affected.
 
 ## 0.6.0

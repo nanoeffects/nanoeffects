@@ -1076,7 +1076,7 @@ describe("scope", () => {
 				expectTypeOf(ctx.signal).toEqualTypeOf<AbortSignal>();
 				return id;
 			},
-			{ cache, first, effects: { getJson, race } },
+			{ cache, first, $effects: { getJson, race } },
 		);
 		expectTypeOf(getUser).parameter(0).toBeString();
 	});
@@ -1087,7 +1087,7 @@ describe("scope", () => {
 			(_: undefined, ctx) => {
 				expectTypeOf(ctx.getJson).parameters.toEqualTypeOf<[url: string]>();
 			},
-			{ effects: { getJson } },
+			{ $effects: { getJson } },
 		);
 		createCommand(
 			"b",
@@ -1148,7 +1148,7 @@ describe("scope", () => {
 				return id;
 			},
 			{},
-			{ cache, effects: { getJson } },
+			{ cache, $effects: { getJson } },
 		);
 	});
 
@@ -1164,7 +1164,7 @@ describe("scope", () => {
 		// @ts-expect-error cache is a Cache, not a number
 		bus.emit(getUser("1"), { cache: 1 });
 		// @ts-expect-error the effects of a call are functions that take a signal first
-		bus.emit(getUser("1"), { effects: { format: (value: number) => value } });
+		bus.emit(getUser("1"), { $effects: { format: (value: number) => value } });
 	});
 
 	it("a field that neither the bus nor the command declares is an error", () => {
@@ -1172,19 +1172,29 @@ describe("scope", () => {
 		const plain = createCommand("plain", () => 1);
 		// @ts-expect-error nothing declares `unknown`, so there is no type to hold it to
 		bus.emit(plain(), { unknown: 1 });
-		bus.emit(plain(), { effects: { delay } });
+		bus.emit(plain(), { $effects: { delay } });
 	});
 
-	it("a scope is flat: its keys are fields, and only effects is special", () => {
+	it("a scope is flat: its keys are fields, and only $effects is special", () => {
 		createCommand(
 			"flat",
 			(_: string, ctx) => {
 				expectTypeOf(ctx.cache).toEqualTypeOf<Cache>();
 				expectTypeOf(ctx.delay).toBeFunction();
-				// @ts-expect-error `effects` is not a field of the context: its entries are
-				ctx.effects;
+				// @ts-expect-error `$effects` is not a field of the context: its entries are
+				ctx.$effects;
 			},
-			{ cache, effects: { delay } },
+			{ cache, $effects: { delay } },
+		);
+	});
+
+	it("a key named effects is an ordinary field of the context", () => {
+		createCommand(
+			"plain-effects",
+			(_: string, ctx) => {
+				expectTypeOf(ctx.effects).toEqualTypeOf<{ retries: number }>();
+			},
+			{ effects: { retries: 3 } },
 		);
 	});
 
@@ -1198,7 +1208,7 @@ describe("scope", () => {
 		const format = (value: number) => String(value);
 		createCommand("x", () => 1, {
 			// @ts-expect-error format does not take a signal first
-			effects: { format },
+			$effects: { format },
 		});
 		// @ts-expect-error effect wants a function that takes a signal first
 		effect(format);

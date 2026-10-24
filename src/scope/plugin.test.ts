@@ -157,7 +157,7 @@ describe("scopePlugin", () => {
 					abort();
 					outcomes.push(await pending);
 				},
-				{ effects: { watch } },
+				{ $effects: { watch } },
 			);
 
 			await bus.emit(wait(noPayload));
@@ -171,10 +171,22 @@ describe("scopePlugin", () => {
 				"winner",
 				(_: undefined, { race, delay }) =>
 					race({ fast: () => "fast", slow: () => delay(1000) }),
-				{ effects: { race, delay } },
+				{ $effects: { race, delay } },
 			);
 
 			expect(await bus.emit(winner(noPayload))).toEqual({ fast: "fast" });
+		});
+	});
+
+	describe("the name effects", () => {
+		it("is an ordinary field: that object goes on ctx and nothing in it is bound", () => {
+			const bus = createBus().use(scopePlugin());
+			const retries = { retries: 3 };
+			const read = createCommand("read", (_: undefined, ctx) => ctx.effects, {
+				effects: retries,
+			});
+
+			expect(bus.emit(read(noPayload))).toBe(retries);
 		});
 	});
 
@@ -240,12 +252,12 @@ describe("scopePlugin", () => {
 			const wait = createCommand(
 				"wait",
 				(_: undefined, { delay }) => delay(10_000),
-				{ effects: { delay } },
+				{ $effects: { delay } },
 			);
 			const instant = (_ctx: { signal: AbortSignal }, _ms: number) =>
 				Promise.resolve();
 
-			await bus.emit(wait(noPayload), { effects: { delay: instant } });
+			await bus.emit(wait(noPayload), { $effects: { delay: instant } });
 		});
 
 		it("works from a task as well", () => {
@@ -342,7 +354,7 @@ describe("scopePlugin", () => {
 				async (_: undefined, { cache, delay }) => {
 					seen.push(cache, await delay(1));
 				},
-				{ cache: mainCache, effects: { delay: instant } },
+				{ cache: mainCache, $effects: { delay: instant } },
 			);
 
 			await bus.emit(read(noPayload));
@@ -363,7 +375,7 @@ describe("scopePlugin", () => {
 			async (_: undefined, { delay }) => {
 				outcomes.push(String(await delay(1)));
 			},
-			{ effects: { delay: instant } },
+			{ $effects: { delay: instant } },
 		);
 
 		await bus.emit(read(noPayload));
@@ -404,7 +416,7 @@ describe("scopePlugin", () => {
 						seen.push(Reflect.apply(Reflect.get(child, "aborted"), null, []));
 					});
 				},
-				{ effects: { aborted } },
+				{ $effects: { aborted } },
 			);
 
 			await bus.emit(parent(noPayload));

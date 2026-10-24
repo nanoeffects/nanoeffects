@@ -47,7 +47,7 @@ export type ScopedCommand<P, R, T extends string, F> = ((
  * `command.match(action)` tells whether an action has the type of the command,
  * as it does for an action creator.
  *
- * A scope as the third argument, `{ cache, effects: { race } }`, puts those fields on
+ * A scope as the third argument, `{ cache, $effects: { race } }`, puts those fields on
  * the context of the handler and of the listeners of the command; the handler
  * sees them typed. It works on a bus that uses `scopePlugin` from
  * `nanoeffects/scope` and is ignored on any other.

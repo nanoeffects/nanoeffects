@@ -2,7 +2,7 @@
 
 Optional, for domain logic. Use it when one command needs its own client, one module its own logger, or one test its own fake, and a field on the whole bus ([context fields](context.md)) is too wide.
 
-A **scope** is a plain object. Every key goes on `ctx` as it is (`cache`, `api`, `logger`), except one: `effects`. Its functions take `{ signal }` as the first parameter, like `retry(ctx, fn)`, and go on `ctx` bound to the task, so you call `ctx.fetchJson(url)` instead of `fetchJson(ctx, url)`.
+A **scope** is a plain object. Every key goes on `ctx` as it is (`cache`, `api`, `logger`), except one: `$effects`. Its functions take `{ signal }` as the first parameter, like `retry(ctx, fn)`, and go on `ctx` bound to the task, so you call `ctx.fetchJson(url)` instead of `fetchJson(ctx, url)`.
 
 You give a scope to the thing that uses it. A call can replace it. Nothing else changes: handlers still get `(payload, ctx)`.
 
@@ -47,7 +47,7 @@ The listeners of `"user/get"` get the same fields when the command is emitted, b
 
 ## Bind an effect to the task
 
-An effect is a function with `{ signal }` as its first parameter. In `effects` it is bound to the task, so it stops with the task.
+An effect is a function with `{ signal }` as its first parameter. In `$effects` it is bound to the task, so it stops with the task.
 
 ```js
 import { createBus } from "nanoeffects";
@@ -69,16 +69,16 @@ const loadFeed = createCommand(
       feed: () => fetchJson(url),
       timeout: () => delay(5000),
     }),
-  // effects — built-in and your own functions share one object
-  { effects: { fetchJson, race, delay } },
+  // $effects — built-in and your own functions share one object
+  { $effects: { fetchJson, race, delay } },
 );
 
 const result = await bus.emit(loadFeed("/feed"));
 ```
 
-- Put in `effects` only functions that take `ctx` first. A plain function (a formatter, a logger) belongs in `context`.
-- A function under any other key is copied as it is; a function in `effects` is bound.
-- `effects` is the one name a field of the scope cannot have.
+- Put in `$effects` only functions that take `ctx` first. A plain function (a formatter, a logger) belongs in `context`.
+- A function under any other key is copied as it is; a function in `$effects` is bound.
+- `$effects` is the one name with a meaning. A field called `effects` is an ordinary field: `{ effects: { retries: 3 } }` puts that object on `ctx`, and nothing in it is bound.
 
 ## Replace a field for one call
 
@@ -106,7 +106,7 @@ Rules for the second argument:
 
 - It works with an action or a command call (`emit(getUser("1"), scope)`, `ctx.emit(loaded(user), scope)`).
 - It does not work with the string form: in `emit("user/get", payload)` the second argument is the payload.
-- It can replace `effects` too: `{ effects: { delay: instantDelay } }`.
+- It can replace `$effects` too: `{ $effects: { delay: instantDelay } }`.
 - Fields of the library (`signal`, `emit`, …) in it are ignored.
 
 ## Give an action, a job or a module its own fields
@@ -156,7 +156,7 @@ The fields of the library (`signal`, `abort`, `emit`, `on`, `off`, `run`, `type`
 
 ## Keep a generic effect generic
 
-In `effects` a function loses its first parameter, and TypeScript cannot keep a generic through that step: `<T>(items: T[]) => T` becomes `(items: unknown[]) => unknown`. JavaScript code is not affected. If you want the exact type, use one of two ways.
+In `$effects` a function loses its first parameter, and TypeScript cannot keep a generic through that step: `<T>(items: T[]) => T` becomes `(items: unknown[]) => unknown`. JavaScript code is not affected. If you want the exact type, use one of two ways.
 
 `effect(fn)`: mark the function where you declare it, then put it in the scope like any other value. No annotation, so a JavaScript editor shows the exact hint too.
 
@@ -168,13 +168,13 @@ import { effect } from "nanoeffects/scope";
 const first = effect((ctx, items) => items[0]);
 
 const pick = createCommand("pick", (items, { first }) => first(items), {
-  first, // a plain key of the scope, not an entry of effects
+  first, // a plain key of the scope, not an entry of `$effects`
 });
 ```
 
 Call `effect` where you declare the function, as above, and not inline in the scope: TypeScript does not infer the scope from a generic call written there.
 
-`Effect<F>` (TypeScript): declare how the effect looks **after** it is bound, and keep it in `effects`.
+`Effect<F>` (TypeScript): declare how the effect looks **after** it is bound, and keep it in `$effects`.
 
 ```ts
 import { createCommand } from "nanoeffects/actions";
@@ -189,7 +189,7 @@ const first: Effect<First> = (ctx, items) => items[0];
 const pick = createCommand(
   "pick",
   (id: string, { first }) => first([id]), // string
-  { effects: { first } },
+  { $effects: { first } },
 );
 ```
 
@@ -224,5 +224,5 @@ const getUser = createCommand(
 - No plugin, no scope: see [Turn scopes on](#turn-scopes-on).
 - The fields of the bus are not in the handler of a command made with `createCommand(…, scope)` unless you type `ctx` yourself; the fields of the scope are.
 - The string form of `emit` takes no scope.
-- `effect(fn)` works only as a value of a scope, not as an entry of `effects`.
-- A scope on a command, action, job or module is typed without the events of a bus, so `take` in its `effects` takes any event name.
+- `effect(fn)` works only as a value of a scope, not as an entry of `$effects`.
+- A scope on a command, action, job or module is typed without the events of a bus, so `take` in its `$effects` takes any event name.

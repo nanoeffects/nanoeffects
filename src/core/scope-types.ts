@@ -21,17 +21,17 @@ export type FieldsOf<X> = X extends { readonly [scopeFields]: infer F }
 
 /**
  * What a task gets on top of the context of its bus, for one place: every key
- * is a context value and goes on `ctx` as it is, except `effects`, whose
+ * is a context value and goes on `ctx` as it is, except `$effects`, whose
  * functions (each takes `{ signal }` first) are bound to the task. Made work by
  * `scopePlugin` from `nanoeffects/scope`; without it a scope is ignored.
  *
  * @example
  * ```ts
- * const scope = { cache, effects: { race } }; // ctx.cache, and ctx.race bound to the task
+ * const scope = { cache, $effects: { race } }; // ctx.cache, and ctx.race bound to the task
  * ```
  */
 export type Scope = {
-	readonly effects?: Effects;
+	readonly $effects?: Effects;
 	readonly [field: string]: unknown;
 };
 
@@ -45,7 +45,7 @@ export type EmitScope<E extends EventMap, F = unknown> = ([unknown] extends [
 	ContextOf<E> & F,
 ]
 	? unknown
-	: Partial<ContextOf<E> & F>) & { effects?: Partial<Effects> };
+	: Partial<ContextOf<E> & F>) & { $effects?: Partial<Effects> };
 
 /** `A` with the fields of `B` replacing those of the same name, not intersected with them. */
 export type Merge<A, B> = Omit<A, keyof B> & B;

@@ -74,7 +74,7 @@ export type Job<
  * effect. It returns the command, with the two actions on it: `job.success` and
  * `job.fail`.
  *
- * A scope as the last argument, `{ cache, effects: { race } }`, gives the handler
+ * A scope as the last argument, `{ cache, $effects: { race } }`, gives the handler
  * and the listeners of the outcome those context fields; see `scopePlugin`.
  *
  * `success` and `fail` are a type string, from which the job makes an action
@@ -118,7 +118,7 @@ export const createJob = <
 		/** Gets the error when the handler fails: a type to make an action creator of, or an action creator. */
 		fail?: F;
 	} = {},
-	/** Context values and `effects` for the handler and for the listeners of the outcome; see `scopePlugin`. */
+	/** Context values and `$effects` for the handler and for the listeners of the outcome; see `scopePlugin`. */
 	scope?: X,
 ): CarryingCalls<
 	Job<P, R, T, S, F>,

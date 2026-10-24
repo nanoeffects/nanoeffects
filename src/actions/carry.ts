@@ -13,11 +13,11 @@ export const carry = <T extends object>(
 	return target;
 };
 
-/** The fields of `base` with those of `over` on top; the `effects` of both are merged the same way. */
+/** The fields of `base` with those of `over` on top; the `$effects` of both are merged the same way. */
 export const beneath = (base: Scope, over: Scope): Scope => ({
 	...base,
 	...over,
-	effects: { ...base.effects, ...over.effects },
+	$effects: { ...base.$effects, ...over.$effects },
 });
 
 /** The scope that `carry` put on `target`, if any. */

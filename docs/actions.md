@@ -155,7 +155,7 @@ app.dispose(); // unmounts every module
 
 ## Give a command, an action or a module its own fields
 
-A command can need its own client, a module its own logger. Pass a scope, a plain object whose keys go on `ctx` (`effects` binds functions to the task), as the last argument of `createCommand`, `createAction`, `createModule` and `createJob`, and turn it on with `scopePlugin`:
+A command can need its own client, a module its own logger. Pass a scope, a plain object whose keys go on `ctx` (`$effects` binds functions to the task), as the last argument of `createCommand`, `createAction`, `createModule` and `createJob`, and turn it on with `scopePlugin`:
 
 ```js
 import { createBus } from "nanoeffects";

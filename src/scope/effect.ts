@@ -7,7 +7,7 @@ export const marked = new WeakSet<object>();
  * Marks a function whose first parameter is `{ signal }` as an effect, so that
  * as a value of a scope it is bound to the task: `ctx.first(items)`
  * calls `first(ctx, items)`. The type is the function without that parameter,
- * generics included, which `effects` cannot do: no annotation is needed, and
+ * generics included, which `$effects` cannot do: no annotation is needed, and
  * JavaScript editors show the exact hint.
  *
  * Only `scopePlugin` binds it; the function itself is returned unchanged.

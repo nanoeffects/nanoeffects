@@ -50,7 +50,7 @@ describe("scopes do not leak", () => {
 			{
 				first,
 				label: { big: new Array(10).fill(0) },
-				effects: { wait },
+				$effects: { wait },
 			},
 		);
 
@@ -166,7 +166,7 @@ describe("scopes do not leak", () => {
 				ctx.abort();
 				await waiting;
 			},
-			{ effects: { hang } },
+			{ $effects: { hang } },
 		);
 		for (let round = 0; round < 50; round++) {
 			await bus.emit(stuck(noPayload));

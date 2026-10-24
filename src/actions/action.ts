@@ -27,7 +27,7 @@ type ScopedCreator<P, T extends string, F> = [P] extends [Free]
  *   generic: `createAction<User, "user/loaded">("user/loaded")`.
  * - With `prepare` the arguments of the creator can differ from the payload,
  *   and both types are inferred.
- * - A scope as the last argument, `{ cache, effects: { race } }`, gives the
+ * - A scope as the last argument, `{ cache, $effects: { race } }`, gives the
  *   listeners of its calls those context fields; it works on a bus that uses `scopePlugin`
  *   from `nanoeffects/scope` and is ignored on any other.
  *

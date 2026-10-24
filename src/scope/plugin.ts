@@ -63,12 +63,12 @@ const put = (ctx: Ctx, layer: Scope | undefined) => {
 		return;
 	}
 	for (const key in layer) {
-		if (key !== "effects" && !reserved.has(key)) {
+		if (key !== "$effects" && !reserved.has(key)) {
 			const value = layer[key];
 			ctx[key] = isMarked(value) ? bindTo(ctx, value) : value;
 		}
 	}
-	const effects = layer.effects;
+	const effects = layer.$effects;
 	if (effects) {
 		for (const key in effects) {
 			const effect = effects[key];
@@ -126,7 +126,7 @@ const layersFor = (event: unknown, rest: unknown[]): Layers | undefined => {
 
 /**
  * Switches scopes on for a bus: the scope given to a command, a job, an
- * action or a module (an object whose keys go on `ctx`, with `effects` bound to
+ * action or a module (an object whose keys go on `ctx`, with `$effects` bound to
  * the task), and the second argument of `emit`, put fields on
  * the context of the tasks they are for. A stronger layer replaces a field of
  * the same name: `emit`, then action / command / job, then module, then the bus.
