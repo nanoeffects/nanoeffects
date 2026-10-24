@@ -6,7 +6,7 @@ Give a developer a signal during hot reload and development, listeners that pile
 ## Requirements
 
 ### Requirement: Warn about listeners that pile up
-`bus.use(devPlugin())` SHALL log one warning for an event when the number of listeners of that event exceeds `maxListeners` (default 10), naming the event and the count.
+`bus.use(devPlugin())` SHALL log one warning for an event when the number of listeners of that event exceeds `maxListeners` (default 10), naming the event and the count. A listener that is added with a predicate (`matchPlugin`) SHALL be counted under the event `"*"`, which is where it listens, whichever of the two plugins was used first, and SHALL be counted once.
 
 #### Scenario: The limit is exceeded
 - **WHEN** 11 listeners are added to the event `search` on a bus with the plugin and the limit is 10
@@ -19,6 +19,10 @@ Give a developer a signal during hot reload and development, listeners that pile
 #### Scenario: The warning can come again
 - **WHEN** the count of an event falls to the limit or below and later exceeds it again
 - **THEN** a new warning is logged for that event
+
+#### Scenario: Predicate subscriptions are counted under "*"
+- **WHEN** 11 listeners are added with predicates on a bus with `devPlugin` and `matchPlugin`, used in either order
+- **THEN** one warning is logged that names `"*"` and the count 11, and no warning names `undefined`
 
 ### Requirement: Report module mount, replacement and unmount
 With the `app` option, `devPlugin` SHALL log when a module is mounted through `app.mount`, when a mounted module of the same name is replaced, and when a module is unmounted.
@@ -43,11 +47,15 @@ With the `app` option, `devPlugin` SHALL log when a module is mounted through `a
 - **THEN** every message goes to it and nothing is written to the console
 
 ### Requirement: Disconnect restores the bus
-The function that the plugin returns SHALL stop the diagnostics and restore `bus.on` and `app.mount` as they were before.
+The function that the plugin returns SHALL stop the diagnostics and restore `bus.on` and `app.mount` as they were before. If another plugin has wrapped `bus.on` since, that wrapper SHALL stay in place and keep working, and the diagnostics SHALL be off.
 
 #### Scenario: After disconnect nothing is reported
 - **WHEN** `disconnect()` is called and more than `maxListeners` listeners are added
 - **THEN** no warning is logged and the listeners work as on a bus that was never connected
+
+#### Scenario: A plugin used after devPlugin keeps working
+- **WHEN** `matchPlugin` is used after `devPlugin` and `disconnect()` is called
+- **THEN** `bus.on(predicate, handler)` still works, and no warning is logged
 
 ### Requirement: The diagnostics do not change behavior
 A bus and an app with the plugin SHALL deliver events, unsubscribe and mount modules exactly as an unconnected one does; only messages are added.
