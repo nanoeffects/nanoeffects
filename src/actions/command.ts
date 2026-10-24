@@ -1,7 +1,10 @@
-import type { Bus, Command, Commands, Context } from "../core/bus";
+import type { Bus, Command, CommandCall, Commands, Context } from "../core/bus";
 import { makeCommandCall } from "../core/bus";
 import { eventKey } from "../core/event";
+import type { Scope, WithScope } from "../core/scope-types";
 import type { EventMap, Task, UnsubscribeCallback } from "../core/types";
+import type { FieldsOfScope, Scoped } from "../scope/types";
+import { carry } from "./carry";
 
 /** Thrown when a command runs without a handler: a mistake of the program, not a failure of the work. */
 export class MissingHandlerError extends Error {}
@@ -15,6 +18,18 @@ export type MadeCommand<P, R, T extends string> = Command<P, R> & {
 		payload: P;
 	};
 };
+
+/** `Made`, called so that its calls carry the scope fields `F`; `Made` itself when there are none. */
+export type CarryingCalls<Made, P, R, F> = [unknown] extends [F]
+	? Made
+	: ((payload: P) => CommandCall<P, R> & WithScope<F>) & Made & WithScope<F>;
+
+/** A command made with a scope: its calls carry the fields of that scope, for the checker. */
+export type ScopedCommand<P, R, T extends string, F> = ((
+	payload: P,
+) => CommandCall<P, R> & WithScope<F>) &
+	MadeCommand<P, R, T> &
+	WithScope<F>;
 
 /**
  * Creates a command: a typed request for a result. Calling it builds
@@ -32,6 +47,11 @@ export type MadeCommand<P, R, T extends string> = Command<P, R> & {
  * `command.match(action)` tells whether an action has the type of the command,
  * as it does for an action creator.
  *
+ * A scope as the third argument, `{ cache, effects: { race } }`, puts those fields on
+ * the context of the handler and of the listeners of the command; the handler
+ * sees them typed. It works on a bus that uses `scopePlugin` from
+ * `nanoeffects/scope` and is ignored on any other.
+ *
  * @example
  * ```ts
  * const getUser = createCommand("user/get", (id: string, { signal }) =>
@@ -46,39 +66,52 @@ export type MadeCommand<P, R, T extends string> = Command<P, R> & {
  * commands.handle(getUser, async () => fakeUser); // in a test
  * ```
  */
-export const createCommand = <
+export function createCommand<
 	P = void,
 	R = void,
 	T extends string = string,
 	E extends EventMap = EventMap,
+>(type: T, handler?: Task<P, E, R>): MadeCommand<P, R, T>;
+export function createCommand<
+	P,
+	R,
+	T extends string,
+	S extends Scope = Record<never, never>,
 >(
 	type: T,
-	handler?: Task<P, E, R>,
-): MadeCommand<P, R, T> => {
+	handler: Task<P, Scoped<EventMap, S>, R>,
+	scope: S,
+): ScopedCommand<P, R, T, FieldsOfScope<EventMap, S>>;
+export function createCommand(
+	type: string,
+	handler?: Task<unknown, EventMap, unknown>,
+	scope?: Scope,
+): MadeCommand<unknown, unknown, string> {
 	const match = (action: {
 		type: string;
 		payload?: unknown;
-	}): action is { type: T; payload: P } => action.type === type;
+	}): action is { type: string; payload: unknown } => action.type === type;
 
 	// with a context the bus is running it; without, build the call for emit
-	function invoke(payload: P, ctx?: Context<E>) {
+	function invoke(payload: unknown, ctx?: Context<EventMap>) {
 		if (typeof ctx === "object") {
 			if (!handler) {
 				throw new MissingHandlerError(`No handler for command "${type}"`);
 			}
 			return handler(payload, ctx);
 		}
-		return makeCommandCall(command, type, payload);
+		return carry(makeCommandCall(command, type, payload), scope);
 	}
 
-	const command = Object.assign(invoke, { type, match }) as MadeCommand<
-		P,
-		R,
-		T
+	const made = Object.assign(invoke, { type, match }) as MadeCommand<
+		unknown,
+		unknown,
+		string
 	>;
+	const command = carry(made, scope);
 
 	return command;
-};
+}
 
 /** A command (or its type) with the handler to bind to it; `bindHandler` makes one. */
 export type Binding<E extends EventMap = EventMap> = readonly [

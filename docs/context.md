@@ -21,6 +21,8 @@ Library fields (`signal`, `emit`, `run`, …) win on name clashes. `context` may
 
 To get `race`, `all`, `take` and the like on every task without passing `ctx`, see [`effectsPlugin`](effects.md#put-selected-effects-on-ctx).
 
+To give fields to **one** command, action, job or module, or to replace them for one `emit`, see [scopes](scope.md).
+
 ## Type the fields (optional)
 
 In TypeScript, `contextPlugin` puts the fields on every task of **this** bus and takes their types from the value you pass. The event map holds only events. It does not wire anything across the app — another bus can have different fields or none.

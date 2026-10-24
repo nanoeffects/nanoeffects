@@ -152,3 +152,27 @@ app.dispose(); // unmounts every module
   - `use` — bring sub-modules and commands that carry a handler; the returned function undoes that call.
   - `spawn` — background task, aborted on unmount.
 - A command that carries a handler keeps answering after unmount (`use` only tracks registration). Use `handle` for a handler that must live only as long as the module.
+
+## Give a command, an action or a module its own fields
+
+A command can need its own client, a module its own logger. Pass a scope, a plain object whose keys go on `ctx` (`effects` binds functions to the task), as the last argument of `createCommand`, `createAction`, `createModule` and `createJob`, and turn it on with `scopePlugin`:
+
+```js
+import { createBus } from "nanoeffects";
+import { createCommand } from "nanoeffects/actions";
+import { scopePlugin } from "nanoeffects/scope";
+
+// scopePlugin — makes the scope of a command work on this bus
+const bus = createBus().use(scopePlugin());
+
+// the third argument — fields of this command only
+const getUser = createCommand("user/get", (id, { api }) => api.getUser(id), {
+  api,
+});
+
+// a test replaces them for one call
+const fakeApi = { getUser: async (id) => ({ id, name: "test" }) };
+bus.emit(getUser("1"), { api: fakeApi });
+```
+
+The handler gets the fields typed. Without `scopePlugin` the scope is ignored. The full picture, with jobs, actions, modules and which value wins, is in [scopes](scope.md).

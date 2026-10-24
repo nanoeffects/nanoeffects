@@ -166,8 +166,9 @@ bus.on("load", async (id, { race, all, delay }) => {
 });
 ```
 
-- Supported: `race`, `all`, `allSettled`, `take`, `delay`. The key is the effect name.
-- `retry`, `timeout` and `poll` are not supported: bound to the task they would look like their handler wrappers.
+- The key is the name the effect gets on `ctx`. `race`, `all`, `allSettled`, `take` and `delay` are typed by hand.
+- Your own function works too if its first parameter is `{ signal }` (an *effect*): `effectsPlugin({ fetchJson })` gives `ctx.fetchJson(url)`. TypeScript removes the first parameter from its type; for a generic function see [keep a generic effect generic](scope.md#keep-a-generic-effect-generic).
+- Leave `retry`, `timeout` and `poll` out: bound to the task they would look like their handler wrappers.
 - Fields from `createBus({ context })` stay. TypeScript rejects an effect whose name is already a context field of the bus, including one added by an earlier `effectsPlugin`.
 - Free forms keep working: `race(ctx, …)`.
 

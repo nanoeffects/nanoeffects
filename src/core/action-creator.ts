@@ -1,3 +1,4 @@
+import type { Carrying } from "./scope-types";
 import type { EventMap, Keys, PayloadOf } from "./types";
 
 export type WithPayload<
@@ -24,9 +25,9 @@ export type Free = typeof free;
  * it is given, and the bus checks it against its event map, so
  * `createAction("user/loaded")` needs no generics and keeps its literal type.
  */
-export interface FreeActionCreator<T extends string> {
-	(): { type: T; payload: undefined };
-	<P>(payload: P): { type: T; payload: P };
+export interface FreeActionCreator<T extends string, F = unknown> {
+	(): Carrying<{ type: T; payload: undefined }, F>;
+	<P>(payload: P): Carrying<{ type: T; payload: P }, F>;
 	readonly type: T;
 	/** Tells whether an action is one of this creator. */
 	match(action: { type: string; payload?: unknown }): action is {
@@ -44,8 +45,9 @@ export interface ActionCreator<
 	P = void,
 	T extends string = string,
 	A extends unknown[] = PayloadOf<P>,
+	F = unknown,
 > {
-	(...args: A): Made<P, T>;
+	(...args: A): Carrying<Made<P, T>, F>;
 	readonly type: T;
 	/** Tells whether an action is one of this creator, and narrows its type. */
 	match(action: { type: string; payload?: unknown }): action is Made<P, T>;

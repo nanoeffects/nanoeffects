@@ -1,3 +1,4 @@
+export type { Effect } from "../core/effect-types";
 export { delay, onAbort } from "../utils";
 export { all } from "./all";
 export { allSettled } from "./allSettled";

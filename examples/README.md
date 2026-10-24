@@ -29,6 +29,7 @@ Each file is one job, written as a short program with comments on every nanoeffe
 | [`search.ts`](search.ts) | A search box that waits for quiet and aborts the older request. | [Policies](../docs/policies.md) |
 | [`backoff.ts`](backoff.ts) | Retry a flaky request with a growing pause. | [Effects](../docs/effects.md#back-off-between-retries) |
 | [`registration-form.ts`](registration-form.ts) | A sign-up form: a username check that does not race, a submit that cannot fire twice. | [React form](../docs/react.md) |
+| [`scope.ts`](scope.ts) | A command with its own effects, and a test that replaces one of them for a single call. | [Scopes](../docs/scope.md) |
 | [`modules.ts`](modules.ts) | Domain logic with no UI, mounted and unmounted as one unit. | [Actions](../docs/actions.md) |
 | [`redux.ts`](redux.ts) | Redux Toolkit actions that also reach the bus. | [Stores](../docs/stores.md) |
 | [`guide.ts`](guide.ts) | The code of every step of the guide. | [Guide](../docs/guide.md) |

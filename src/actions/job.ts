@@ -1,8 +1,12 @@
 import type { Context } from "../core/bus";
 import { makeCommandCall } from "../core/bus";
+import type { Scope } from "../core/scope-types";
 import type { EventMap, Task } from "../core/types";
+import type { FieldsOfScope, Scoped } from "../scope/types";
 import { type ActionCreator, createAction } from "./action";
+import { carry } from "./carry";
 import {
+	type CarryingCalls,
 	createCommand,
 	type MadeCommand,
 	MissingHandlerError,
@@ -21,10 +25,16 @@ const creatorOf = (target: Outcome): Creator =>
 	typeof target === "string" ? createAction(target) : target;
 
 // the action of the outcome, emitted as the task that ran the job
-const send = (ctx: Context<EventMap>, creator: Creator, payload: unknown) => {
-	const emit = ctx.emit as (event: unknown) => unknown;
+const send = (
+	ctx: Context<EventMap>,
+	creator: Creator,
+	payload: unknown,
+	scope: Scope | undefined,
+) => {
+	const emit = ctx.emit as (event: unknown, scope?: Scope) => unknown;
 
-	emit(Reflect.apply(creator, null, [payload]));
+	// the listeners of the outcome get the fields of the job's scope too
+	emit(Reflect.apply(creator, null, [payload]), scope);
 };
 
 // a sync throw becomes a rejection; a missing handler is a mistake, so it is thrown
@@ -61,6 +71,9 @@ export type Job<
  * effect. It returns the command, with the two actions on it: `job.success` and
  * `job.fail`.
  *
+ * A scope as the last argument, `{ cache, effects: { race } }`, gives the handler
+ * and the listeners of the outcome those context fields; see `scopePlugin`.
+ *
  * `success` and `fail` are a type string, from which the job makes an action
  * creator with `createAction`, or an action creator that exists already, which
  * is used and returned as it is. A missing one is made with the type
@@ -92,17 +105,28 @@ export const createJob = <
 	E extends EventMap = EventMap,
 	S extends Outcome = `${T}/success`,
 	F extends Outcome = `${T}/fail`,
+	X extends Scope = Record<never, never>,
 >(
 	type: T,
-	handler?: Task<P, E, R>,
+	handler?: Task<P, Scoped<E, X>, R>,
 	outcomes: {
 		/** Gets the result when the handler succeeds: a type to make an action creator of, or an action creator. */
 		success?: S;
 		/** Gets the error when the handler fails: a type to make an action creator of, or an action creator. */
 		fail?: F;
 	} = {},
-): Job<P, R, T, S, F> => {
-	const command = createCommand<P, R, T, E>(type, handler);
+	/** Context values and `effects` for the handler and for the listeners of the outcome; see `scopePlugin`. */
+	scope?: X,
+): CarryingCalls<
+	Job<P, R, T, S, F>,
+	P,
+	Promise<Awaited<R> | undefined>,
+	FieldsOfScope<E, X>
+> => {
+	const command = createCommand<P, R, T, EventMap>(
+		type,
+		handler as Task<P, EventMap, R> | undefined,
+	);
 	const successAction = creatorOf(outcomes.success ?? `${type}/success`);
 	const failAction = creatorOf(outcomes.fail ?? `${type}/fail`);
 
@@ -117,11 +141,11 @@ export const createJob = <
 
 		return outcome.then(
 			(value) => {
-				send(task, successAction, value);
+				send(task, successAction, value, scope);
 				return value;
 			},
 			(error: unknown) => {
-				send(task, failAction, error);
+				send(task, failAction, error, scope);
 			},
 		);
 	};
@@ -136,16 +160,22 @@ export const createJob = <
 		if (typeof ctx === "object") {
 			return route(command, payload, ctx);
 		}
-		return makeCommandCall(job, type, payload);
+		return carry(makeCommandCall(job, type, payload), scope);
 	}
 
-	const job = Object.assign(invoke, {
+	const made = Object.assign(invoke, {
 		type,
 		match: command.match,
 		wrap,
 		success: successAction,
 		fail: failAction,
 	}) as Job<P, R, T, S, F>;
+	const job = carry(made, scope);
 
-	return job;
+	return job as CarryingCalls<
+		Job<P, R, T, S, F>,
+		P,
+		Promise<Awaited<R> | undefined>,
+		FieldsOfScope<E, X>
+	>;
 };

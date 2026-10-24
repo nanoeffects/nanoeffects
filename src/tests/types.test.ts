@@ -19,6 +19,7 @@ import {
 	type WithContext,
 } from "../core/bus";
 import { contextPlugin } from "../core/context-plugin";
+import type { Effect } from "../core/effect-types";
 import type { Task, UnsubscribeCallback } from "../core/types";
 import {
 	all,
@@ -34,6 +35,7 @@ import {
 } from "../effects";
 import { debounce, latest, leading, queue, throttle } from "../policies";
 import { reactPlugin } from "../react";
+import { effect } from "../scope";
 import { createEffectsMiddleware, type ReduxStoreApi } from "../store/redux";
 
 type User = { id: string; name: string };
@@ -712,9 +714,57 @@ describe("effectsPlugin", () => {
 		});
 	});
 
-	it("an effect outside the supported ones is an error", () => {
-		// @ts-expect-error retry is not one of the effects that go on the task
-		effectsPlugin({ retry });
+	it("a function that does not take a signal first is an error", () => {
+		const format = (value: number) => String(value);
+		// @ts-expect-error format has no `{ signal }` as its first parameter
+		effectsPlugin({ format });
+	});
+
+	it("a plain user effect is typed without its first parameter", () => {
+		const getJson = (ctx: { signal: AbortSignal }, url: string) =>
+			Promise.resolve({ url, aborted: ctx.signal.aborted });
+		const withEffects = createBus<LoadEvents>().use(effectsPlugin({ getJson }));
+		withEffects.on("load", async (_, { getJson }) => {
+			expectTypeOf(getJson).parameters.toEqualTypeOf<[url: string]>();
+			expectTypeOf(await getJson("/a")).toEqualTypeOf<{
+				url: string;
+				aborted: boolean;
+			}>();
+			// @ts-expect-error the url is a string
+			getJson(1);
+		});
+	});
+
+	it("a plain generic effect loses its type parameter", () => {
+		const first = <T>(_ctx: { signal: AbortSignal }, items: T[]): T =>
+			items[0] as T;
+		const withEffects = createBus<LoadEvents>().use(effectsPlugin({ first }));
+		withEffects.on("load", (_, { first }) => {
+			expectTypeOf(first(["a"])).toBeUnknown();
+		});
+	});
+
+	it("Effect<F> keeps the type parameter, next to a plain effect", () => {
+		type First = <T>(items: T[]) => T;
+		const first: Effect<First> = (_ctx, items) => items[0];
+		const getJson = (_ctx: { signal: AbortSignal }, url: string) =>
+			Promise.resolve(url);
+		const withEffects = createBus<LoadEvents>().use(
+			effectsPlugin({ first, getJson }),
+		);
+		withEffects.on("load", async (_, { first, getJson }) => {
+			expectTypeOf(first(["a"])).toBeString();
+			expectTypeOf(first([1])).toBeNumber();
+			expectTypeOf(await getJson("/a")).toBeString();
+		});
+	});
+
+	it("a user function named like a built-in is not typed as the built-in", () => {
+		const delay = (_ctx: { signal: AbortSignal }, label: string) => label;
+		const withEffects = createBus<LoadEvents>().use(effectsPlugin({ delay }));
+		withEffects.on("load", (_, { delay }) => {
+			expectTypeOf(delay).parameters.toEqualTypeOf<[label: string]>();
+		});
 	});
 
 	it("an effect that is already a context field is an error", () => {
@@ -1000,5 +1050,157 @@ describe("reactPlugin", () => {
 			);
 		};
 		expectTypeOf(wrongCalls).toBeFunction();
+	});
+});
+
+describe("scope", () => {
+	type Http = { readonly kind: "http" };
+	type FeedHttp = { readonly kind: "feed" };
+	type Cache = { get(key: string): string };
+	const cache: Cache = { get: (key) => key };
+	const getJson = (_ctx: { signal: AbortSignal }, url: string) =>
+		Promise.resolve(url);
+
+	it("a command handler sees the fields of its scope, before ctx is typed", () => {
+		const first = effect(
+			<T>(_ctx: { signal: AbortSignal }, items: T[]): T | undefined => items[0],
+		);
+		const getUser = createCommand(
+			"user/get",
+			async (id: string, ctx) => {
+				expectTypeOf(ctx.cache).toEqualTypeOf<Cache>();
+				expectTypeOf(await ctx.getJson("/a")).toBeString();
+				expectTypeOf(ctx.first(["a"])).toEqualTypeOf<string | undefined>();
+				expectTypeOf(ctx.first([1])).toEqualTypeOf<number | undefined>();
+				expectTypeOf(ctx.race).toBeFunction();
+				expectTypeOf(ctx.signal).toEqualTypeOf<AbortSignal>();
+				return id;
+			},
+			{ cache, first, effects: { getJson, race } },
+		);
+		expectTypeOf(getUser).parameter(0).toBeString();
+	});
+
+	it("a scope with only effects, or only context, infers too", () => {
+		createCommand(
+			"a",
+			(_: undefined, ctx) => {
+				expectTypeOf(ctx.getJson).parameters.toEqualTypeOf<[url: string]>();
+			},
+			{ effects: { getJson } },
+		);
+		createCommand(
+			"b",
+			(_: undefined, ctx) => {
+				expectTypeOf(ctx.cache).toEqualTypeOf<Cache>();
+			},
+			{ cache },
+		);
+	});
+
+	it("a command without a scope is typed as before", () => {
+		const plain = createCommand("plain", (id: string) => id.length);
+		expectTypeOf(plain).parameter(0).toBeString();
+		expectTypeOf(createBus<Events>().emit(plain, "a")).toBeNumber();
+	});
+
+	it("a scope field replaces a field of the bus in the type", () => {
+		type Fields = { http: Http; store: { name: string } };
+		type Mapped = { load: string } & WithContext<Fields>;
+		const bus = createBus<Mapped>({
+			context: { http: { kind: "http" }, store: { name: "main" } },
+		});
+		const feed = createModule<Mapped, { http: FeedHttp }>(
+			"feed",
+			(moduleContext) => {
+				moduleContext.on("load", (_id, ctx) => {
+					expectTypeOf(ctx.http).toEqualTypeOf<FeedHttp>();
+					expectTypeOf(ctx.store).toEqualTypeOf<{ name: string }>();
+				});
+			},
+			{ http: { kind: "feed" } },
+		);
+		bus.use(modulePlugin([feed]));
+	});
+
+	it("the listeners of an action with a scope see its fields", () => {
+		const bus = createBus<{ "user/loaded": User }>();
+		const loaded = createAction("user/loaded", { cache });
+		bus.on(loaded, (user, ctx) => {
+			expectTypeOf(user).toEqualTypeOf<User>();
+			expectTypeOf(ctx.cache).toEqualTypeOf<Cache>();
+		});
+		const typed = createAction<User, "user/typed", { cache: Cache }>(
+			"user/typed",
+			{ cache },
+		);
+		bus.on(typed, (_user, ctx) => {
+			expectTypeOf(ctx).not.toHaveProperty("nothing");
+		});
+	});
+
+	it("a job takes the scope after its outcomes", () => {
+		createJob(
+			"user/load",
+			async (id: string, ctx) => {
+				expectTypeOf(ctx.cache).toEqualTypeOf<Cache>();
+				expectTypeOf(await ctx.getJson("/a")).toBeString();
+				return id;
+			},
+			{},
+			{ cache, effects: { getJson } },
+		);
+	});
+
+	it("an override in emit is checked against the type of the field", () => {
+		const bus = createBus<Events>();
+		const getUser = createCommand(
+			"user/get",
+			(_id: string, { cache }) => cache,
+			{ cache },
+		);
+		const other: Cache = { get: () => "other" };
+		bus.emit(getUser("1"), { cache: other });
+		// @ts-expect-error cache is a Cache, not a number
+		bus.emit(getUser("1"), { cache: 1 });
+		// @ts-expect-error the effects of a call are functions that take a signal first
+		bus.emit(getUser("1"), { effects: { format: (value: number) => value } });
+	});
+
+	it("a field that neither the bus nor the command declares is an error", () => {
+		const bus = createBus<Events>();
+		const plain = createCommand("plain", () => 1);
+		// @ts-expect-error nothing declares `unknown`, so there is no type to hold it to
+		bus.emit(plain(), { unknown: 1 });
+		bus.emit(plain(), { effects: { delay } });
+	});
+
+	it("a scope is flat: its keys are fields, and only effects is special", () => {
+		createCommand(
+			"flat",
+			(_: string, ctx) => {
+				expectTypeOf(ctx.cache).toEqualTypeOf<Cache>();
+				expectTypeOf(ctx.delay).toBeFunction();
+				// @ts-expect-error `effects` is not a field of the context: its entries are
+				ctx.effects;
+			},
+			{ cache, effects: { delay } },
+		);
+	});
+
+	it("the string form of emit takes no scope", () => {
+		const bus = createBus<Events>();
+		// @ts-expect-error a scope goes with an action or a command call
+		bus.emit("user/loaded", { id: "1", name: "a" }, {});
+	});
+
+	it("an effect needs { signal } as its first parameter", () => {
+		const format = (value: number) => String(value);
+		createCommand("x", () => 1, {
+			// @ts-expect-error format does not take a signal first
+			effects: { format },
+		});
+		// @ts-expect-error effect wants a function that takes a signal first
+		effect(format);
 	});
 });

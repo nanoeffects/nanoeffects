@@ -6,6 +6,7 @@ import type {
 } from "./action-creator";
 import { createTask, currentEmitter, traceRun } from "./context";
 import { eventKey, eventPayload } from "./event";
+import type { EmitScope, Scope, WithFields, WithScope } from "./scope-types";
 import { anyEventType, createStore } from "./store";
 import type { Tracer } from "./tracer";
 import type {
@@ -135,18 +136,34 @@ export type Emit<E extends EventMap> = {
 	<K extends EventKey<E>>(event: K, ...payload: PayloadOf<E[K]>): void;
 	/** Before Handler: a command is callable too, and must return its result type. */
 	<P, R>(command: Command<P, R>, ...payload: PayloadOf<P>): R;
-	<P, R>(call: CommandCall<P, R>): R;
+	/** A scope as the second argument replaces context fields for the tasks of this emit; see `scopePlugin`. */
+	<P, R, F>(call: CommandCall<P, R> & WithScope<F>, scope?: EmitScope<E, F>): R;
+	<P, R>(call: CommandCall<P, R>, scope?: EmitScope<E>): R;
 	<K extends EventKey<E>, R>(
 		event: Handler<E, R, K>,
 		...payload: PayloadOf<E[K]>
 	): R;
-	(event: EventLike<E>): void;
+	<F>(event: EventLike<E> & WithScope<F>, scope?: EmitScope<E, F>): void;
+	(event: EventLike<E>, scope?: EmitScope<E>): void;
 };
 
 export type On<E extends EventMap> = {
 	(event: AnyEvent, fn: Task<EventPayload<E>, E>): UnsubscribeCallback;
 	<K extends EventKey<E>>(event: K, fn: Task<E[K], E>): UnsubscribeCallback;
 	/** An action creator without a payload type: the payload comes from the event map. */
+	/** The creators and commands that carry a scope come first: the handler sees their fields. */
+	<K extends EventKey<E>, F>(
+		creator: FreeActionCreator<K, F> & WithScope<F>,
+		fn: Task<E[K], WithFields<E, F>>,
+	): UnsubscribeCallback;
+	<P, F>(
+		creator: ActionCreator<P, string, PayloadOf<P>, F> & WithScope<F>,
+		fn: Task<P, WithFields<E, F>>,
+	): UnsubscribeCallback;
+	<P, F>(
+		command: Command<P, unknown> & WithScope<F>,
+		fn: Task<P, WithFields<E, F>>,
+	): UnsubscribeCallback;
 	<K extends EventKey<E>>(
 		creator: FreeActionCreator<K>,
 		fn: Task<E[K], E>,
@@ -259,6 +276,12 @@ export interface Bus<E extends EventMap> {
 	readonly trace?: Tracer | undefined;
 	/** Called with every new task context to add fields to it, for what needs the task, like `effectsPlugin`. Chain to the previous one. */
 	addContext?: ((ctx: object) => void) | undefined;
+	/** Puts the fields of a module's scope on the context of one of its tasks; `scopePlugin` sets it. Without it a module's scope is ignored. */
+	applyScope?: ((ctx: object, scope: Scope) => void) | undefined;
+	/** Wraps a handler so it runs with the fields of a module's scope; `scopePlugin` sets it. */
+	fitScope?:
+		| ((scope: Scope, fn: (payload: never, ctx: never) => unknown) => unknown)
+		| undefined;
 }
 
 export type BusOptions<E extends EventMap> = {

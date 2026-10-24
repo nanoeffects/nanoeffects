@@ -1,5 +1,6 @@
 import type { Bus, WithContext } from "../core/bus";
 import type { NoClash } from "../core/context-plugin";
+import type { BoundForm, Effects } from "../core/effect-types";
 import type { EventMap, Keys } from "../core/types";
 import type { delay } from "../utils";
 import type { all } from "./all";
@@ -57,13 +58,22 @@ type Bound<E extends EventMap> = {
 	delay: (ms: number | (() => number)) => Promise<void>;
 };
 
-type Helpers = Partial<Supported>;
+/** Any function whose first parameter takes `{ signal }` can go on the context, not only the built-in ones. */
+type Helpers = Effects;
 
-type BoundOf<H extends Helpers, E extends EventMap> = {
-	[K in keyof H & keyof Bound<E>]: Bound<E>[K];
+/**
+ * The effects as a handler sees them: the built-in ones keep their hand-written
+ * types, any other loses its first parameter, or has the type `Effect<F>` says.
+ */
+export type BoundOf<H extends Helpers, E extends EventMap> = {
+	[K in keyof H]: K extends keyof Bound<E>
+		? H[K] extends Supported[K]
+			? Bound<E>[K]
+			: BoundForm<H[K]>
+		: BoundForm<H[K]>;
 };
 
-type Effect = (ctx: object, ...args: unknown[]) => unknown;
+type Run = (ctx: object, ...args: unknown[]) => unknown;
 
 /**
  * Puts the effects you pass on the context of every task of the bus, bound to
@@ -92,7 +102,7 @@ export const effectsPlugin =
 		bus: Bus<E> & NoClash<BoundOf<H, E>, E>,
 	): Bus<E & WithContext<BoundOf<H, E>>> => {
 		const previous = bus.addContext;
-		const entries = Object.entries(helpers) as Array<[string, Effect]>;
+		const entries = Object.entries(helpers) as Array<[string, Run]>;
 
 		bus.addContext = (ctx) => {
 			previous?.(ctx);

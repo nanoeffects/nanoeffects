@@ -24,6 +24,7 @@ export default defineConfig([
 			actions: "src/actions/index.ts",
 			redux: "src/store/redux/index.ts",
 			dev: "src/dev/index.ts",
+			scope: "src/scope/index.ts",
 		},
 		dts: true,
 		clean: true,

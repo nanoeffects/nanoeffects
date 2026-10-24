@@ -74,6 +74,10 @@
 			"types": "./dist/actions.d.ts",
 			"import": "./dist/actions.js"
 		},
+		"./scope": {
+			"types": "./dist/scope.d.ts",
+			"import": "./dist/scope.js"
+		},
 		"./trace": {
 			"types": "./dist/trace.d.ts",
 			"import": "./dist/trace.js"
@@ -173,7 +177,12 @@
 		{
 			"name": "actions (all)",
 			"path": "dist/actions.js",
-			"limit": "1850 B"
+			"limit": "2.1 kB"
+		},
+		{
+			"name": "scope (plugin and effect)",
+			"path": "dist/scope.js",
+			"limit": "0.75 kB"
 		},
 		{
 			"name": "redux",

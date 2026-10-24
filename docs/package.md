@@ -8,6 +8,7 @@ Imports are split so you only load what you use. `createBus` stays small; the re
 | `nanoeffects/policies` | `latest`, `leading`, `debounce`, `throttle`, `queue` |
 | `nanoeffects/effects` | `retry`, `timeout`, `poll`, `delay`, `take`, `all`, `allSettled`, `race`, `effectsPlugin` |
 | `nanoeffects/actions` | `createAction`, `createCommand`, `createJob`, `createModule`, `modulePlugin`, `commandsPlugin` |
+| `nanoeffects/scope` | `scopePlugin`, `effect`: fields for one command, action, job, module or `emit` (the types `Scope`, `Effect`) |
 | `nanoeffects/redux` | `createEffectsMiddleware` |
 | `nanoeffects/observable` | `createObserve` |
 | `nanoeffects/react` | `reactPlugin`: adds the `useEmitter` hook to a bus (needs React 18 or newer) |

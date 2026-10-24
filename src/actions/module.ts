@@ -1,11 +1,13 @@
 import type { Bus, Command, Context } from "../core/bus";
 import { createTask, forkTask } from "../core/context";
+import type { Scope } from "../core/scope-types";
 import type {
 	EventMap,
 	PayloadOf,
 	Task,
 	UnsubscribeCallback,
 } from "../core/types";
+import type { Scoped } from "../scope/types";
 import { onAbort } from "../utils";
 import { type Binding, commandsPlugin } from "./command";
 
@@ -43,6 +45,8 @@ export type ModuleContext<E extends EventMap = EventMap> = Context<E> & {
 export type Module<E extends EventMap = EventMap> = {
 	readonly name: string;
 	readonly setup: (m: ModuleContext<E>) => void;
+	/** Fields for everything the module owns; see `scopePlugin`. */
+	readonly scope?: Scope;
 };
 
 /**
@@ -64,10 +68,82 @@ export type Module<E extends EventMap = EventMap> = {
  * });
  * ```
  */
-export const createModule = <E extends EventMap = EventMap>(
+export function createModule<E extends EventMap = EventMap>(
 	name: string,
 	setup: (m: ModuleContext<E>) => void,
-): Module<E> => ({ name, setup });
+): Module<E>;
+export function createModule<
+	E extends EventMap,
+	S extends Scope = Record<never, never>,
+>(
+	name: string,
+	setup: (m: ModuleContext<Scoped<E, S>>) => void,
+	scope: S,
+): Module<E>;
+export function createModule(
+	name: string,
+	setup: (m: ModuleContext<EventMap>) => void,
+	scope?: Scope,
+): Module {
+	return scope ? { name, setup, scope } : { name, setup };
+}
+
+// wraps a handler of a module with a scope, so it runs with the fields of that scope; the plugin does the wrapping
+const fitter =
+	<E extends EventMap>(bus: Bus<E>, own: Scope | undefined) =>
+	(fn: unknown): unknown => {
+		if (own && typeof fn === "function") {
+			return bus.fitScope?.(own, fn as never) ?? fn;
+		}
+		return fn;
+	};
+
+// gives the task of a module the fields of its scope, if it has one
+const scopeTask = <E extends EventMap>(
+	bus: Bus<E>,
+	task: Context<E>,
+	own: Scope | undefined,
+) => {
+	if (own) {
+		bus.applyScope?.(task, own);
+	}
+};
+
+// the arguments of `commands.handle` with the handlers of a module wrapped
+const fitted = (
+	within: (fn: unknown) => unknown,
+	target: unknown,
+	fn: unknown,
+) => {
+	if (Array.isArray(target)) {
+		return [target.map(([command, handler]) => [command, within(handler)]), fn];
+	}
+	return [target, within(fn)];
+};
+
+// the `on` of a module: its listeners run with the fields of the module's scope
+const listenWith = <E extends EventMap>(
+	task: Context<E>,
+	within: (fn: unknown) => unknown,
+) => {
+	const taskOn = task.on;
+
+	return (...args: unknown[]) => {
+		const [event, fn] = args;
+		return Reflect.apply(taskOn, null, [event, within(fn)]);
+	};
+};
+
+// starts a background task of the module: aborted on unmount, an error of it left unhandled
+const spawnOn =
+	<E extends EventMap>(task: Context<E>) =>
+	<P>(fn: Task<P, E, unknown>, ...payload: PayloadOf<P>) => {
+		task.run(fn, ...payload).catch((error: unknown) => {
+			if (!task.signal.aborted) {
+				throw error;
+			}
+		});
+	};
 
 type Registry<E extends EventMap> = ReturnType<
 	ReturnType<typeof commandsPlugin<E>>
@@ -89,6 +165,11 @@ export type ModuleApi<E extends EventMap = EventMap> = {
 	 * mounted, with no link to this bus.
 	 */
 	createModule(name: string, setup: (m: ModuleContext<E>) => void): Module<E>;
+	createModule<S extends Scope = Record<never, never>>(
+		name: string,
+		setup: (m: ModuleContext<Scoped<E, S>>) => void,
+		scope: S,
+	): Module<E>;
 };
 
 /**
@@ -179,11 +260,14 @@ export const modulePlugin =
 				active.set(module, unmount);
 				byName.set(module.name, module);
 
+				// what the module owns gets its scope fields: the plugin wraps the handler
+				const own = module.scope;
+				const within = fitter(bus, own);
 				const handle = (target: unknown, fn?: unknown): UnsubscribeCallback => {
 					const unbind: UnsubscribeCallback = Reflect.apply(
 						commands.handle,
 						null,
-						[target, fn],
+						fitted(within, target, fn),
 					);
 					onAbort(task, unbind);
 					return unbind;
@@ -205,19 +289,13 @@ export const modulePlugin =
 						}
 					};
 				};
-				const spawn = <P>(
-					fn: Task<P, E, unknown>,
-					...payload: PayloadOf<P>
-				) => {
-					task.run(fn, ...payload).catch((error: unknown) => {
-						if (!task.signal.aborted) {
-							throw error;
-						}
-					});
-				};
+				const spawn = spawnOn<E>(task);
+				// the on of the module: its listeners get the fields of the scope as well
+				const on = listenWith(task, within);
 
 				try {
-					module.setup(Object.assign(task, { handle, use, spawn }));
+					scopeTask(bus, task, own);
+					module.setup(Object.assign(task, { handle, use, spawn, on }));
 				} catch (error) {
 					unmount();
 					throw error;
