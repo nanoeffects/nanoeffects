@@ -50,6 +50,13 @@ export const devPlugin: DevPlugin =
 		};
 	};
 
+// The event a listener is counted under. A predicate (`matchPlugin`) is a function with no
+// string `type`; it listens to every event, as `"*"` does, and that is where it is counted.
+const keyOf = (event: string | { type: string }) =>
+	typeof event === "function" && typeof Reflect.get(event, "type") !== "string"
+		? "*"
+		: eventKey(event);
+
 // counts the listeners that were added and not unsubscribed, per event
 const watchListeners = <E extends EventMap>(
 	bus: Bus<E>,
@@ -60,9 +67,13 @@ const watchListeners = <E extends EventMap>(
 	const counts = new Map<string, number>();
 	const warned = new Set<string>();
 
+	let active = true;
 	const wrapped = (...args: unknown[]) => {
+		if (!active) {
+			return Reflect.apply(original, bus, args);
+		}
 		const [event] = args as [string | { type: string }];
-		const key = eventKey(event);
+		const key = keyOf(event);
 		const count = (counts.get(key) ?? 0) + 1;
 		counts.set(key, count);
 		if (count > max && !warned.has(key)) {
@@ -91,7 +102,11 @@ const watchListeners = <E extends EventMap>(
 	bus.on = wrapped as typeof bus.on;
 
 	return () => {
-		bus.on = original;
+		active = false;
+		// a wrapper that another plugin put on top since stays, and passes every call through
+		if (bus.on === wrapped) {
+			bus.on = original;
+		}
 	};
 };
 
