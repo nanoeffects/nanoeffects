@@ -23,7 +23,10 @@ type Loose = (...args: unknown[]) => unknown;
 
 type Layers = readonly Scope[];
 
-// what the task contexts of the emit that is running take, and the event they are for
+// What the task contexts of the emit that is running take, and the event they are for.
+// A context is matched to the emit by the type and the payload it has (the core says nothing
+// else about who made it). A task of the same type and payload that something else makes
+// during the emit would take the layers too; a hook in the core would remove the guess.
 type Pending = { type: string; payload: unknown; layers: Layers };
 
 // the layers of a task: from the call (action, command, `emit`), and from the module that owns the handler
