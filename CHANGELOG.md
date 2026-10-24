@@ -1,11 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.6.0
 
 - `nanoeffects/scope`: `bus.use(scopePlugin())` lets a command, job, action or module carry its own context fields, and lets one `emit` replace them. A scope is a plain object: every key goes on `ctx` as it is, except `effects`, whose functions (each takes `{ signal }` first) are bound to the task like `effectsPlugin` does. It is given as the last argument of `createCommand`, `createAction`, `createModule` (and `app.createModule`) and `createJob` (after its outcomes), and as the second argument of `emit` / `ctx.emit` for an action or a command call: `createCommand("user/get", handler, { api, effects: { race } })`, `bus.emit(getUser("1"), { api: fakeApi })`. Strongest first: `emit`, action / command / job, module, bus; the fields of the library are never replaced and children inherit. Handlers see the fields typed, with no `WithContext`. Without `scopePlugin` a scope is ignored, and `createBus` is byte for byte the same (`nanoeffects/actions` grows by about 230 B brotli). Use `scopePlugin` after `effectsPlugin` and before `modulePlugin`. `docs/scope.md`, `examples/scope.ts`.
 - `effect(fn)` and the type `Effect<F>` from `nanoeffects/scope` keep the type parameters of a generic user effect, which a plain function in `effects` loses (`<T>(items: T[]) => T` becomes `(items: unknown[]) => unknown`); `effect(fn)` is a value of the scope like any other.
 - `effectsPlugin` accepts any function whose first parameter is `{ signal }`, not only `race`, `all`, `allSettled`, `take` and `delay`; a function that does not take a signal first is a type error. The built-in five keep their types.
 - Types: `ActionCreator` and `FreeActionCreator` have a fourth and second type parameter for the fields of a scope; `Emit` takes a scope on the call forms, `On` types the listeners of an action or command with a scope. Code that does not use scopes is typed as before.
+- `docs/guide.md`: "Listen to every event", how `bus.on("*", fn)` works: the payload and the task context, `ctx.type` as the event name, and its place in `onUnhandled` and `bus.off`.
 
 ## 0.5.0
 
