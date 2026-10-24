@@ -1,9 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.7.0
 
 - **BREAKING:** the key of a scope that holds the bound functions is `$effects`, not `effects`: `createCommand("user/get", handler, { api, $effects: { race } })`. A key named `effects` is now an ordinary field of the context. Migrate: rename `effects` to `$effects` in every scope (`createCommand`, `createAction`, `createModule`, `createJob` and the second argument of `emit`). A scope that is not renamed raises no error: its `effects` object goes on `ctx` as a plain field and nothing in it is bound, so a function you call from `ctx` is missing. `effectsPlugin`, `effect(fn)` and the types are unchanged.
 - `createJob`: when the `success` or `fail` action has a scope of its own, its listeners see the job's fields with the action's own fields over them (fields and `effects` merged one level deep). Before, the job's scope replaced the action's. The handler of the job is not affected.
+- `scopePlugin` does less work for each task that has a scope: a command with a scope of three fields costs 1.8 times a command without one (it was 2.4), and an action with a scope 1.3 times (it was 1.9). Without the plugin the bus is unchanged.
+- `docs/plugins.md`: every plugin of a bus on one page, what each adds, what `bus.use` returns, and the order that matters.
 
 ## 0.6.0
 
