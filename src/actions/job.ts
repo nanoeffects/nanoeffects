@@ -31,12 +31,10 @@ const send = (
 	payload: unknown,
 	scope: Scope | undefined,
 ) => {
-	const emit = ctx.emit as (event: unknown, scope?: Scope) => unknown;
-
 	// the listeners of the outcome get the fields of the job's scope too,
 	// and the outcome action's own fields win over them
 	const own = carriedBy(creator);
-	emit(
+	ctx.emit(
 		Reflect.apply(creator, null, [payload]),
 		scope && own ? beneath(scope, own) : scope,
 	);
@@ -128,10 +126,7 @@ export const createJob = <
 	Promise<Awaited<R> | undefined>,
 	FieldsOfScope<E, X>
 > => {
-	const command = createCommand<P, R, T, EventMap>(
-		type,
-		handler as Task<P, EventMap, R> | undefined,
-	);
+	const command = createCommand<P, R, T, Scoped<E, X>>(type, handler);
 	const successAction = creatorOf(outcomes.success ?? `${type}/success`);
 	const failAction = creatorOf(outcomes.fail ?? `${type}/fail`);
 

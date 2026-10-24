@@ -91,12 +91,8 @@ export function createModule(
 // wraps a handler of a module with a scope, so it runs with the fields of that scope; the plugin does the wrapping
 const fitter =
 	<E extends EventMap>(bus: Bus<E>, own: Scope | undefined) =>
-	(fn: unknown): unknown => {
-		if (own && typeof fn === "function") {
-			return bus.fitScope?.(own, fn as never) ?? fn;
-		}
-		return fn;
-	};
+	(fn: unknown): unknown =>
+		own ? (bus.fitScope?.(own, fn) ?? fn) : fn;
 
 // gives the task of a module the fields of its scope, if it has one
 const scopeTask = <E extends EventMap>(

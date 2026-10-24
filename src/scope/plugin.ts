@@ -1,4 +1,5 @@
 import type { Bus, Emit } from "../core/bus";
+import type { SignalFirst } from "../core/effect-types";
 import { scopeKey } from "../core/scope-key";
 import type { Scope } from "../core/scope-types";
 import type { EventMap } from "../core/types";
@@ -16,12 +17,8 @@ const reserved = new Set([
 	"payload",
 ]);
 
-// a task context as this file touches it: plain properties, because it runs for every task
-type Ctx = Record<string | symbol, unknown>;
-
-type Loose = (...args: unknown[]) => unknown;
-
 type Layers = readonly Scope[];
+const none: Layers = [];
 
 // kept on the context, so that a child (`ctx.run`) and a module can find what the task was given:
 // the layers of the call, and the scope of the module that owns the handler
@@ -30,13 +27,35 @@ const moduleKey = Symbol("nanoeffects.scope.module");
 // marks the function that wraps `ctx.run` here, so a context is wrapped only once
 const watchedKey = Symbol("nanoeffects.scope.watched");
 
-// a function that wraps `ctx.run` here
+// the handler of a child task, and `ctx.run` as it is called with one
 type ChildTask = (payload: unknown, child: Ctx) => unknown;
-type Watched = ((fn: ChildTask, ...rest: unknown[]) => unknown) & {
+type Run = ((task: ChildTask, ...rest: unknown[]) => unknown) & {
 	[watchedKey]?: boolean;
 };
 
-const none: Layers = [];
+// A task context as this file touches it. It is plain properties on purpose: this runs for
+// every task. The fields of the scope are the index signature.
+interface Ctx {
+	[field: string]: unknown;
+	type: unknown;
+	payload: unknown;
+	run: Run;
+	[callKey]?: Layers;
+	[moduleKey]?: Scope;
+}
+
+// The one place where the object that the core hands to `addContext` is taken as a context.
+const ctxOf = (target: object) => target as Ctx;
+
+// Whether a value of a scope was marked by `effect`, so it is bound to the task.
+const isMarked = (value: unknown): value is SignalFirst =>
+	typeof value === "function" && marked.has(value);
+
+// The effect with the task given first, as a function of the rest of the arguments.
+const bindTo =
+	(ctx: Ctx, effect: SignalFirst) =>
+	(...args: unknown[]) =>
+		Reflect.apply(effect, null, [ctx, ...args]);
 
 // the value is read each time, so a scope that is changed later is used as it is now
 const put = (ctx: Ctx, layer: Scope | undefined) => {
@@ -46,28 +65,19 @@ const put = (ctx: Ctx, layer: Scope | undefined) => {
 	for (const key in layer) {
 		if (key !== "effects" && !reserved.has(key)) {
 			const value = layer[key];
-			const effect = value as Loose;
-			ctx[key] =
-				typeof value === "function" && marked.has(value)
-					? bindTo(ctx, effect)
-					: value;
+			ctx[key] = isMarked(value) ? bindTo(ctx, value) : value;
 		}
 	}
 	const effects = layer.effects;
 	if (effects) {
 		for (const key in effects) {
-			const effect = effects[key] as Loose;
-			if (!reserved.has(key)) {
+			const effect = effects[key];
+			if (effect && !reserved.has(key)) {
 				ctx[key] = bindTo(ctx, effect);
 			}
 		}
 	}
 };
-
-const bindTo =
-	(ctx: Ctx, fn: Loose) =>
-	(...args: unknown[]) =>
-		fn(ctx, ...args);
 
 // weakest first: the module, then the layers of the call
 const refresh = (ctx: Ctx, call: Layers, module: Scope | undefined) => {
@@ -77,29 +87,41 @@ const refresh = (ctx: Ctx, call: Layers, module: Scope | undefined) => {
 	}
 };
 
-const scopeOf = (target: unknown): Scope | undefined => {
-	if (
-		(typeof target === "object" && target !== null) ||
-		typeof target === "function"
-	) {
-		return Reflect.get(target, scopeKey);
-	}
-};
-
-const isObject = (value: unknown): value is Ctx =>
+const isObject = (value: unknown): value is object =>
 	typeof value === "object" && value !== null;
 
-// the event type an emit is for, and its payload
-const typeOf = (event: unknown) =>
-	isObject(event) || typeof event === "function" ? (event as Ctx).type : event;
+// a scope is an object; anything else in the place of one is not taken for a scope
+const isScope = (value: unknown): value is Scope => isObject(value);
+
+// `bus.emit` as this file calls it
+type Emitter = (event: unknown, ...rest: unknown[]) => unknown;
+
+// something with a type, as an event is: an action, a command call or a command
+type Named = { type: unknown; payload?: unknown };
+const isNamed = (value: unknown): value is Named =>
+	(isObject(value) || typeof value === "function") && "type" in value;
+
+// the event an emit is for: its type, and its payload (a command that is emitted by itself has it as the next argument)
+const typeOf = (event: unknown) => (isNamed(event) ? event.type : event);
 const payloadOf = (event: unknown, rest: unknown[]) =>
-	isObject(event) ? event.payload : rest[0];
+	isObject(event) && isNamed(event) ? event.payload : rest[0];
 
-// the layers an emit carries: the scope of its action or command, and the one it was given
-const layersOf = (own: Scope | undefined, explicit: Scope | undefined) => {
-	const layers = own && explicit ? [own, explicit] : [own ?? explicit];
+// the scope that an action or a command carries
+const scopeOf = (event: unknown): Scope | undefined =>
+	isObject(event) || typeof event === "function"
+		? Reflect.get(event, scopeKey)
+		: void 0;
 
-	return layers as Layers;
+// the layers an emit carries: the scope of its action or command, then the one it was given
+const layersFor = (event: unknown, rest: unknown[]): Layers | undefined => {
+	const own = scopeOf(event);
+	const explicit = isObject(event) && isScope(rest[0]) ? rest[0] : void 0;
+	if (own && explicit) {
+		return [own, explicit];
+	}
+	const only = own ?? explicit;
+
+	return only ? [only] : void 0;
 };
 
 /**
@@ -143,23 +165,22 @@ export const scopePlugin =
 
 		// a child that `ctx.run` makes takes the layers of its parent, bound to itself
 		const watchRun = (ctx: Ctx) => {
-			const run = ctx.run as Watched;
+			const run = ctx.run;
 			if (run[watchedKey]) {
 				return;
 			}
-			const watched: Watched = (fn: ChildTask, ...rest: unknown[]) => {
+			const watched: Run = (task, ...rest) => {
 				const outer = pendingLayers;
 				// the child is not a task of the emit that may be running
 				pendingLayers = void 0;
 				try {
 					return run(
-						(payload: unknown, child: Ctx) => {
-							const call = ctx[callKey] as Layers | undefined;
-							const module = ctx[moduleKey] as Scope | undefined;
+						(payload, child) => {
+							const call = ctx[callKey];
 							if (call) {
-								adopt(child, call, module);
+								adopt(child, call, ctx[moduleKey]);
 							}
-							return fn(payload, child);
+							return task(payload, child);
 						},
 						...rest,
 					);
@@ -183,7 +204,7 @@ export const scopePlugin =
 		const previous = bus.addContext;
 		bus.addContext = (target) => {
 			previous?.(target);
-			const ctx = target as Ctx;
+			const ctx = ctxOf(target);
 			if (
 				pendingLayers &&
 				ctx.type === pendingType &&
@@ -194,42 +215,45 @@ export const scopePlugin =
 		};
 
 		bus.applyScope = (target, scope) => {
-			const ctx = target as Ctx;
-			adopt(ctx, (ctx[callKey] as Layers | undefined) ?? none, scope);
+			const ctx = ctxOf(target);
+			adopt(ctx, ctx[callKey] ?? none, scope);
 		};
 
-		bus.fitScope = (scope, fn) => (payload: unknown, ctx: object) => {
-			bus.applyScope?.(ctx, scope);
-			return Reflect.apply(fn, null, [payload, ctx]);
+		// a handler runs with the fields of a module's scope; what is not a function stays as it is
+		bus.fitScope = (scope, fn) => {
+			if (typeof fn !== "function") {
+				return fn;
+			}
+
+			return (payload: unknown, ctx: object) => {
+				bus.applyScope?.(ctx, scope);
+				return Reflect.apply(fn, null, [payload, ctx]);
+			};
 		};
 
-		const original: unknown = bus.emit;
-		const emit = original as Loose;
-		const scoped: Loose = (event, ...rest) => {
-			const isCall = isObject(event);
-			const own = scopeOf(event);
-			const explicit = isCall ? (rest[0] as Scope | undefined) : void 0;
+		const emit = bus.emit as Emitter;
+		const scoped: Emitter = (event, ...rest) => {
+			const layers = layersFor(event, rest);
 			// nothing to set and nothing to clear: a plain emit costs one call more
-			if (!(own || explicit || pendingLayers)) {
+			if (!(layers || pendingLayers)) {
 				return emit(event, ...rest);
 			}
 
 			const outerLayers = pendingLayers;
 			const outerType = pendingType;
 			const outerPayload = pendingPayload;
-			pendingLayers = own || explicit ? layersOf(own, explicit) : void 0;
+			pendingLayers = layers;
 			pendingType = typeOf(event);
 			pendingPayload = payloadOf(event, rest);
 			try {
-				return isCall ? emit(event) : emit(event, ...rest);
+				return isObject(event) ? emit(event) : emit(event, ...rest);
 			} finally {
 				pendingLayers = outerLayers;
 				pendingType = outerType;
 				pendingPayload = outerPayload;
 			}
 		};
-		const loose: unknown = scoped;
-		bus.emit = loose as Emit<E>;
+		bus.emit = scoped as Emit<E>;
 
 		return bus;
 	};

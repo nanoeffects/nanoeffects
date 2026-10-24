@@ -1,4 +1,4 @@
-import type { Signaled } from "../core/effect-types";
+import type { Signaled, SignalFirst } from "../core/effect-types";
 
 // the functions that `effect` was called with: `scopePlugin` binds these when they are values of a scope
 export const marked = new WeakSet<object>();
@@ -25,12 +25,12 @@ export const marked = new WeakSet<object>();
  * );
  * ```
  */
-export const effect = <A extends unknown[], R>(
+export function effect<A extends unknown[], R>(
 	fn: (ctx: Signaled, ...args: A) => R,
-): ((...args: A) => R) => {
+): (...args: A) => R;
+// The type above says the function is already bound; the plugin binds it when it puts it on a task.
+export function effect(fn: SignalFirst): unknown {
 	marked.add(fn);
-	// the type claims the function is already bound; the plugin binds it when it puts it on a task
-	const claimed: unknown = fn;
 
-	return claimed as (...args: A) => R;
-};
+	return fn;
+}

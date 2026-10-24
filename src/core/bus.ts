@@ -279,9 +279,7 @@ export interface Bus<E extends EventMap> {
 	/** Puts the fields of a module's scope on the context of one of its tasks; `scopePlugin` sets it. Without it a module's scope is ignored. */
 	applyScope?: ((ctx: object, scope: Scope) => void) | undefined;
 	/** Wraps a handler so it runs with the fields of a module's scope; `scopePlugin` sets it. */
-	fitScope?:
-		| ((scope: Scope, fn: (payload: never, ctx: never) => unknown) => unknown)
-		| undefined;
+	fitScope?: ((scope: Scope, fn: unknown) => unknown) | undefined;
 }
 
 export type BusOptions<E extends EventMap> = {
