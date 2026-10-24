@@ -15,6 +15,8 @@ Imports are split so you only load what you use. `createBus` stays small; the re
 | `nanoeffects/dev` | `devPlugin` (no-op in production) |
 | `nanoeffects/trace` | `createTracer` and the loggers |
 
+The `...Plugin` names above are used with `bus.use`. [Plugins](plugins.md) lists all of them, what each returns, and the order to use them in.
+
 ## Give the docs to an AI assistant
 
 The package ships two plain-text files for assistants that write code with it:

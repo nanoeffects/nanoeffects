@@ -30,6 +30,7 @@ Code for every guide step: [`examples/guide.ts`](../examples/guide.ts) (type-che
 - [TypeScript in many files](typescript.md) — keep the types of the bus in commands and modules
 - [Errors and unheard events](errors.md)
 - [Package entries](package.md) — which import holds what
+- [Plugins](plugins.md) — every plugin of a bus, what it returns, and the order to use them in
 - [Tracing](tracing.md) — loggers, Redux DevTools, `notrace`
 - [Observable](observable.md) — events as TC39 Observables
 - [Hot reload and dev diagnostics](hmr.md)
