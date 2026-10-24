@@ -56,6 +56,51 @@ describe("job scope", () => {
 		]);
 	});
 
+	it("the outcome action's own scope wins over the job's, field by field", async () => {
+		const bus = createBus().use(scopePlugin());
+		const seen: unknown[] = [];
+		const jobFields = { name: "job" };
+		const actionFields = { name: "action" };
+		const done = createAction("user/done", { fields: actionFields });
+		const load = createJob(
+			"user/load",
+			async (id: string, ctx) => {
+				seen.push(["handler", nameOf(ctx), Reflect.get(ctx, "trace")]);
+				return id;
+			},
+			{ success: done },
+			{ fields: jobFields, trace: "job" },
+		);
+		bus.on(done, (_user, ctx) => {
+			seen.push(["success", nameOf(ctx), Reflect.get(ctx, "trace")]);
+		});
+
+		await bus.emit(load("1"));
+
+		expect(seen).toEqual([
+			["handler", "job", "job"],
+			["success", "action", "job"],
+		]);
+	});
+
+	it("an outcome action without a scope sees the job's", async () => {
+		const bus = createBus().use(scopePlugin());
+		const seen: unknown[] = [];
+		const load = createJob(
+			"user/load",
+			async (id: string) => id,
+			{},
+			{ fields: commandFields },
+		);
+		bus.on(load.success, (_user, ctx) => {
+			seen.push(nameOf(ctx));
+		});
+
+		await bus.emit(load("1"));
+
+		expect(seen).toEqual(["command"]);
+	});
+
 	it("a job without a scope adds nothing", async () => {
 		const bus = createBus().use(scopePlugin());
 		const seen: unknown[] = [];

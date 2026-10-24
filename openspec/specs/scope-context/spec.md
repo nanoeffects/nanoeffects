@@ -40,7 +40,7 @@ A scope SHALL be a plain object. Every key SHALL be put on the task context as i
 - **THEN** `ctx.log` is that function, called with the arguments the handler gives
 
 ### Requirement: A scope can be given to an action, a command, a job and a module
-`createCommand`, `createJob`, `createAction` and `createModule` (and `createModule` of an app) SHALL accept a scope. The fields of a command, job or action scope SHALL be on the context of every handler that runs for a call made with it, including listeners of its type. The fields of a module scope SHALL be on the context of its listeners, bound commands and background tasks.
+`createCommand`, `createJob`, `createAction` and `createModule` (and `createModule` of an app) SHALL accept a scope. The fields of a command, job or action scope SHALL be on the context of every handler that runs for a call made with it, including listeners of its type. The fields of a module scope SHALL be on the context of its listeners, bound commands and background tasks. When a job sends an outcome whose action has a scope of its own, its listeners SHALL see the fields of the job's scope with those of the action's scope over them.
 
 #### Scenario: Command scope reaches its handler and listeners
 - **WHEN** `bus.emit(getUser("1"))` runs and `getUser` has `{ cache }`
@@ -61,6 +61,10 @@ A scope SHALL be a plain object. Every key SHALL be put on the task context as i
 #### Scenario: Another module does not see it
 - **WHEN** a listener is registered outside the module
 - **THEN** it does not see the fields of the module scope
+
+#### Scenario: The outcome action's own scope wins over the job's
+- **WHEN** a job has the scope `{ logger: jobLogger, trace }` and its `success` action has `{ logger: auditLogger }`, and the job succeeds
+- **THEN** the listeners of `success` see `auditLogger` and `trace`, and the handler of the job still sees `jobLogger`
 
 ### Requirement: A call can override a scope
 `emit` and `ctx.emit` SHALL accept a scope as the second argument when the first one is an action or a command call. It SHALL apply to every task that this emit starts, and to nothing else. The string form `emit("type", payload)` SHALL NOT take a scope.

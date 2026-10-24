@@ -4,7 +4,7 @@ import type { Scope } from "../core/scope-types";
 import type { EventMap, Task } from "../core/types";
 import type { FieldsOfScope, Scoped } from "../scope/types";
 import { type ActionCreator, createAction } from "./action";
-import { carry } from "./carry";
+import { beneath, carriedBy, carry } from "./carry";
 import {
 	type CarryingCalls,
 	createCommand,
@@ -33,8 +33,13 @@ const send = (
 ) => {
 	const emit = ctx.emit as (event: unknown, scope?: Scope) => unknown;
 
-	// the listeners of the outcome get the fields of the job's scope too
-	emit(Reflect.apply(creator, null, [payload]), scope);
+	// the listeners of the outcome get the fields of the job's scope too,
+	// and the outcome action's own fields win over them
+	const own = carriedBy(creator);
+	emit(
+		Reflect.apply(creator, null, [payload]),
+		scope && own ? beneath(scope, own) : scope,
+	);
 };
 
 // a sync throw becomes a rejection; a missing handler is a mistake, so it is thrown

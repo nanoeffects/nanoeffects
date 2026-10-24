@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `createJob`: when the `success` or `fail` action has a scope of its own, its listeners see the job's fields with the action's own fields over them (fields and `effects` merged one level deep). Before, the job's scope replaced the action's. The handler of the job is not affected.
+
 ## 0.6.0
 
 - `nanoeffects/scope`: `bus.use(scopePlugin())` lets a command, job, action or module carry its own context fields, and lets one `emit` replace them. A scope is a plain object: every key goes on `ctx` as it is, except `effects`, whose functions (each takes `{ signal }` first) are bound to the task like `effectsPlugin` does. It is given as the last argument of `createCommand`, `createAction`, `createModule` (and `app.createModule`) and `createJob` (after its outcomes), and as the second argument of `emit` / `ctx.emit` for an action or a command call: `createCommand("user/get", handler, { api, effects: { race } })`, `bus.emit(getUser("1"), { api: fakeApi })`. Strongest first: `emit`, action / command / job, module, bus; the fields of the library are never replaced and children inherit. Handlers see the fields typed, with no `WithContext`. Without `scopePlugin` a scope is ignored, and `createBus` is byte for byte the same (`nanoeffects/actions` grows by about 230 B brotli). Use `scopePlugin` after `effectsPlugin` and before `modulePlugin`. `docs/scope.md`, `examples/scope.ts`.

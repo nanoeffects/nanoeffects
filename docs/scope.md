@@ -137,6 +137,8 @@ const auditModule = createModule(
 );
 ```
 
+If the outcome action (`success` or `fail`) has a scope of its own, its listeners see the job's fields with the action's own fields over them; the handler of the job sees only the job's.
+
 A module scope does not leak: a listener registered outside the module does not see it.
 
 ## Which value wins
