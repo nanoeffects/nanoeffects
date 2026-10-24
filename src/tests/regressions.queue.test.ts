@@ -262,7 +262,10 @@ describe("regressions: queues", () => {
 	});
 
 	describe("bottleneck #95: a very long line", () => {
-		it("runs 50 thousand waiting calls in order", async () => {
+		// 1.3 s alone, but 2.5 to 4.7 s next to the other files of a full run: more room than the default 5 s
+		it("runs 50 thousand waiting calls in order", {
+			timeout: 30_000,
+		}, async () => {
 			const harness = createHarness();
 			const order: number[] = [];
 			const queued = queueTask((value: number) => {
