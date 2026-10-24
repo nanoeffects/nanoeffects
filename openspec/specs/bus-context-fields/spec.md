@@ -1,4 +1,9 @@
-## ADDED Requirements
+# bus-context-fields Specification
+
+## Purpose
+Lets contextPlugin put typed fields on every task of a bus, so handlers see them with no hand-written WithContext and they merge with the fields of every other source.
+
+## Requirements
 
 ### Requirement: contextPlugin puts typed fields on every task
 `bus.use(contextPlugin(fields))` SHALL give every task context of that bus the fields of `fields`, and SHALL return the same bus, typed with those fields. The types SHALL be inferred from the value passed, whether or not the bus was made with an event map. `fields` MAY be a function of the task that returns an object.

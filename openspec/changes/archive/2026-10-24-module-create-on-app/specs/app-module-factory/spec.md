@@ -1,3 +1,6 @@
+## Purpose
+Lets the app that modulePlugin returns create modules typed with the bus it belongs to, so a module in its own file sees the context fields of the bus without a type argument.
+
 ## ADDED Requirements
 
 ### Requirement: The app creates modules typed with the bus

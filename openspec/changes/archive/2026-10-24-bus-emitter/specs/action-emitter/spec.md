@@ -1,3 +1,6 @@
+## Purpose
+Lets emitterPlugin turn an action creator into a callback that emits its action on a bus, for the subscriptions of state managers, while the creator stays a plain createAction.
+
 ## ADDED Requirements
 
 ### Requirement: The bus gets an emitter for action creators
