@@ -1,5 +1,3 @@
-import v8 from "node:v8";
-import vm from "node:vm";
 import { describe, expect, it } from "vitest";
 import {
 	createAction,
@@ -11,28 +9,11 @@ import {
 import { createBus, type WithContext } from "../core/bus";
 import type { EventMap } from "../core/types";
 import { delay } from "../effects";
-import { noPayload } from "../tests/test-helpers";
+import { aliveCount, noPayload, settleGarbage } from "../tests/test-helpers";
 import { effect, scopePlugin } from ".";
-
-// Node hands out `gc` to a script when asked for it at run time, so no flag is needed to run the tests
-v8.setFlagsFromString("--expose-gc");
-const collect = vm.runInNewContext("gc") as () => void;
 
 // the fields the calls below replace, declared so the checker has a type to hold them to
 type Fields = EventMap & WithContext<{ label?: object; big?: object }>;
-
-const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
-
-// garbage is not collected at the first try: let the engine settle
-const settle = async () => {
-	for (let round = 0; round < 5; round++) {
-		await tick();
-		collect();
-	}
-};
-
-const alive = (refs: ReadonlyArray<WeakRef<object>>) =>
-	refs.filter((ref) => ref.deref() !== void 0).length;
 
 describe("scopes do not leak", () => {
 	it("the check sees a context that is kept", async () => {
@@ -47,9 +28,9 @@ describe("scopes do not leak", () => {
 		);
 		bus.emit(hold(noPayload));
 		const refs = kept.map((ctx) => new WeakRef(ctx));
-		await settle();
+		await settleGarbage();
 
-		expect(alive(refs)).toBe(1);
+		expect(aliveCount(refs)).toBe(1);
 	});
 
 	it("task contexts are collectable after many tasks with every kind of field", async () => {
@@ -81,10 +62,10 @@ describe("scopes do not leak", () => {
 			await Promise.all(pending);
 		};
 		await run();
-		await settle();
+		await settleGarbage();
 
 		expect(refs).toHaveLength(200);
-		expect(alive(refs)).toBe(0);
+		expect(aliveCount(refs)).toBe(0);
 	});
 
 	it("the scope given to one emit is not kept after it", async () => {
@@ -99,9 +80,9 @@ describe("scopes do not leak", () => {
 			bus.emit(loaded("a"), { big });
 		};
 		emitWithBigScope();
-		await settle();
+		await settleGarbage();
 
-		expect(alive(refs)).toBe(0);
+		expect(aliveCount(refs)).toBe(0);
 	});
 
 	it("a scope on a command is held by the command only", async () => {
@@ -116,9 +97,9 @@ describe("scopes do not leak", () => {
 			bus.emit(read(noPayload));
 		};
 		make();
-		await settle();
+		await settleGarbage();
 
-		expect(alive(refs)).toBe(0);
+		expect(aliveCount(refs)).toBe(0);
 	});
 
 	it("a job's scope is not kept by the outcome it sends", async () => {
@@ -138,9 +119,9 @@ describe("scopes do not leak", () => {
 			await bus.emit(load("1"));
 		};
 		await make();
-		await settle();
+		await settleGarbage();
 
-		expect(alive(refs)).toBe(0);
+		expect(aliveCount(refs)).toBe(0);
 	});
 
 	it("unmounting a module releases its scope and its contexts", async () => {
@@ -164,10 +145,10 @@ describe("scopes do not leak", () => {
 			app.unmount(userModule);
 		};
 		mountOnce();
-		await settle();
+		await settleGarbage();
 
 		expect(refs).toHaveLength(2);
-		expect(alive(refs)).toBe(0);
+		expect(aliveCount(refs)).toBe(0);
 	});
 
 	it("a task that is aborted while a bound effect waits is collectable", async () => {
@@ -190,9 +171,9 @@ describe("scopes do not leak", () => {
 		for (let round = 0; round < 50; round++) {
 			await bus.emit(stuck(noPayload));
 		}
-		await settle();
+		await settleGarbage();
 
 		expect(refs).toHaveLength(50);
-		expect(alive(refs)).toBe(0);
+		expect(aliveCount(refs)).toBe(0);
 	});
 });

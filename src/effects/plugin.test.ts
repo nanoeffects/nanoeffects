@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createBus } from "../core/bus";
+import { aliveCount, settleGarbage } from "../tests/test-helpers";
 import { all, delay, effectsPlugin, race, take } from ".";
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -138,10 +139,6 @@ describe("effectsPlugin", () => {
 	});
 
 	it("a task context can be collected after the task ends", async () => {
-		const gc = globalThis.gc;
-		if (typeof gc !== "function") {
-			return;
-		}
 		const bus = createBus<{ load: number }>().use(effectsPlugin({ all }));
 		const refs: Array<WeakRef<object>> = [];
 
@@ -153,8 +150,8 @@ describe("effectsPlugin", () => {
 			bus.emit("load", id);
 		}
 		await flush();
-		gc();
+		await settleGarbage();
 
-		expect(refs.filter((ref) => ref.deref()).length).toBe(0);
+		expect(aliveCount(refs)).toBe(0);
 	});
 });

@@ -1,3 +1,5 @@
+import v8 from "node:v8";
+import vm from "node:vm";
 import { type Module, modulePlugin } from "../actions";
 import { type BusOptions, type Context, createBus } from "../core/bus";
 import type { EventMap } from "../core/types";
@@ -64,3 +66,36 @@ export const createApp = <E extends EventMap = EventMap>(
 
 	return { bus, ...app };
 };
+
+// Node hands out `gc` to a script when asked for it at run time, so no flag is needed to run the tests
+const runGc = (): (() => void) => {
+	if (typeof globalThis.gc === "function") {
+		return globalThis.gc;
+	}
+	v8.setFlagsFromString("--expose-gc");
+	const found: unknown = vm.runInNewContext("gc");
+	if (typeof found !== "function") {
+		throw new Error(
+			"a leak test needs a garbage collector, and Node did not give one",
+		);
+	}
+
+	return found as () => void;
+};
+
+/**
+ * Lets the engine collect what nothing holds any more. Garbage is not gone at the first
+ * try, so it waits a tick and collects a few times. Throws when there is no `gc`: a leak
+ * test that cannot collect would pass for nothing.
+ */
+export const settleGarbage = async () => {
+	const collect = runGc();
+	for (let round = 0; round < 5; round++) {
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		collect();
+	}
+};
+
+/** How many of the objects that `refs` point to are still alive. */
+export const aliveCount = (refs: ReadonlyArray<WeakRef<object>>) =>
+	refs.filter((ref) => ref.deref() !== void 0).length;
