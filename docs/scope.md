@@ -11,27 +11,29 @@ You give a scope to the thing that uses it. A call can replace it. Nothing else 
 Scopes are a plugin, so a bus that does not use them pays nothing.
 
 ```js
+// bus.js
 import { createBus } from "nanoeffects";
 import { scopePlugin } from "nanoeffects/scope";
 
 // scopePlugin — makes the scopes below work on this bus; returns the same bus
-const bus = createBus().use(scopePlugin());
+export const bus = createBus().use(scopePlugin());
 ```
+
+The bus is in one file and the commands and actions in files named after their domain, so the next example imports `bus` from here. Each section after it keeps its own `bus.js` and domain file, as if it were an app of its own.
 
 - Without `scopePlugin` a scope is **ignored**: no error and no warning. If a field is missing from `ctx`, check this first.
 - Use it **after** `effectsPlugin` (an effect it adds later would be assigned over an effect of a scope with the same name) and **before** `modulePlugin` (it mounts the modules when it is used). `contextPlugin` and `createBus({ context })` can come in any order: a scope wins over them.
 
 ## Give a command its own fields
 
-```js
-import { createBus } from "nanoeffects";
-import { createCommand } from "nanoeffects/actions";
-import { scopePlugin } from "nanoeffects/scope";
+<!-- docs-check: continue -->
 
-const bus = createBus().use(scopePlugin());
+```js
+// user.js
+import { createCommand } from "nanoeffects/actions";
 
 // createCommand — third argument is the scope of this command
-const getUser = createCommand(
+export const getUser = createCommand(
   "user/get",
   (id, { api, cache }) => {
     // api and cache are on ctx for this command only
@@ -39,6 +41,11 @@ const getUser = createCommand(
   },
   { api, cache: new Map() },
 );
+```
+
+```js
+import { bus } from "./bus";
+import { getUser } from "./user";
 
 const user = await bus.emit(getUser("1")); // the handler has api and cache
 ```
@@ -50,18 +57,15 @@ The listeners of `"user/get"` get the same fields when the command is emitted, b
 An effect is a function with `{ signal }` as its first parameter. In `$effects` it is bound to the task, so it stops with the task.
 
 ```js
-import { createBus } from "nanoeffects";
+// feed.js
 import { createCommand } from "nanoeffects/actions";
 import { delay, race } from "nanoeffects/effects";
-import { scopePlugin } from "nanoeffects/scope";
-
-const bus = createBus().use(scopePlugin());
 
 // your own effect: first parameter is the task (only its signal is used)
 const fetchJson = (ctx, url) =>
   fetch(url, { signal: ctx.signal }).then((response) => response.json());
 
-const loadFeed = createCommand(
+export const loadFeed = createCommand(
   "feed/load",
   (url, { fetchJson, race, delay }) =>
     // race, delay, fetchJson — bound to this task: no ctx argument
@@ -72,6 +76,19 @@ const loadFeed = createCommand(
   // $effects — built-in and your own functions share one object
   { $effects: { fetchJson, race, delay } },
 );
+```
+
+```js
+// bus.js
+import { createBus } from "nanoeffects";
+import { scopePlugin } from "nanoeffects/scope";
+
+export const bus = createBus().use(scopePlugin());
+```
+
+```js
+import { bus } from "./bus";
+import { loadFeed } from "./feed";
 
 const result = await bus.emit(loadFeed("/feed"));
 ```
@@ -85,14 +102,27 @@ const result = await bus.emit(loadFeed("/feed"));
 The second argument of `emit` is a scope for the tasks of **that** call. It is the usual way to give a test a fake.
 
 ```js
+// bus.js
 import { createBus } from "nanoeffects";
-import { createCommand } from "nanoeffects/actions";
 import { scopePlugin } from "nanoeffects/scope";
 
-const bus = createBus().use(scopePlugin());
-const getUser = createCommand("user/get", (id, { api }) => api.getUser(id), {
-  api,
-});
+export const bus = createBus().use(scopePlugin());
+```
+
+```js
+// user.js
+import { createCommand } from "nanoeffects/actions";
+
+export const getUser = createCommand(
+  "user/get",
+  (id, { api }) => api.getUser(id),
+  { api },
+);
+```
+
+```js
+import { bus } from "./bus";
+import { getUser } from "./user";
 
 // the real api for this call
 await bus.emit(getUser("1"));
@@ -112,23 +142,30 @@ Rules for the second argument:
 ## Give an action, a job or a module its own fields
 
 ```js
-import { createAction, createJob, createModule } from "nanoeffects/actions";
+// user.js
+import { createAction, createJob } from "nanoeffects/actions";
 
 // createAction — the listeners of this action's calls get the fields
-const userLoaded = createAction("user/loaded", { store });
+export const userLoaded = createAction("user/loaded", { store });
 
 // createJob — the scope is the fourth argument, after the outcomes;
 // the handler and the listeners of the outcome get its fields
-const loadUser = createJob(
+export const loadUser = createJob(
   "user/load",
   fetchUser,
   { success: userLoaded, fail: "user/failed" },
   { logger },
 );
+```
+
+```js
+// audit-module.js
+import { createModule } from "nanoeffects/actions";
+import { userLoaded } from "./user";
 
 // createModule — third argument; everything the module owns gets the fields:
 // m.on listeners, m.handle handlers, m.spawn tasks
-const auditModule = createModule(
+export const auditModule = createModule(
   "audit",
   (m) => {
     m.on(userLoaded, (user, { logger }) => logger.info(user.id));
@@ -161,13 +198,14 @@ In `$effects` a function loses its first parameter, and TypeScript cannot keep a
 `effect(fn)`: mark the function where you declare it, then put it in the scope like any other value. No annotation, so a JavaScript editor shows the exact hint too.
 
 ```js
+// pick.js
 import { createCommand } from "nanoeffects/actions";
 import { effect } from "nanoeffects/scope";
 
 // effect — marks the function, so a scope binds it to the task; the editor keeps its generic
 const first = effect((ctx, items) => items[0]);
 
-const pick = createCommand("pick", (items, { first }) => first(items), {
+export const pick = createCommand("pick", (items, { first }) => first(items), {
   first, // a plain key of the scope, not an entry of `$effects`
 });
 ```

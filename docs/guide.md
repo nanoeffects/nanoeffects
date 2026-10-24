@@ -225,22 +225,42 @@ More in [Effects](effects.md).
 
 `emit` and `on` take a string, an object `{ type, payload }` (a Redux action fits), or a function with a `type` property (action creators and commands).
 
-```js
-import { createBus } from "nanoeffects";
-import { createAction, createCommand } from "nanoeffects/actions";
+From here on the bus is kept in one file and the events in files named after their domain (`move.js`, `math.js`), as in a real app: the events can then be imported anywhere without importing the bus.
 
-const bus = createBus();
+```js
+// bus.js
+import { createBus } from "nanoeffects";
+
+export const bus = createBus();
+```
+
+```js
+// move.js
+import { createAction } from "nanoeffects/actions";
+
+// createAction — names an event; calling it builds { type, payload }
+export const moved = createAction("moved");
+```
+
+```js
+// math.js
+import { createCommand } from "nanoeffects/actions";
+
+// createCommand — like an action, but emit runs a handler and returns its result
+export const double = createCommand("math/double", (value) => value * 2);
+```
+
+```js
+import { bus } from "./bus";
+import { moved } from "./move";
+import { double } from "./math";
 
 bus.emit("moved", { x: 1, y: 2 });
 bus.emit({ type: "moved", payload: { x: 2, y: 2 } });
 
-// createAction — names an event; calling it builds { type, payload }
-const moved = createAction("moved");
 bus.emit(moved({ x: 3, y: 2 }));
 bus.on(moved, ({ x }) => console.log(x));
 
-// createCommand — like an action, but emit runs a handler and returns its result
-const double = createCommand("math/double", (value) => value * 2);
 bus.emit(double(21)); // 42
 ```
 
@@ -251,14 +271,25 @@ Use strings for the plain case. Use objects when other code already builds actio
 A command may carry its handler, or only be a **contract** (name + types) with the work registered elsewhere — another file, or a fake in a test.
 
 ```js
+// user.js
+import { createCommand } from "nanoeffects/actions";
+
+export const getUser = createCommand("user/get"); // contract — no handler yet
+```
+
+```js
+// bus.js
 import { createBus } from "nanoeffects";
-import { createCommand, commandsPlugin } from "nanoeffects/actions";
+import { commandsPlugin } from "nanoeffects/actions";
 
-const getUser = createCommand("user/get"); // contract — no handler yet
-
-const bus = createBus();
+export const bus = createBus();
 // commandsPlugin — registry of handlers for this bus
-const commands = bus.use(commandsPlugin());
+export const commands = bus.use(commandsPlugin());
+```
+
+```js
+import { bus, commands } from "./bus";
+import { getUser } from "./user";
 
 bus.emit(getUser("1")); // throws: No handler for command "user/get"
 
@@ -279,16 +310,27 @@ Each bus has its own registry. A [module](#9-mount-a-domain-as-a-module) can reg
 **What you do.** `createModule(name, setup)` describes the feature. `bus.use(modulePlugin([…]))` mounts it. `app.unmount(module)` undoes everything the setup registered.
 
 ```js
-import { createBus } from "nanoeffects";
-import { createCommand, createModule, modulePlugin } from "nanoeffects/actions";
+// user.js
+import { createCommand } from "nanoeffects/actions";
 
-const getUser = createCommand("user/get"); // contract — no handler yet
-const double = createCommand("math/double", (value) => value * 2); // carries its handler
+export const getUser = createCommand("user/get"); // contract — no handler yet
+```
 
-const bus = createBus();
+```js
+// math.js
+import { createCommand } from "nanoeffects/actions";
+
+export const double = createCommand("math/double", (value) => value * 2); // carries its handler
+```
+
+```js
+// greeting-module.js
+import { createModule } from "nanoeffects/actions";
+import { getUser } from "./user";
+import { double } from "./math";
 
 // createModule — one feature; name is stable for hot reload replace
-const greeting = createModule("greeting", (m) => {
+export const greeting = createModule("greeting", (m) => {
   // m.on — like bus.on, removed automatically on unmount
   m.on("greet", (name) => console.log(`hello ${name}`));
 
@@ -298,9 +340,23 @@ const greeting = createModule("greeting", (m) => {
   // m.use — register a command that already has a handler, for this module’s life
   m.use(double);
 });
+```
 
+```js
+// bus.js
+import { createBus } from "nanoeffects";
+import { modulePlugin } from "nanoeffects/actions";
+import { greeting } from "./greeting-module";
+
+export const bus = createBus();
 // modulePlugin — mount modules on the bus
-const app = bus.use(modulePlugin([greeting]));
+export const app = bus.use(modulePlugin([greeting]));
+```
+
+```js
+import { app, bus } from "./bus";
+import { greeting } from "./greeting-module";
+
 bus.emit("greet", "Ada"); // hello Ada
 app.unmount(greeting); // greet listener and getUser binding are gone
 ```

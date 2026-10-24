@@ -7,16 +7,20 @@ Optional. A plugin adds one thing to a bus: fields on `ctx`, a method, a registr
 A plugin is a function of the bus. `bus.use(plugin)` calls it with the bus and returns whatever the plugin returns.
 
 ```js
-import { createBus } from "nanoeffects";
-
+// count-plugin.js
 // your own plugin: a function of the bus that returns what you want back
-const countPlugin = (bus) => {
+export const countPlugin = (bus) => {
   let count = 0;
   const unbind = bus.on("*", () => {
     count += 1;
   });
   return { count: () => count, stop: unbind };
 };
+```
+
+```js
+import { createBus } from "nanoeffects";
+import { countPlugin } from "./count-plugin";
 
 const bus = createBus();
 // use — calls countPlugin(bus) and returns its result
@@ -46,9 +50,10 @@ The bus keeps no list of plugins. A plugin that was used cannot be taken out by 
 
 ## Put them together
 
-One bus with every plugin that does not need React. The order is explained in the next section.
+One bus with every plugin that does not need React, in a file of its own. The events of the app stay in other files. The order is explained in the next section.
 
 ```js
+// plugins-bus.js
 import { contextPlugin, createBus } from "nanoeffects";
 import {
   commandsPlugin,
@@ -59,20 +64,20 @@ import { devPlugin } from "nanoeffects/dev";
 import { all, effectsPlugin, race } from "nanoeffects/effects";
 import { scopePlugin } from "nanoeffects/scope";
 
-const bus = createBus()
+export const bus = createBus()
   .use(contextPlugin({ store })) // ctx.store on every task
   .use(effectsPlugin({ race, all })) // ctx.race and ctx.all, bound to the task
   .use(scopePlugin()) // scopes for commands, actions, jobs, modules and emit
   .use(emitterPlugin()); // bus.emitter(creator)
 
 // commandsPlugin — the registry of command handlers; keep it to bind handlers later
-const commands = bus.use(commandsPlugin());
+export const commands = bus.use(commandsPlugin());
 
 // modulePlugin — mounts userModule now; keep app to mount and unmount later
-const app = bus.use(modulePlugin([userModule]));
+export const app = bus.use(modulePlugin([userModule]));
 
 // devPlugin — reports leaks and modules while you develop; keep disconnect to remove it
-const disconnect = bus.use(devPlugin({ app }));
+export const disconnect = bus.use(devPlugin({ app }));
 ```
 
 ## Follow the order

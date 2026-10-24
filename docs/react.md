@@ -16,18 +16,25 @@ Each has a policy or an effect: `latest`, `leading`, `retry`. They live in one p
 
 ## Wire the bus once
 
-Put the bus and its handlers in their own file. Create it once, outside any component: a bus created in the body of a component would be a new bus, without subscribers, on every render.
+Keep the bus in a file of its own, and the handlers of the form in another. Create the bus once, outside any component: a bus created in the body of a component would be a new bus, without subscribers, on every render.
+
+```js
+// bus.js
+import { createBus } from "nanoeffects";
+
+export const bus = createBus(); // the bus: created once, at the top of the module
+```
+
+The handlers know the bus and the bus knows nothing of them. They register when `registration.js` is imported, once, when the app starts:
 
 ```js
 // registration.js
-import { createBus } from "nanoeffects";
 import { retry } from "nanoeffects/effects";
 import { debounce, latest, leading } from "nanoeffects/policies";
+import { bus } from "./bus";
 
 // fetch rejects with a TypeError when the network fails; an HTTP error is a plain Error
 const isNetworkError = (error) => error instanceof TypeError;
-
-export const bus = createBus(); // the bus: created once, at the top of the module
 
 // debounce — wait 300 ms of quiet; latest — abort the check of the previous name
 bus.on(
@@ -66,12 +73,15 @@ The handlers know nothing about React. A test can emit `username/typed` and read
 
 ## Connect the form
 
+<!-- docs-check: continue -->
+
 The component keeps what it shows in `useState`. It subscribes in `useEffect` and emits events from its handlers. `bus.on` returns the function that unsubscribes; returning it from the effect removes the listener on unmount.
 
 ```jsx
 // SignUpForm.jsx
 import { useEffect, useState } from "react";
-import { bus } from "./registration"; // the bus of the previous snippet
+import { bus } from "./bus"; // the bus of the previous snippet
+import "./registration"; // registers the handlers; the app does this once, when it starts
 
 export function SignUpForm() {
   const [name, setName] = useState("");
@@ -133,6 +143,8 @@ The `disabled` button is only for the look. The form stays correct without it: `
 In development, React StrictMode runs the effect twice (subscribe, unsubscribe, subscribe). That is safe here, because the cleanup removes exactly what the effect added.
 
 ## Stop running work when the form closes
+
+<!-- docs-check: continue -->
 
 Unsubscribing stops the component from hearing results, but a request that has started keeps running. To cancel it, the component emits `form/closed` when it unmounts, and each handler that should stop listens for it with `ctx.on`:
 

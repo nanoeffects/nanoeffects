@@ -8,14 +8,28 @@ Recipe without a UI framework: [`examples/modules.ts`](../examples/modules.ts).
 
 ## Return a value from `emit` with a command
 
+The bus lives in one file and its events in another, so any module can import both without a cycle.
+
 ```js
+// bus.js
 import { createBus } from "nanoeffects";
+
+// createBus — one bus for the app
+export const bus = createBus();
+```
+
+```js
+// math.js
 import { createCommand } from "nanoeffects/actions";
 
-const bus = createBus();
-
 // createCommand — emit runs the handler and returns its result
-const double = createCommand("math/double", (value) => value * 2);
+export const double = createCommand("math/double", (value) => value * 2);
+```
+
+```js
+import { bus } from "./bus";
+import { double } from "./math";
+
 bus.emit(double(21)); // 42
 ```
 
@@ -24,26 +38,29 @@ bus.emit(double(21)); // 42
 `nanoeffects/actions` has the pieces to name what a bus does, apart from the code that does it.
 
 ```js
+// user.js
 import { createAction, createCommand, createJob } from "nanoeffects/actions";
 
 // createAction — event with a payload (like RTK createAction)
-const userLoaded = createAction("user/loaded");
-const loadFailed = createAction("user/failed");
+export const userLoaded = createAction("user/loaded");
+export const loadFailed = createAction("user/failed");
 
 // createCommand with a handler — emit returns what the handler returns
-const getUser = createCommand("user/get", (id, { signal }) => {
+export const getUser = createCommand("user/get", (id, { signal }) => {
   return fetchUser(id, { signal });
 });
 
 // createCommand without a handler — a contract; register the work elsewhere
-const sendMail = createCommand("mail/send");
+export const sendMail = createCommand("mail/send");
 
 // createJob — command that also emits success / fail actions
-const loadUser = createJob("user/load", fetchUser, {
+export const loadUser = createJob("user/load", fetchUser, {
   success: userLoaded,
   fail: "user/failed",
 });
 ```
+
+These are the events of the user domain, in a file of their own (`user.js`). The bus is made in another file (`bus.js` below), and neither imports the other.
 
 ### Actions
 
@@ -65,22 +82,22 @@ Calling a command builds `{ type, payload }` like `createAction`. `bus.emit(comm
 **Where handlers are registered.** The command may carry a handler. The bus can also take handlers from a registry (`commandsPlugin`). A handler bound there wins over the command’s own. Each bus (each test) has its own registry.
 
 ```js
+// bus.js
 import { createBus } from "nanoeffects";
-import {
-  bindHandler,
-  commandsPlugin,
-  createCommand,
-} from "nanoeffects/actions";
+import { bindHandler, commandsPlugin } from "nanoeffects/actions";
+import { sendMail } from "./user";
 
-const sendMail = createCommand("mail/send");
-const getUser = createCommand("user/get");
-
-const bus = createBus();
+export const bus = createBus();
 
 // commandsPlugin — registry of handlers for this bus
-const commands = bus.use(
+export const commands = bus.use(
   commandsPlugin([bindHandler(sendMail, smtpSend)]),
 );
+```
+
+```js
+import { commands } from "./bus";
+import { getUser } from "./user";
 
 // later, e.g. in a test — latest binding wins
 const unbind = commands.handle(getUser, async () => fakeUser);
@@ -112,18 +129,20 @@ The registry lives in `nanoeffects/actions`, so a bus without one carries none o
 `bus.use(modulePlugin(modules))` assembles an app from modules and returns `mount`, `unmount`, `isMounted`, `dispose`, `commands`, and `createModule`: the same as `createModule` below, with the context fields of the bus typed (see [TypeScript](typescript.md)).
 
 ```js
-import { createBus } from "nanoeffects";
-import {
-  createCommand,
-  createModule,
-  modulePlugin,
-} from "nanoeffects/actions";
+// user.js
+import { createCommand } from "nanoeffects/actions";
 
-const getUser = createCommand("user/get");
-const saveUser = createCommand("user/save", persistUser);
+export const getUser = createCommand("user/get");
+export const saveUser = createCommand("user/save", persistUser);
+```
+
+```js
+// user-module.js
+import { createModule } from "nanoeffects/actions";
+import { getUser, saveUser } from "./user";
 
 // createModule — one domain; unmount undoes everything below
-const userModule = createModule("user", (m) => {
+export const userModule = createModule("user", (m) => {
   m.handle(getUser, fetchUser);
   m.use(saveUser, authModule);
   m.on("login", (user, ctx) => {
@@ -133,10 +152,22 @@ const userModule = createModule("user", (m) => {
     /* background work; ends when the module unmounts */
   });
 });
+```
 
-const bus = createBus();
+```js
+// bus.js
+import { createBus } from "nanoeffects";
+import { modulePlugin } from "nanoeffects/actions";
+import { userModule } from "./user-module";
+
+export const bus = createBus();
 // modulePlugin — mount modules on the bus
-const app = bus.use(modulePlugin([userModule]));
+export const app = bus.use(modulePlugin([userModule]));
+```
+
+```js
+import { app } from "./bus";
+import { getUser } from "./user";
 
 const unmount = app.mount(orderModule); // later, e.g. after a lazy import
 app.commands.handle(getUser, fakeUser); // in a test
@@ -158,17 +189,29 @@ app.dispose(); // unmounts every module
 A command can need its own client, a module its own logger. Pass a scope, a plain object whose keys go on `ctx` (`$effects` binds functions to the task), as the last argument of `createCommand`, `createAction`, `createModule` and `createJob`, and turn it on with `scopePlugin`:
 
 ```js
+// bus.js
 import { createBus } from "nanoeffects";
-import { createCommand } from "nanoeffects/actions";
 import { scopePlugin } from "nanoeffects/scope";
 
 // scopePlugin — makes the scope of a command work on this bus
-const bus = createBus().use(scopePlugin());
+export const bus = createBus().use(scopePlugin());
+```
+
+```js
+// user.js
+import { createCommand } from "nanoeffects/actions";
 
 // the third argument — fields of this command only
-const getUser = createCommand("user/get", (id, { api }) => api.getUser(id), {
-  api,
-});
+export const getUser = createCommand(
+  "user/get",
+  (id, { api }) => api.getUser(id),
+  { api },
+);
+```
+
+```js
+import { bus } from "./bus";
+import { getUser } from "./user";
 
 // a test replaces them for one call
 const fakeApi = { getUser: async (id) => ({ id, name: "test" }) };

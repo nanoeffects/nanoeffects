@@ -28,23 +28,40 @@ Redux’s `dispatch` → reducers updates **state**. It does not give you first-
 Skip this section if you are not already on Redux. The recipe as a file, type-checked with the project: [`examples/redux.ts`](../examples/redux.ts).
 
 ```js
-import { configureStore, createAction } from "@reduxjs/toolkit";
+// bus.js
 import { createBus } from "nanoeffects";
-import { latest } from "nanoeffects/policies";
+
+export const bus = createBus(); // the bus of your app; it can exist before the store
+```
+
+```js
+// user.js
+import { createAction } from "@reduxjs/toolkit";
+
+export const userRequested = createAction("user/requested"); // RTK
+export const userLoaded = createAction("user/loaded");
+```
+
+```js
+// store.js
+import { configureStore } from "@reduxjs/toolkit";
 import { createEffectsMiddleware } from "nanoeffects/redux";
-
-const userRequested = createAction("user/requested"); // RTK
-const userLoaded = createAction("user/loaded");
-
-const bus = createBus(); // the bus of your app; it can exist before the store
+import { bus } from "./bus";
 
 // createEffectsMiddleware — actions reach the bus after reducers; tasks get ctx.store
 const effects = createEffectsMiddleware(bus);
 
-const store = configureStore({
+export const store = configureStore({
   reducer,
   middleware: (getDefault) => getDefault().concat(effects),
 });
+```
+
+```js
+// user-handlers.js
+import { latest } from "nanoeffects/policies";
+import { bus } from "./bus";
+import { userLoaded, userRequested } from "./user";
 
 // latest — a newer run aborts the older one
 bus.on(
@@ -101,22 +118,30 @@ The example is a search box. The store holds two fields: `query`, which the user
 
 Writing `(query) => bus.emit(queryChanged(query))` for every subscription repeats the bus and the action. `emitterPlugin` adds `bus.emitter(action)`: it returns that callback for you. The action stays a plain `createAction`, so `bus.emit(queryChanged("nano"))` and `bus.on(queryChanged, …)` work as before.
 
-The bus is the same for every store below. Create it once; each subsection imports it.
+The bus, the events and the handlers are the same for every store below, each in a file of its own: the bus knows no events, and the events know no bus. Each subsection imports them.
 
 ```js
-// search-bus.js
+// bus.js
 import { createBus } from "nanoeffects";
-import { createAction, emitterPlugin } from "nanoeffects/actions";
-import { debounce, latest } from "nanoeffects/policies";
+import { emitterPlugin } from "nanoeffects/actions";
 
 export const bus = createBus().use(emitterPlugin()); // adds bus.emitter; returns the same bus
+```
+
+```js
+// search.js
+import { createAction } from "nanoeffects/actions";
 
 // createAction — plain action creators; calling one only builds { type, payload }
 export const queryChanged = createAction("search/queryChanged");
 export const searchLoaded = createAction("search/loaded");
+```
 
-// bus.emitter: a callback (query) => bus.emit(queryChanged(query))
-export const emitQueryChanged = bus.emitter(queryChanged);
+```js
+// search-handlers.js
+import { debounce, latest } from "nanoeffects/policies";
+import { bus } from "./bus";
+import { queryChanged, searchLoaded } from "./search";
 
 // debounce — wait 300 ms of quiet; latest — abort the search of the previous query
 bus.on(
@@ -140,7 +165,11 @@ Write `results` and never the field you watch: a handler that changed `query` wo
 
 ```js
 import { atom } from "nanostores";
-import { bus, emitQueryChanged, searchLoaded } from "./search-bus";
+import { bus } from "./bus";
+import { queryChanged, searchLoaded } from "./search";
+
+// bus.emitter: a callback (query) => bus.emit(queryChanged(query))
+const emitQueryChanged = bus.emitter(queryChanged);
 
 const $query = atom("");
 const $results = atom([]);
@@ -160,7 +189,11 @@ const stopResults = bus.on(searchLoaded, (items) => {
 
 ```js
 import { observable, reaction, runInAction } from "mobx";
-import { bus, emitQueryChanged, searchLoaded } from "./search-bus";
+import { bus } from "./bus";
+import { queryChanged, searchLoaded } from "./search";
+
+// bus.emitter: a callback (query) => bus.emit(queryChanged(query))
+const emitQueryChanged = bus.emitter(queryChanged);
 
 const search = observable({ query: "", results: [] });
 
@@ -182,7 +215,11 @@ const stopResults = bus.on(searchLoaded, (items) => {
 ```js
 import { proxy } from "valtio";
 import { subscribeKey } from "valtio/utils";
-import { bus, emitQueryChanged, searchLoaded } from "./search-bus";
+import { bus } from "./bus";
+import { queryChanged, searchLoaded } from "./search";
+
+// bus.emitter: a callback (query) => bus.emit(queryChanged(query))
+const emitQueryChanged = bus.emitter(queryChanged);
 
 const state = proxy({ query: "", results: [] });
 
@@ -201,7 +238,11 @@ const stopResults = bus.on(searchLoaded, (items) => {
 
 ```js
 import { atom, createStore } from "jotai";
-import { bus, emitQueryChanged, searchLoaded } from "./search-bus";
+import { bus } from "./bus";
+import { queryChanged, searchLoaded } from "./search";
+
+// bus.emitter: a callback (query) => bus.emit(queryChanged(query))
+const emitQueryChanged = bus.emitter(queryChanged);
 
 const queryAtom = atom("");
 const resultsAtom = atom([]);
@@ -223,7 +264,11 @@ With `subscribeWithSelector` the selector picks the field, and the callback is c
 ```js
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
-import { bus, emitQueryChanged, searchLoaded } from "./search-bus";
+import { bus } from "./bus";
+import { queryChanged, searchLoaded } from "./search";
+
+// bus.emitter: a callback (query) => bus.emit(queryChanged(query))
+const emitQueryChanged = bus.emitter(queryChanged);
 
 const useSearchStore = create(
   subscribeWithSelector(() => ({ query: "", results: [] })),
@@ -245,7 +290,11 @@ Pinia (the store of Vue) keeps reactive objects, and its `$subscribe` reports ev
 ```js
 import { watch } from "vue";
 import { defineStore } from "pinia";
-import { bus, emitQueryChanged, searchLoaded } from "./search-bus";
+import { bus } from "./bus";
+import { queryChanged, searchLoaded } from "./search";
+
+// bus.emitter: a callback (query) => bus.emit(queryChanged(query))
+const emitQueryChanged = bus.emitter(queryChanged);
 
 // defineStore — Pinia: the state of one store
 const useSearch = defineStore("search", {
@@ -265,6 +314,8 @@ const stopResults = bus.on(searchLoaded, (items) => {
 
 ### React: sharing a value across components
 
+<!-- docs-check: new -->
+
 A value of your UI (a query, a filter, a name) often has two jobs. Several components read it and re-render when it changes, and the bus must hear about each change to start a handler. The recipes below differ in where the value lives. Pick the first one unless a handler must read the value.
 
 | The value lives in | Use when |
@@ -277,20 +328,30 @@ A value of your UI (a query, a filter, a name) often has two jobs. Several compo
 
 Writing `useEffect(() => bus.emit(...), [value])` looks enough, but it emits on mount, emits twice on mount under StrictMode, and re-runs when the emit function is new on every render. `useEmitter` from `nanoeffects/react` avoids all three. It emits after a render commits with a changed value, never on mount, and compares with `Object.is`. You need React 18 or newer; no other entry of the package uses React.
 
-First the bus. `reactPlugin()` adds `bus.useEmitter`, and destructuring it gives a plain hook that you export:
+First the bus, the events and the handlers, each in its own file. `reactPlugin()` adds `bus.useEmitter`, and destructuring it gives a plain hook that you export from the bus file:
 
 ```js
-// react-search-bus.js
+// bus.js
 import { createBus } from "nanoeffects";
-import { createAction } from "nanoeffects/actions";
-import { debounce, latest } from "nanoeffects/policies";
 import { reactPlugin } from "nanoeffects/react";
 
 export const bus = createBus().use(reactPlugin()); // the bus; reactPlugin adds bus.useEmitter
 export const { useEmitter } = bus; // a free hook: it does not read `this`
+```
+
+```js
+// search.js
+import { createAction } from "nanoeffects/actions";
 
 export const queryChanged = createAction("query/changed");
 export const searchLoaded = createAction("search/loaded");
+```
+
+```js
+// search-handlers.js
+import { debounce, latest } from "nanoeffects/policies";
+import { bus } from "./bus";
+import { queryChanged, searchLoaded } from "./search";
 
 // debounce — wait 300 ms of quiet; latest — a newer query aborts the older request
 bus.on(
@@ -310,7 +371,8 @@ Then the provider. It holds the state, calls `useEmitter` once, and listens for 
 ```jsx
 // SearchProvider.jsx
 import { createContext, useContext, useEffect, useState } from "react";
-import { bus, queryChanged, searchLoaded, useEmitter } from "./react-search-bus";
+import { bus, useEmitter } from "./bus";
+import { queryChanged, searchLoaded } from "./search";
 
 const SearchContext = createContext(null);
 
@@ -367,6 +429,8 @@ Two limits to know:
 
 A context is not visible to a bus handler. When a handler needs the current value, keep the value outside React. About twelve lines of `useSyncExternalStore` do it, and `contextPlugin` hands it to every handler as `ctx.query`:
 
+<!-- docs-check: new -->
+
 ```jsx
 // value-store.js
 import { useSyncExternalStore } from "react";
@@ -396,19 +460,36 @@ export function createValue(initial) {
 export const useValue = (store) => useSyncExternalStore(store.subscribe, store.get);
 ```
 
-```jsx
-// search-value.jsx
-import { createBus, contextPlugin } from "nanoeffects";
-import { createAction, emitterPlugin } from "nanoeffects/actions";
-import { createValue, useValue } from "./value-store";
+```js
+// query.js
+import { createValue } from "./value-store";
 
-const query = createValue("");
+export const query = createValue("");
+```
+
+```js
+// bus.js
+import { contextPlugin, createBus } from "nanoeffects";
+import { emitterPlugin } from "nanoeffects/actions";
+import { query } from "./query";
 
 // emitterPlugin adds bus.emitter; contextPlugin puts `query` on every task as ctx.query
-const bus = createBus().use(emitterPlugin()).use(contextPlugin({ query }));
+export const bus = createBus().use(emitterPlugin()).use(contextPlugin({ query }));
+```
 
-const queryChanged = createAction("query/changed");
-const refreshed = createAction("search/refreshed");
+```js
+// search.js
+import { createAction } from "nanoeffects/actions";
+
+export const queryChanged = createAction("query/changed");
+export const refreshed = createAction("search/refreshed");
+```
+
+```js
+// search-handlers.js
+import { bus } from "./bus";
+import { query } from "./query";
+import { queryChanged, refreshed } from "./search";
 
 // store → bus: bus.emitter turns the action into a callback; one place, any number of setters
 const emitQueryChanged = bus.emitter(queryChanged);
@@ -419,6 +500,12 @@ bus.on(refreshed, async (_payload, ctx) => {
   const items = await api.search(ctx.query.get(), { signal: ctx.signal });
   console.log(items.length);
 });
+```
+
+```jsx
+// SearchBox.jsx
+import { query } from "./query";
+import { useValue } from "./value-store";
 
 // any number of components read and write the same value
 export function SearchBox() {
@@ -431,16 +518,31 @@ export function SearchBox() {
 
 With Nanostores, Jotai or Zustand the value already lives outside React and has a subscription. Connect it to the bus once, as in [Nanostores](#nanostores), and read it in components with the library's own hook:
 
+<!-- docs-check: new -->
+
+```js
+// bus.js
+import { createBus } from "nanoeffects";
+import { emitterPlugin } from "nanoeffects/actions";
+
+export const bus = createBus().use(emitterPlugin()); // adds bus.emitter
+```
+
+```js
+// search.js
+import { createAction } from "nanoeffects/actions";
+
+export const queryChanged = createAction("query/changed");
+```
+
 ```jsx
-// search-atom.jsx
+// SearchBox.jsx
 import { atom } from "nanostores";
 import { useStore } from "@nanostores/react";
-import { createBus } from "nanoeffects";
-import { createAction, emitterPlugin } from "nanoeffects/actions";
+import { bus } from "./bus";
+import { queryChanged } from "./search";
 
-const bus = createBus().use(emitterPlugin()); // adds bus.emitter
 const $query = atom("");
-const queryChanged = createAction("query/changed");
 
 // listen, not subscribe: listen skips the call with the current value at start
 $query.listen(bus.emitter(queryChanged));
@@ -455,16 +557,28 @@ export function SearchBox() {
 
 React may run a reducer more than once for one dispatch (twice in StrictMode), so a `bus.emit` inside it fires twice. Dispatch to the reducer first, then emit, from one helper. Or keep the state in a reducer and pass it to `useEmitter` like any other value.
 
-```jsx
-// search-reducer.jsx
-import { useReducer } from "react";
+<!-- docs-check: new -->
+
+```js
+// bus.js
 import { createBus } from "nanoeffects";
+
+export const bus = createBus(); // the bus: created once
+```
+
+```js
+// search.js
 import { createAction } from "nanoeffects/actions";
 
-const bus = createBus(); // the bus: created once
+export const queryChanged = createAction("query/changed");
+export const queryCleared = createAction("query/cleared");
+```
 
-const queryChanged = createAction("query/changed");
-const queryCleared = createAction("query/cleared");
+```jsx
+// Search.jsx
+import { useReducer } from "react";
+import { bus } from "./bus";
+import { queryChanged, queryCleared } from "./search";
 
 function reducer(state, action) {
   if (queryChanged.match(action)) {

@@ -90,16 +90,27 @@ Keep RxJS where a stream is how you think, and let events cross to the bus in ei
 
 **RxJS to bus.** `bus.emitter(action)` returns a callback that emits the action, so it is the argument of `subscribe` ([Stores](stores.md) has the plugin).
 
+```js
+// bus.js
+import { createBus } from "nanoeffects";
+import { emitterPlugin } from "nanoeffects/actions";
+
+export const bus = createBus().use(emitterPlugin()); // adds bus.emitter
+```
+
+```js
+// filters.js
+import { createAction } from "nanoeffects/actions";
+
+export const filtersChanged = createAction("filters/changed"); // a plain action creator
+```
+
 <!-- docs-check: skip - needs rxjs, which the project does not depend on -->
 ```js
 import { combineLatest } from "rxjs";
-import { createBus } from "nanoeffects";
-import { createAction, emitterPlugin } from "nanoeffects/actions";
 import { latest } from "nanoeffects/policies";
-
-const bus = createBus().use(emitterPlugin()); // adds bus.emitter
-
-const filtersChanged = createAction("filters/changed"); // a plain action creator
+import { bus } from "./bus";
+import { filtersChanged } from "./filters";
 
 // RxJS: combine two streams into one value; nanoeffects does not do that
 const subscription = combineLatest([query$, category$]).subscribe(

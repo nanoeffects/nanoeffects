@@ -73,16 +73,26 @@ The store (`$items`) is not here. Keep it in Effector and update it from the `fo
 
 Without Effector, something must hold `$items`. A Zustand store does it: `create` replaces `createStore`, and `setState` replaces `.on(searchFx.doneData, …)`. The handler writes the result to the store directly, so the `found` event is not needed. A component reads the store with a selector, as `useUnit($items)` did.
 
-```jsx
-// search-zustand.jsx
-import { create } from "zustand";
+```js
+// bus.js
 import { createBus } from "nanoeffects";
-import { debounce, latest } from "nanoeffects/policies";
+
+export const bus = createBus(); // the bus: only the bus
+```
+
+```js
+// search-store.js
+import { create } from "zustand";
 
 // create — Zustand: the store replaces $items
-const useSearchStore = create(() => ({ items: [] }));
+export const useSearchStore = create(() => ({ items: [] }));
+```
 
-const bus = createBus(); // the bus: events and handlers
+```js
+// search-handlers.js
+import { debounce, latest } from "nanoeffects/policies";
+import { bus } from "./bus";
+import { useSearchStore } from "./search-store";
 
 // latest — a newer query aborts the request in flight; debounce — wait 300 ms of quiet
 const search = latest(async (query, { signal }) => {
@@ -91,6 +101,12 @@ const search = latest(async (query, { signal }) => {
 });
 
 bus.on("query-changed", debounce(300, search));
+```
+
+```jsx
+// Search.jsx
+import { bus } from "./bus";
+import { useSearchStore } from "./search-store";
 
 export function Search() {
   const items = useSearchStore((state) => state.items); // Zustand: a selector reads items
@@ -166,13 +182,18 @@ formSubmitted.watch((event) => {
 });
 ```
 
-The same form with nanoeffects. The values live in React state: nanoeffects holds none, and any store of [Stores](stores.md) works the same way. The effect becomes a handler of the submit event. The values travel in the event, so no `sample` and no `source` are needed. First the bus, in its own file:
+The same form with nanoeffects. The values live in React state: nanoeffects holds none, and any store of [Stores](stores.md) works the same way. The effect becomes a handler of the submit event. The values travel in the event, so no `sample` and no `source` are needed. First the bus and the handler, each in its own file:
 
 ```js
-// form-bus.js
+// bus.js
 import { createBus } from "nanoeffects";
 
-export const bus = createBus(); // the bus: events and their handlers
+export const bus = createBus(); // the bus: only the bus
+```
+
+```js
+// form-handlers.js
+import { bus } from "./bus";
 
 // bus.on — the job of sendFormFx: runs when the form is submitted
 bus.on("form/submitted", (values) => {
@@ -185,7 +206,8 @@ Then the form. `useState` does the work of `$form`, `fieldUpdate` and `prepend`;
 ```jsx
 // App.jsx
 import { useState } from "react";
-import { bus } from "./form-bus"; // the bus of the previous snippet
+import { bus } from "./bus"; // the bus of the previous snippet
+import "./form-handlers"; // registers the handler; the app does this once, when it starts
 
 function Field({ name, type, label, value, onChange }) {
   return (
@@ -255,16 +277,27 @@ Retrying a failed network request, and cancelling when the form closes, are in [
 
 Keep the Effector stores, and run the effects on the bus. A store calls the bus through `bus.emitter`, and the handler sends the result back as an event that the store listens to.
 
+```js
+// bus.js
+import { createBus } from "nanoeffects";
+import { emitterPlugin } from "nanoeffects/actions";
+
+export const bus = createBus().use(emitterPlugin()); // adds bus.emitter
+```
+
+```js
+// search.js
+import { createAction } from "nanoeffects/actions";
+
+export const queryChanged = createAction("query/changed"); // a plain action creator
+```
+
 <!-- docs-check: skip - needs effector, which the project does not depend on -->
 ```js
 import { createEvent, createStore } from "effector";
-import { createBus } from "nanoeffects";
-import { createAction, emitterPlugin } from "nanoeffects/actions";
 import { latest } from "nanoeffects/policies";
-
-const bus = createBus().use(emitterPlugin()); // adds bus.emitter
-
-const queryChanged = createAction("query/changed"); // a plain action creator
+import { bus } from "./bus";
+import { queryChanged } from "./search";
 
 const found = createEvent(); // Effector: the result comes back as an event
 const $items = createStore([]).on(found, (_, items) => items);
