@@ -107,9 +107,12 @@ export const effectsPlugin =
 		bus.addContext = (ctx) => {
 			previous?.(ctx);
 			for (const [key, effect] of entries) {
-				Object.assign(ctx, {
-					[key]: (...args: unknown[]) => effect(ctx, ...args),
-				});
+				// a field that is there stays (a scope put it), so the order of the plugins does not matter
+				if (!(key in ctx)) {
+					Object.assign(ctx, {
+						[key]: (...args: unknown[]) => effect(ctx, ...args),
+					});
+				}
 			}
 		};
 

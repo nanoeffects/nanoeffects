@@ -124,6 +124,25 @@ describe("effectsPlugin", () => {
 		expect(seen).toEqual([false, "function"]);
 	});
 
+	it("does not replace a field that the context already has", () => {
+		const bus = createBus<{ load: string }>();
+		const own = () => "own";
+		const previous = bus.addContext;
+		bus.addContext = (ctx) => {
+			previous?.(ctx);
+			Object.assign(ctx, { delay: own });
+		};
+		const withEffects = bus.use(effectsPlugin({ delay, race }));
+		const seen: unknown[] = [];
+
+		withEffects.on("load", (_, ctx) => {
+			seen.push(Object.is(ctx.delay, own), typeof ctx.race);
+		});
+		withEffects.emit("load", "x");
+
+		expect(seen).toEqual([true, "function"]);
+	});
+
 	it("two effectsPlugin calls add up", () => {
 		const bus = createBus<{ load: string }>()
 			.use(effectsPlugin({ race }))

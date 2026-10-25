@@ -363,7 +363,7 @@ describe("scopePlugin", () => {
 		});
 	});
 
-	it("scopePlugin before effectsPlugin loses the effect it shares a name with", async () => {
+	it("scopePlugin before effectsPlugin keeps the effect it shares a name with", async () => {
 		const bus = createBus<CacheBus>()
 			.use(scopePlugin())
 			.use(effectsPlugin({ delay }));
@@ -380,8 +380,8 @@ describe("scopePlugin", () => {
 
 		await bus.emit(read(noPayload));
 
-		// the later plugin assigns over the scope: this is why the plugin goes last
-		expect(outcomes).toEqual(["undefined"]);
+		// effectsPlugin leaves a field that is there, so the order of the two does not matter
+		expect(outcomes).toEqual(["instant"]);
 	});
 
 	describe("child tasks", () => {
