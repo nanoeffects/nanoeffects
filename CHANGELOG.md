@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.0
 
 - `nanoeffects/oop`: the methods of a bus on a class. `extendBus(bus, Base)` returns a subclass whose instances have `on`, `once`, `off`, `emit`, the methods of the plugins used before the call, and `dispose()` (also `Symbol.dispose`), which removes the subscriptions made through `this.on` and `this.once` of that instance and nothing else. `extendBus(Base)` makes a bus for the class (`Class.bus`). The class of the user wins a clash of names, and `disposeBus(this)` ends the subscriptions from a `dispose` of your own. `@WithBus(bus?)` is the same as a class decorator, `@On(event, wrap?)` and `@Once(event, wrap?)` make a method a handler of an instance with `this` bound, and `wrap` takes the bound handler (`@On(queryChanged, latest)`). Both kinds of decorators work. `createBus` is the same size; the entry is about 1 kB brotli of its own plus `createBus` for the form without a bus. `docs/oop.md`.
 - Plugins work in any order, and `docs/plugins.md` no longer has a section of rules to follow. Four things changed for that:
