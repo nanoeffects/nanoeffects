@@ -1,7 +1,7 @@
 {
 	"compilerOptions": {
 		"target": "ES2023",
-		"lib": ["ES2023", "DOM"],
+		"lib": ["ES2023", "ESNext.Disposable", "DOM"],
 		"module": "ESNext",
 		"moduleResolution": "bundler",
 		"strict": true,
@@ -24,7 +24,8 @@
 			"nanoeffects/react": ["./src/react/index.ts"],
 			"nanoeffects/dev": ["./src/dev/index.ts"],
 			"nanoeffects/scope": ["./src/scope/index.ts"],
-			"nanoeffects/match": ["./src/match/index.ts"]
+			"nanoeffects/match": ["./src/match/index.ts"],
+			"nanoeffects/oop": ["./src/oop/index.ts"]
 		}
 	},
 	"include": ["src", "examples", "integration"]

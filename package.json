@@ -82,6 +82,10 @@
 			"types": "./dist/match.d.ts",
 			"import": "./dist/match.js"
 		},
+		"./oop": {
+			"types": "./dist/oop.d.ts",
+			"import": "./dist/oop.js"
+		},
 		"./trace": {
 			"types": "./dist/trace.d.ts",
 			"import": "./dist/trace.js"
@@ -187,6 +191,11 @@
 			"name": "match (plugin)",
 			"path": "dist/match.js",
 			"limit": "0.5 kB"
+		},
+		{
+			"name": "oop (class entry)",
+			"path": "dist/oop.js",
+			"limit": "2.5 kB"
 		},
 		{
 			"name": "scope (plugin and effect)",

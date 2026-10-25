@@ -34,6 +34,7 @@ import {
 	timeout,
 } from "../effects";
 import { matchPlugin } from "../match";
+import { type BusMethods, extendBus, On } from "../oop";
 import { debounce, latest, leading, queue, throttle } from "../policies";
 import { reactPlugin } from "../react";
 import { effect } from "../scope";
@@ -1283,5 +1284,97 @@ describe("matchPlugin", () => {
 			action.type === "order/placed";
 		// @ts-expect-error only matchPlugin lets on take a predicate
 		plain.on(isPlaced, () => {});
+	});
+});
+
+describe("the class entry: extendBus", () => {
+	type Events = { "order/placed": { id: string; total: number } };
+
+	class Base {
+		name: string;
+		constructor(name: string) {
+			this.name = name;
+		}
+		describe() {
+			return this.name;
+		}
+	}
+
+	it("types the instance as the base plus the methods of the bus", () => {
+		const bus = createBus<Events>();
+		const Service = extendBus(bus, Base);
+		const service = new Service("a");
+
+		expectTypeOf(service).toExtend<Base>();
+		expectTypeOf(service.describe).returns.toBeString();
+		expectTypeOf(service.dispose).toEqualTypeOf<() => void>();
+		expectTypeOf(service.bus).toEqualTypeOf(bus);
+		service.on("order/placed", (order) => {
+			expectTypeOf(order).toEqualTypeOf<{ id: string; total: number }>();
+		});
+		service.emit("order/placed", { id: "o1", total: 2 });
+		// @ts-expect-error the payload does not match the event
+		service.emit("order/placed", 1);
+		// @ts-expect-error an event that the bus does not know
+		service.on("unknown", () => {});
+	});
+
+	it("keeps the parameters of the constructor", () => {
+		const Service = extendBus(createBus<Events>(), Base);
+
+		// @ts-expect-error the constructor needs a name
+		new Service();
+		new Service("a");
+	});
+
+	it("has the methods of the plugins that the bus has", () => {
+		const bus = createBus<Events>().use(emitterPlugin());
+		const service = new (extendBus(bus, Base))("a");
+
+		expectTypeOf(service.emitter).toBeFunction();
+		// @ts-expect-error a bus without the plugin has no such method
+		new (extendBus(createBus<Events>(), Base))("a").emitter;
+	});
+
+	it("keeps the type of a member that the class has", () => {
+		class Own {
+			emit(text: string): string {
+				return text;
+			}
+		}
+		const service = new (extendBus(createBus<Events>(), Own))();
+
+		expectTypeOf(service.emit).toEqualTypeOf<(text: string) => string>();
+	});
+
+	it("makes a bus for the class when none is given", () => {
+		const Service = extendBus(Base);
+
+		expectTypeOf(Service.bus.emit).toBeFunction();
+		new Service("a").on("anything", () => {});
+	});
+
+	it("lets a decorated class declare what it gets", () => {
+		const bus = createBus<Events>();
+		// the merge the docs show for a decorated class: TypeScript does not change its type
+		// biome-ignore lint/correctness/noUnusedVariables: it is read through the class below
+		interface Declared extends BusMethods<typeof bus> {}
+		// biome-ignore lint/suspicious/noUnsafeDeclarationMerging: the pattern under test
+		class Declared {}
+
+		expectTypeOf<Declared["dispose"]>().toEqualTypeOf<() => void>();
+		expectTypeOf<Declared["emit"]>().toEqualTypeOf(bus.emit);
+	});
+
+	it("checks the payload of a decorated method against the event", () => {
+		const placed = createAction<{ id: string }>("order/placed");
+		const decorate = On(placed);
+		const context = Reflect.get({}, "none");
+
+		decorate((_payload: { id: string }) => {}, context);
+		// @ts-expect-error the method takes a different payload
+		decorate((_payload: number) => {}, context);
+		// a string event does not know the payload
+		On("anything")((_payload: number) => {}, context);
 	});
 });
