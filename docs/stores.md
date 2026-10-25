@@ -17,7 +17,7 @@ If you do not have a store yet, use `createBus` from the [Guide](guide.md).
   - [React: sharing a value across components](#react-sharing-a-value-across-components)
   - [Callbacks on every change](#callbacks-on-every-change)
   - [Stop watching a store](#stop-watching-a-store)
-  - [Give the store to every handler](#give-the-store-to-every-handler)
+  - [Change the store from any handler](#change-the-store-from-any-handler)
 
 ## Wire Redux Toolkit to a bus
 
@@ -112,20 +112,28 @@ const effects = createEffectsMiddleware(bus);
 Zustand, MobX, Jotai, Valtio, Nanostores and Pinia have no adapter. Redux is different: use the middleware from the first section, it sends actions to the bus. A plain store works with the bus in two directions, and both are shown for each store below:
 
 - **The store triggers an event.** The store tells you about a change with a callback. You pass that callback `bus.emitter(action)`, and the change becomes an event that starts a handler.
-- **The event changes the store.** The handler reports its result as an event. A listener of the bus writes it into the store.
+- **The event changes the store.** The handler reports its result as an event. A listener of the bus gets the store from `ctx` and changes it with a mutation.
 
 The example is a search box. The store holds two fields: `query`, which the user types, and `results`, which a request fills. A change of `query` starts a debounced search; the search ends with an event that writes `results`.
 
 Writing `(query) => bus.emit(queryChanged(query))` for every subscription repeats the bus and the action. `emitterPlugin` adds `bus.emitter(action)`: it returns that callback for you. The action stays a plain `createAction`, so `bus.emit(queryChanged("nano"))` and `bus.on(queryChanged, …)` work as before.
 
-The bus, the events and the handlers are the same for every store below, each in a file of its own: the bus knows no events, and the events know no bus. Each subsection imports them.
+The bus gets the store as context: `contextPlugin({ store })` puts it on every task as `ctx.store` ([Context fields](context.md)). A handler then changes the store with its mutations and never reaches for the store by name. Only `store.js` is different for each store below. It exports a `store` with the same three members:
+
+- `setQuery(query)` and `setResults(items)` are the mutations. The user's input calls the first, the handler calls the second.
+- `onQueryChanged(callback)` tells you about a change of `query`, and returns the function that stops it.
+
+The bus, the events, the handlers and the link from the store to the bus are the same for every store, each in a file of its own: the bus knows no events, and the events know no bus.
 
 ```js
 // bus.js
-import { createBus } from "nanoeffects";
+import { contextPlugin, createBus } from "nanoeffects";
 import { emitterPlugin } from "nanoeffects/actions";
+import { store } from "./store";
 
-export const bus = createBus().use(emitterPlugin()); // adds bus.emitter; returns the same bus
+export const bus = createBus()
+  .use(emitterPlugin()) // adds bus.emitter
+  .use(contextPlugin({ store })); // ctx.store on every task
 ```
 
 ```js
@@ -155,161 +163,193 @@ bus.on(
     }),
   ),
 );
+
+// event → store: the store comes from ctx, and a mutation changes it
+bus.on(searchLoaded, (items, { store }) => {
+  store.setResults(items);
+});
+```
+
+```js
+// connect.js
+import { bus } from "./bus";
+import { queryChanged } from "./search";
+import { store } from "./store";
+
+// store → event: bus.emitter turns the callback into an emit of queryChanged
+export const stopQuery = store.onQueryChanged(bus.emitter(queryChanged));
 ```
 
 Write `results` and never the field you watch: a handler that changed `query` would start itself again. Find your store below.
 
 ### Nanostores
 
-`listen` calls back with the new value. `subscribe` would also call at once, with the current value, so use `listen`.
+`action` makes a named mutation of an atom. `listen` calls back with the new value; `subscribe` would also call at once, with the current value, so use `listen`.
 
 ```js
-import { atom } from "nanostores";
-import { bus } from "./bus";
-import { queryChanged, searchLoaded } from "./search";
-
-// bus.emitter: a callback (query) => bus.emit(queryChanged(query))
-const emitQueryChanged = bus.emitter(queryChanged);
+// store.js
+import { action, atom } from "nanostores";
 
 const $query = atom("");
 const $results = atom([]);
 
-// store → bus: listen calls back with the new query on every change
-const stopQuery = $query.listen(emitQueryChanged);
-
-// bus → store: bus.on returns the function that removes this listener
-const stopResults = bus.on(searchLoaded, (items) => {
-  $results.set(items);
-});
+export const store = {
+  // action — a named mutation of an atom
+  setQuery: action($query, "setQuery", (target, query) => target.set(query)),
+  setResults: action($results, "setResults", (target, items) => target.set(items)),
+  // listen — calls back with the new query on every change
+  onQueryChanged: (callback) => $query.listen(callback),
+};
 ```
 
 ### MobX
 
-`reaction` watches an expression and calls back with its value. Change observables inside `runInAction`.
+`makeAutoObservable` turns the methods of a class into actions, which is where MobX wants changes to happen. `reaction` watches an expression and calls back with its value.
+
+<!-- docs-check: fork -->
 
 ```js
-import { observable, reaction, runInAction } from "mobx";
-import { bus } from "./bus";
-import { queryChanged, searchLoaded } from "./search";
+// store.js
+import { makeAutoObservable, reaction } from "mobx";
 
-// bus.emitter: a callback (query) => bus.emit(queryChanged(query))
-const emitQueryChanged = bus.emitter(queryChanged);
+class SearchStore {
+  query = "";
+  results = [];
 
-const search = observable({ query: "", results: [] });
+  constructor() {
+    makeAutoObservable(this); // the methods below become actions
+  }
 
-// store → bus: reaction watches the expression and calls back with its value
-const stopQuery = reaction(() => search.query, emitQueryChanged);
+  setQuery(query) {
+    this.query = query;
+  }
 
-// bus → store: bus.on returns the function that removes this listener
-const stopResults = bus.on(searchLoaded, (items) => {
-  runInAction(() => {
-    search.results = items;
-  });
-});
+  setResults(items) {
+    this.results = items;
+  }
+
+  // reaction — watches the expression and calls back with its value
+  onQueryChanged(callback) {
+    return reaction(() => this.query, callback);
+  }
+}
+
+export const store = new SearchStore();
 ```
 
 ### Valtio
 
-`subscribeKey` watches one field of a proxy state. Assign to the proxy to change it.
+`subscribeKey` watches one field of a proxy state. A mutation assigns to the proxy.
+
+<!-- docs-check: fork -->
 
 ```js
+// store.js
 import { proxy } from "valtio";
 import { subscribeKey } from "valtio/utils";
-import { bus } from "./bus";
-import { queryChanged, searchLoaded } from "./search";
-
-// bus.emitter: a callback (query) => bus.emit(queryChanged(query))
-const emitQueryChanged = bus.emitter(queryChanged);
 
 const state = proxy({ query: "", results: [] });
 
-// store → bus: subscribeKey watches one field
-const stopQuery = subscribeKey(state, "query", emitQueryChanged);
-
-// bus → store: bus.on returns the function that removes this listener
-const stopResults = bus.on(searchLoaded, (items) => {
-  state.results = items;
-});
+export const store = {
+  setQuery(query) {
+    state.query = query;
+  },
+  setResults(items) {
+    state.results = items;
+  },
+  // subscribeKey — watches one field
+  onQueryChanged: (callback) => subscribeKey(state, "query", callback),
+};
 ```
 
 ### Jotai
 
-`sub` gives no value, so read it yourself. Write with `store.set`.
+`sub` gives no value, so read it yourself. A write-only atom is the mutation, and `set` runs it.
+
+<!-- docs-check: fork -->
 
 ```js
+// store.js
 import { atom, createStore } from "jotai";
-import { bus } from "./bus";
-import { queryChanged, searchLoaded } from "./search";
-
-// bus.emitter: a callback (query) => bus.emit(queryChanged(query))
-const emitQueryChanged = bus.emitter(queryChanged);
 
 const queryAtom = atom("");
 const resultsAtom = atom([]);
-const store = createStore();
+const jotai = createStore();
 
-// store → bus: sub calls back without a value; store.get reads it
-const stopQuery = store.sub(queryAtom, () => emitQueryChanged(store.get(queryAtom)));
+// write-only atoms: the mutations
+const setQueryAtom = atom(null, (_get, set, query) => set(queryAtom, query));
+const setResultsAtom = atom(null, (_get, set, items) => set(resultsAtom, items));
 
-// bus → store: bus.on returns the function that removes this listener
-const stopResults = bus.on(searchLoaded, (items) => {
-  store.set(resultsAtom, items);
-});
+export const store = {
+  setQuery: (query) => jotai.set(setQueryAtom, query),
+  setResults: (items) => jotai.set(setResultsAtom, items),
+  // sub calls back without a value; get reads it
+  onQueryChanged: (callback) =>
+    jotai.sub(queryAtom, () => callback(jotai.get(queryAtom))),
+};
 ```
 
 ### Zustand
 
-With `subscribeWithSelector` the selector picks the field, and the callback is called only when it changes. Without a selector Zustand calls back on every `setState`, with the whole state.
+With `subscribeWithSelector` the selector picks the field, and the callback is called only when it changes. Without a selector Zustand calls back on every `setState`, with the whole state. The mutations are functions in the state.
+
+<!-- docs-check: fork -->
 
 ```js
+// store.js
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
-import { bus } from "./bus";
-import { queryChanged, searchLoaded } from "./search";
 
-// bus.emitter: a callback (query) => bus.emit(queryChanged(query))
-const emitQueryChanged = bus.emitter(queryChanged);
-
-const useSearchStore = create(
-  subscribeWithSelector(() => ({ query: "", results: [] })),
+const useSearch = create(
+  subscribeWithSelector((set) => ({
+    query: "",
+    results: [],
+    // the mutations are part of the state
+    setQuery: (query) => set({ query }),
+    setResults: (items) => set({ results: items }),
+  })),
 );
 
-// store → bus: subscribe with a selector calls back with state.query only when it changes
-const stopQuery = useSearchStore.subscribe((state) => state.query, emitQueryChanged);
-
-// bus → store: bus.on returns the function that removes this listener
-const stopResults = bus.on(searchLoaded, (items) => {
-  useSearchStore.setState({ results: items });
-});
+export const store = {
+  setQuery: (query) => useSearch.getState().setQuery(query),
+  setResults: (items) => useSearch.getState().setResults(items),
+  // a selector: called back with state.query only when it changes
+  onQueryChanged: (callback) => useSearch.subscribe((state) => state.query, callback),
+};
 ```
 
 ### Pinia
 
-Pinia (the store of Vue) keeps reactive objects, and its `$subscribe` reports every mutation of the store, not one field. Watch one getter with Vue's `watch` instead: it calls back with the new value. Assign to the store to change it.
+Pinia (the store of Vue) keeps reactive objects, and its `$subscribe` reports every mutation of the store, not one field. Watch one getter with Vue's `watch` instead: it calls back with the new value. The mutations are the actions of the store.
+
+<!-- docs-check: fork -->
 
 ```js
-import { watch } from "vue";
+// store.js
 import { defineStore } from "pinia";
-import { bus } from "./bus";
-import { queryChanged, searchLoaded } from "./search";
+import { watch } from "vue";
 
-// bus.emitter: a callback (query) => bus.emit(queryChanged(query))
-const emitQueryChanged = bus.emitter(queryChanged);
-
-// defineStore — Pinia: the state of one store
+// defineStore — Pinia: the state and the actions of one store
 const useSearch = defineStore("search", {
   state: () => ({ query: "", results: [] }),
+  actions: {
+    setQuery(query) {
+      this.query = query;
+    },
+    setResults(items) {
+      this.results = items;
+    },
+  },
 });
 
 const search = useSearch(); // call it after the app has installed Pinia
 
-// store → bus: watch calls back with the new query when search.query changes
-const stopQuery = watch(() => search.query, emitQueryChanged);
-
-// bus → store: bus.on returns the function that removes this listener
-const stopResults = bus.on(searchLoaded, (items) => {
-  search.results = items;
-});
+export const store = {
+  setQuery: (query) => search.setQuery(query),
+  setResults: (items) => search.setResults(items),
+  // watch — calls back with the new query when search.query changes
+  onQueryChanged: (callback) => watch(() => search.query, callback),
+};
 ```
 
 ### React: sharing a value across components
@@ -618,8 +658,8 @@ The stores above call back only when the value changed, so the emitter does not 
 
 ### Stop watching a store
 
-Stop both directions with what the calls returned: `stopQuery` from the store and `stopResults` from `bus.on`. Call them yourself, or hand them over: `onAbort(ctx, stopQuery)` inside a task, or `m.signal.addEventListener("abort", stopQuery)` in a module.
+`connect.js` keeps the function that `onQueryChanged` returned (`stopQuery`). Call it yourself, or hand it over: `onAbort(ctx, stopQuery)` inside a task, or `m.signal.addEventListener("abort", stopQuery)` in a module. To stop the other direction, remove the listener of `searchLoaded` with `bus.off(searchLoaded, handler)`, or register it in a module, which removes it on unmount.
 
-### Give the store to every handler
+### Change the store from any handler
 
-Instead of a listener per store, give the store to all tasks with `createBus({ context: { store } })` ([Context fields](context.md)) and change it from any handler (`setState`, a MobX action, a Pinia store). The same rule holds: write the field you do not watch. For a MobX `flow`, `onAbort(ctx, () => promise.cancel())` cancels it with the task.
+A handler gets the store from `ctx.store` and calls a mutation, whatever it handles: not only the result of a search. The same rule holds: write the field you do not watch. For a MobX `flow`, `onAbort(ctx, () => promise.cancel())` cancels it with the task.
