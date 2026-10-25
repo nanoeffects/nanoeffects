@@ -33,15 +33,31 @@ describe("bus.use(commandsPlugin())", () => {
 		expect(bus.emit(send, "ann")).toBe("sent to ann");
 	});
 
-	it("a second registry replaces the first, and the old handlers no longer run", () => {
+	it("a second commandsPlugin binds in the registry that is there and returns it", () => {
 		const bus = createBus<TestEvents>();
 		const command = createCommand<number, number>("a/b", (value) => value);
+		const other = createCommand<number, number>("a/c", (value) => value);
 		const first = bus.use(commandsPlugin());
 		first.handle(command, () => 1);
-		const second = bus.use(commandsPlugin());
+		const second = bus.use(
+			commandsPlugin([bindHandler(other, (value) => value + 1)]),
+		);
 
-		expect(bus.commands).toBe(second);
-		expect(bus.emit(command, 7)).toBe(7);
+		expect(second).toBe(first);
+		expect(bus.commands).toBe(first);
+		expect(bus.emit(command, 7)).toBe(1);
+		expect(bus.emit(other, 7)).toBe(8);
+	});
+
+	it("a custom runner is replaced by commandsPlugin", () => {
+		const bus = createBus<TestEvents>();
+		const command = createCommand<number, number>("a/b", (value) => value);
+		bus.commands = { run: () => "custom" };
+		const registry = bus.use(commandsPlugin());
+		registry.handle(command, () => 1);
+
+		expect(bus.commands).toBe(registry);
+		expect(bus.emit(command, 7)).toBe(1);
 	});
 
 	it("each bus has its own registry", () => {

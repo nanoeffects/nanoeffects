@@ -140,13 +140,28 @@ export const bindHandler = <P, R, E extends EventMap>(
 	];
 };
 
+/** The registry of handlers that `commandsPlugin` returns: `run` for the bus, `handle` to bind more. */
+export interface Registry<E extends EventMap> extends Commands {
+	handle<P, R>(command: Command<P, R>, fn: Task<P, E, R>): UnsubscribeCallback;
+	handle(type: string, fn: Task<never, E, unknown>): UnsubscribeCallback;
+	handle(bindings: readonly Binding<E>[]): UnsubscribeCallback;
+}
+
+// the registry of an earlier `commandsPlugin`: `commands` with a `handle`, which a custom runner does not have
+const isRegistry = <E extends EventMap>(
+	commands: Commands | undefined,
+): commands is Registry<E> =>
+	typeof Reflect.get(commands ?? {}, "handle") === "function";
+
 /**
  * The plugin that gives a bus the handlers bound to commands:
  * `bus.use(commandsPlugin(bindings))` makes the registry, sets it as the
  * commands of the bus and returns it. Each bus has its own, so each test can
  * have its own implementation. `handle` binds more later and returns the
- * function that unbinds. A second `commandsPlugin` on the same bus replaces
- * the registry of that bus.
+ * function that unbinds. A second `commandsPlugin` on the same bus binds its
+ * list in the registry that is there and returns it, so the order of the
+ * plugins does not matter. A `commands` that is not such a registry (a custom
+ * runner) is replaced.
  *
  * What the bus runs for a command: the handler bound last, else the one the
  * command was created with, else it throws `No handler for command "..."`.
@@ -162,7 +177,14 @@ export const bindHandler = <P, R, E extends EventMap>(
  */
 export const commandsPlugin =
 	<E extends EventMap>(bindings: readonly Binding<E>[] = []) =>
-	(bus: Bus<E>) => {
+	(bus: Bus<E>): Registry<E> => {
+		const existing = bus.commands;
+		if (isRegistry<E>(existing)) {
+			existing.handle(bindings);
+
+			return existing;
+		}
+
 		const bound = new Map<string, Array<{ fn: Task<never, E, unknown> }>>();
 
 		const bind = (type: string, fn: Task<never, E, unknown>) => {
@@ -220,7 +242,7 @@ export const commandsPlugin =
 			return Reflect.apply(routed, null, [payload, ctx]);
 		};
 
-		const registry = { run, handle };
+		const registry: Registry<E> = { run, handle };
 		bus.commands = registry;
 
 		return registry;
