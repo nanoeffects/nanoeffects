@@ -1,7 +1,7 @@
 {
 	"name": "nanoeffects",
 	"version": "0.8.0",
-	"description": "Typed event bus where every handler is a task with an AbortSignal, plus policies (latest, debounce, throttle, queue), effects (retry, timeout, poll) and tracing. About 1.3 kB gzip.",
+	"description": "Cancel stale async work and fix race conditions in event handlers: a typed event bus where every handler is a task with an AbortSignal, plus latest, debounce, throttle, queue, retry, timeout and poll. About 1.3 kB gzip.",
 	"keywords": [
 		"event-bus",
 		"event-emitter",
@@ -13,6 +13,17 @@
 		"queue",
 		"retry",
 		"side-effects",
+		"race-condition",
+		"cancel",
+		"cancellation",
+		"async",
+		"takelatest",
+		"switchmap",
+		"redux-middleware",
+		"saga-alternative",
+		"rxjs-alternative",
+		"mitt-alternative",
+		"typed-events",
 		"typescript"
 	],
 	"license": "MIT",
@@ -35,6 +46,7 @@
 		"dist",
 		"llms.txt",
 		"llms-full.txt",
+		"skills",
 		"README.md",
 		"LICENSE",
 		"docs"

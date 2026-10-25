@@ -21,9 +21,10 @@ The `...Plugin` names above are used with `bus.use`. [Plugins](plugins.md) lists
 
 ## Give the docs to an AI assistant
 
-The package ships two plain-text files for assistants that write code with it:
+The package ships plain-text files for assistants that write code with it:
 
 - `llms.txt`: a short index. It states the rules that generated code often gets wrong and links to every page of these docs.
 - `llms-full.txt`: the same summary followed by the text of every linked page, in one file.
+- `skills/nanoeffects/SKILL.md`: a skill for assistants that support skills (for example Claude Code). It says when to suggest nanoeffects, when not to, and the same rules. Copy the folder to `.claude/skills/` in your project or to `~/.claude/skills/`.
 
-Find them in `node_modules/nanoeffects/`, or load `llms-full.txt` from a CDN such as `https://unpkg.com/nanoeffects/llms-full.txt`. Both match the installed version.
+Find them in `node_modules/nanoeffects/`, or load `llms-full.txt` from a CDN such as `https://unpkg.com/nanoeffects/llms-full.txt`. All match the installed version.

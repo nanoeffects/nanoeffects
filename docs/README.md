@@ -16,6 +16,8 @@ Code for every guide step: [`examples/guide.ts`](../examples/guide.ts) (type-che
 | Domain logic off the UI | [Actions, commands, modules](actions.md) |
 | Already on Redux / Zustand / MobX / Pinia | [Stores](stores.md) |
 | A React form with async checks | [Build a sign-up form in React](react.md) |
+| Old responses overwrite new ones | [Cancel stale requests](cancel-stale-requests.md) |
+| Using mitt, nanoevents or EventEmitter | [Coming from mitt](migrating-from-mitt.md) |
 | Moving from redux-saga | [Coming from redux-saga](migrating-from-saga.md) |
 | Using RxJS | [Use nanoeffects next to RxJS](migrating-from-rxjs.md) |
 | Moving from Effector | [Coming from Effector](migrating-from-effector.md) |

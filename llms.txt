@@ -21,6 +21,7 @@ Rules that generated code often gets wrong:
 ## Async UI and unreliable networks
 
 - [Policies](docs/policies.md): `latest`, `leading`, `debounce`, `throttle`, `queue`, and `key`
+- [Cancel stale requests and fix race conditions](docs/cancel-stale-requests.md): an older response overwrites a newer one; `latest`, `debounce`, `retry`, `timeout` in one recipe
 - [Effects and cancellation](docs/effects.md): `retry`, `timeout`, `poll`, `take`, `all`, `race`, `backoff`
 - [Errors and unheard events](docs/errors.md): `onError`, `onUnhandled`
 
@@ -41,6 +42,7 @@ Rules that generated code often gets wrong:
 
 - [Coming from redux-saga](docs/migrating-from-saga.md)
 - [Coming from Effector](docs/migrating-from-effector.md)
+- [Coming from mitt, nanoevents or EventEmitter](docs/migrating-from-mitt.md): the same calls, plus cancellation for async handlers
 - [Use nanoeffects next to RxJS](docs/migrating-from-rxjs.md)
 
 ## Reference
