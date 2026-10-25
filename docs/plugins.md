@@ -85,18 +85,21 @@ export const disconnect = bus.use(devPlugin({ app }));
 
 ## Follow the order
 
-Most plugins do not care about each other. These pairs do:
+Most plugins do not care about each other. The rule that matters most: **use `modulePlugin` after the others.** It mounts the modules when it is used, and a module can use only what the other plugins have given the bus by then.
 
 | Rule | Why |
 | ---- | --- |
-| `scopePlugin` after `effectsPlugin` | `effectsPlugin` assigns its effects on `ctx`, so one used later would replace an effect with the same name that a scope put there. |
-| `scopePlugin` before `modulePlugin` | `modulePlugin` mounts the modules when it is used, and a module with a scope needs the plugin by then. |
-| `commandsPlugin` before `modulePlugin`, if you bind handlers yourself | `modulePlugin` uses the registry that exists. Without one it makes its own, which is `app.commands`. |
+| `modulePlugin` after `contextPlugin`, `effectsPlugin` and `scopePlugin` | The task of a module and the tasks it spawns are made when `modulePlugin` is used. Fields that a plugin adds later are on the handlers of the module (`m.on`), which the bus makes for each event, and not on `m` itself or on a spawned task. A module with a scope needs `scopePlugin` by then too. |
+| `modulePlugin` after `matchPlugin`, if a module listens with a function | `m.on(fn, handler)` runs in the setup of the module, when it is mounted. Before `matchPlugin`, `fn` is taken for an event name that never comes. |
+| `commandsPlugin` before `modulePlugin` | `commandsPlugin` makes a new registry and puts it on the bus. Used after `modulePlugin` it replaces the registry, and the handlers that the modules bound are gone. Without one, `modulePlugin` makes its own, which is `app.commands`. |
 | `modulePlugin` before `devPlugin({ app })` | `devPlugin` reports the modules of the `app` that `modulePlugin` returned. |
+| `scopePlugin` after `effectsPlugin` | `effectsPlugin` assigns its effects on `ctx`, so one used later would replace an effect with the same name that a scope put there. |
 | `matchPlugin` and `devPlugin` in any order | Both wrap `bus.on`. `devPlugin` counts a function that picks events under `"*"`, and its `disconnect` leaves a wrapper that was put on top of it. |
 | `emitterPlugin` and `reactPlugin` anywhere | They only call `bus.emit`, which is read when you call them. |
 
 Two more things the checker enforces. A name that is already a context field of the bus is a type error when `contextPlugin` or `effectsPlugin` adds it again. `contextPlugin` does not replace a field that is on `ctx` already, so a scope wins over it in any order.
+
+The rules come from a test that puts every plugin on a bus in many orders and checks what each one does (`src/tests/plugin-matrix.test.ts`). An order that breaks something and is not in this table is a bug.
 
 ## Choose by need
 

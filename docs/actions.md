@@ -178,6 +178,7 @@ app.dispose(); // unmounts every module
 - **A module is known by its name.** Mounting a module whose name is taken replaces the mounted one (see [Hot reload](hmr.md)).
 - **Registry.** If `bus.use(commandsPlugin())` ran first, that registry is used; otherwise the module plugin attaches its own. Either way it is `bus.commands` and `app.commands`.
 - A disposed app cannot mount modules.
+- **Use `modulePlugin` after the other plugins.** The modules are mounted when it is used, so a module sees only the fields, effects and scopes that the plugins before it gave the bus. See [the order of plugins](plugins.md#follow-the-order).
 - Module context = task context plus `handle`, `use`, and `spawn`:
   - `handle` — give a command a handler (contract, or override).
   - `use` — bring sub-modules and commands that carry a handler; the returned function undoes that call.

@@ -4,6 +4,7 @@
 
 - `nanoeffects/match`: `bus.use(matchPlugin())` lets `on`, `once` and `off` take a function as the first argument, to subscribe to the events it picks: `bus.on((action) => action.type.startsWith("user/"), (payload, ctx) => …)`. The function gets `{ type, payload }` of every event; a type guard narrows the payload of the handler. An action creator or a command keeps its meaning. `ctx.on` takes such a function at run time (its type does not know it yet). The subscription listens to `"*"`, so each event makes one task for each such subscription, also when the function says no, and the events it listens to count as heard for `onUnhandled`. `createBus` does not change. The Guide has a section, and `docs/plugins.md` lists the plugin.
 - `devPlugin` counts a function that picks events under `"*"` instead of `undefined`, and its `disconnect` no longer removes a wrapper that another plugin put on `bus.on` after it, so `devPlugin` and `matchPlugin` work in any order.
+- `src/tests/plugin-matrix.test.ts` puts every plugin on a bus in every order of two and in 300 orders of all nine, and checks what each one does. It found two traps that `docs/plugins.md` now names: a module sees the fields of a plugin only if `modulePlugin` comes after it, and `commandsPlugin` used after `modulePlugin` replaces the registry that the modules bound their handlers in.
 - The examples in `docs/` keep the bus, the events and the handlers in separate files, and `pnpm docs:check` keeps the files of each `##` section apart.
 
 ## 0.7.0
