@@ -87,6 +87,7 @@ Start with the [Guide](docs/guide.md) (bus → policies → effects → modules)
 | Retry, timeout, wait for events | [Effects](docs/effects.md) |
 | Domain logic off the UI | [Actions, commands, modules](docs/actions.md) |
 | Redux / Zustand / MobX | [Stores](docs/stores.md) |
+| SDK, shared library, Module Federation | [Why nanoeffects exists](docs/motivation.md) |
 
 [Full index, package entries, tracing](docs/README.md) · [Examples](examples/README.md)
 

@@ -15,6 +15,7 @@ Rules that generated code often gets wrong:
 ## Start here
 
 - [Guide](docs/guide.md): bus, handler context, policies, effects, commands and modules, step by step
+- [Why nanoeffects exists](docs/motivation.md): no dependencies and no global state for SDKs and Module Federation, and why not Redux, Effector or RxJS
 - [Package entries](docs/package.md): which import holds what
 - [Plugins](docs/plugins.md): every plugin of a bus, what `bus.use` returns, and the order to use them in
 

@@ -23,6 +23,7 @@ Code for every guide step: [`examples/guide.ts`](../examples/guide.ts) (type-che
 | Moving from redux-saga | [Coming from redux-saga](migrating-from-saga.md) |
 | Using RxJS | [Use nanoeffects next to RxJS](migrating-from-rxjs.md) |
 | Moving from Effector | [Coming from Effector](migrating-from-effector.md) |
+| Building an SDK or a Module Federation shell | [Why nanoeffects exists](motivation.md) |
 
 ## Reference
 
