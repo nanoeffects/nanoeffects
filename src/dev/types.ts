@@ -1,4 +1,4 @@
-import type { ModuleApi } from "../actions/module";
+import type { ModuleApi, WithApp } from "../actions/module";
 import type { Bus } from "../core/bus";
 import type { EventMap, UnsubscribeCallback } from "../core/types";
 
@@ -17,11 +17,11 @@ export type DevOptions<E extends EventMap = EventMap> = {
 	modules?: boolean;
 	/** Receives every message. Default: `console.warn` for leaks and `console.info` for modules. */
 	log?: (message: string) => void;
-	/** What `modulePlugin` returned, to report its modules. */
+	/** What `modulePlugin` returned, to report its modules. Without it the app that `modulePlugin` put on the bus is used, in either order of the two plugins. */
 	app?: ReportedApp<E>;
 };
 
 /** A plugin that connects the diagnostics to a bus; the function it returns disconnects them. */
 export type DevPlugin = <E extends EventMap>(
 	options?: DevOptions<E>,
-) => (bus: Bus<E>) => UnsubscribeCallback;
+) => (bus: Bus<E> & WithApp) => UnsubscribeCallback;

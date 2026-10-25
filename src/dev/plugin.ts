@@ -1,8 +1,8 @@
-import type { Module } from "../actions/module";
+import type { ModuleHost, WithApp } from "../actions/module";
 import type { Bus } from "../core/bus";
 import { eventKey } from "../core/event";
 import type { EventMap } from "../core/types";
-import type { DevPlugin, ReportedApp } from "./types";
+import type { DevPlugin } from "./types";
 
 const PREFIX = "[nanoeffects]";
 
@@ -15,8 +15,9 @@ const PREFIX = "[nanoeffects]";
  *   the count: a file that was reloaded and subscribes again, or an
  *   unsubscribe that is never called. The count follows the function that `on`
  *   returns; `bus.off(event, fn)` is not seen.
- * - **Modules.** With `app` (what `modulePlugin` returned) it reports a
- *   module that is mounted, replaced by name and unmounted.
+ * - **Modules.** It reports a module that is mounted, replaced by name and
+ *   unmounted, for the app that `modulePlugin` returned: the `app` option, or
+ *   else the one `modulePlugin` put on the bus, whichever plugin was used first.
  *
  * It wraps `bus.on`, `app.mount` and `app.unmount`; the function that `bus.use` returns
  * puts the originals back. In a production build `nanoeffects/dev` is a no-op, so
@@ -24,8 +25,8 @@ const PREFIX = "[nanoeffects]";
  *
  * @example
  * ```ts
- * const app = bus.use(modulePlugin([userModule]));
- * const disconnect = bus.use(devPlugin({ app })); // warnings and messages in the console while developing
+ * bus.use(modulePlugin([userModule]));
+ * const disconnect = bus.use(devPlugin()); // warnings and messages in the console while developing
  * ```
  */
 export const devPlugin: DevPlugin =
@@ -39,8 +40,8 @@ export const devPlugin: DevPlugin =
 		if (leaks) {
 			restores.push(watchListeners(bus, maxListeners, warn));
 		}
-		if (modules && app) {
-			restores.push(watchModules(app, info));
+		if (modules) {
+			restores.push(watchApp(bus, app, info));
 		}
 
 		return () => {
@@ -110,15 +111,51 @@ const watchListeners = <E extends EventMap>(
 	};
 };
 
-// reports what happens to the modules that go through `app.mount` and `app.unmount`
-const watchModules = <E extends EventMap>(
-	app: ReportedApp<E>,
+type Named = { readonly name: string };
+
+// Watches the app that is given, else the one on the bus; when there is none yet, the one
+// `modulePlugin` puts there later. Returns the function that stops watching.
+const watchApp = <E extends EventMap>(
+	bus: Bus<E> & WithApp,
+	given: ModuleHost | undefined,
 	info: (message: string) => void,
 ) => {
-	const { mount, unmount } = app;
-	const mounted = new Map<string, Module<E>>();
+	const known = given ?? bus.app;
+	if (known) {
+		return watchModules(known, info);
+	}
 
-	const mountReported = (module: Module<E>) => {
+	let held: ModuleHost | undefined;
+	let stop: (() => void) | undefined;
+	Object.defineProperty(bus, "app", {
+		configurable: true,
+		enumerable: true,
+		get: () => held,
+		set: (value: ModuleHost | undefined) => {
+			stop?.();
+			held = value;
+			stop = value ? watchModules(value, info) : void 0;
+		},
+	});
+
+	return () => {
+		stop?.();
+		// the plain field again, with the app it was given
+		Object.defineProperty(bus, "app", {
+			configurable: true,
+			enumerable: true,
+			writable: true,
+			value: held,
+		});
+	};
+};
+
+// reports what happens to the modules that go through `app.mount` and `app.unmount`
+const watchModules = (app: ModuleHost, info: (message: string) => void) => {
+	const { mount, unmount } = app;
+	const mounted = new Map<string, Named>();
+
+	const mountReported = (module: Named) => {
 		const held = mounted.get(module.name);
 		if (held === module && app.isMounted(module)) {
 			return mount(module);
@@ -138,14 +175,14 @@ const watchModules = <E extends EventMap>(
 			undo();
 		};
 	};
-	const unmountReported = (module: Module<E>) => {
+	const unmountReported = (module: Named) => {
 		if (app.isMounted(module)) {
 			info(`${PREFIX} module "${module.name}" unmounted`);
 		}
 		unmount(module);
 	};
-	app.mount = mountReported as typeof app.mount;
-	app.unmount = unmountReported as typeof app.unmount;
+	app.mount = mountReported;
+	app.unmount = unmountReported;
 
 	return () => {
 		app.mount = mount;

@@ -464,3 +464,67 @@ describe("devPlugin and matchPlugin: any order", () => {
 		expect(bus.on).toBe(before);
 	});
 });
+
+describe("devPlugin: the app of the bus", () => {
+	const mountOne = (app: {
+		mount: (module: ReturnType<typeof first>) => unknown;
+	}) => app.mount(first());
+	const first = () => createModule<TestEvents>("user", () => {});
+
+	it("finds the app of a modulePlugin used before it", () => {
+		const messages: string[] = [];
+		const bus = createBus<TestEvents>();
+		const app = bus.use(modulePlugin<TestEvents>());
+		bus.use(devPlugin({ log: (m) => messages.push(m) }));
+		mountOne(app);
+
+		expect(messages).toEqual(['[nanoeffects] module "user" mounted']);
+	});
+
+	it("finds the app of a modulePlugin used after it", () => {
+		const messages: string[] = [];
+		const bus = createBus<TestEvents>();
+		bus.use(devPlugin({ log: (m) => messages.push(m) }));
+		const app = bus.use(modulePlugin<TestEvents>());
+		mountOne(app);
+
+		expect(Reflect.get(bus, "app")).toBe(app);
+		expect(messages).toEqual(['[nanoeffects] module "user" mounted']);
+	});
+
+	it("takes the app option over the slot", () => {
+		const messages: string[] = [];
+		const bus = createBus<TestEvents>();
+		const app = bus.use(modulePlugin<TestEvents>());
+		bus.use(devPlugin({ app, log: (m) => messages.push(m) }));
+		mountOne(app);
+
+		expect(messages).toHaveLength(1);
+	});
+
+	it("stops reporting on disconnect, also before the app exists", () => {
+		const messages: string[] = [];
+		const bus = createBus<TestEvents>();
+		const disconnect = bus.use(devPlugin({ log: (m) => messages.push(m) }));
+		disconnect();
+		const app = bus.use(modulePlugin<TestEvents>());
+		const original = app.mount;
+		mountOne(app);
+
+		expect(messages).toEqual([]);
+		expect(app.mount).toBe(original);
+		expect(Reflect.get(bus, "app")).toBe(app);
+	});
+
+	it("stops reporting on disconnect after the app was found", () => {
+		const messages: string[] = [];
+		const bus = createBus<TestEvents>();
+		const disconnect = bus.use(devPlugin({ log: (m) => messages.push(m) }));
+		const app = bus.use(modulePlugin<TestEvents>());
+		mountOne(app);
+		disconnect();
+		app.mount(createModule<TestEvents>("other", () => {}));
+
+		expect(messages).toEqual(['[nanoeffects] module "user" mounted']);
+	});
+});
