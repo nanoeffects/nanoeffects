@@ -21,7 +21,7 @@ A `bus.on` outside a module returns the function that unsubscribes: hand it to t
 
 ## Report leaks with `devPlugin`
 
-`bus.use(devPlugin({ app }))` reports what is easy to miss while developing:
+`bus.use(devPlugin())` reports what is easy to miss while developing:
 
 ```js
 import { createBus } from "nanoeffects";
@@ -29,13 +29,14 @@ import { modulePlugin } from "nanoeffects/actions";
 import { devPlugin } from "nanoeffects/dev";
 
 const bus = createBus();
-const app = bus.use(modulePlugin([userModule]));
+bus.use(modulePlugin([userModule]));
 // devPlugin — warn on piled-up listeners; log module mount/replace/unmount
-bus.use(devPlugin({ app }));
+// (it finds the app of modulePlugin on the bus, in either order of the two)
+bus.use(devPlugin());
 ```
 
 - **Listeners that pile up.** When more than `maxListeners` (default `10`) listeners of one event were added and not unsubscribed, one warning names the event and the count. The count follows the function that `on` returns; `bus.off(event, fn)` is not seen.
-- **Modules.** With `app` it logs `module "user" mounted`, `replaced` when a module of the same name was mounted, and `unmounted`. Only what goes through `app.mount` and `app.unmount` is reported, not sub-modules.
+- **Modules.** For the app of `modulePlugin` (or the `app` option) it logs `module "user" mounted`, `replaced` when a module of the same name was mounted, and `unmounted`. Only what goes through `app.mount` and `app.unmount` is reported, not sub-modules.
 - **Options.** `leaks: false` and `modules: false` switch a diagnostic off; `maxListeners` sets the limit; `log` receives the messages instead of the console.
 - **Disconnect.** `bus.use(devPlugin(...))` returns the function that stops the diagnostics and puts `bus.on` and `app.mount` back.
 
@@ -43,6 +44,6 @@ It changes no behavior: it wraps `bus.on`, `app.mount`, and `app.unmount` and ad
 
 ### Keep the import in production
 
-`nanoeffects/dev` is a no-op in a production build. `package.json` maps it to an empty build under the `production` export condition (Vite and webpack set that in production mode), so `bus.use(devPlugin({ app }))` can stay without a guard: it touches nothing and costs a few bytes.
+`nanoeffects/dev` is a no-op in a production build. `package.json` maps it to an empty build under the `production` export condition (Vite and webpack set that in production mode), so `bus.use(devPlugin())` can stay without a guard: it touches nothing and costs a few bytes.
 
 If you want even the call gone, guard it (`if (import.meta.env.DEV)` in Vite). An app that does not import the entry does not carry it.

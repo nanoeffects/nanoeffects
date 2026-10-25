@@ -2,9 +2,16 @@
 
 ## Unreleased
 
+- Plugins work in any order, and `docs/plugins.md` no longer has a section of rules to follow. Four things changed for that:
+  - **Behavior change:** `modulePlugin([modules])` mounts the modules on the first use of the app or of the bus (the first `bus.emit`, or a call of `mount`, `unmount`, `isMounted`, `dispose`, or the read of `commands`), not inside `bus.use`. The plugins used after it now reach the modules and the tasks they spawn, and `m.on(fn, handler)` works with `matchPlugin` in any order. The `on`, `once` and `off` calls made between `bus.use(modulePlugin(...))` and that first use are held and made right after the modules, in the order called, so the listeners of a module stay ahead of them as before. The app is also `bus.app`.
+  - `createBus` is the same size; `nanoeffects/actions` grows by about 0.5 kB brotli (the lazy start and the held `on`, `once` and `off`).
+  - **Behavior change:** a second `commandsPlugin` on a bus that has a registry binds its list in that registry and returns it, instead of replacing it. A custom `bus.commands = { run }` is replaced as before.
+  - `effectsPlugin` does not assign an effect over a field that is on `ctx` already, so a scope wins whichever of `scopePlugin` and `effectsPlugin` came first.
+  - `devPlugin()` finds the app that `modulePlugin` put on the bus (`bus.app`), whichever of the two was used first. `devPlugin({ app })` still works.
 - `nanoeffects/match`: `bus.use(matchPlugin())` lets `on`, `once` and `off` take a function as the first argument, to subscribe to the events it picks: `bus.on((action) => action.type.startsWith("user/"), (payload, ctx) => …)`. The function gets `{ type, payload }` of every event; a type guard narrows the payload of the handler. An action creator or a command keeps its meaning. `ctx.on` takes such a function at run time (its type does not know it yet). The subscription listens to `"*"`, so each event makes one task for each such subscription, also when the function says no, and the events it listens to count as heard for `onUnhandled`. `createBus` does not change. The Guide has a section, and `docs/plugins.md` lists the plugin.
 - `devPlugin` counts a function that picks events under `"*"` instead of `undefined`, and its `disconnect` no longer removes a wrapper that another plugin put on `bus.on` after it, so `devPlugin` and `matchPlugin` work in any order.
-- `src/tests/plugin-matrix.test.ts` puts every plugin on a bus in every order of two and in 300 orders of all nine, and checks what each one does. It found two traps that `docs/plugins.md` now names: a module sees the fields of a plugin only if `modulePlugin` comes after it, and `commandsPlugin` used after `modulePlugin` replaces the registry that the modules bound their handlers in.
+- `src/tests/plugin-matrix.test.ts` puts every plugin on a bus in every order of two and in 300 orders of all nine, and checks what each one does. It found the traps that the first item above removes: a module saw the fields of a plugin only if `modulePlugin` came after it, and `commandsPlugin` used after `modulePlugin` replaced the registry that the modules bound their handlers in.
+- `docs/plugins.md` lists the plugins from the ones most apps use to the ones a few need, and gives each a job, a small example and what `bus.use` returns. Writing your own plugin moves to the end.
 - The examples in `docs/` keep the bus, the events and the handlers in separate files, and `pnpm docs:check` keeps the files of each `##` section apart.
 
 ## 0.7.0

@@ -22,7 +22,7 @@ export const bus = createBus().use(scopePlugin());
 The bus is in one file and the commands and actions in files named after their domain, so the next example imports `bus` from here. Each section after it keeps its own `bus.js` and domain file, as if it were an app of its own.
 
 - Without `scopePlugin` a scope is **ignored**: no error and no warning. If a field is missing from `ctx`, check this first.
-- Use it **after** `effectsPlugin` (an effect it adds later would be assigned over an effect of a scope with the same name) and **before** `modulePlugin` (it mounts the modules when it is used). `contextPlugin` and `createBus({ context })` can come in any order: a scope wins over them.
+- Use it in any order with the other plugins: a scope wins over `effectsPlugin`, `contextPlugin` and `createBus({ context })`.
 
 ## Give a command its own fields
 

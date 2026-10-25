@@ -1,10 +1,261 @@
 # Choose the plugins of a bus
 
-Optional. A plugin adds one thing to a bus: fields on `ctx`, a method, a registry of handlers, diagnostics. Read this page when you want to know which plugins exist, what each one returns, and in what order to use them. Skip it for a small bus: `createBus()` alone is enough.
+Optional. A plugin adds one thing to a bus: fields on `ctx`, a method, a registry of handlers, diagnostics. Read this page when you want to know which plugins exist, what each one gives you, and in what order to use them. Skip it for a small bus: `createBus()` alone is enough.
 
 ## Use a plugin
 
-A plugin is a function of the bus. `bus.use(plugin)` calls it with the bus and returns whatever the plugin returns.
+A plugin is a function of the bus. `bus.use(plugin)` calls it with the bus and returns whatever the plugin returns. Most plugins return the same bus, so you can chain them: `createBus().use(a).use(b)`. A few return something of their own (a registry, an app, a `disconnect` function): keep it.
+
+In TypeScript keep the result of `contextPlugin` and `effectsPlugin`: the type of the bus with its new fields is the type they return (`const bus = createBus().use(contextPlugin({ store }))`).
+
+## Main plugins
+
+These four cover what most apps need: shared dependencies, effects, commands and modules. Start here.
+
+| Plugin | What it gives you | Import | `bus.use` returns |
+| ------ | ----------------- | ------ | ----------------- |
+| [`contextPlugin`](#put-a-store-or-a-client-on-every-handler-contextplugin) | Your own fields (a store, a client, a logger) on `ctx` of every handler. | `nanoeffects` | The same bus, typed with the fields |
+| [`effectsPlugin`](#use-race-and-delay-without-ctx-effectsplugin) | `race`, `all`, `delay` and your own effects on `ctx`, called without passing `ctx`. | `nanoeffects/effects` | The same bus, typed with the effects |
+| [`commandsPlugin`](#let-a-test-replace-a-handler-commandsplugin) | The handlers of commands in a registry, so a test can replace one. | `nanoeffects/actions` | The registry `{ run, handle }` |
+| [`modulePlugin`](#mount-a-domain-as-one-unit-moduleplugin) | A module: the listeners, handlers and tasks of one domain, mounted and unmounted with one call. | `nanoeffects/actions` | The app `{ mount, unmount, isMounted, dispose, commands, createModule }` |
+
+### Put a store or a client on every handler: `contextPlugin`
+
+Every task gets the same fields on `ctx`: a store, an API client, a logger. The types come from the values. More in [Context fields](context.md).
+
+```js
+import { contextPlugin, createBus } from "nanoeffects";
+
+// contextPlugin — every handler gets ctx.store
+const bus = createBus().use(contextPlugin({ store }));
+
+bus.on("save", (draft, { store }) => store.put(draft));
+```
+
+### Use `race` and `delay` without `ctx`: `effectsPlugin`
+
+Effects such as `race`, `all`, `take` and `delay` are bound to the task, so a handler calls `race({ … })` and not `race(ctx, { … })`. Your own functions that take `{ signal }` first work too. More in [Effects](effects.md#put-selected-effects-on-ctx).
+
+```js
+import { createBus } from "nanoeffects";
+import { delay, effectsPlugin, race } from "nanoeffects/effects";
+
+// effectsPlugin — race and delay are bound to the task of each handler
+const bus = createBus().use(effectsPlugin({ race, delay }));
+
+bus.on("load", async (id, { race, delay }) => {
+  const result = await race({
+    data: ({ signal }) => api.get(id, { signal }),
+    timeout: () => delay(5000),
+  });
+});
+```
+
+### Let a test replace a handler: `commandsPlugin`
+
+Commands get their handlers from a registry that belongs to the bus. A command can be only a contract, and a test binds a fake. More in [Actions](actions.md#describe-events-commands-and-jobs).
+
+```js
+import { createBus } from "nanoeffects";
+import { commandsPlugin, createCommand } from "nanoeffects/actions";
+
+const getUser = createCommand("user/get"); // a contract: no handler yet
+const bus = createBus();
+
+// commandsPlugin — the registry of handlers of this bus
+const commands = bus.use(commandsPlugin());
+
+commands.handle(getUser, async (id) => ({ id })); // the latest binding wins
+const user = await bus.emit(getUser("1")); // { id: "1" }
+```
+
+### Mount a domain as one unit: `modulePlugin`
+
+A module groups the listeners, the bound commands and the background tasks of one domain, and ends all of them when it is unmounted. It also makes [hot reload](hmr.md) work. More in [Modules](actions.md#mount-domains-with-modules).
+
+```js
+import { createBus } from "nanoeffects";
+import { modulePlugin } from "nanoeffects/actions";
+
+const bus = createBus();
+
+// modulePlugin — mounts userModule on the first use of the app or the bus, and returns the app
+const app = bus.use(modulePlugin([userModule]));
+
+app.unmount(userModule); // its listeners, bound commands and tasks are gone
+```
+
+## Extra plugins
+
+Add one of these when you meet its need. None of them is required.
+
+| Plugin | What it gives you | Import | `bus.use` returns |
+| ------ | ----------------- | ------ | ----------------- |
+| [`scopePlugin`](#give-one-command-its-own-fields-scopeplugin) | Its own fields for one command, action, job or module, and a way to replace them in one `emit`. | `nanoeffects/scope` | The same bus |
+| [`matchPlugin`](#listen-to-a-group-of-events-matchplugin) | `on` that listens to a group of events which a function picks. | `nanoeffects/match` | The same bus, typed with the new overloads |
+| [`emitterPlugin`](#hand-the-bus-to-a-state-manager-emitterplugin) | A callback that emits an action, to give to a state manager. | `nanoeffects/actions` | The same bus, with `emitter` |
+| [`reactPlugin`](#tell-the-bus-when-a-react-value-changes-reactplugin) | A React hook that emits when a value of a component changes. | `nanoeffects/react` | The same bus, with `useEmitter` |
+| [`devPlugin`](#find-leaks-while-you-develop-devplugin) | Warnings about listeners that pile up, and messages about modules, while you develop. | `nanoeffects/dev` | A function that disconnects it |
+
+### Give one command its own fields: `scopePlugin`
+
+A command, an action, a job or a module can carry its own fields and effects, and one `emit` can replace them. A test gives a fake to one call. More in [Scopes](scope.md).
+
+```js
+import { createBus } from "nanoeffects";
+import { createCommand } from "nanoeffects/actions";
+import { scopePlugin } from "nanoeffects/scope";
+
+// scopePlugin — makes the scope of a command work on this bus
+const bus = createBus().use(scopePlugin());
+
+// the last argument: fields of this command only
+const getUser = createCommand("user/get", (id, { api }) => api.getUser(id), {
+  api,
+});
+
+const fakeApi = { getUser: async (id) => ({ id, name: "test" }) };
+bus.emit(getUser("1"), { api: fakeApi }); // a fake api for this call only
+```
+
+### Listen to a group of events: `matchPlugin`
+
+`on`, `once` and `off` take a function that picks the events, such as every `user/*` event. A type guard narrows the payload. The subscription listens to every event, so for a few known events `on(creator, handler)` is cheaper. More in the [Guide](guide.md#pick-events-with-a-function).
+
+```js
+import { createBus } from "nanoeffects";
+import { matchPlugin } from "nanoeffects/match";
+
+// matchPlugin — on takes a function that picks the events
+const bus = createBus().use(matchPlugin());
+
+bus.on(
+  (action) => action.type.startsWith("user/"),
+  (payload, ctx) => console.log(ctx.type, payload),
+);
+```
+
+### Hand the bus to a state manager: `emitterPlugin`
+
+`bus.emitter(creator)` is a callback that emits an action. A state manager takes it as its subscription callback, so a change of the store becomes an event. More in [Stores](stores.md#emit-from-a-state-manager).
+
+```js
+import { atom } from "nanostores";
+import { createBus } from "nanoeffects";
+import { createAction, emitterPlugin } from "nanoeffects/actions";
+
+// emitterPlugin — adds bus.emitter
+const bus = createBus().use(emitterPlugin());
+const nameChanged = createAction("name/changed");
+const $name = atom("");
+
+$name.listen(bus.emitter(nameChanged)); // every change of $name emits nameChanged
+```
+
+### Tell the bus when a React value changes: `reactPlugin`
+
+`useEmitter(event, value)` emits after a render commits with a new value. It does not emit on mount, and not twice under StrictMode. It needs React 18 or newer. More in [Stores](stores.md#react-sharing-a-value-across-components).
+
+```jsx
+import { useState } from "react";
+import { createBus } from "nanoeffects";
+import { reactPlugin } from "nanoeffects/react";
+
+// reactPlugin — adds bus.useEmitter; destructuring gives a free hook
+const bus = createBus().use(reactPlugin());
+const { useEmitter } = bus;
+
+function Profile() {
+  const [name, setName] = useState("");
+  useEmitter("name/changed", name); // emits after a render with a new name
+  return <input value={name} onChange={(event) => setName(event.target.value)} />;
+}
+```
+
+### Find leaks while you develop: `devPlugin`
+
+It warns about listeners that were added and never unbound, and reports the modules that are mounted, replaced and unmounted. In a production build `nanoeffects/dev` is empty, so the call can stay. More in [Hot reload](hmr.md#report-leaks-with-devplugin).
+
+```js
+import { createBus } from "nanoeffects";
+import { modulePlugin } from "nanoeffects/actions";
+import { devPlugin } from "nanoeffects/dev";
+
+const bus = createBus();
+bus.use(modulePlugin([userModule]));
+
+// devPlugin — warnings and messages in the console while you develop;
+// it finds the app of modulePlugin on the bus, whichever you use first
+const disconnect = bus.use(devPlugin());
+
+disconnect(); // stops the diagnostics
+```
+
+## Put them together
+
+One bus with every plugin that does not need React, in a file of its own. The events of the app stay in other files. The plugins work in any order; the next section says what that means for modules.
+
+```js
+// bus.js
+import { contextPlugin, createBus } from "nanoeffects";
+import {
+  commandsPlugin,
+  emitterPlugin,
+  modulePlugin,
+} from "nanoeffects/actions";
+import { devPlugin } from "nanoeffects/dev";
+import { all, effectsPlugin, race } from "nanoeffects/effects";
+import { matchPlugin } from "nanoeffects/match";
+import { scopePlugin } from "nanoeffects/scope";
+
+export const bus = createBus()
+  .use(contextPlugin({ store })) // ctx.store on every task
+  .use(effectsPlugin({ race, all })) // ctx.race and ctx.all, bound to the task
+  .use(scopePlugin()) // scopes for commands, actions, jobs, modules and emit
+  .use(matchPlugin()) // bus.on takes a function that picks the events
+  .use(emitterPlugin()); // bus.emitter(creator)
+
+// commandsPlugin — the registry of command handlers; keep it to bind handlers later
+export const commands = bus.use(commandsPlugin());
+
+// modulePlugin — mounts userModule on the first use; keep app to mount and unmount later
+export const app = bus.use(modulePlugin([userModule]));
+
+// devPlugin — reports leaks and modules while you develop; keep disconnect to remove it
+export const disconnect = bus.use(devPlugin());
+```
+
+## Use them in any order
+
+The plugins give the same result in any order. Use them as they read best, and put the app of `modulePlugin` where you keep it.
+
+Two things happen because modules are mounted late:
+
+- **Modules start on the first use.** `modulePlugin([userModule])` mounts `userModule` when the app or the bus is first used: the first `bus.emit`, or the first call of `app.mount`, `app.unmount`, `app.isMounted`, `app.dispose` or the read of `app.commands`. By then every plugin is on the bus, so a module and the tasks it spawns have the fields, effects and scopes of the plugins you used after `modulePlugin`, and `m.on(fn, handler)` works with `matchPlugin`.
+- **Listeners keep their place.** A `bus.on` after `bus.use(modulePlugin(...))` is held until the modules are mounted, then made, in the order you wrote them. The listeners of a module therefore stay ahead of the ones registered after the plugin, and behind the ones registered before it. The function `bus.on` returns works before and after.
+
+Other plugins do not need an order for another reason:
+
+- `commandsPlugin` binds its list in the registry that the bus has, so it can come before or after `modulePlugin`. A custom `bus.commands = { run }` is replaced.
+- `effectsPlugin` and `contextPlugin` do not replace a field that is on `ctx` already, so a scope wins in any order.
+- `devPlugin()` finds the app that `modulePlugin` put on the bus (`bus.app`). `devPlugin({ app })` still works.
+- `matchPlugin` and `devPlugin` both wrap `bus.on`; `devPlugin` counts a function that picks events under `"*"`, and its `disconnect` leaves a wrapper that was put on top of it.
+
+A name that is already a context field of the bus is a type error when `contextPlugin` or `effectsPlugin` adds it again.
+
+A test puts every plugin on a bus in many orders and checks what each one does (`src/tests/plugin-matrix.test.ts`). An order that breaks something is a bug.
+
+## See what is not a plugin
+
+These connect the bus to something, but are not used with `bus.use`:
+
+- `createEffectsMiddleware(bus, { filter })` from `nanoeffects/redux` is a Redux middleware for a bus that exists. See [Stores](stores.md#wire-redux-toolkit-to-a-bus).
+- `createBus({ trace })` takes a tracer from `nanoeffects/trace`. See [Tracing](tracing.md).
+- `createObserve(bus)` from `nanoeffects/observable` turns an event into an Observable. See [Observable](observable.md).
+
+## Write your own plugin
+
+A plugin is a function of the bus that returns what you want back. The bus keeps no list of plugins, so a plugin that was used cannot be taken out by the bus; it returns its own `stop` or `disconnect` when it needs one.
 
 ```js
 // count-plugin.js
@@ -30,92 +281,3 @@ bus.emit("greet", "Ada");
 console.log(counter.count()); // 1
 counter.stop();
 ```
-
-The bus keeps no list of plugins. A plugin that was used cannot be taken out by the bus; it returns its own `stop` or `disconnect` when it needs one.
-
-## See every plugin
-
-| Plugin | Import | It adds | `bus.use` returns | Page |
-| ------ | ------ | ------- | ----------------- | ---- |
-| `contextPlugin` | `nanoeffects` | Fields on `ctx` of every task | The same bus, typed with the fields | [Context fields](context.md) |
-| `effectsPlugin` | `nanoeffects/effects` | `race`, `all`, `take`, `delay` and your own effects on `ctx`, bound to the task | The same bus, typed with the effects | [Effects](effects.md#put-selected-effects-on-ctx) |
-| `scopePlugin` | `nanoeffects/scope` | Fields and effects for one command, action, job, module or `emit` | The same bus | [Scopes](scope.md) |
-| `commandsPlugin` | `nanoeffects/actions` | The registry of command handlers, `bus.commands` | The registry `{ run, handle }` | [Actions](actions.md#describe-events-commands-and-jobs) |
-| `modulePlugin` | `nanoeffects/actions` | Modules that mount and unmount as one unit | The app `{ mount, unmount, isMounted, dispose, commands, createModule }` | [Modules](actions.md#mount-domains-with-modules) |
-| `matchPlugin` | `nanoeffects/match` | `on`, `once` and `off` that also take a function which picks the events | The same bus, typed with the new overloads | [Guide](guide.md#pick-events-with-a-function) |
-| `emitterPlugin` | `nanoeffects/actions` | `bus.emitter(creator)`, a callback that emits an action | The same bus, with `emitter` | [Stores](stores.md#emit-from-a-state-manager) |
-| `reactPlugin` | `nanoeffects/react` | `bus.useEmitter(event, value)`, a React hook | The same bus, with `useEmitter` | [React and stores](stores.md#react-sharing-a-value-across-components) |
-| `devPlugin` | `nanoeffects/dev` | Warnings about listeners that pile up, and messages about modules | A function that disconnects it | [Hot reload](hmr.md#report-leaks-with-devplugin) |
-
-"The same bus" means you can keep writing `bus` and ignore the result. Keep the result of `contextPlugin` and `effectsPlugin` in TypeScript, though: the type of the bus with its new fields is the type they return (`const bus = createBus().use(contextPlugin({ store }))`).
-
-## Put them together
-
-One bus with every plugin that does not need React, in a file of its own. The events of the app stay in other files. The order is explained in the next section.
-
-```js
-// bus.js
-import { contextPlugin, createBus } from "nanoeffects";
-import {
-  commandsPlugin,
-  emitterPlugin,
-  modulePlugin,
-} from "nanoeffects/actions";
-import { devPlugin } from "nanoeffects/dev";
-import { all, effectsPlugin, race } from "nanoeffects/effects";
-import { matchPlugin } from "nanoeffects/match";
-import { scopePlugin } from "nanoeffects/scope";
-
-export const bus = createBus()
-  .use(contextPlugin({ store })) // ctx.store on every task
-  .use(effectsPlugin({ race, all })) // ctx.race and ctx.all, bound to the task
-  .use(scopePlugin()) // scopes for commands, actions, jobs, modules and emit
-  .use(matchPlugin()) // bus.on takes a function that picks the events
-  .use(emitterPlugin()); // bus.emitter(creator)
-
-// commandsPlugin — the registry of command handlers; keep it to bind handlers later
-export const commands = bus.use(commandsPlugin());
-
-// modulePlugin — mounts userModule now; keep app to mount and unmount later
-export const app = bus.use(modulePlugin([userModule]));
-
-// devPlugin — reports leaks and modules while you develop; keep disconnect to remove it
-export const disconnect = bus.use(devPlugin({ app }));
-```
-
-## Follow the order
-
-Most plugins do not care about each other. The rule that matters most: **use `modulePlugin` after the others.** It mounts the modules when it is used, and a module can use only what the other plugins have given the bus by then.
-
-| Rule | Why |
-| ---- | --- |
-| `modulePlugin` after `contextPlugin`, `effectsPlugin` and `scopePlugin` | The task of a module and the tasks it spawns are made when `modulePlugin` is used. Fields that a plugin adds later are on the handlers of the module (`m.on`), which the bus makes for each event, and not on `m` itself or on a spawned task. A module with a scope needs `scopePlugin` by then too. |
-| `modulePlugin` after `matchPlugin`, if a module listens with a function | `m.on(fn, handler)` runs in the setup of the module, when it is mounted. Before `matchPlugin`, `fn` is taken for an event name that never comes. |
-| `commandsPlugin` before `modulePlugin` | `commandsPlugin` makes a new registry and puts it on the bus. Used after `modulePlugin` it replaces the registry, and the handlers that the modules bound are gone. Without one, `modulePlugin` makes its own, which is `app.commands`. |
-| `modulePlugin` before `devPlugin({ app })` | `devPlugin` reports the modules of the `app` that `modulePlugin` returned. |
-| `scopePlugin` after `effectsPlugin` | `effectsPlugin` assigns its effects on `ctx`, so one used later would replace an effect with the same name that a scope put there. |
-| `matchPlugin` and `devPlugin` in any order | Both wrap `bus.on`. `devPlugin` counts a function that picks events under `"*"`, and its `disconnect` leaves a wrapper that was put on top of it. |
-| `emitterPlugin` and `reactPlugin` anywhere | They only call `bus.emit`, which is read when you call them. |
-
-Two more things the checker enforces. A name that is already a context field of the bus is a type error when `contextPlugin` or `effectsPlugin` adds it again. `contextPlugin` does not replace a field that is on `ctx` already, so a scope wins over it in any order.
-
-The rules come from a test that puts every plugin on a bus in many orders and checks what each one does (`src/tests/plugin-matrix.test.ts`). An order that breaks something and is not in this table is a bug.
-
-## Choose by need
-
-- **A store, a client or a logger on every handler.** `contextPlugin`. Or `createBus({ context })` when you do not need the types from the value.
-- **`race`, `all` or your own effect without passing `ctx`.** `effectsPlugin`.
-- **Fields for one command, or a fake for one test call.** `scopePlugin`.
-- **A request with a result, or handlers that a test can replace.** `commandsPlugin`. Add `modulePlugin` when the domain needs a mount and an unmount.
-- **Listen to a group of events, such as every `user/*` event.** `matchPlugin`. For a few known events `on(creator, handler)` is cheaper.
-- **A callback for a state manager, such as `$name.listen(...)`.** `emitterPlugin`.
-- **Tell the bus when a value of a React component changes.** `reactPlugin`.
-- **Find listeners that were never unbound, or see modules reload.** `devPlugin`. In a production build `nanoeffects/dev` is empty, so the call can stay.
-
-## See what is not a plugin
-
-These connect the bus to something, but are not used with `bus.use`:
-
-- `createEffectsMiddleware(bus, { filter })` from `nanoeffects/redux` is a Redux middleware for a bus that exists. See [Stores](stores.md#wire-redux-toolkit-to-a-bus).
-- `createBus({ trace })` takes a tracer from `nanoeffects/trace`. See [Tracing](tracing.md).
-- `createObserve(bus)` from `nanoeffects/observable` turns an event into an Observable. See [Observable](observable.md).

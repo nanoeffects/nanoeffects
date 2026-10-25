@@ -15,7 +15,7 @@ bus.on("save", (draft, { store }) => {
 });
 ```
 
-That is enough in JavaScript. The fields appear on handlers, `ctx.run`, `ctx.on`, commands, modules, and child tasks of effects and policies. For modules, use `modulePlugin` after the plugin that adds the fields: see [the order of plugins](plugins.md#follow-the-order).
+That is enough in JavaScript. The fields appear on handlers, `ctx.run`, `ctx.on`, commands, modules, and child tasks of effects and policies.
 
 Library fields (`signal`, `emit`, `run`, …) win on name clashes. `context` may be a function `(task) => fields` when the value depends on the task.
 

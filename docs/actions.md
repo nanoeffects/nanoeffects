@@ -106,7 +106,7 @@ unbind();
 
 A command with no handler anywhere throws `No handler for command "..."` from `emit` (the call itself only builds the action).
 
-The registry lives in `nanoeffects/actions`, so a bus without one carries none of that code. Without a registry, `emit` runs the command’s own handler. `bus.use(commandsPlugin())` sets `bus.commands`. A second plugin on the same bus replaces it. There is no `commands` option in `createBus`; assign a custom runner with `bus.commands = { run }`.
+The registry lives in `nanoeffects/actions`, so a bus without one carries none of that code. Without a registry, `emit` runs the command’s own handler. `bus.use(commandsPlugin())` sets `bus.commands`. A second `commandsPlugin` binds its list in that registry and returns it. There is no `commands` option in `createBus`; assign a custom runner with `bus.commands = { run }`.
 
 ### Jobs
 
@@ -178,7 +178,7 @@ app.dispose(); // unmounts every module
 - **A module is known by its name.** Mounting a module whose name is taken replaces the mounted one (see [Hot reload](hmr.md)).
 - **Registry.** If `bus.use(commandsPlugin())` ran first, that registry is used; otherwise the module plugin attaches its own. Either way it is `bus.commands` and `app.commands`.
 - A disposed app cannot mount modules.
-- **Use `modulePlugin` after the other plugins.** The modules are mounted when it is used, so a module sees only the fields, effects and scopes that the plugins before it gave the bus. See [the order of plugins](plugins.md#follow-the-order).
+- **The given modules are mounted on the first use** of the app or the bus (the first `bus.emit`, or a call of `mount`, `unmount`, `isMounted`, `dispose`, or the read of `commands`), so the plugins you use after `modulePlugin` still reach them. The `bus.on` calls made in between are held and made right after, so the listeners of a module stay ahead of them. See [using plugins in any order](plugins.md#use-them-in-any-order).
 - Module context = task context plus `handle`, `use`, and `spawn`:
   - `handle` — give a command a handler (contract, or override).
   - `use` — bring sub-modules and commands that carry a handler; the returned function undoes that call.
