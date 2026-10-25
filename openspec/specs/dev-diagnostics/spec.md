@@ -25,7 +25,7 @@ Give a developer a signal during hot reload and development, listeners that pile
 - **THEN** one warning is logged that names `"*"` and the count 11, and no warning names `undefined`
 
 ### Requirement: Report module mount, replacement and unmount
-With the `app` option, `devPlugin` SHALL log when a module is mounted through `app.mount`, when a mounted module of the same name is replaced, and when a module is unmounted.
+`devPlugin` SHALL log when a module is mounted through `app.mount`, when a mounted module of the same name is replaced, and when a module is unmounted. The app SHALL be the `app` option when it is given, else `bus.app`, whether `modulePlugin` was used before or after `devPlugin`. `disconnect` SHALL put `mount` and `unmount` back.
 
 #### Scenario: A module is replaced by name
 - **WHEN** a module named `user` is mounted and a new module named `user` is mounted through `app.mount`
@@ -34,6 +34,14 @@ With the `app` option, `devPlugin` SHALL log when a module is mounted through `a
 #### Scenario: A first mount and an unmount
 - **WHEN** a module is mounted and later unmounted through the app
 - **THEN** a message for the mount and a message for the unmount are logged
+
+#### Scenario: devPlugin without the app option
+- **WHEN** `bus.use(devPlugin())` is used before or after `bus.use(modulePlugin())` and a module is mounted through `app.mount`
+- **THEN** the mount is logged
+
+#### Scenario: Disconnect before the app exists
+- **WHEN** `devPlugin()` is disconnected and `modulePlugin` is used afterwards
+- **THEN** nothing is logged and `app.mount` is the original function
 
 ### Requirement: Diagnostics can be chosen and redirected
 `devPlugin` SHALL take `maxListeners`, `leaks` and `modules` to tune or switch off each diagnostic, and `log` to receive the messages instead of the console.

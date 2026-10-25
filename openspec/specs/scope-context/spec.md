@@ -39,7 +39,6 @@ A scope SHALL be a plain object. Every key SHALL be put on the task context as i
 - **WHEN** the scope is `{ log }` and `log` is a plain function
 - **THEN** `ctx.log` is that function, called with the arguments the handler gives
 
-
 #### Scenario: A key named effects is an ordinary field
 - **WHEN** a scope is `{ effects: { retries: 3 } }`
 - **THEN** `ctx.effects` is that object, and nothing in it is bound to the task
@@ -91,7 +90,7 @@ A scope SHALL be a plain object. Every key SHALL be put on the task context as i
 - **THEN** the next `emit` on the bus sees nothing of that scope
 
 ### Requirement: Layers have a fixed precedence
-For the same field name the value SHALL come from the strongest layer that sets it. `emit` is the strongest, then action / command / job, then module, then bus. Fields of the library (`signal`, `abort`, `emit`, `on`, `off`, `run`, `type`, `payload`) SHALL always win over any layer. A child task SHALL inherit the fields of its parent. `scopePlugin` SHALL be used after `effectsPlugin`, and before `modulePlugin`; the order is part of the documentation.
+For the same field name the value SHALL come from the strongest layer that sets it. `emit` is the strongest, then action / command / job, then module, then bus. Fields of the library (`signal`, `abort`, `emit`, `on`, `off`, `run`, `type`, `payload`) SHALL always win over any layer. A child task SHALL inherit the fields of its parent. `scopePlugin` SHALL give the same result whether it is used before or after `effectsPlugin` and `modulePlugin`.
 
 #### Scenario: Command beats module and bus
 - **WHEN** the bus, the module and the command all set `http`
@@ -108,6 +107,10 @@ For the same field name the value SHALL come from the strongest layer that sets 
 #### Scenario: Children inherit
 - **WHEN** a handler calls `ctx.run(child)` or an effect such as `retry` makes an attempt
 - **THEN** the child context has the same fields as the parent
+
+#### Scenario: A scope beats effectsPlugin in either order
+- **WHEN** a scope sets `delay` in `$effects` and the bus has `effectsPlugin({ delay })`, with the two plugins used in either order
+- **THEN** the handler of that command sees the `delay` of the scope
 
 ### Requirement: Any function with a signal first is an effect
 `effectsPlugin` and the `$effects` of a scope SHALL accept any function whose first parameter accepts `{ signal }`, not only `race`, `all`, `allSettled`, `take` and `delay`. The five built-in ones keep their current bound types. A plain function is bound without its first parameter and its generics are erased.

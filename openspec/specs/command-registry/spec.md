@@ -38,13 +38,6 @@ A bus with no commands set SHALL run a command with the handler that the command
 - **WHEN** a bus has no registry and a command made without a handler is emitted
 - **THEN** it throws `No handler for command "<type>"`
 
-### Requirement: A later registry replaces the earlier one
-A second `bus.use(commandsPlugin())` on the same bus SHALL replace the registry of that bus; the handlers of the earlier registry SHALL no longer run through that bus.
-
-#### Scenario: Replacement
-- **WHEN** `bus.use(commandsPlugin())` is called twice and a handler was bound in the first registry
-- **THEN** `emit` ignores the handler of the first registry
-
 ### Requirement: The module plugin uses or attaches the registry
 `bus.use(modulePlugin(modules))` SHALL use the registry that the bus has, and SHALL attach one with `commandsPlugin()` when the bus has none; the registry SHALL be returned as `commands`.
 
@@ -55,3 +48,18 @@ A second `bus.use(commandsPlugin())` on the same bus SHALL replace the registry 
 #### Scenario: The bus has none
 - **WHEN** `bus.use(modulePlugin([...]))` is called on a bus with no registry
 - **THEN** a registry is attached, modules bind in it, and `app.commands` is it
+
+### Requirement: A later commandsPlugin merges into the registry
+When the bus already has a registry made by `commandsPlugin` or by `modulePlugin`, `bus.use(commandsPlugin(bindings))` SHALL bind `bindings` in that registry and return that same registry; the handlers bound earlier SHALL keep running. A `commands` that is not such a registry (a custom runner `{ run }`) SHALL be replaced as before.
+
+#### Scenario: Two uses share one registry
+- **WHEN** `bus.use(commandsPlugin())` is called twice and a handler was bound in the first
+- **THEN** both calls return the same registry and `emit` runs the handler of the first
+
+#### Scenario: After the module plugin
+- **WHEN** `bus.use(modulePlugin([userModule]))` and then `bus.use(commandsPlugin([binding]))` are called
+- **THEN** the handlers the module binds and `binding` both run, and `app.commands` is that registry
+
+#### Scenario: A custom runner is replaced
+- **WHEN** `bus.commands = { run }` is set and then `bus.use(commandsPlugin())` is called
+- **THEN** the bus runs the new registry
