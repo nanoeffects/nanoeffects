@@ -17,6 +17,8 @@ Code for every guide step: [`examples/guide.ts`](../examples/guide.ts) (type-che
 | Already on Redux / Zustand / MobX / Pinia | [Stores](stores.md) |
 | A React form with async checks | [Build a sign-up form in React](react.md) |
 | Old responses overwrite new ones | [Cancel stale requests](cancel-stale-requests.md) |
+| Debounced input that must also cancel the old request | [Debounce and abort](debounce-and-abort.md) |
+| A second click sends a second request | [Prevent a double submit](prevent-double-submit.md) |
 | Using mitt, nanoevents or EventEmitter | [Coming from mitt](migrating-from-mitt.md) |
 | Moving from redux-saga | [Coming from redux-saga](migrating-from-saga.md) |
 | Using RxJS | [Use nanoeffects next to RxJS](migrating-from-rxjs.md) |

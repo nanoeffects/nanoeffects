@@ -22,6 +22,8 @@ Rules that generated code often gets wrong:
 
 - [Policies](docs/policies.md): `latest`, `leading`, `debounce`, `throttle`, `queue`, and `key`
 - [Cancel stale requests and fix race conditions](docs/cancel-stale-requests.md): an older response overwrites a newer one; `latest`, `debounce`, `retry`, `timeout` in one recipe
+- [Debounce a request and abort the previous one](docs/debounce-and-abort.md): `debounce` outside, `latest` inside, and when to use `throttle`
+- [Prevent a double submit](docs/prevent-double-submit.md): `leading`, one run per item with `key`, retry only on network errors
 - [Effects and cancellation](docs/effects.md): `retry`, `timeout`, `poll`, `take`, `all`, `race`, `backoff`
 - [Errors and unheard events](docs/errors.md): `onError`, `onUnhandled`
 
