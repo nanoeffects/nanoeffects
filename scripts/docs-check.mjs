@@ -28,13 +28,21 @@ const skipMarker = /^<!--\s*docs-check:\s*skip\b.*-->$/;
 const continueMarker = /^<!--\s*docs-check:\s*continue\b.*-->$/;
 // under any heading: from here the files are new, as in an example of its own
 const newMarker = /^<!--\s*docs-check:\s*new\b.*-->$/;
+// under any heading: from here the files are a copy of the ones before, and a block of the same name replaces its copy
+const forkMarker = /^<!--\s*docs-check:\s*fork\b.*-->$/;
 
-// A `##` heading or a `new` marker starts the files of a new section, a `continue` marker goes back to the section before.
+// A `##` heading or a `new` marker starts the files of a new section, a `fork` marker starts a section that
+// begins as a copy of the one before, and a `continue` marker goes back to the section before.
 function moveSection(files, text) {
-	if (/^## /.test(text) || newMarker.test(text.trim())) {
+	const line = text.trim();
+	if (/^## /.test(text) || newMarker.test(line)) {
 		files.previous = files.section;
-		files.section += 1;
-	} else if (continueMarker.test(text.trim())) {
+		files.section = files.next++;
+	} else if (forkMarker.test(line)) {
+		files.parents.set(files.next, files.section);
+		files.previous = files.section;
+		files.section = files.next++;
+	} else if (continueMarker.test(line)) {
 		files.section = files.previous;
 	}
 }
@@ -48,7 +56,7 @@ export function extractBlocks(markdown, page) {
 	const blocks = [];
 	let open = null;
 	// the files of a block belong to its `##` section; a `continue` marker keeps the section before
-	const files = { section: 0, previous: 0 };
+	const files = { section: 0, previous: 0, next: 1, parents: new Map() };
 	for (const [index, text] of lines.entries()) {
 		if (open === null) {
 			moveSection(files, text);
@@ -62,6 +70,7 @@ export function extractBlocks(markdown, page) {
 				language: fence[1].toLowerCase(),
 				skip: skipMarker.test(before),
 				section: files.section,
+				parents: files.parents,
 				code: [],
 			};
 		} else if (open !== null && /^\s*```\s*$/.test(text)) {
@@ -127,12 +136,29 @@ const folderOf = (block) => `${basename(block.page, ".md")}-${block.section}`;
 /** Writes each block as a module of its own and returns the blocks by file name (with the folder of the page). */
 function writeBlocks(dir, blocks) {
 	const names = new Map();
+	const sections = new Map();
 	for (const [index, block] of blocks.entries()) {
-		const name = join(folderOf(block), fileNameOf(block, index));
-		names.set(name, block);
-		mkdirSync(join(dir, folderOf(block)), { recursive: true });
-		// `export {}` makes the block a module, so `const bus` of two blocks do not clash
-		writeFileSync(join(dir, name), `${block.code}\nexport {};\n`);
+		const key = `${block.page}#${block.section}`;
+		sections.set(key, [...(sections.get(key) ?? []), { block, index }]);
+	}
+	// the blocks of a section go into its folder; a fork first gets the blocks of the section it began from
+	const write = (page, section, folder) => {
+		const parent = (sections.get(`${page}#${section}`) ??
+			[])[0]?.block.parents.get(section);
+		if (parent !== void 0) {
+			write(page, parent, folder);
+		}
+		for (const { block, index } of sections.get(`${page}#${section}`) ?? []) {
+			const name = join(folder, fileNameOf(block, index));
+			names.set(name, block);
+			mkdirSync(join(dir, folder), { recursive: true });
+			// `export {}` makes the block a module, so `const bus` of two blocks do not clash
+			writeFileSync(join(dir, name), `${block.code}\nexport {};\n`);
+		}
+	};
+	for (const entries of sections.values()) {
+		const { block } = entries[0];
+		write(block.page, block.section, folderOf(block));
 	}
 	return names;
 }
@@ -140,6 +166,7 @@ function writeBlocks(dir, blocks) {
 /** The errors to report, with the page and the line in the page. */
 function errorsOf(diagnostics, names) {
 	const errors = [];
+	const reported = new Set();
 	for (const diagnostic of diagnostics) {
 		const block = names.get(diagnostic.file.split("/").slice(-2).join("/"));
 		if (block && isPlainJs(block) && !isStaleName(diagnostic.message)) {
@@ -148,7 +175,12 @@ function errorsOf(diagnostics, names) {
 		// `line` of the block is its fence; the code starts on the next line
 		const line = block ? block.line + diagnostic.line : 0;
 		const page = block ? block.page : diagnostic.file;
-		errors.push({ page, line, message: diagnostic.message });
+		// a file that a fork copies is checked in each copy, and its error is one error
+		const key = `${page}:${line}:${diagnostic.message}`;
+		if (!reported.has(key)) {
+			reported.add(key);
+			errors.push({ page, line, message: diagnostic.message });
+		}
 	}
 	return errors;
 }

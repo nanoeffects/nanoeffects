@@ -271,6 +271,64 @@ describe("named files", () => {
 		expect(result).toEqual({ errors: [], checked: 3, skipped: 0 });
 	});
 
+	it("starts a fork from the files before it and lets a block replace one", () => {
+		const result = check(
+			page(
+				"## One",
+				`${fence}ts`,
+				"// store.js",
+				"export const store = 1;",
+				fence,
+				`${fence}ts`,
+				"// bus.js",
+				'import { store } from "./store";',
+				"export const bus = store.toFixed(1);",
+				fence,
+				"<!-- docs-check: fork -->",
+				`${fence}ts`,
+				"// store.js",
+				"export const store = 'two';",
+				fence,
+				`${fence}ts`,
+				'import { store } from "./store";',
+				"const text = store.toUpperCase();",
+				fence,
+			),
+		);
+
+		// the bus of the fork is checked with the store of the fork, which is a string: its error is reported once
+		expect(result.errors).toHaveLength(1);
+		expect(result.errors[0].message).toContain("toFixed");
+	});
+
+	it("keeps a fork apart from the section it began from", () => {
+		const result = check(
+			page(
+				"## One",
+				`${fence}js`,
+				"// store.js",
+				"export const store = 1;",
+				fence,
+				"<!-- docs-check: fork -->",
+				`${fence}js`,
+				"// store.js",
+				"export const store = 'two';",
+				fence,
+				"## Two",
+				`${fence}js`,
+				"// store.js",
+				"export const store = 3;",
+				fence,
+				`${fence}js`,
+				'import { store } from "./store";',
+				"const text = store.toFixed(1);",
+				fence,
+			),
+		);
+
+		expect(result).toEqual({ errors: [], checked: 4, skipped: 0 });
+	});
+
 	it("lets two pages name a file the same", () => {
 		const first = extractBlocks(
 			page(`${fence}js`, "// bus.js", "export const bus = 1;", fence),
