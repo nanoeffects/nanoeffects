@@ -5,6 +5,17 @@ import type { BoundOf } from "../effects/plugin";
 
 export type { Merge, WithFields } from "../core/scope-types";
 
+/**
+ * The slots `scopePlugin` fills for `modulePlugin`. They are not on `Bus`: a bus
+ * has them in its type once the plugin returned it.
+ */
+export interface ScopeSlots {
+	/** Puts the fields of a module's scope on the context of one of its tasks. Without it a module's scope is ignored. */
+	applyScope?: ((ctx: object, scope: Scope) => void) | undefined;
+	/** Wraps a handler so it runs with the fields of a module's scope. */
+	fitScope?: ((scope: Scope, fn: unknown) => unknown) | undefined;
+}
+
 // the bound form of the `$effects` of a scope, if it has any
 type BoundEffects<E extends EventMap, S extends Scope> = S extends {
 	$effects: infer H extends Effects;

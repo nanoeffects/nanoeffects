@@ -4,6 +4,7 @@ import { scopeKey } from "../core/scope-key";
 import type { Scope } from "../core/scope-types";
 import type { EventMap } from "../core/types";
 import { marked } from "./effect";
+import type { ScopeSlots } from "./types";
 
 // the library's own fields of a context: no scope replaces them
 const reserved = new Set([
@@ -133,9 +134,8 @@ const layersFor = (event: unknown, rest: unknown[]): Layers | undefined => {
  * Fields of the library (`signal`, `emit`, `run`, …) are never replaced. Returns
  * the same bus.
  *
- * Use it after `effectsPlugin`, which assigns its effects over those of a scope
- * when it comes later, and before `modulePlugin`, which mounts its modules when
- * it is used. Without this plugin a scope is ignored.
+ * It works in any order with the other plugins. Without this plugin a scope is
+ * ignored.
  *
  * @example
  * ```ts
@@ -153,7 +153,7 @@ const layersFor = (event: unknown, rest: unknown[]): Layers | undefined => {
  */
 export const scopePlugin =
 	() =>
-	<E extends EventMap>(bus: Bus<E>): Bus<E> => {
+	<E extends EventMap>(bus: Bus<E> & ScopeSlots): Bus<E> & ScopeSlots => {
 		// the emit that is running, only while its tasks are made: the layers it carries and
 		// the event they are for. A context is matched to the emit by the type and the payload
 		// it has (the core says nothing else about who made it). A task of the same type and

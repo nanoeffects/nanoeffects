@@ -289,7 +289,8 @@ describe("module scope", () => {
 			},
 			{ fields: moduleFields },
 		);
-		mounted([userModule]);
+		const { app } = mounted([userModule]);
+		app.isMounted(userModule);
 		await flush();
 
 		expect(seen).toEqual(["module"]);

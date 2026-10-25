@@ -181,7 +181,7 @@
 		{
 			"name": "actions (all)",
 			"path": "dist/actions.js",
-			"limit": "2.1 kB"
+			"limit": "2.65 kB"
 		},
 		{
 			"name": "match (plugin)",

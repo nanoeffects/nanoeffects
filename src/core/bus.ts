@@ -6,7 +6,7 @@ import type {
 } from "./action-creator";
 import { createTask, currentEmitter, traceRun } from "./context";
 import { eventKey, eventPayload } from "./event";
-import type { EmitScope, Scope, WithFields, WithScope } from "./scope-types";
+import type { EmitScope, WithFields, WithScope } from "./scope-types";
 import { anyEventType, createStore } from "./store";
 import type { Tracer } from "./tracer";
 import type {
@@ -276,10 +276,6 @@ export interface Bus<E extends EventMap> {
 	readonly trace?: Tracer | undefined;
 	/** Called with every new task context to add fields to it, for what needs the task, like `effectsPlugin`. Chain to the previous one. */
 	addContext?: ((ctx: object) => void) | undefined;
-	/** Puts the fields of a module's scope on the context of one of its tasks; `scopePlugin` sets it. Without it a module's scope is ignored. */
-	applyScope?: ((ctx: object, scope: Scope) => void) | undefined;
-	/** Wraps a handler so it runs with the fields of a module's scope; `scopePlugin` sets it. */
-	fitScope?: ((scope: Scope, fn: unknown) => unknown) | undefined;
 }
 
 export type BusOptions<E extends EventMap> = {

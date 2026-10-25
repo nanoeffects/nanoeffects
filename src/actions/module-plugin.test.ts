@@ -25,13 +25,11 @@ describe("modulePlugin", () => {
 		const bus = createBus<StoreEvents>({ context });
 		bus.use(commandsPlugin());
 		let seen: unknown = null;
-		bus.use(
-			modulePlugin([
-				createModule<StoreEvents>("m", (moduleContext) => {
-					seen = moduleContext.store;
-				}),
-			]),
-		);
+		const store = createModule<StoreEvents>("m", (moduleContext) => {
+			seen = moduleContext.store;
+		});
+		const app = bus.use(modulePlugin([store]));
+		app.isMounted(store);
 
 		expect(seen).toBe(context.store);
 	});
@@ -90,15 +88,13 @@ describe("modulePlugin", () => {
 		const bus = createBus<TestEvents>();
 		bus.commands = { run: () => 0 };
 
-		expect(() =>
-			bus.use(
-				modulePlugin([
-					createModule("math", (moduleContext) => {
-						moduleContext.handle(createCommand("x"), () => {});
-					}),
-				]),
-			),
-		).toThrow("commandsPlugin");
+		const math = createModule<TestEvents>("math", (moduleContext) => {
+			moduleContext.handle(createCommand("x"), () => {});
+		});
+		const app = bus.use(modulePlugin([math]));
+
+		// the modules are mounted on the first use of the app
+		expect(() => app.isMounted(math)).toThrow("commandsPlugin");
 	});
 
 	it("modules that bind nothing work on a plain bus", () => {
@@ -364,15 +360,19 @@ describe("use with commands", () => {
 });
 
 describe("modulePlugin as a plugin", () => {
-	it("mounts the given modules at once, in the order given", () => {
+	it("mounts the given modules on the first use, in the order given", () => {
 		const bus = createBus<TestEvents>();
 		const order: string[] = [];
 		const named = (name: string) =>
 			createModule<TestEvents>(name, () => {
 				order.push(name);
 			});
-		bus.use(modulePlugin([named("first"), named("second"), named("third")]));
+		const app = bus.use(
+			modulePlugin([named("first"), named("second"), named("third")]),
+		);
 
+		expect(order).toEqual([]);
+		app.isMounted(named("other"));
 		expect(order).toEqual(["first", "second", "third"]);
 	});
 
@@ -435,16 +435,24 @@ describe("modulePlugin as a plugin", () => {
 	it("dispose unmounts every module of the plugin", () => {
 		const bus = createBus<TestEvents>();
 		const aborted = vi.fn();
-		const app = bus.use(
-			modulePlugin([
-				createModule<TestEvents>("a", (moduleContext) => {
-					moduleContext.signal.addEventListener("abort", aborted);
-				}),
-			]),
-		);
+		const listening = createModule<TestEvents>("a", (moduleContext) => {
+			moduleContext.signal.addEventListener("abort", aborted);
+		});
+		const app = bus.use(modulePlugin([listening]));
+		app.isMounted(listening);
 		app.dispose();
 
 		expect(aborted).toHaveBeenCalledTimes(1);
+	});
+
+	it("a dispose that comes first means the given modules never run", () => {
+		const bus = createBus<TestEvents>();
+		const setup = vi.fn();
+		const app = bus.use(modulePlugin([createModule<TestEvents>("a", setup)]));
+		app.dispose();
+
+		expect(setup).not.toHaveBeenCalled();
+		expect(() => app.mount(createModule<TestEvents>("b", setup))).toThrow();
 	});
 
 	it("two plugins on one bus share the registry of the bus", () => {

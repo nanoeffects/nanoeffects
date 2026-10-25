@@ -1,4 +1,4 @@
-import type { Bus, Command, Context } from "../core/bus";
+import type { Bus, Command, Context, Emit } from "../core/bus";
 import { createTask, forkTask } from "../core/context";
 import type { Scope } from "../core/scope-types";
 import type {
@@ -7,9 +7,10 @@ import type {
 	Task,
 	UnsubscribeCallback,
 } from "../core/types";
-import type { Scoped } from "../scope/types";
+import type { Scoped, ScopeSlots } from "../scope/types";
 import { onAbort } from "../utils";
 import { type Binding, commandsPlugin } from "./command";
+import { holdListeners } from "./hold";
 
 /**
  * What a module's `setup` gets: the context of the module's task, so `on`,
@@ -90,13 +91,13 @@ export function createModule(
 
 // wraps a handler of a module with a scope, so it runs with the fields of that scope; the plugin does the wrapping
 const fitter =
-	<E extends EventMap>(bus: Bus<E>, own: Scope | undefined) =>
+	<E extends EventMap>(bus: Bus<E> & ScopeSlots, own: Scope | undefined) =>
 	(fn: unknown): unknown =>
 		own ? (bus.fitScope?.(own, fn) ?? fn) : fn;
 
 // gives the task of a module the fields of its scope, if it has one
 const scopeTask = <E extends EventMap>(
-	bus: Bus<E>,
+	bus: Bus<E> & ScopeSlots,
 	task: Context<E>,
 	own: Scope | undefined,
 ) => {
@@ -145,6 +146,21 @@ type Registry<E extends EventMap> = ReturnType<
 	ReturnType<typeof commandsPlugin<E>>
 >;
 
+/**
+ * The modules of an app as the plugins that report on them see them: the part
+ * of what `modulePlugin` returns that `devPlugin` wraps.
+ */
+export interface ModuleHost {
+	mount(module: { readonly name: string }): UnsubscribeCallback;
+	unmount(module: { readonly name: string }): void;
+	isMounted(module: { readonly name: string }): boolean;
+}
+
+/** The slot `modulePlugin` fills; a bus has it in its type once the plugin returned it. */
+export interface WithApp {
+	app?: ModuleHost | undefined;
+}
+
 /** What `modulePlugin` returns. */
 export type ModuleApi<E extends EventMap = EventMap> = {
 	/** The registry of command handlers of the bus: the one it was made with, or the app's own. */
@@ -170,10 +186,15 @@ export type ModuleApi<E extends EventMap = EventMap> = {
 
 /**
  * The plugin that assembles an app from modules: `bus.use(modulePlugin(modules))`
- * mounts `modules` at once, in the order given, and returns `mount`, `unmount`,
- * `isMounted`, `dispose` and `commands` for the modules that come and go later. The bus runs the commands that the
- * modules bind: if `bus.use(commandsPlugin())` was called before, that registry is
- * used, otherwise the app attaches its own, as `app.commands`.
+ * returns `mount`, `unmount`, `isMounted`, `dispose` and `commands` for the
+ * modules that come and go, and mounts `modules`, in the order given, on the
+ * first use of the app or of the bus: the first `bus.emit`, or the first call
+ * of one of its methods. By then every plugin is on the bus, so the plugins can
+ * be used in any order. The `on`, `once` and `off` calls made in between are
+ * held and made right after the modules, so the listeners of a module stay
+ * ahead of them. The bus runs the commands that the modules bind: the registry
+ * that the bus has is used (a later `commandsPlugin` binds in it), otherwise the
+ * app attaches its own, as `app.commands`. The app is also `bus.app`.
  *
  * A module is known by its `name`: mounting a module whose name is taken
  * replaces the mounted one, which is unmounted first. That is what hot reload
@@ -204,7 +225,7 @@ export type ModuleApi<E extends EventMap = EventMap> = {
  */
 export const modulePlugin =
 	<E extends EventMap>(modules: readonly Module<E>[] = []) =>
-	(bus: Bus<E>): ModuleApi<E> => {
+	(bus: Bus<E> & ScopeSlots & WithApp): ModuleApi<E> => {
 		// the bus runs what it was given; without commands the app attaches its registry
 		const given = bus.commands as Registry<E> | undefined;
 		const registry = given ?? commandsPlugin<E>()(bus);
@@ -218,12 +239,6 @@ export const modulePlugin =
 				return Reflect.apply(registry.handle, null, args);
 			},
 		};
-		const root = createTask<E>({
-			event: { type: "app", payload: void 0 },
-			bus,
-			tracer: bus.trace,
-		});
-
 		// Mounts modules under `parent`, each in a task of its own: aborting that
 		// task undoes the module. A module that is mounted already is not run again.
 		const mounts = (parent: Context<E>) => {
@@ -307,20 +322,67 @@ export const modulePlugin =
 			};
 		};
 
-		const apps = mounts(root.ctx);
-		for (const module of modules) {
-			apps.mount(module);
-		}
+		// Nothing is made until the app is first used, so every plugin used after this one
+		// is on the bus by then and its fields reach the modules. The `on`, `once` and `off`
+		// that come in between wait, and are made after the modules, so the listeners of
+		// the modules keep their place ahead of them.
+		const hold = holdListeners(bus);
+		const emitted = bus.emit;
+		type Running = {
+			root: ReturnType<typeof createTask<E>>;
+			apps: ReturnType<typeof mounts>;
+		};
+		let running: Running | undefined;
 
-		return {
-			commands: registry,
+		const start = (initial = true): Running => {
+			if (running) {
+				return running;
+			}
+			hold.release();
+			if (bus.emit === starting) {
+				bus.emit = emitted;
+			}
+			const root = createTask<E>({
+				event: { type: "app", payload: void 0 },
+				bus,
+				tracer: bus.trace,
+			});
+			// set before the modules are mounted: a `setup` that uses the app does not start it again
+			running = { root, apps: mounts(root.ctx) };
+			if (initial) {
+				for (const module of modules) {
+					running.apps.mount(module);
+				}
+			}
+			hold.replay();
+
+			return running;
+		};
+
+		// the first emit is a use of the bus: a module must be a listener before its event is delivered
+		const starting = (...args: unknown[]) => {
+			start();
+			return Reflect.apply(emitted, bus, args);
+		};
+		bus.emit = starting as Emit<E>;
+
+		const app: ModuleApi<E> = {
+			get commands() {
+				start();
+				return registry;
+			},
 			mount: (module) => {
+				const { root, apps } = start();
 				root.ctx.signal.throwIfAborted();
 				return apps.mount(module);
 			},
-			unmount: apps.unmount,
-			isMounted: apps.isMounted,
-			dispose: () => root.ctx.abort(),
+			unmount: (module) => start().apps.unmount(module),
+			isMounted: (module) => start().apps.isMounted(module),
+			// a dispose that comes first starts the app without the initial modules
+			dispose: () => start(false).root.ctx.abort(),
 			createModule,
 		};
+		bus.app = app;
+
+		return app;
 	};
