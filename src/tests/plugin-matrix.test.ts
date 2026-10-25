@@ -13,6 +13,7 @@ import type { EventMap } from "../core/types";
 import { devPlugin } from "../dev";
 import { delay, effectsPlugin, race } from "../effects";
 import { matchPlugin } from "../match";
+import { extendBus } from "../oop";
 import { reactPlugin } from "../react";
 import { scopePlugin } from "../scope";
 import { noPayload } from "./test-helpers";
@@ -475,6 +476,24 @@ const probes: Probe[] = [
 			];
 
 			return String(seen[0]) === String(expected);
+		},
+	},
+	{
+		id: "a class made from the bus has the plugin methods, and dispose ends a predicate subscription",
+		needs: ["match", "emitter"],
+		run: ({ bus }) => {
+			const Service = extendBus(bus, class {});
+			const service = new Service();
+			const seen: unknown[] = [];
+			Reflect.apply(service.on, service, [
+				(action: { type: string }) => action.type === "p/class",
+				() => seen.push("heard"),
+			]);
+			bus.emit("p/class");
+			service.dispose();
+			bus.emit("p/class");
+
+			return isFunction(field(service, "emitter")) && seen.length === 1;
 		},
 	},
 	{
