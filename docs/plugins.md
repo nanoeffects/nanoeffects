@@ -251,6 +251,7 @@ These connect the bus to something, but are not used with `bus.use`:
 
 - `createEffectsMiddleware(bus, { filter })` from `nanoeffects/redux` is a Redux middleware for a bus that exists. See [Stores](stores.md#wire-redux-toolkit-to-a-bus).
 - `createBus({ trace })` takes a tracer from `nanoeffects/trace`. See [Tracing](tracing.md).
+- `extendBus(bus, Base)` from `nanoeffects/oop` gives a class the methods of a bus, with the subscriptions of each instance ended by `dispose()`. It reads the bus as it is, so use the plugins first. See [Use the bus from a class](oop.md).
 - `createObserve(bus)` from `nanoeffects/observable` turns an event into an Observable. See [Observable](observable.md).
 
 ## Write your own plugin

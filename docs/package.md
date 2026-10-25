@@ -9,6 +9,7 @@ Imports are split so you only load what you use. `createBus` stays small; the re
 | `nanoeffects/effects` | `retry`, `timeout`, `poll`, `delay`, `take`, `all`, `allSettled`, `race`, `effectsPlugin` |
 | `nanoeffects/actions` | `createAction`, `createCommand`, `createJob`, `createModule`, `modulePlugin`, `commandsPlugin` |
 | `nanoeffects/match` | `matchPlugin`: `on`, `once` and `off` that take a function which picks the events |
+| `nanoeffects/oop` | `extendBus`, `WithBus`, `On`, `Once`, `disposeBus`: the methods of a bus on a class, with the subscriptions of each instance ended by `dispose()` |
 | `nanoeffects/scope` | `scopePlugin`, `effect`: fields for one command, action, job, module or `emit` (the types `Scope`, `Effect`) |
 | `nanoeffects/redux` | `createEffectsMiddleware` |
 | `nanoeffects/observable` | `createObserve` |

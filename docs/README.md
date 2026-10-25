@@ -27,6 +27,7 @@ Code for every guide step: [`examples/guide.ts`](../examples/guide.ts) (type-che
 - [Actions, commands, jobs and modules](actions.md)
 - [Sign-up form in React](react.md) — one form: races, double submit, retry
 - [Context fields](context.md) — store or client on every task
+- [Use the bus from a class](oop.md) — `extendBus`, `@WithBus`, `@On`, and `dispose()` for the subscriptions of an instance
 - [TypeScript in many files](typescript.md) — keep the types of the bus in commands and modules
 - [Errors and unheard events](errors.md)
 - [Package entries](package.md) — which import holds what

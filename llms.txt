@@ -31,6 +31,7 @@ Rules that generated code often gets wrong:
 - [Build a sign-up form in React](docs/react.md): a form with a username check, a submit that cannot fire twice, and retry
 - [Context fields](docs/context.md): put a store or client on every task
 - [Scopes](docs/scope.md): fields for one command, action, job, module or `emit`, and a way to replace them in a test
+- [Use the bus from a class](docs/oop.md): `extendBus`, `@WithBus`, `@On`, `@Once`, and `dispose()` for the subscriptions of an instance
 
 ## TypeScript
 
