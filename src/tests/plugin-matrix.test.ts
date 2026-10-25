@@ -133,7 +133,6 @@ const make = (order: Name[]): Build => {
 			build.disconnect = build.bus.use(
 				devPlugin({
 					log: (message: string) => build.messages.push(message),
-					...(build.app ? { app: build.app } : {}),
 				}),
 			);
 		} else {
@@ -144,14 +143,12 @@ const make = (order: Name[]): Build => {
 	return build;
 };
 
-const before = (order: Name[], first: Name, second: Name) =>
+const _before = (order: Name[], first: Name, second: Name) =>
 	order.indexOf(first) < order.indexOf(second);
 
 type Probe = {
 	id: string;
 	needs: Name[];
-	// the order makes the probe fail, and the docs say so
-	explained?: (order: Name[]) => boolean;
 	run: (build: Build) => boolean | Promise<boolean>;
 };
 
@@ -304,6 +301,8 @@ const probes: Probe[] = [
 			for (let index = 0; index < 11; index++) {
 				bus.on("p/dev", () => {});
 			}
+			// held subscriptions are made, and counted, when the modules start
+			bus.emit("p/dev");
 
 			return (
 				messages.filter((message) => message.includes('"p/dev"')).length === 1
@@ -317,6 +316,7 @@ const probes: Probe[] = [
 			for (let index = 0; index < 11; index++) {
 				Reflect.apply(bus.on, bus, [() => false, () => {}]);
 			}
+			bus.emit("p/dev");
 
 			return (
 				messages.some((message) => message.includes('"*"')) &&
@@ -381,13 +381,8 @@ const probes: Probe[] = [
 		},
 	},
 	{
-		// the task of a module exists when modulePlugin is used, so fields that a plugin adds later are not on it
 		id: "the module task and a spawned task see the context fields of the bus",
 		needs: ["modules"],
-		explained: (order) =>
-			["context", "effects"].some((name) =>
-				before(order, "modules", name as Name),
-			),
 		run: async ({ bus, seen, order }) => {
 			bus.emit("module/event");
 			await flush();
@@ -401,9 +396,21 @@ const probes: Probe[] = [
 		},
 	},
 	{
+		id: "the listeners of a module come ahead of the ones registered after the plugin",
+		needs: ["modules"],
+		run: ({ bus, seen }) => {
+			const outside: number[] = [];
+			bus.on("module/event", () => {
+				outside.push(seen.handler.length);
+			});
+			bus.emit("module/event");
+
+			return outside[0] === 1;
+		},
+	},
+	{
 		id: "a module scope reaches its handler and its spawned task",
 		needs: ["modules", "scope"],
-		explained: (order) => before(order, "modules", "scope"),
 		run: async ({ bus, seen }) => {
 			bus.emit("module/event");
 			await flush();
@@ -417,8 +424,6 @@ const probes: Probe[] = [
 	{
 		id: "a module binds a handler for a command",
 		needs: ["modules"],
-		// a commandsPlugin used after modulePlugin replaces the registry, and the bindings of the module go with it
-		explained: (order) => before(order, "modules", "commands"),
 		run: ({ bus }) => bus.emit(getValue()) === 42,
 	},
 	{
@@ -489,7 +494,6 @@ const probes: Probe[] = [
 	{
 		id: "a module uses a predicate in its setup",
 		needs: ["modules", "match"],
-		explained: (order) => before(order, "modules", "match"),
 		run: ({ bus, seen }) => {
 			bus.emit("p/setup");
 
@@ -499,7 +503,6 @@ const probes: Probe[] = [
 	{
 		id: "devPlugin reports a module that is mounted through the app",
 		needs: ["dev", "modules"],
-		explained: (order) => before(order, "dev", "modules"),
 		run: ({ app, messages }) => {
 			app?.mount(createModule("reported", () => {}));
 
@@ -521,14 +524,10 @@ const failuresOf = async (order: Name[]) => {
 		try {
 			ok = await probe.run(make(order));
 		} catch (error) {
-			if (!probe.explained?.(order)) {
-				failures.push(
-					`${order.join(" > ")}: ${probe.id} threw ${String(error)}`,
-				);
-			}
+			failures.push(`${order.join(" > ")}: ${probe.id} threw ${String(error)}`);
 			continue;
 		}
-		if (!ok && !probe.explained?.(order)) {
+		if (!ok) {
 			failures.push(`${order.join(" > ")}: ${probe.id}`);
 		}
 	}
