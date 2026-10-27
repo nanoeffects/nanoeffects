@@ -32,6 +32,7 @@ Rules that generated code often gets wrong:
 
 - [Actions, commands, jobs and modules](docs/actions.md): `createAction`, `createCommand`, `createJob`, `createModule`
 - [Connect Redux, Zustand, MobX, or Pinia](docs/stores.md): the Redux middleware and callbacks of other stores
+- [Use nanoeffects with React Query and SWR](docs/query-libraries.md): call a command from `queryFn` or the SWR fetcher; `signalPlugin` passes the abort of the library to the task
 - [Build a sign-up form in React](docs/react.md): a form with a username check, a submit that cannot fire twice, and retry
 - [Context fields](docs/context.md): put a store or client on every task
 - [Scopes](docs/scope.md): fields for one command, action, job, module or `emit`, and a way to replace them in a test

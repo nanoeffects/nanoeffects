@@ -246,7 +246,7 @@ export const scopePlugin =
 			pendingType = typeOf(event);
 			pendingPayload = payloadOf(event, rest);
 			try {
-				return isObject(event) ? emit(event) : emit(event, ...rest);
+				return emit(event, ...rest);
 			} finally {
 				pendingLayers = outerLayers;
 				pendingType = outerType;

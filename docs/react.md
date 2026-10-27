@@ -167,3 +167,4 @@ In the component, add `bus.emit("form/closed")` to the cleanup function of the e
 - The policies behind this form: [Policies](policies.md).
 - `retry`, `timeout` and the other effects: [Effects](effects.md).
 - A state library instead of `useState`: [Stores](stores.md).
+- React Query or SWR instead of your own state: [Use nanoeffects with React Query and SWR](query-libraries.md).

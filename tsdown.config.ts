@@ -26,6 +26,7 @@ export default defineConfig([
 			dev: "src/dev/index.ts",
 			scope: "src/scope/index.ts",
 			match: "src/match/index.ts",
+			signal: "src/signal/index.ts",
 			oop: "src/oop/index.ts",
 		},
 		dts: true,

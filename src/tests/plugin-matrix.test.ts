@@ -16,6 +16,7 @@ import { matchPlugin } from "../match";
 import { extendBus } from "../oop";
 import { reactPlugin } from "../react";
 import { scopePlugin } from "../scope";
+import { signalPlugin } from "../signal";
 import { noPayload } from "./test-helpers";
 
 // Every plugin of the package, in many orders. For each order the bus gets the plugins, and the
@@ -30,6 +31,7 @@ type Name =
 	| "modules"
 	| "emitter"
 	| "match"
+	| "signal"
 	| "dev"
 	| "react";
 
@@ -41,6 +43,7 @@ const names: Name[] = [
 	"modules",
 	"emitter",
 	"match",
+	"signal",
 	"dev",
 	"react",
 ];
@@ -72,6 +75,18 @@ const field = (target: unknown, key: string) =>
 		: void 0;
 const storeName = (ctx: unknown) => field(field(ctx, "store"), "name");
 const isFunction = (value: unknown) => typeof value === "function";
+
+// resolves with what it saw once the signal of the task aborts
+const abortedWith = (ctx: { signal: AbortSignal }, ...before: unknown[]) =>
+	new Promise<string>((resolve) => {
+		ctx.signal.addEventListener("abort", () => {
+			resolve([...before, "aborted"].join());
+		});
+	});
+
+// `emit` with options, which only the bus of `signalPlugin` types
+const emitWith = (bus: Bus<EventMap>, call: unknown, options: unknown) =>
+	Reflect.apply(bus.emit, bus, [call, options]) as Promise<string>;
 
 const getValue = createCommand<void, number>("probe/value");
 
@@ -130,6 +145,8 @@ const make = (order: Name[]): Build => {
 			build.bus.use(emitterPlugin());
 		} else if (name === "match") {
 			build.bus.use(matchPlugin());
+		} else if (name === "signal") {
+			build.bus.use(signalPlugin());
 		} else if (name === "dev") {
 			build.disconnect = build.bus.use(
 				devPlugin({
@@ -293,6 +310,52 @@ const probes: Probe[] = [
 			bus.emit(read(noPayload));
 
 			return seen[0] === "own";
+		},
+	},
+	{
+		id: "an outside signal aborts the handler of an emit",
+		needs: ["signal"],
+		run: async ({ bus }) => {
+			const read = createCommand("p/signal", (_payload: undefined, ctx) =>
+				abortedWith(ctx),
+			);
+			const controller = new AbortController();
+			const result = emitWith(bus, read(noPayload), {
+				signal: controller.signal,
+			});
+			controller.abort();
+
+			return (await result) === "aborted";
+		},
+	},
+	{
+		id: "a signal and a scope share the options of an emit",
+		needs: ["signal", "scope"],
+		run: async ({ bus }) => {
+			const read = createCommand("p/signal-scope", (_payload: undefined, ctx) =>
+				abortedWith(ctx, field(ctx, "api")),
+			);
+			const controller = new AbortController();
+			const result = emitWith(bus, read(noPayload), {
+				api: "own",
+				signal: controller.signal,
+			});
+			controller.abort();
+
+			return (await result) === "own,aborted";
+		},
+	},
+	{
+		id: "a signal reaches a handler bound in the registry",
+		needs: ["signal", "commands"],
+		run: async ({ bus, commands }) => {
+			const ask = createCommand<void, Promise<string>>("p/signal-registry");
+			commands?.handle(ask, (_payload, ctx) => abortedWith(ctx));
+			const controller = new AbortController();
+			const result = emitWith(bus, ask(), { signal: controller.signal });
+			controller.abort();
+
+			return (await result) === "aborted";
 		},
 	},
 	{

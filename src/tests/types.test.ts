@@ -20,7 +20,7 @@ import {
 } from "../core/bus";
 import { contextPlugin } from "../core/context-plugin";
 import type { Effect } from "../core/effect-types";
-import type { Task, UnsubscribeCallback } from "../core/types";
+import type { EventMap, Task, UnsubscribeCallback } from "../core/types";
 import {
 	all,
 	allSettled,
@@ -38,6 +38,7 @@ import { type BusMethods, extendBus, On } from "../oop";
 import { debounce, latest, leading, queue, throttle } from "../policies";
 import { reactPlugin } from "../react";
 import { effect } from "../scope";
+import { signalPlugin } from "../signal";
 import { createEffectsMiddleware, type ReduxStoreApi } from "../store/redux";
 
 type User = { id: string; name: string };
@@ -680,6 +681,37 @@ describe("a job", () => {
 				// @ts-expect-error a plain action object is not a target
 				cancel: { type: "item/cancelled" },
 			});
+		};
+		expectTypeOf(wrongCalls).toBeFunction();
+	});
+});
+
+describe("signalPlugin", () => {
+	const bus = createBus().use(signalPlugin());
+	const getUser = createCommand("user/get", async (id: string) => ({ id }));
+	const controller = new AbortController();
+
+	it("takes a signal as the second argument of a call and returns the result", () => {
+		const result = bus.emit(getUser("1"), { signal: controller.signal });
+
+		expectTypeOf(result).toEqualTypeOf<Promise<{ id: string }>>();
+	});
+
+	it("takes a signal together with a scope", () => {
+		const scoped = createBus<EventMap & WithContext<{ api?: string }>>().use(
+			signalPlugin(),
+		);
+		const loaded = createCommand("user/loaded", (id: string) => id);
+
+		scoped.emit(loaded("1"), { api: "fake", signal: controller.signal });
+	});
+
+	it("does not take it for the string form, and a signal must be a signal", () => {
+		const wrongCalls = () => {
+			// @ts-expect-error the string form has no options
+			bus.emit("user/get", "1", { signal: controller.signal });
+			// @ts-expect-error a signal is an AbortSignal
+			bus.emit(getUser("1"), { signal: "stop" });
 		};
 		expectTypeOf(wrongCalls).toBeFunction();
 	});

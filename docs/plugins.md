@@ -92,6 +92,7 @@ Add one of these when you meet its need. None of them is required.
 | Plugin | What it gives you | Import | `bus.use` returns |
 | ------ | ----------------- | ------ | ----------------- |
 | [`scopePlugin`](#give-one-command-its-own-fields-scopeplugin) | Its own fields for one command, action, job or module, and a way to replace them in one `emit`. | `nanoeffects/scope` | The same bus |
+| [`signalPlugin`](#tie-an-emit-to-an-outside-signal-signalplugin) | `emit(call, { signal })` that aborts its tasks when an outside signal aborts. | `nanoeffects/signal` | The same bus, typed with the new `emit` |
 | [`matchPlugin`](#listen-to-a-group-of-events-matchplugin) | `on` that listens to a group of events which a function picks. | `nanoeffects/match` | The same bus, typed with the new overloads |
 | [`emitterPlugin`](#hand-the-bus-to-a-state-manager-emitterplugin) | A callback that emits an action, to give to a state manager. | `nanoeffects/actions` | The same bus, with `emitter` |
 | [`reactPlugin`](#tell-the-bus-when-a-react-value-changes-reactplugin) | A React hook that emits when a value of a component changes. | `nanoeffects/react` | The same bus, with `useEmitter` |
@@ -116,6 +117,25 @@ const getUser = createCommand("user/get", (id, { api }) => api.getUser(id), {
 
 const fakeApi = { getUser: async (id) => ({ id, name: "test" }) };
 bus.emit(getUser("1"), { api: fakeApi }); // a fake api for this call only
+```
+
+### Tie an emit to an outside signal: `signalPlugin`
+
+A library such as React Query owns the request and gives you an `AbortSignal`. `emit` takes it as `{ signal }` and aborts the tasks it starts when the signal aborts, so `timeout`, `retry` and the request stop too. More in [Use nanoeffects with React Query and SWR](query-libraries.md).
+
+```js
+import { createBus } from "nanoeffects";
+import { createCommand } from "nanoeffects/actions";
+import { signalPlugin } from "nanoeffects/signal";
+
+// signalPlugin — emit takes { signal } for a command, a job or an action
+const bus = createBus().use(signalPlugin());
+
+const getUser = createCommand("user/get", (id, { signal }) => api.getUser(id, { signal }));
+
+const controller = new AbortController();
+bus.emit(getUser("1"), { signal: controller.signal }); // runs the command
+controller.abort(); // ctx.signal of the handler aborts with it
 ```
 
 ### Listen to a group of events: `matchPlugin`
