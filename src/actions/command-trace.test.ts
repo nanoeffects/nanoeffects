@@ -224,6 +224,42 @@ describe("tracing of commands", () => {
 
 			expect(starts().map((event) => event.type)).toEqual(["user/load"]);
 		});
+
+		it("the cancel action of an aborted job keeps the causal link, and the task still ends with the cancel phase", async () => {
+			const { app, recorder, startOf } = setup();
+			const cancelled = createAction<unknown, "loaded">("loaded");
+			const inner = createCommand("inner", (value: number) => value);
+			const job = createJob(
+				"user/load",
+				async (_: string, ctx) => {
+					ctx.abort();
+					return "x";
+				},
+				{ cancel: cancelled },
+			);
+			app.bus.on(cancelled, (_reason, ctx) => ctx.emit(inner, 1));
+			await app.bus.emit(job, "1");
+
+			expect(startOf("inner")).toHaveProperty("parent");
+			const phases = recorder.events
+				.filter((event) => event.effect === "command")
+				.filter((event) => String(event.type) === "user/load")
+				.map((event) => event.phase);
+			expect(phases).toEqual(["start", "cancel"]);
+		});
+
+		it("the pending action keeps the causal link", async () => {
+			const { app, startOf } = setup();
+			const loading = createAction<string, "ping">("ping");
+			const inner = createCommand("inner", (value: number) => value);
+			const job = createJob("user/load", async (_: string) => "x", {
+				pending: loading,
+			});
+			app.bus.on(loading, (_id, ctx) => ctx.emit(inner, 1));
+			await app.bus.emit(job, "1");
+
+			expect(startOf("inner")).toHaveProperty("parent");
+		});
 	});
 
 	describe("sampling follows the root", () => {

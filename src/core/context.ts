@@ -1,5 +1,6 @@
 import { linkedController, onAbort } from "../utils";
 import type { Context, Emit, Off, On } from "./bus";
+import { type EmitGate, emitAfterAbort } from "./emit-key";
 import { TRACE } from "./flag";
 import type { TaskRef, Tracer } from "./tracer";
 import type { EffectName, EventMap, PayloadOf, Phase, Task } from "./types";
@@ -87,9 +88,6 @@ type TaskInit<E extends EventMap> = {
 	parent?: { signal?: AbortSignal | undefined; ref?: TaskRef | undefined };
 };
 
-// the fields of a context follow from the event it is for, so no literal can be checked against it
-const asContext = <E extends EventMap>(task: object) => task as Context<E>;
-
 /**
  * Creates the context of one task. Its signal follows `parent`; `unlink`
  * detaches it from `parent` once the task is finished.
@@ -107,7 +105,8 @@ export const createTask = <E extends EventMap>({
 		TRACE && tracer ? { tracer, ref: tracer.task(event, parent?.ref) } : void 0;
 
 	const taskEmit = (...args: unknown[]) => {
-		if (signal.aborted) {
+		// `createJob` opens the key for the time of its own emit of `cancel`
+		if (signal.aborted && !(ctx as EmitGate)[emitAfterAbort]) {
 			return;
 		}
 		const emit = bus?.emit as ((...a: unknown[]) => unknown) | undefined;
@@ -157,7 +156,8 @@ export const createTask = <E extends EventMap>({
 		}
 	};
 
-	const ctx = asContext<E>({
+	// the fields of a context follow from the event it is for, so no literal can be checked against it
+	const ctx = {
 		...fieldsOf(bus?.ctx, event),
 		type: event.type,
 		payload: event.payload,
@@ -167,7 +167,7 @@ export const createTask = <E extends EventMap>({
 		on: taskOn,
 		off: bus?.off ?? noop,
 		run,
-	});
+	} as Context<E>;
 	bus?.addContext?.(ctx);
 	if (meta) {
 		metaOf.set(ctx, meta);

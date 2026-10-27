@@ -56,6 +56,33 @@ describe("job scope", () => {
 		]);
 	});
 
+	it("gives its fields to the listeners of pending and cancel", async () => {
+		const bus = createBus().use(scopePlugin());
+		const seen: unknown[] = [];
+		const load = createJob(
+			"user/load",
+			async (_id: string, ctx) => {
+				ctx.abort();
+				return "x";
+			},
+			{},
+			{ fields: commandFields },
+		);
+		bus.on(load.pending, (_id, ctx) => {
+			seen.push(["pending", nameOf(ctx)]);
+		});
+		bus.on(load.cancel, (_reason, ctx) => {
+			seen.push(["cancel", nameOf(ctx)]);
+		});
+
+		await bus.emit(load("1"));
+
+		expect(seen).toEqual([
+			["pending", "command"],
+			["cancel", "command"],
+		]);
+	});
+
 	it("the outcome action's own scope wins over the job's, field by field", async () => {
 		const bus = createBus().use(scopePlugin());
 		const seen: unknown[] = [];

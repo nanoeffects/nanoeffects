@@ -56,7 +56,7 @@ export type EventLike<E extends EventMap> = {
  * Brands `{ type, payload }` from a command call so `emit` can run the command.
  * Not enumerable on the object.
  */
-export const commandCall = Symbol("nanoeffects.commandCall");
+export const commandCall = Symbol();
 
 /**
  * What `command(payload)` returns: an action-shaped value that `emit` runs as

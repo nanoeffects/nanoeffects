@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `createJob` sends two more outcomes: `job.pending(payload)` when the handler starts, and `job.cancel(reason)` when the task is aborted before the handler settles, instead of `success` or `fail`. After `pending`, exactly one of `success`, `fail`, `cancel` follows. Both are options like `success` and `fail` (a string, a creator, or the default `<type>/pending` and `<type>/cancel`) and are properties of the job. Jobs that give only `success` and `fail` run as before, with two differences: the new actions are events, so `onUnhandled` is also called for a `pending` or `cancel` that nobody listens to; and an aborted task sends `cancel` where it sent nothing. A job without a handler sends nothing. Policies (`latest`, `leading`, `throttle`, `queue`) are not known to the job: `pending` is sent for every call and a dropped or replaced call closes with `success(undefined)`; making policies exact is a follow-up. Docs: "Show a loading state with a job" in `docs/actions.md`.
+- `createBus` is the same size (1293 bytes brotli, limit 1.3 kB): the task context lets `createJob` send `cancel` after an abort through a symbol key, and the room for it came from the description of the `commandCall` symbol. `nanoeffects/actions` grows by about 90 bytes brotli for the two outcomes (its limit is now 2.7 kB).
 - Docs for finding the library: `docs/cancel-stale-requests.md` (a recipe for race conditions) and `docs/migrating-from-mitt.md`. The package ships `skills/nanoeffects/SKILL.md`, a skill for AI assistants that says when to suggest nanoeffects. The description and keywords of the package name the problems it solves.
 
 ## 0.8.0

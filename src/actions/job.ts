@@ -1,8 +1,10 @@
 import type { Context } from "../core/bus";
 import { makeCommandCall } from "../core/bus";
+import { type EmitGate, emitAfterAbort } from "../core/emit-key";
 import type { Scope } from "../core/scope-types";
 import type { EventMap, Task } from "../core/types";
 import type { FieldsOfScope, Scoped } from "../scope/types";
+import { report } from "../utils/report";
 import { type ActionCreator, createAction } from "./action";
 import { beneath, carriedBy, carry } from "./carry";
 import {
@@ -40,6 +42,24 @@ const send = (
 	);
 };
 
+// `cancel` is sent after the abort, where `ctx.emit` does nothing: the context
+// lets one emit through for the time of this call. A listener that throws must
+// not reject the job.
+const sendCancel = (
+	ctx: Context<EventMap>,
+	creator: Creator,
+	scope: Scope | undefined,
+) => {
+	const gate = ctx as EmitGate;
+	gate[emitAfterAbort] = true;
+	try {
+		send(ctx, creator, ctx.signal.reason, scope);
+	} catch (error) {
+		report("cancel listener", error);
+	}
+	gate[emitAfterAbort] = false;
+};
+
 // a sync throw becomes a rejection; a missing handler is a mistake, so it is thrown
 const attempt = <T>(fn: () => T): Promise<Awaited<T>> => {
 	try {
@@ -52,53 +72,67 @@ const attempt = <T>(fn: () => T): Promise<Awaited<T>> => {
 	}
 };
 
-/** What `createJob` returns: the command of the job, with its two actions as properties. */
+/** What `createJob` returns: the command of the job, with its four actions as properties. */
 export type Job<
 	P,
 	R,
 	T extends string,
 	S extends Outcome,
 	F extends Outcome,
+	PE extends Outcome = `${T}/pending`,
+	CE extends Outcome = `${T}/cancel`,
 > = MadeCommand<P, Promise<Awaited<R> | undefined>, T> & {
+	/** Made from a string with the payload of the call as its payload, or the creator that was given. */
+	readonly pending: PE extends string ? ActionCreator<P, PE> : PE;
 	/** Made from a string with the result as its payload, or the creator that was given. */
 	readonly success: S extends string ? ActionCreator<Awaited<R>, S> : S;
 	/** Made from a string with the error as its payload, or the creator that was given. */
 	readonly fail: F extends string ? ActionCreator<unknown, F> : F;
+	/** Made from a string with the abort reason as its payload, or the creator that was given. */
+	readonly cancel: CE extends string ? ActionCreator<unknown, CE> : CE;
 };
 
 /**
  * Creates a job: a command whose outcome is sent on as actions. When the
- * handler succeeds, `job.success(result)` is emitted on the bus, and when it
- * fails, `job.fail(error)`. It is made for the case where nobody waits for
- * the result and the bus carries it on, like `createAsyncThunk` or an effector
- * effect. It returns the command, with the two actions on it: `job.success` and
- * `job.fail`.
+ * handler starts, `job.pending(payload)` is emitted on the bus. When it
+ * succeeds, `job.success(result)` follows, and when it fails, `job.fail(error)`.
+ * When the task is aborted after it started, `job.cancel(reason)` follows
+ * instead. After `pending`, exactly one of the three closes the call. A job is
+ * made for the case where nobody waits for the result and the bus carries it
+ * on, like `createAsyncThunk` or an effector effect. It returns the command,
+ * with the four actions on it.
  *
  * A scope as the last argument, `{ cache, $effects: { race } }`, gives the handler
  * and the listeners of the outcome those context fields; see `scopePlugin`.
  *
- * `success` and `fail` are a type string, from which the job makes an action
- * creator with `createAction`, or an action creator that exists already, which
- * is used and returned as it is. A missing one is made with the type
- * `<type>/success` or `<type>/fail`.
+ * `pending`, `success`, `fail` and `cancel` are a type string, from which the
+ * job makes an action creator with `createAction`, or an action creator that
+ * exists already, which is used and returned as it is. A missing one is made
+ * with the type `<type>/pending`, `<type>/success`, `<type>/fail` or
+ * `<type>/cancel`.
  *
  * `bus.emit(job(payload))` returns a promise of the result. An error of the
  * handler always counts as handled: it goes to `job.fail` and the promise
  * resolves with `undefined`; a command is the tool for a result that must reject.
  * The actions are emitted as the task that ran the job, also for a handler bound
- * with `commands.handle`, and are skipped once the task is aborted. A missing
- * handler is not an outcome: `emit` throws `MissingHandlerError`. Calling the
- * job builds `{ type, payload }` like a command; it does not run the handler.
+ * with `commands.handle`. Once the task is aborted, `success` and `fail` are
+ * skipped and `cancel` is sent when the handler settles (a handler that never
+ * settles sends nothing). A call that does not start, because a policy drops it
+ * or it is aborted while it waits in a `queue`, sends none of the four. A
+ * missing handler is not an outcome: `emit` throws `MissingHandlerError`.
+ * Calling the job builds `{ type, payload }` like a command; it does not run
+ * the handler.
  *
  * @example
  * ```ts
- * const loadUser = createJob("user/load", fetchUser, {
- *   success: "user/loaded",
- *   fail: "user/failed",
- * });
+ * const loadUser = createJob("user/load", fetchUser);
+ * let loading = false;
  *
- * bus.on(loadUser.success, (user) => render(user));
- * bus.emit(loadUser("1")); // loadUser.success(user) or loadUser.fail(error) comes later
+ * bus.on(loadUser.pending, () => { loading = true; });
+ * bus.on(loadUser.success, (user) => { loading = false; render(user); });
+ * bus.on(loadUser.fail, () => { loading = false; });
+ * bus.on(loadUser.cancel, () => { loading = false; });
+ * bus.emit(loadUser("1")); // pending now, then success, fail or cancel
  * ```
  */
 export const createJob = <
@@ -108,27 +142,37 @@ export const createJob = <
 	E extends EventMap = EventMap,
 	S extends Outcome = `${T}/success`,
 	F extends Outcome = `${T}/fail`,
+	PE extends Outcome = `${T}/pending`,
+	CE extends Outcome = `${T}/cancel`,
 	X extends Scope = Record<never, never>,
 >(
 	type: T,
 	handler?: Task<P, Scoped<E, X>, R>,
 	outcomes: {
+		/** Gets the payload of the call when the handler starts: a type to make an action creator of, or an action creator. */
+		pending?: PE;
 		/** Gets the result when the handler succeeds: a type to make an action creator of, or an action creator. */
 		success?: S;
 		/** Gets the error when the handler fails: a type to make an action creator of, or an action creator. */
 		fail?: F;
+		/** Gets the abort reason when the task is aborted before the handler settles: a type to make an action creator of, or an action creator. */
+		cancel?: CE;
 	} = {},
 	/** Context values and `$effects` for the handler and for the listeners of the outcome; see `scopePlugin`. */
 	scope?: X,
 ): CarryingCalls<
-	Job<P, R, T, S, F>,
+	Job<P, R, T, S, F, PE, CE>,
 	P,
 	Promise<Awaited<R> | undefined>,
 	FieldsOfScope<E, X>
 > => {
 	const command = createCommand<P, R, T, Scoped<E, X>>(type, handler);
-	const successAction = creatorOf(outcomes.success ?? `${type}/success`);
-	const failAction = creatorOf(outcomes.fail ?? `${type}/fail`);
+	const outcomeOf = (name: keyof typeof outcomes) =>
+		creatorOf(outcomes[name] ?? `${type}/${name}`);
+	const pendingAction = outcomeOf("pending");
+	const successAction = outcomeOf("success");
+	const failAction = outcomeOf("fail");
+	const cancelAction = outcomeOf("cancel");
 
 	// runs `base` and sends its outcome on
 	const route = (
@@ -137,15 +181,28 @@ export const createJob = <
 		ctx: unknown,
 	) => {
 		const task = ctx as Context<EventMap>;
-		const outcome = attempt(() => Reflect.apply(base, null, [payload, ctx]));
+		// a listener of `pending` that throws is a failure of the call, like the handler
+		const outcome = attempt(() => {
+			send(task, pendingAction, payload, scope);
+			return Reflect.apply(base, null, [payload, ctx]);
+		});
 
+		// an abort wins over any result or error: it is what the caller asked for
 		return outcome.then(
 			(value) => {
-				send(task, successAction, value, scope);
+				if (task.signal.aborted) {
+					sendCancel(task, cancelAction, scope);
+				} else {
+					send(task, successAction, value, scope);
+				}
 				return value;
 			},
 			(error: unknown) => {
-				send(task, failAction, error, scope);
+				if (task.signal.aborted) {
+					sendCancel(task, cancelAction, scope);
+				} else {
+					send(task, failAction, error, scope);
+				}
 			},
 		);
 	};
@@ -158,6 +215,10 @@ export const createJob = <
 	// with a context the bus is running it; without, build the call for emit
 	function invoke(payload: P, ctx?: Context<E>) {
 		if (typeof ctx === "object") {
+			// without a handler the command throws; `pending` would have no end
+			if (!handler) {
+				return Reflect.apply(command, null, [payload, ctx]);
+			}
 			return route(command, payload, ctx);
 		}
 		return carry(makeCommandCall(job, type, payload), scope);
@@ -167,13 +228,15 @@ export const createJob = <
 		type,
 		match: command.match,
 		wrap,
+		pending: pendingAction,
 		success: successAction,
 		fail: failAction,
-	}) as Job<P, R, T, S, F>;
+		cancel: cancelAction,
+	}) as Job<P, R, T, S, F, PE, CE>;
 	const job = carry(made, scope);
 
 	return job as CarryingCalls<
-		Job<P, R, T, S, F>,
+		Job<P, R, T, S, F, PE, CE>,
 		P,
 		Promise<Awaited<R> | undefined>,
 		FieldsOfScope<E, X>

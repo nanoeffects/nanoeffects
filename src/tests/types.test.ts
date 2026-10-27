@@ -637,6 +637,52 @@ describe("a job", () => {
 		};
 		expectTypeOf(wrongCalls).toBeFunction();
 	});
+
+	it("makes pending and cancel with the defaults, the payload of the call and the abort reason", () => {
+		const command = createJob("item/load", fetchItem);
+		const { pending: pendingAction, cancel: cancelAction } = command;
+
+		expectTypeOf(pendingAction.type).toEqualTypeOf<"item/load/pending">();
+		expectTypeOf(cancelAction.type).toEqualTypeOf<"item/load/cancel">();
+		expectTypeOf(pendingAction("1").payload).toEqualTypeOf<string>();
+		expectTypeOf(cancelAction(new Error("x")).payload).toEqualTypeOf<unknown>();
+	});
+
+	it("makes pending and cancel from strings with the literal types", () => {
+		const command = createJob("item/load", fetchItem, {
+			pending: "item/loading",
+			cancel: "item/cancelled",
+		});
+
+		expectTypeOf(command.pending.type).toEqualTypeOf<"item/loading">();
+		expectTypeOf(command.cancel.type).toEqualTypeOf<"item/cancelled">();
+	});
+
+	it("returns a given creator for pending and cancel as it is", () => {
+		const loading = createAction<string, "item/loading">("item/loading");
+		const cancelled = createAction<unknown, "item/cancelled">("item/cancelled");
+		const command = createJob("item/load", fetchItem, {
+			pending: loading,
+			cancel: cancelled,
+		});
+
+		expectTypeOf(command.pending).toEqualTypeOf(loading);
+		expectTypeOf(command.cancel).toEqualTypeOf(cancelled);
+	});
+
+	it("a plain object as the target of pending or cancel is an error", () => {
+		const wrongCalls = () => {
+			createJob("item/load", fetchItem, {
+				// @ts-expect-error a plain action object is not a target
+				pending: { type: "item/loading" },
+			});
+			createJob("item/load", fetchItem, {
+				// @ts-expect-error a plain action object is not a target
+				cancel: { type: "item/cancelled" },
+			});
+		};
+		expectTypeOf(wrongCalls).toBeFunction();
+	});
 });
 
 describe("bus.use", () => {

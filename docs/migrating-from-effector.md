@@ -20,7 +20,7 @@ nanoeffects has no store. `createStore` can be replaced by any store you like, f
 | event call `loaded(user)` | `bus.emit("loaded", user)` |
 | `createEffect(handler)` | a handler: `bus.on(event, handler)` |
 | effect with `done` and `fail` | [`createJob`](actions.md): emits the success and fail actions |
-| `effect.pending` | not provided: keep a flag in your store, or read it from [Tracing](tracing.md) |
+| `effect.pending` | `job.pending`, `job.success`, `job.fail` and `job.cancel`: set and clear the flag in your store ([Show a loading state](actions.md#show-a-loading-state-with-a-job)) |
 | `sample({ clock, fn, target })` | `bus.on(clock, handler)` and `ctx.emit(target, …)` |
 | `sample({ source: $store, clock })` | read the store from a [context field](context.md) in the handler |
 | `sample({ filter })` | an `if` in the handler |
@@ -318,7 +318,7 @@ bus.on(
 ## What is different
 
 - **No state.** There is no `createStore`, `combine`, `restore`, `$store.map`. The bus holds listeners only. Take a store such as Zustand for state ([Stores](stores.md)).
-- **No `pending`.** A running task is visible through [Tracing](tracing.md), not through a store. A flag in your store set at the start and the end of the handler does the job.
+- **`pending` is an action, not a store.** `createJob` sends `pending` when the handler starts, and `success`, `fail` or `cancel` when it ends; you keep the flag in your store ([Show a loading state](actions.md#show-a-loading-state-with-a-job)). With a policy such as `latest` around the handler the flag is not exact yet, which that section explains. A running task is also visible through [Tracing](tracing.md).
 - **Cancellation is the default tool.** An Effector effect runs every call to the end. Here `latest` and `ctx.signal` stop what is no longer needed.
 - **Events are matched by name, not by identity.** An event is a string or a `createAction` creator, not a unit that you import and call. Two modules agree on the name.
 - **No graph.** `sample` and `forward` build a static graph. A bus subscribes handlers at runtime and the call order is the order of `on`.
