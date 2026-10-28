@@ -80,10 +80,10 @@ A job without a handler anywhere SHALL throw `MissingHandlerError` from `emit`, 
 - **THEN** `emit` throws `No handler for command "<type>"` and no action is emitted
 
 ### Requirement: Only strings and action creators are targets
-`success` and `fail` SHALL be a string or an action creator; a command or a plain action object SHALL be a type error.
+`pending`, `success`, `fail` and `cancel` SHALL be a string or an action creator; a plain action object SHALL be a type error.
 
-#### Scenario: A command as a target
-- **WHEN** a command is passed as `success`
+#### Scenario: A plain object as a target
+- **WHEN** a plain `{ type }` object is passed as `pending` or `cancel`
 - **THEN** it does not type-check
 
 ### Requirement: A job without a handler sends no outcome

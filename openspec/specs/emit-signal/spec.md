@@ -1,7 +1,7 @@
 # emit-signal Specification
 
 ## Purpose
-TBD - created by archiving change emit-with-signal. Update Purpose after archive.
+Lets `bus.emit(call, { signal })` tie the tasks of one emit to an outside `AbortSignal`, so a library that owns the request and gives you a signal (React Query) can cancel the handler, `latest`, `retry` and `timeout` through the bus.
 
 ## Requirements
 

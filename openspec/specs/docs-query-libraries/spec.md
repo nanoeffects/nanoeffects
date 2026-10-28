@@ -1,7 +1,7 @@
 # docs-query-libraries Specification
 
 ## Purpose
-TBD - created by archiving change emit-with-signal. Update Purpose after archive.
+Documents how to use nanoeffects with React Query and SWR: the library keeps `isLoading`, `data` and the cache, and nanoeffects keeps retry, timeout, policies and abort behind one command call.
 
 ## Requirements
 

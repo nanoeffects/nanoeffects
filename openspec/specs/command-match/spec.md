@@ -1,7 +1,7 @@
 # command-match Specification
 
 ## Purpose
-TBD - created by archiving change job-result-on-command. Update Purpose after archive.
+Gives every command, and so every job, a `match(action)` that tells whether an action has the type of the command and narrows its type, so a listener can tell the outcome actions of a job apart.
 
 ## Requirements
 
