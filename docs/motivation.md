@@ -31,7 +31,7 @@ A library that is **not** a shared singleton cannot break this way. nanoeffects 
 ## What the library does instead
 
 - **No dependencies, no global state.** It is safe to ship inside an SDK next to whatever the host app runs. It does not need a `singleton` entry in the Module Federation config.
-- **Small enough for a strict budget.** SDKs often get a few kilobytes for all third-party code. `createBus` is about 1.3 kB gzip; policies, effects and commands are separate entries you import only when you need them. See [Package entries](package.md).
+- **Small enough for a strict budget.** SDKs often get a few kilobytes for all third-party code. `createBus` is about 1.4 kB gzip (1.3 kB brotli); policies, effects and commands are separate entries you import only when you need them. See [Package entries](package.md).
 - **Simple first.** `on` and `emit` are the whole model. Cancellation, retry and the rest are plain functions on top. The [Guide](guide.md) and [Coming from redux-saga](migrating-from-saga.md) map the familiar names.
 - **`emit` can return an answer.** A [command](actions.md) is an event whose handler returns a result, so one module can ask another and wait for the reply. Events alone cannot do that, and it was the main thing missing from the Redux-based options.
 - **Easy to debug.** Event-driven code is hard to follow: you see an effect and not the event that caused it. Every task knows its parent, so [tracing](tracing.md) shows the chain of events, with loggers for the console, the Performance panel and Redux DevTools.

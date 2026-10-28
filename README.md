@@ -90,6 +90,6 @@ Start with the [Guide](docs/guide.md) (bus → policies → effects → modules)
 
 [Full index, package entries, tracing](docs/README.md) · [Examples](examples/README.md) · [Why nanoeffects exists](docs/motivation.md)
 
-- **Tiny.** `createBus` is about 1.3 kB gzip; other entries load only when imported.
+- **Tiny.** `createBus` is about 1.4 kB gzip (1.3 kB brotli); other entries load only when imported.
 - **Cancellation first.** Aborting a task aborts its children and drops its result.
 - **One model** instead of hand-rolled `AbortController`, lodash debounce, and retry glue.

@@ -11,7 +11,7 @@ An emitter calls a function and forgets it. That is enough while handlers are sy
 - you write debounce, throttle or retry around handlers yourself;
 - you cannot tell which event started which request.
 
-If handlers stay synchronous, keep your emitter. nanoeffects costs about 1.3 kB gzip, close to the small emitters.
+If handlers stay synchronous, keep your emitter. nanoeffects costs about 1.4 kB gzip (1.3 kB brotli), close to the small emitters.
 
 ## Find the equivalent
 
