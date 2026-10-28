@@ -9,7 +9,7 @@ Rules that generated code often gets wrong:
 - A handler gets the payload and a task context: `(payload, ctx)`. The context has `signal`, `emit`, `on`, `run`. Pass `ctx.signal` to `fetch`.
 - Effects take `ctx` as the first argument: `retry(ctx, fn, options)`, `timeout(ctx, ms, fn)`, `take(ctx, "event")`.
 - Policies wrap a handler: `bus.on("search", latest(async (query, ctx) => { ... }))`.
-- Each part is imported from its own path: `nanoeffects` (`createBus`), `nanoeffects/policies`, `nanoeffects/effects`, `nanoeffects/actions`, `nanoeffects/redux`, `nanoeffects/observable`, `nanoeffects/react` (`reactPlugin`, adds `bus.useEmitter`; needs React), `nanoeffects/trace`, `nanoeffects/dev`.
+- Each part is imported from its own path: `nanoeffects` (`createBus`), `nanoeffects/policies`, `nanoeffects/effects`, `nanoeffects/actions`, `nanoeffects/redux`, `nanoeffects/observable`, `nanoeffects/react` (`reactPlugin`, adds `bus.useEmitter`; `usePolicy`; needs React), `nanoeffects/trace`, `nanoeffects/dev`.
 - `bus.emit(command(payload))` runs the command's handler and returns its result. Plain events return nothing.
 
 ## Start here
@@ -21,7 +21,7 @@ Rules that generated code often gets wrong:
 
 ## Async UI and unreliable networks
 
-- [Policies](docs/policies.md): `latest`, `leading`, `debounce`, `throttle`, `queue`, and `key`
+- [Policies](docs/policies.md): `latest`, `leading`, `debounce`, `throttle`, `queue`, and `key`; `withPolicy` makes one a plain function without a bus
 - [Cancel stale requests and fix race conditions](docs/cancel-stale-requests.md): an older response overwrites a newer one; `latest`, `debounce`, `retry`, `timeout` in one recipe
 - [Debounce a request and abort the previous one](docs/debounce-and-abort.md): `debounce` outside, `latest` inside, and when to use `throttle`
 - [Prevent a double submit](docs/prevent-double-submit.md): `leading`, one run per item with `key`, retry only on network errors
@@ -33,7 +33,7 @@ Rules that generated code often gets wrong:
 - [Actions, commands, jobs and modules](docs/actions.md): `createAction`, `createCommand`, `createJob`, `createModule`
 - [Connect Redux, Zustand, MobX, or Pinia](docs/stores.md): the Redux middleware and callbacks of other stores
 - [Use nanoeffects with React Query and SWR](docs/query-libraries.md): call a command from `queryFn` or the SWR fetcher; `signalPlugin` passes the abort of the library to the task
-- [Build a sign-up form in React](docs/react.md): a form with a username check, a submit that cannot fire twice, and retry
+- [Build a sign-up form in React](docs/react.md): a form with a username check, a submit that cannot fire twice, and retry; `usePolicy` keeps a debounced handler between renders
 - [Context fields](docs/context.md): put a store or client on every task
 - [Scopes](docs/scope.md): fields for one command, action, job, module or `emit`, and a way to replace them in a test
 - [Use the bus from a class](docs/oop.md): `extendBus`, `@WithBus`, `@On`, `@Once`, and `dispose()` for the subscriptions of an instance

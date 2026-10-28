@@ -41,6 +41,7 @@ describe("public entries", () => {
 			"leading",
 			"queue",
 			"throttle",
+			"withPolicy",
 		]);
 	});
 

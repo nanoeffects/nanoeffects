@@ -114,3 +114,36 @@ Every call returns a promise with the result of its own run. An error rejects on
 - A waiting call whose task aborts is skipped and resolves with `undefined`.
 - When a running call aborts, its slot is freed at once and its result is dropped.
 - Pass `signal` into what `fn` does. A `fn` that ignores it can overlap with the next run.
+
+## Use a policy without a bus
+
+**Problem.** You want a debounced input handler or a "latest request wins" fetch, but your code has no bus. A policy needs a context on every call, so `debounce(300, search)("re")` does not work on its own.
+
+**When.** One component or module needs a policy and nothing else from the library. If you already have a bus, `bus.on(event, policy)` is simpler.
+
+`withPolicy` takes the result of any policy and returns a plain function. It needs no bus and no context argument, and it keeps the state of the policy between calls.
+
+```js
+import { debounce, withPolicy } from "nanoeffects/policies";
+
+// debounce — waits for 300 ms of quiet, then runs the callback
+const policy = debounce(300, async (query, { signal }) => {
+  await api.search(query, { signal });
+});
+
+// withPolicy — a plain function: no bus, no context argument
+const onChange = withPolicy(policy);
+
+onChange("re");
+onChange("redux"); // only this call runs, 300 ms after it
+
+// cancel — drops a pending call and aborts a running one
+onChange.cancel();
+```
+
+- The callback has the same `(payload, ctx)` shape as for a bus. `ctx.signal`, `ctx.abort` and `ctx.run` work. `ctx.emit` and `ctx.on` do nothing, because there is no bus.
+- Every call returns a promise with the result. A call the policy drops resolves with `undefined`.
+- `cancel()` aborts every call that has not finished. Calls made after it work again.
+- Where `Symbol.dispose` exists, `using onChange = withPolicy(policy)` calls `cancel()` at the end of the scope.
+
+In a React component, use [`usePolicy`](react.md#keep-a-debounced-handler-between-renders) instead: it keeps the function between renders.

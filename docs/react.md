@@ -162,9 +162,52 @@ const checkName = latest(async (name, ctx) => {
 
 In the component, add `bus.emit("form/closed")` to the cleanup function of the effect. This is optional: skip it when finishing a request after unmount does no harm, as for a cheap check.
 
+## Keep a debounced handler between renders
+
+**Problem.** A component runs again on every render. A policy made in its body, such as `debounce(300, search)`, is made again each time and loses its timer. A policy made once keeps the callback of the first render, which reads old props and state.
+
+**When.** A handler in a component needs a policy, and you do not need a bus: a search box, an autosave, a submit that must not fire twice.
+
+`usePolicy(callback, make, deps)` keeps one function between renders. It calls the `callback` of the latest render, so an inline callback sees fresh state. It cancels pending calls when the component unmounts.
+
+```jsx
+import { useState } from "react";
+import { debounce } from "nanoeffects/policies";
+import { usePolicy } from "nanoeffects/react";
+
+export const Search = ({ wait }) => {
+  const [items, setItems] = useState([]);
+
+  // usePolicy — a stable function; the first argument is the latest render's callback
+  const onChange = usePolicy(
+    async (query, { signal }) => {
+      const found = await api.search(query, { signal });
+      setItems(found);
+    },
+    // the second argument builds the policy once; task runs the callback above
+    (task) => debounce(wait, task),
+    // deps — list what the second argument reads; a new wait makes a new policy
+    [wait],
+  );
+
+  return (
+    <div>
+      <input onChange={(event) => onChange(event.target.value)} />
+      <p>{items.length} found</p>
+    </div>
+  );
+};
+```
+
+- `onChange` keeps its identity while `wait` stays the same, so it is safe in `useEffect` and in props.
+- A pending call is cancelled on unmount and when `deps` change.
+- Do not write `usePolicy(debounce(300, callback))`. The policy would be made on every render or keep a stale callback.
+- Without a React component, use [`withPolicy`](policies.md#use-a-policy-without-a-bus).
+
 ## Where to go next
 
 - The policies behind this form: [Policies](policies.md).
+- A policy as a plain function without a bus: [Use a policy without a bus](policies.md#use-a-policy-without-a-bus).
 - `retry`, `timeout` and the other effects: [Effects](effects.md).
 - A state library instead of `useState`: [Stores](stores.md).
 - React Query or SWR instead of your own state: [Use nanoeffects with React Query and SWR](query-libraries.md).

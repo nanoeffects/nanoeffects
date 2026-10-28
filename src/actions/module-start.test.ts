@@ -5,7 +5,7 @@ import { effectsPlugin } from "../effects";
 import { matchPlugin } from "../match";
 import type { TestEvents } from "../tests/test-helpers";
 import { delay } from "../utils";
-import { commandsPlugin, createCommand } from "./command";
+import { bindHandler, commandsPlugin, createCommand } from "./command";
 import { createModule, type ModuleApi, modulePlugin } from "./module";
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -140,7 +140,7 @@ describe("modulePlugin starts on the first use", () => {
 				}),
 			]),
 		);
-		bus.use(commandsPlugin<TestEvents>([[other, () => 2]]));
+		bus.use(commandsPlugin<TestEvents>([bindHandler(other, () => 2)]));
 
 		expect(bus.commands).toBe(app.commands);
 		expect([bus.emit(mine, 0), bus.emit(other, 0)]).toEqual([1, 2]);

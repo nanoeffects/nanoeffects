@@ -72,6 +72,31 @@ const saveScroll = (position) => localStorage.setItem("scroll", String(position)
 bus.on("scrolled", throttle(100, saveScroll));
 ```
 
+## Debounce without a bus
+
+If the page has no bus, wrap the same pair with `withPolicy`. The result is a plain function that you call from an input handler.
+
+```js
+import { debounce, latest, withPolicy } from "nanoeffects/policies";
+
+// latest: a newer run aborts the older request
+const searchLatest = latest(async (query, { signal }) => {
+  const items = await api.search(query, { signal });
+  console.log(items);
+});
+
+// withPolicy: debounce by 300 ms, called as a plain function
+const onTyped = withPolicy(debounce(300, searchLatest));
+
+onTyped("a");
+onTyped("ab"); // only "ab" runs, 300 ms later
+
+// cancel: drop a pending call and abort a running request, for example on page leave
+onTyped.cancel();
+```
+
+In a React component use [`usePolicy`](react.md#keep-a-debounced-handler-between-renders), which also cancels on unmount.
+
 ## Check these when it does not cancel
 
 - The request did not get `signal`. `latest` then drops the old result but the request goes on.

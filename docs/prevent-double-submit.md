@@ -96,6 +96,27 @@ bus.on(
 
 Backoff between tries: [Back off between retries](effects.md#back-off-between-retries).
 
+## Guard a handler when you have no bus
+
+`withPolicy` turns a policy into a plain function, so a click handler needs no bus.
+
+```js
+import { leading, withPolicy } from "nanoeffects/policies";
+
+// leading: ignore new calls while a run is going
+const policy = leading(async (form, { signal }) => {
+  await api.save(form, { signal });
+});
+
+// withPolicy: a plain function to call from onSubmit
+const submit = withPolicy(policy);
+
+submit({ name: "Ada" }); // runs
+submit({ name: "Ada" }); // ignored while the first runs; resolves with undefined
+```
+
+In a React component use [`usePolicy`](react.md#keep-a-debounced-handler-between-renders).
+
 ## Pick another policy when clicks must not be lost
 
 | You want | Policy |

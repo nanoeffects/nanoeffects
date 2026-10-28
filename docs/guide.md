@@ -217,7 +217,7 @@ const searchLatest = latest(async (query, { signal }) => {
 bus.on("search", debounce(300, searchLatest));
 ```
 
-Full options: [Policies](policies.md).
+Full options: [Policies](policies.md). No bus? A policy also works as a plain function: [Use a policy without a bus](policies.md#use-a-policy-without-a-bus).
 
 ## 5. Add retry and timeout
 

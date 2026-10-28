@@ -35,8 +35,15 @@ import {
 } from "../effects";
 import { matchPlugin } from "../match";
 import { type BusMethods, extendBus, On } from "../oop";
-import { debounce, latest, leading, queue, throttle } from "../policies";
-import { reactPlugin } from "../react";
+import {
+	debounce,
+	latest,
+	leading,
+	queue,
+	throttle,
+	withPolicy,
+} from "../policies";
+import { reactPlugin, usePolicy } from "../react";
 import { effect } from "../scope";
 import { signalPlugin } from "../signal";
 import { createEffectsMiddleware, type ReduxStoreApi } from "../store/redux";
@@ -1454,5 +1461,83 @@ describe("the class entry: extendBus", () => {
 		decorate((_payload: number) => {}, context);
 		// a string event does not know the payload
 		On("anything")((_payload: number) => {}, context);
+	});
+});
+
+describe("withPolicy", () => {
+	it("infers the payload and the result of the callback", () => {
+		const search = withPolicy(debounce(300, (query: string) => query.length));
+
+		expectTypeOf(search).parameter(0).toEqualTypeOf<string>();
+		expectTypeOf(search).returns.toEqualTypeOf<Promise<number | undefined>>();
+	});
+
+	it("calls a void payload with no argument", async () => {
+		const refresh = withPolicy(latest((_: undefined) => 1));
+
+		await refresh();
+		expectTypeOf(refresh).parameters.toEqualTypeOf<[payload?: undefined]>();
+	});
+
+	it("has cancel", () => {
+		const search = withPolicy(debounce(300, (query: string) => query));
+
+		expectTypeOf(search.cancel).toBeFunction();
+		expectTypeOf(search.cancel).parameters.toEqualTypeOf<[reason?: unknown]>();
+	});
+
+	it("a wrong payload is an error", () => {
+		const search = withPolicy(debounce(300, (query: string) => query));
+		const wrongCalls = () => {
+			// @ts-expect-error the payload is a string
+			search(1);
+			// @ts-expect-error the payload is not optional
+			search();
+		};
+		expectTypeOf(wrongCalls).toBeFunction();
+	});
+});
+
+describe("usePolicy", () => {
+	// a hook only runs inside a component: these checks never call it
+	it("infers the payload and the result from the callback", () => {
+		const useSearch = () =>
+			usePolicy(
+				(query: string) => query.length,
+				(task) => debounce(300, task),
+			);
+
+		expectTypeOf(useSearch).returns.parameter(0).toEqualTypeOf<string>();
+		expectTypeOf(useSearch).returns.returns.toEqualTypeOf<
+			Promise<number | undefined>
+		>();
+	});
+
+	it("gives make a task of the payload of the callback", () => {
+		const useSearch = () =>
+			usePolicy(
+				(query: string) => query,
+				(task) => {
+					expectTypeOf(task).parameter(0).toEqualTypeOf<string>();
+					return latest(task);
+				},
+				[],
+			);
+
+		expectTypeOf(useSearch).returns.toHaveProperty("cancel");
+	});
+
+	it("a wrong payload is an error", () => {
+		const useSearch = () =>
+			usePolicy(
+				(query: string) => query,
+				(task) => debounce(300, task),
+			);
+		const wrongCall = () => {
+			const search = useSearch();
+			// @ts-expect-error the payload is a string
+			search(1);
+		};
+		expectTypeOf(wrongCall).toBeFunction();
 	});
 });

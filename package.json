@@ -239,7 +239,7 @@
 			"ignore": [
 				"react"
 			],
-			"limit": "320 B"
+			"limit": "1.15 kB"
 		},
 		{
 			"name": "dev",
