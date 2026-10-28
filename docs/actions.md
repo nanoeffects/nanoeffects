@@ -118,7 +118,7 @@ The registry lives in `nanoeffects/actions`, so a bus without one carries none o
 - When the task is aborted before the handler settles, emits `loadUser.cancel(reason)` instead of `success` or `fail`. After `pending`, exactly one of the three follows.
 - `pending` / `success` / `fail` / `cancel` are a string (job makes an action creator) or an existing action creator. Missing ones become `<type>/pending`, `<type>/success`, `<type>/fail` or `<type>/cancel`.
 - `bus.emit(loadUser(id))` returns a promise of the result. Handler errors are always handled: they go to `fail` and the promise resolves with `undefined`. For a result that must reject, use a command.
-- Outcome actions are emitted as the task that ran the job (also for a handler bound with `commands.handle`). `success` and `fail` are not sent after abort; `cancel` is, once the handler settles.
+- Outcome actions are emitted as the task that ran the job (also for a handler bound with `commands.handle`). `success` and `fail` are not sent after abort; `cancel` is, at the moment of the abort.
 - A missing handler is not an outcome: `emit` throws `No handler for command "..."` and nothing is sent.
 - Calling the job only builds `{ type, payload }`; the handler runs on `emit`.
 - The outcomes are events like any other: with `onUnhandled` set on the bus, it is called for a `pending` or a `cancel` that nobody listens to.
@@ -185,9 +185,16 @@ import { loadUser } from "./user";
 bus.emit(loadUser("1"));
 ```
 
-`cancel` is sent when the handler settles, not at the moment of the abort. A handler that stops on `ctx.signal` (as `fetch` does) settles at once. A handler that ignores the signal sends `cancel` when it finishes, and one that never finishes sends nothing.
+`cancel` is sent at the moment of the abort, with the abort reason. A handler that ignores the signal and finishes later sends nothing more, so the flag is already `false`.
 
-**Limit: policies.** A policy such as `latest`, `leading`, `throttle` or `queue` wraps the handler, inside the job. The job does not know what the policy decides, so `pending` is sent for every call. A call that the policy drops, and a run that `latest` replaces, then close with `success(undefined)`, not with `cancel`. A flag set by `pending` is exact for a job without a policy, and for an abort of the task or of its parent. With a policy, count the calls or use the result of `emit`.
+**With a policy.** A policy such as `latest`, `leading`, `debounce`, `throttle` or `queue` around the handler tells the job what it does with each call:
+
+- `pending` is sent when the handler really starts: at once for `leading`, after the wait for `debounce`, when its turn comes for `queue`.
+- A call that the policy drops before it starts sends nothing, not even `pending`. A second click that `leading` ignores does not clear the flag of the first.
+- A run that `latest` replaces sends `cancel` before the next call sends `pending`.
+- Every `pending` is followed by exactly one of `success`, `fail` and `cancel`, and nothing is sent without `pending`.
+
+A flag is exact when calls do not overlap, or when `latest` replaces them. If several runs can go at once (`queue` with `concurrency` above 1, or a job without a policy called many times), keep a counter: add one on `pending` and take one off on `success`, `fail` and `cancel`. A policy that you write yourself, or that you hide in your own function, does not report to the job; `pending` is then sent at the call, as for a job with no policy.
 
 ## Mount domains with modules
 

@@ -318,7 +318,7 @@ bus.on(
 ## What is different
 
 - **No state.** There is no `createStore`, `combine`, `restore`, `$store.map`. The bus holds listeners only. Take a store such as Zustand for state ([Stores](stores.md)).
-- **`pending` is an action, not a store.** `createJob` sends `pending` when the handler starts, and `success`, `fail` or `cancel` when it ends; you keep the flag in your store ([Show a loading state](actions.md#show-a-loading-state-with-a-job)). With a policy such as `latest` around the handler the flag is not exact yet, which that section explains. A running task is also visible through [Tracing](tracing.md).
+- **`pending` is an action, not a store.** `createJob` sends `pending` when the handler starts, and `success`, `fail` or `cancel` when it ends; you keep the flag in your store ([Show a loading state](actions.md#show-a-loading-state-with-a-job)). Policies report to the job, so the flag also follows `latest`, `leading`, `debounce`, `throttle` and `queue`; that section says when to count instead. A running task is also visible through [Tracing](tracing.md).
 - **Cancellation is the default tool.** An Effector effect runs every call to the end. Here `latest` and `ctx.signal` stop what is no longer needed.
 - **Events are matched by name, not by identity.** An event is a string or a `createAction` creator, not a unit that you import and call. Two modules agree on the name.
 - **No graph.** `sample` and `forward` build a static graph. A bus subscribes handlers at runtime and the call order is the order of `on`.

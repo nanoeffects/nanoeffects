@@ -1,7 +1,7 @@
-import { traceRun, traceTask } from "../core/context";
 import type { EventMap, Task } from "../core/types";
 import { onAbort } from "../utils";
 import { type KeyOption, keyed, noop } from "./keyed";
+import { doneCall, dropCall, startCall } from "./lifecycle";
 
 export type QueueOptions<P = never> = KeyOption<P> & {
 	/** How many calls may run at the same time. Default 1. */
@@ -88,7 +88,7 @@ const createQueue = <P, E extends EventMap, R>(
 
 			const drop = () => {
 				stopWaiting();
-				traceTask(ctx, "queue", "drop");
+				dropCall(ctx, "queue");
 				resolve(void 0);
 			};
 
@@ -119,7 +119,7 @@ const createQueue = <P, E extends EventMap, R>(
 				let outcome: Promise<Awaited<R>>;
 				try {
 					outcome = Promise.resolve(
-						traceRun(ctx, "queue", () => fn(payload, ctx)),
+						startCall(ctx, "queue", () => fn(payload, ctx)),
 					);
 				} catch (error) {
 					outcome = Promise.reject(error);
@@ -134,10 +134,12 @@ const createQueue = <P, E extends EventMap, R>(
 
 				outcome.then(
 					(value) => {
+						doneCall(ctx, { value });
 						finish();
 						resolve(ctx.signal.aborted ? void 0 : value);
 					},
 					(error: unknown) => {
+						doneCall(ctx, { error });
 						finish();
 						if (ctx.signal.aborted) {
 							resolve(void 0);

@@ -1,9 +1,15 @@
 import type { Context } from "../core/bus";
 import { makeCommandCall } from "../core/bus";
 import { type EmitGate, emitAfterAbort } from "../core/emit-key";
+import {
+	callLifecycle,
+	type Lifecycle,
+	reportsLifecycle,
+} from "../core/lifecycle-key";
 import type { Scope } from "../core/scope-types";
 import type { EventMap, Task } from "../core/types";
 import type { FieldsOfScope, Scoped } from "../scope/types";
+import { onAbort } from "../utils/onAbort";
 import { report } from "../utils/report";
 import { type ActionCreator, createAction } from "./action";
 import { beneath, carriedBy, carry } from "./carry";
@@ -42,18 +48,19 @@ const send = (
 	);
 };
 
-// `cancel` is sent after the abort, where `ctx.emit` does nothing: the context
+// `cancel` can be sent after the abort, where `ctx.emit` does nothing: the context
 // lets one emit through for the time of this call. A listener that throws must
 // not reject the job.
 const sendCancel = (
 	ctx: Context<EventMap>,
 	creator: Creator,
+	reason: unknown,
 	scope: Scope | undefined,
 ) => {
 	const gate = ctx as EmitGate;
 	gate[emitAfterAbort] = true;
 	try {
-		send(ctx, creator, ctx.signal.reason, scope);
+		send(ctx, creator, reason, scope);
 	} catch (error) {
 		report("cancel listener", error);
 	}
@@ -174,43 +181,97 @@ export const createJob = <
 	const failAction = outcomeOf("fail");
 	const cancelAction = outcomeOf("cancel");
 
-	// runs `base` and sends its outcome on
+	// Runs `base` and sends its outcome on. A call is idle until its handler starts,
+	// started until it is closed by `success`, `fail` or `cancel`, and then closed. A
+	// policy around the handler (`managed`) tells when it starts, drops or cancels the
+	// call; without one the handler starts at the call.
 	const route = (
 		base: (payload: never, ctx: never) => unknown,
 		payload: unknown,
 		ctx: unknown,
+		managed: boolean,
 	) => {
 		const task = ctx as Context<EventMap>;
+		let phase: "idle" | "started" | "closed" = "idle";
+		let stopWatching = () => {};
+
+		const close = () => {
+			phase = "closed";
+			stopWatching();
+		};
+		// the abort of the task, and a policy that cancels a call, both end it at once
+		const cancelCall = (reason: unknown) => {
+			if (phase === "started") {
+				close();
+				sendCancel(task, cancelAction, reason, scope);
+			}
+		};
 		// a listener of `pending` that throws is a failure of the call, like the handler
+		const start = () => {
+			if (phase === "idle") {
+				phase = "started";
+				stopWatching = onAbort(task, cancelCall);
+				send(task, pendingAction, payload, scope);
+			}
+		};
+		// closes a started call with what its handler returned or threw
+		const settle = (settled: { value: unknown } | { error: unknown }) => {
+			if (phase !== "started") {
+				return;
+			}
+			close();
+			if (task.signal.aborted) {
+				sendCancel(task, cancelAction, task.signal.reason, scope);
+			} else if ("error" in settled) {
+				send(task, failAction, settled.error, scope);
+			} else {
+				send(task, successAction, settled.value, scope);
+			}
+		};
+		const lifecycle: Lifecycle = {
+			start,
+			cancel: cancelCall,
+			done: settle,
+			drop: () => {
+				if (phase === "idle") {
+					phase = "closed";
+				}
+			},
+		};
+		Reflect.set(task, callLifecycle, lifecycle);
+
 		const outcome = attempt(() => {
-			send(task, pendingAction, payload, scope);
+			if (!managed) {
+				start();
+			}
 			return Reflect.apply(base, null, [payload, ctx]);
 		});
 
-		// an abort wins over any result or error: it is what the caller asked for
 		return outcome.then(
 			(value) => {
-				if (task.signal.aborted) {
-					sendCancel(task, cancelAction, scope);
-				} else {
-					send(task, successAction, value, scope);
-				}
+				settle({ value });
 				return value;
 			},
 			(error: unknown) => {
-				if (task.signal.aborted) {
-					sendCancel(task, cancelAction, scope);
-				} else {
-					send(task, failAction, error, scope);
+				// an error with no start is a failure that a policy did not report: keep the pair
+				if (phase === "idle") {
+					try {
+						start();
+					} catch (listenerError) {
+						report("pending listener", listenerError);
+					}
 				}
+				settle({ error });
 			},
 		);
 	};
 
-	const wrap =
-		(base: (payload: never, ctx: never) => unknown) =>
-		(payload: never, ctx: never) =>
-			route(base, payload, ctx);
+	// a policy around the handler reports when it starts; the job waits for that
+	const wrap = (base: (payload: never, ctx: never) => unknown) => {
+		const managed = Reflect.get(base, reportsLifecycle) === true;
+
+		return (payload: never, ctx: never) => route(base, payload, ctx, managed);
+	};
 
 	// with a context the bus is running it; without, build the call for emit
 	function invoke(payload: P, ctx?: Context<E>) {
@@ -219,7 +280,7 @@ export const createJob = <
 			if (!handler) {
 				return Reflect.apply(command, null, [payload, ctx]);
 			}
-			return route(command, payload, ctx);
+			return route(command, payload, ctx, false);
 		}
 		return carry(makeCommandCall(job, type, payload), scope);
 	}

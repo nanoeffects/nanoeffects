@@ -1,4 +1,5 @@
 import type { EventMap, Task } from "../core/types";
+import { reporting } from "./lifecycle";
 
 /** Options shared by every policy that can keep its state per key. */
 export type KeyOption<P> = {
@@ -53,4 +54,4 @@ export const byKey = <P, E extends EventMap, R>(
 export const keyed = <P, E extends EventMap, R>(
 	key: ((payload: P) => unknown) | undefined,
 	create: (onIdle: () => void) => Task<P, E, R>,
-): Task<P, E, R> => (key ? byKey(key, create) : create(noop));
+): Task<P, E, R> => reporting(key ? byKey(key, create) : create(noop));

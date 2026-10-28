@@ -1,7 +1,7 @@
-import { traceRun, traceTask } from "../core/context";
 import type { EventMap, Task } from "../core/types";
 import { after, onAbort } from "../utils";
 import { type KeyOption, keyed } from "./keyed";
+import { dropCall, startCall } from "./lifecycle";
 
 export type LeadingOptions<P = never> = KeyOption<P>;
 
@@ -39,7 +39,7 @@ export const leading = <P, E extends EventMap, R>(
 			}
 
 			if (lock) {
-				traceTask(ctx, "leading", "drop");
+				dropCall(ctx, "leading");
 				return;
 			}
 
@@ -56,7 +56,7 @@ export const leading = <P, E extends EventMap, R>(
 
 			try {
 				return after(
-					traceRun(ctx, "leading", () => fn(payload, ctx)),
+					startCall(ctx, "leading", () => fn(payload, ctx)),
 					release,
 				);
 			} catch (error) {

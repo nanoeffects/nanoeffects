@@ -1,8 +1,8 @@
 import type { Context } from "../core/bus";
-import { traceRun, traceTask } from "../core/context";
 import type { EventMap, Task } from "../core/types";
 import { clearTimer, setTimer, type Timer } from "../utils";
 import { type KeyOption, keyed, noop } from "./keyed";
+import { dropCall, startCall } from "./lifecycle";
 
 type Pending<P, E extends EventMap, R> = {
 	payload: P;
@@ -81,7 +81,7 @@ const createThrottle = <P, E extends EventMap, R>(
 		time - lastCallTime < 0 ||
 		time - lastRunTime >= ms;
 
-	const drop = (ctx: Context<E>) => traceTask(ctx, "throttle", "drop");
+	const drop = (ctx: Context<E>) => dropCall(ctx, "throttle");
 
 	const dropPending = () => {
 		const held = pending;
@@ -105,7 +105,7 @@ const createThrottle = <P, E extends EventMap, R>(
 		busy = true;
 
 		try {
-			return traceRun(ctx, "throttle", () => fn(payload, ctx));
+			return startCall(ctx, "throttle", () => fn(payload, ctx));
 		} finally {
 			busy = false;
 		}

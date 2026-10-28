@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Behavior change:** the outcomes of `createJob` follow the policies (`latest`, `leading`, `debounce`, `throttle`, `queue`) around the handler. The policies tell the job when a call really starts, when it ends without starting, and when they cancel it. `pending` is sent when the handler starts, not when the call is made; a call that a policy drops or replaces while it waits sends nothing; a run that `latest` replaces sends `cancel` (it closed with `success(undefined)` before) ahead of the `pending` of the call that replaced it. Every `pending` has exactly one of `success`, `fail`, `cancel`, and none is sent without `pending`. `cancel` is sent at the moment of the abort, not when the handler settles. A job with no policy, or with a policy hidden in your own function, is unchanged. `createBus` is the same size; `nanoeffects/actions` grows to 2.85 kB brotli (limit 2.86 kB) and `policies` by about 0.1 kB.
+
 ## 0.9.0
 
 - `withPolicy(task)` (`nanoeffects/policies`) makes a policy, or any task, a plain function with no bus and no context argument: `const onChange = withPolicy(debounce(300, callback))`. It keeps the state of the policy between calls and has `cancel()` (and `[Symbol.dispose]` where it exists) to abort pending and running calls; calls after it work again. `usePolicy(callback, make, deps?)` (`nanoeffects/react`) holds such a function in a React component: it is stable between renders, calls the `callback` of the latest render, makes the policy once per `deps`, and cancels on unmount (also under StrictMode). The `react` entry grows to 1.15 kB brotli; an app that does not import `usePolicy` does not carry it. Docs: "Use a policy without a bus" in `docs/policies.md`, "Keep a debounced handler between renders" in `docs/react.md`, and variants in the debounce and double-submit recipes.

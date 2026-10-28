@@ -42,7 +42,7 @@ When an outcome is not given, the job SHALL make the action creator with the typ
 - **THEN** the types are `user/load/pending`, `user/load/success`, `user/load/fail` and `user/load/cancel`
 
 ### Requirement: The outcome is routed on the bus
-When the command of a job is emitted, the job SHALL emit `pending(payload)` through the context of the task just before the handler is called, then `success(result)` after the handler succeeds, or `fail(error)` after it fails, and SHALL NOT emit `success` or `fail` once the task of the job is aborted. Exactly one of `success`, `fail`, `cancel` SHALL follow a `pending` of the same task. A job used without a listener of an outcome SHALL run as before.
+When the command of a job is emitted, the job SHALL emit `pending(payload)` through the context of the task when the handler really starts, then `success(result)` after the handler succeeds, or `fail(error)` after it fails. Without a policy around the handler it starts when it is called. With a policy it starts when the policy lets it (see `policy-lifecycle`), and a call that never starts sends no outcome. Exactly one of `success`, `fail`, `cancel` SHALL follow a `pending` of the same call, and none SHALL be sent without a `pending`. `success` and `fail` SHALL NOT be emitted once the task of the job is aborted. `cancel(reason)` SHALL be emitted at the moment the task is aborted or a policy cancels the call, after `pending` and not after the handler settles. A job used without a listener of an outcome SHALL run as before.
 
 #### Scenario: Success
 - **WHEN** `bus.emit(loadUser("1"))` is called and the handler resolves with a user
@@ -53,12 +53,20 @@ When the command of a job is emitted, the job SHALL emit `pending(payload)` thro
 - **THEN** a listener of `loadUser.pending` ran before, a listener of `loadUser.fail` receives the error, and the promise of the command resolves with `undefined`
 
 #### Scenario: An aborted task sends nothing
-- **WHEN** the task is aborted after `pending` and before the handler settles, whether the handler rejects with the abort reason or ignores the signal and resolves later
-- **THEN** neither `success` nor `fail` is emitted, and `loadUser.cancel` is emitted once with the abort reason as the only closing outcome, and the promise of the command resolves with `undefined`
+- **WHEN** the task is aborted after `pending` and before the handler settles, whether the handler later rejects with the abort reason, resolves, or never settles
+- **THEN** `loadUser.cancel` is emitted once, at the moment of the abort, with the abort reason, neither `success` nor `fail` is emitted, and the promise of the command resolves with `undefined`
 
 #### Scenario: A flag follows the outcomes
 - **WHEN** a store sets `loading` on `pending` and clears it on `success`, `fail` and `cancel`, and the task of the call is aborted with `ctx.abort()` or because its parent is aborted
-- **THEN** the flag is `true` while the handler runs and `false` after the handler settles, whether it rejects with the abort reason or ignores the signal
+- **THEN** the flag is `true` while the handler runs and `false` right after the abort, whether the handler rejects with the abort reason or ignores the signal
+
+#### Scenario: A flag under latest
+- **WHEN** a store sets `loading` on `pending` and clears it on `success`, `fail` and `cancel`, a job handler is wrapped in `latest(fn)`, and the job is called again while the first run goes
+- **THEN** the first run sends `cancel` before the second sends `pending`, so the flag is `true` while the second run goes and `false` when it ends
+
+#### Scenario: A dropped call sends nothing
+- **WHEN** a job handler is wrapped in `leading(fn)` and called again while the first run goes
+- **THEN** the second call sends nothing and the flag of the first run is not cleared by it
 
 #### Scenario: A throwing listener of cancel
 - **WHEN** a listener of `cancel` throws
@@ -95,15 +103,4 @@ A job without a handler anywhere SHALL throw `MissingHandlerError` from `emit`, 
 
 #### Scenario: A bound handler
 - **WHEN** a handler is bound with `commands.handle`
-- **THEN** `pending` is sent before it is called and a closing outcome follows, as for the own handler
-
-### Requirement: Policies are not known to the job
-`pending` SHALL be emitted for every call of the job that has a handler, before a policy that wraps the handler decides what to do with the call. The job SHALL NOT change the policies. This is a limit of this change, documented next to the recipe.
-
-#### Scenario: A dropped call under a policy
-- **WHEN** a handler wrapped in `leading` is called twice while the first call runs
-- **THEN** each call sends `pending` and a closing outcome; the dropped call closes with `success(undefined)`
-
-#### Scenario: A replaced run under latest
-- **WHEN** a handler wrapped in `latest` is called again while the first call runs
-- **THEN** the task of the job is not aborted, so the replaced call closes with `success(undefined)` and sends no `cancel`
+- **THEN** `pending` is sent before it is called, or when its policy lets it start, and a closing outcome follows, as for the own handler

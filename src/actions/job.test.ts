@@ -584,12 +584,12 @@ describe("createJob", () => {
 			expect(harness.reasons).toEqual(["stop"]);
 		});
 
-		it("is sent when the handler settles, not at the abort", async () => {
+		it("is sent at the abort, not when the handler settles", async () => {
 			const harness = prepare(ignoring);
 			const result = start(harness);
 			harness.abort("stop");
 
-			expect(harness.seen).toEqual(["pending"]);
+			expect(harness.seen).toEqual(["pending", "cancel"]);
 			harness.gate.resolve("late");
 			await result;
 			expect(harness.seen).toEqual(["pending", "cancel"]);

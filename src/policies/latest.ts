@@ -3,6 +3,7 @@ import { createSettle, forkTask, traceTask } from "../core/context";
 import type { EffectName, EventMap, Task } from "../core/types";
 import { isPromise, onAbort } from "../utils";
 import { type KeyOption, keyed, noop } from "./keyed";
+import { endCall, startCallOf } from "./lifecycle";
 
 export type LatestOptions<P = never> = KeyOption<P>;
 
@@ -73,10 +74,14 @@ export const latestWith = <P, E extends EventMap, R>(
 		const begin = () => {
 			if (!ctx.signal.aborted) {
 				started = true;
+				startCallOf(ctx);
 				traceTask(ctx, effect, "start");
 			}
 		};
-		onAbort(ctx, () => settle(started ? "cancel" : "drop"));
+		onAbort(ctx, (reason) => {
+			endCall(ctx, started, reason);
+			settle(started ? "cancel" : "drop");
+		});
 
 		const finish = () => {
 			unlink();

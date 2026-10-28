@@ -1,8 +1,8 @@
-import { traceRun, traceTask } from "../core/context";
 import type { EventMap, Task } from "../core/types";
 import { clearTimer, delay, onAbort, setTimer, type Timer } from "../utils";
 import { type KeyOption, keyed, noop } from "./keyed";
 import { latestWith } from "./latest";
+import { dropCall, startCall } from "./lifecycle";
 
 type DebounceResult<R> =
 	| Promise<R | undefined>
@@ -76,10 +76,10 @@ const createLeadingOnly = <P, E extends EventMap, R>(
 		cooldown = keyed ? setTimer(onIdle, ms) : null;
 
 		if (!(leading && quiet)) {
-			traceTask(ctx, "debounce", "drop");
+			dropCall(ctx, "debounce");
 			return Promise.resolve(void 0);
 		}
-		return Promise.resolve(traceRun(ctx, "debounce", () => fn(payload, ctx)));
+		return Promise.resolve(startCall(ctx, "debounce", () => fn(payload, ctx)));
 	};
 };
 
@@ -131,7 +131,7 @@ const createDebounce = <P, E extends EventMap, R>(
 		const waiting = wait([payload, first], ctx);
 
 		return first
-			? Promise.resolve(traceRun(ctx, "debounce", () => fn(payload, ctx)))
+			? Promise.resolve(startCall(ctx, "debounce", () => fn(payload, ctx)))
 			: waiting;
 	};
 };
