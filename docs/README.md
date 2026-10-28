@@ -4,6 +4,8 @@
 
 The [Guide](guide.md) is the ladder: small bus → policies for async UI → effects when you need them → commands and modules for domain logic off the UI.
 
+Why the library exists, and when to pick it over Redux, Effector or RxJS (SDKs, shared libraries, Module Federation): [Why nanoeffects exists](motivation.md).
+
 Code for every guide step: [`examples/guide.ts`](../examples/guide.ts) (type-checked and tested).
 
 ## Jump by project need
@@ -23,7 +25,6 @@ Code for every guide step: [`examples/guide.ts`](../examples/guide.ts) (type-che
 | Moving from redux-saga | [Coming from redux-saga](migrating-from-saga.md) |
 | Using RxJS | [Use nanoeffects next to RxJS](migrating-from-rxjs.md) |
 | Moving from Effector | [Coming from Effector](migrating-from-effector.md) |
-| Building an SDK or a Module Federation shell | [Why nanoeffects exists](motivation.md) |
 
 ## Reference
 
