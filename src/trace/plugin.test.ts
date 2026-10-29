@@ -1,9 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
-import { createCommand, createModule, modulePlugin } from "../actions";
+import {
+	createCommand,
+	createJob,
+	createModule,
+	modulePlugin,
+} from "../actions";
 import { createBus } from "../core/bus";
+import type { TraceEvent } from "../core/types";
 import { extendBus } from "../oop";
 import { latest } from "../policies";
 import { noPayload } from "../tests/test-helpers";
+import { emitFrom } from "./origin";
 import { tracePlugin } from "./plugin";
 import { createTraceRecorder } from "./recorder";
 import { createTracer } from "./tracer";
@@ -43,6 +50,150 @@ describe("tracePlugin", () => {
 			once,
 			off,
 		]);
+	});
+
+	describe("the emit event", () => {
+		const emitEvents = (events: TraceEvent[]) =>
+			events.filter((event) => event.effect === "emit");
+
+		it("is reported once for an emit with no listener, before onUnhandled is told", () => {
+			const recorder = createTraceRecorder();
+			const onUnhandled = vi.fn();
+			const bus = createBus<Events>({
+				trace: createTracer(recorder),
+				onUnhandled,
+			}).use(tracePlugin());
+			bus.emit("name/changed", "Eva");
+
+			expect(emitEvents(recorder.events)).toMatchObject([
+				{ type: "name/changed", phase: "done", payload: "Eva" },
+			]);
+			expect(onUnhandled).toHaveBeenCalledTimes(1);
+		});
+
+		it("is reported for a plain listener that reports nothing", () => {
+			const { bus, recorder } = setup();
+			bus.on("name/changed", () => {});
+			bus.emit("name/changed", "Eva");
+
+			expect(recorder.events.map((event) => event.effect)).toEqual(["emit"]);
+		});
+
+		it("takes the payload of an action and the type of a command", async () => {
+			const { bus, recorder } = setup();
+			const rename = createCommand("rename", async (name: string) => name);
+			await bus.emit(rename("Eva"));
+
+			expect(emitEvents(recorder.events)).toMatchObject([
+				{ type: "rename", payload: "Eva" },
+			]);
+		});
+
+		it("has the task that emits as its parent", async () => {
+			const { bus, recorder } = setup();
+			bus.on(
+				"name/changed",
+				latest((_, ctx) => ctx.emit("other", 1)),
+			);
+			bus.emit("name/changed", "Eva");
+			await settle();
+			const policy = recorder.events.find((event) => event.effect === "latest");
+			const nested = emitEvents(recorder.events).find(
+				(event) => event.type === "other",
+			);
+
+			// ctx.emit is the ctx of the listener task, which is also the parent of the policy task
+			expect(nested?.parentId).toBe(policy?.parentId);
+			expect(nested?.parentId).toBeDefined();
+		});
+
+		it("is a child of the root that an emitter makes with traceId", () => {
+			const { bus, recorder } = setup();
+			bus.on("name/changed", () => {});
+			emitFrom(
+				bus,
+				{ type: "name/changed", payload: "Eva" },
+				{ traceId: "Profile" },
+			);
+			const root = recorder.events.find((event) => event.type === "Profile");
+			const emitted = emitEvents(recorder.events);
+
+			expect(emitted).toHaveLength(1);
+			expect(emitted[0]?.type).toBe("name/changed");
+			expect(emitted[0]?.parentId).toBe(root?.id);
+		});
+
+		it("shows the outcomes that a job emits as emits too", async () => {
+			const { bus, recorder } = setup();
+			const load = createJob("user/load", async (_: undefined) => 1);
+			await bus.emit(load(noPayload));
+			await settle();
+
+			expect(emitEvents(recorder.events).map((event) => event.type)).toEqual([
+				"user/load",
+				"user/load/pending",
+				"user/load/success",
+			]);
+		});
+
+		it("carries the group of the call that is emitted", async () => {
+			const { bus, recorder } = setup();
+			const grouped = createCommand("grouped", async (_: undefined) => 1, {
+				traceGroupId: "flow",
+			});
+			await bus.emit(grouped(noPayload));
+
+			expect(emitEvents(recorder.events)[0]?.traceGroupId).toBe("flow");
+		});
+
+		it("changes nothing else in the trace and nothing in what emit returns", async () => {
+			const run = async (plugin: boolean) => {
+				const recorder = createTraceRecorder();
+				const bus = createBus<Events>({ trace: createTracer(recorder) });
+				if (plugin) {
+					bus.use(tracePlugin());
+				}
+				bus.on(
+					"name/changed",
+					latest((_, ctx) => ctx.emit("other", 1)),
+				);
+				bus.on(
+					"other",
+					latest(async () => {}),
+				);
+				bus.emit("name/changed", "Eva");
+				await settle();
+
+				// ids shift with the extra tasks, so compare the shape: type, effect, phase and the chain of parents
+				return recorder.events
+					.filter((event) => event.effect !== "emit")
+					.map((event) => `${event.type}/${event.effect}/${event.phase}`);
+			};
+
+			expect(await run(true)).toEqual(await run(false));
+		});
+
+		it("is not reported without the plugin or without a tracer", () => {
+			const recorder = createTraceRecorder();
+			const bus = createBus<Events>({ trace: createTracer(recorder) });
+			bus.on("name/changed", () => {});
+			bus.emit("name/changed", "Eva");
+
+			expect(emitEvents(recorder.events)).toEqual([]);
+			expect(() =>
+				createBus<Events>().use(tracePlugin()).emit("other", 1),
+			).not.toThrow();
+		});
+
+		it("lets the error of a handler reach the caller", () => {
+			const { bus, recorder } = setup();
+			bus.on("name/changed", () => {
+				throw new Error("boom");
+			});
+
+			expect(() => bus.emit("name/changed", "Eva")).toThrow("boom");
+			expect(emitEvents(recorder.events)).toHaveLength(1);
+		});
 	});
 
 	describe("the call that is being emitted", () => {

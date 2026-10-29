@@ -1,5 +1,5 @@
 import type { Bus, EventLike } from "../core/bus";
-import { renameTask, traceRun } from "../core/context";
+import { currentEmitter, renameTask, traceRun } from "../core/context";
 import { TRACE } from "../core/flag";
 import { type Origin, originKey } from "../core/origin-key";
 import { withCall } from "../core/trace-call";
@@ -21,6 +21,10 @@ type Wrappers = WeakMap<Handler, Map<unknown, Handler[]>>;
 const keyOf = (event: unknown) =>
 	typeof event === "string" ? event : Reflect.get(Object(event), "type");
 
+// the payload as `emit` reads it: inside an action, or the second argument
+const payloadOf = (event: unknown, rest: unknown[]) =>
+	typeof event === "object" ? Reflect.get(Object(event), "payload") : rest[0];
+
 /**
  * Names and groups what the trace shows, on a bus that has a tracer:
  *
@@ -29,7 +33,9 @@ const keyOf = (event: unknown) =>
  * - `useEmitter` and `bus.emitter` emit from a root task named by their
  *   `traceId`, so a chain says which subscription began it;
  * - `bus.on(event, handler, { traceId })` and `once` name a listener: each call of
- *   it is a task with that `traceId`, and what it emits is below it.
+ *   it is a task with that `traceId`, and what it emits is below it;
+ * - each emit is reported as one event with `effect: "emit"`, also when nothing
+ *   listens to it, so a log can show what was emitted and not only what ran.
  *
  * The plugin does nothing on a bus without a tracer, and without it all of these
  * options are ignored, so a project can leave it out, or use it only in
@@ -53,10 +59,25 @@ export const tracePlugin =
 			return bus;
 		}
 
+		// the emit is a leaf task of the tracer, with no context of its own (no signal to make or link),
+		// so no other task changes its parent or root
+		const { trace } = bus;
+		const report = (event: unknown, rest: unknown[]) => {
+			const ref = trace.task(
+				{ type: keyOf(event), payload: payloadOf(event, rest) },
+				currentEmitter(),
+			);
+			trace.report(ref, "emit", "done");
+		};
+
 		// the call that is being emitted is known to the tracer for the time of the emit
 		const emit = bus.emit as Emitter;
 		const withKnownCall: Emitter = (event, ...rest) => {
-			const run = () => emit(event, ...rest);
+			const run = () => {
+				report(event, rest);
+
+				return emit(event, ...rest);
+			};
 
 			return withCall(event, run);
 		};

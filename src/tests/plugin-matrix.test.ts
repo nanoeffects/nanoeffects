@@ -368,6 +368,20 @@ const probes: Probe[] = [
 		},
 	},
 	{
+		id: "each emit is an event of the trace, also with no listener",
+		needs: ["trace"],
+		run: ({ bus, recorder }) => {
+			bus.emit("p/no-listener", 1);
+
+			return recorder.events.some(
+				(event) =>
+					event.type === "p/no-listener" &&
+					event.effect === "emit" &&
+					event.phase === "done",
+			);
+		},
+	},
+	{
 		id: "a predicate, once and off work",
 		needs: ["match"],
 		run: ({ bus }) => {

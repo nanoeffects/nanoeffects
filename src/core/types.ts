@@ -31,7 +31,8 @@ export type EffectName =
 	| "take"
 	| "queue"
 	| "allSettled"
-	| "command";
+	| "command"
+	| "emit";
 
 export type Phase = "start" | "done" | "error" | "cancel" | "drop";
 

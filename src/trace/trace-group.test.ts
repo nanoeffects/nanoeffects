@@ -12,10 +12,10 @@ import { createTracer } from "./tracer";
 const setup = () => {
 	const recorder = createTraceRecorder();
 	const bus = createBus({ trace: createTracer(recorder) }).use(tracePlugin());
-	// the groups of the events of one task type, in order
+	// the groups of the events of one task type, in order; the emit event has its own tests
 	const groupsOf = (type: string) =>
 		recorder.events
-			.filter((event) => event.type === type)
+			.filter((event) => event.type === type && event.effect !== "emit")
 			.map((event) => event.traceGroupId);
 
 	return { bus, recorder, groupsOf };
