@@ -12,7 +12,7 @@ pnpm docs:check    # type-checks the js/ts code blocks of docs/*.md against src 
 pnpm llms:check    # llms.txt links every docs page once and names only real entries (scripts/llms-full.mjs; `pnpm build` writes llms-full.txt)
 pnpm vitest run    # all tests (fake timers where time matters)
 pnpm build         # tsdown: dist/ and dist/notrace/, then scripts/notrace-types.mjs
-pnpm test:integration  # the real Redux Toolkit, Zustand, MobX, Jotai, and Vite and webpack bundling the packed package (needs `pnpm build` first; it builds when dist is missing); also the DevTools playground in a real Chromium (needs a browser: `pnpm exec playwright-core install chromium`, or `CHROMIUM_PATH`; skipped without one locally, required on CI)
+pnpm test:integration  # the real Redux Toolkit, Zustand, MobX, Jotai, and Vite and webpack bundling the packed package (needs `pnpm build` first; it builds when dist is missing); also the trace in a real Chromium: the DevTools playground and `integration/fixtures/trace` with `tracePlugin` and every logger, through `integration/browser-harness.ts` (needs a browser: `pnpm exec playwright-core install chromium`, or `CHROMIUM_PATH`; skipped without one locally, required on CI)
 pnpm consumer-check  # a clean project installs the package from npm (or a tarball: pass a path), type-checks and runs the README example
 pnpm smoke         # the built dist on a plain Node, no dev tools (CI runs it on Node 18, 20, 22, 24; the dev tools need Node 22+)
 pnpm lint:package  # publint and attw on the packed package
