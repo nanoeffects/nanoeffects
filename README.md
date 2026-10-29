@@ -87,8 +87,9 @@ Start with the [Guide](docs/guide.md) (bus → policies → effects → modules)
 | Retry, timeout, wait for events | [Effects](docs/effects.md) |
 | Domain logic off the UI | [Actions, commands, modules](docs/actions.md) |
 | Redux / Zustand / MobX | [Stores](docs/stores.md) |
+| See what ran and why (console, Redux DevTools) | [Tracing](docs/tracing.md) |
 
-[Full index, package entries, tracing](docs/README.md) · [Examples](examples/README.md) · [Why nanoeffects exists](docs/motivation.md)
+[Full index and package entries](docs/README.md) · [Examples](examples/README.md) · [Why nanoeffects exists](docs/motivation.md)
 
 - **Tiny.** `createBus` is about 1.4 kB gzip (1.3 kB brotli); other entries load only when imported.
 - **Cancellation first.** Aborting a task aborts its children and drops its result.
