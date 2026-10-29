@@ -1,4 +1,3 @@
-import { immer } from "zustand/middleware/immer";
 import { createStore } from "zustand/vanilla";
 
 type RoomsState = { selected: string | null };
@@ -8,15 +7,9 @@ type RoomsMutations = {
 	select: (roomId: string) => void;
 };
 
-// A Zustand store, made outside React. The immer middleware lets a mutation change the state in
-// place (`state.selected = roomId`); the store still hands out a new object, so React renders again.
-export const roomsStore = createStore<RoomsState & RoomsMutations>()(
-	immer((set) => ({
-		selected: null,
+// A Zustand store, made outside React. `set` merges the object it is given into the state.
+export const roomsStore = createStore<RoomsState & RoomsMutations>()((set) => ({
+	selected: null,
 
-		select: (roomId) =>
-			set((state) => {
-				state.selected = roomId;
-			}),
-	})),
-);
+	select: (roomId) => set({ selected: roomId }),
+}));

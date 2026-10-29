@@ -1,4 +1,3 @@
-import { immer } from "zustand/middleware/immer";
 import { createStore } from "zustand/vanilla";
 import type { Message } from "../../api";
 import type { SearchResult } from "./search";
@@ -20,32 +19,18 @@ type SearchMutations = {
 };
 
 export const searchStore = createStore<SearchState & SearchMutations>()(
-	immer((set) => ({
+	(set) => ({
 		searching: false,
 		hits: [],
 		skipped: [],
 		selectedRoom: null,
 
-		startSearching: () =>
-			set((state) => {
-				state.searching = true;
-			}),
+		startSearching: () => set({ searching: true }),
 
-		showResult: ({ hits, skipped }) =>
-			set((state) => {
-				state.searching = false;
-				state.hits = hits;
-				state.skipped = skipped;
-			}),
+		showResult: ({ hits, skipped }) => set({ searching: false, hits, skipped }),
 
-		stopSearching: () =>
-			set((state) => {
-				state.searching = false;
-			}),
+		stopSearching: () => set({ searching: false }),
 
-		selectRoom: (roomId) =>
-			set((state) => {
-				state.selectedRoom = roomId;
-			}),
-	})),
+		selectRoom: (roomId) => set({ selectedRoom: roomId }),
+	}),
 );

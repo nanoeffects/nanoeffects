@@ -27,6 +27,9 @@ type MessagesMutations = {
 	mark: (messageId: string) => void;
 };
 
+// The immer middleware lets a mutation change the state in place: `state.messages.push(...)` is
+// shorter than building a new list. The store still hands out a new object, so React renders again.
+// A mutation that sets plain values can give `set` an object instead, as in `set({ loading: false })`.
 export const messagesStore = createStore<MessagesState & MessagesMutations>()(
 	immer((set) => ({
 		roomId: null,
@@ -103,9 +106,6 @@ export const messagesStore = createStore<MessagesState & MessagesMutations>()(
 				}
 			}),
 
-		mark: (messageId) =>
-			set((state) => {
-				state.marked = messageId;
-			}),
+		mark: (messageId) => set({ marked: messageId }),
 	})),
 );
