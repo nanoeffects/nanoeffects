@@ -183,7 +183,7 @@ describe("refusals", () => {
 				print,
 				version: "0.17.0",
 			}),
-		).rejects.toThrow(/vanilla, react, vanilla-ts, react-ts/);
+		).rejects.toThrow(/vanilla, react, vanilla-ts, react-ts, domains-ts/);
 		expect(existsSync(join(workdir, "app"))).toBe(false);
 	});
 });
@@ -225,11 +225,17 @@ describe("templates", () => {
 		template.endsWith("-ts") ? "ts" : "js";
 
 	it("are the four known names, with vanilla as the default", () => {
-		expect(templates).toEqual(["vanilla", "react", "vanilla-ts", "react-ts"]);
+		expect(templates).toEqual([
+			"vanilla",
+			"react",
+			"vanilla-ts",
+			"react-ts",
+			"domains-ts",
+		]);
 	});
 
 	it("keep the bus, the events and the handlers apart", () => {
-		for (const template of templates) {
+		for (const template of templates.filter((name) => name !== "domains-ts")) {
 			const target = join(workdir, `layout-${template}`);
 			createProject({ target, template, version: "0.17.0" });
 			const source = (name) =>
@@ -242,6 +248,32 @@ describe("templates", () => {
 			expect(source("search-handlers")).toMatch(/from "\.\/bus"/);
 			expect(source("search-handlers")).toMatch(/from "\.\/search"/);
 		}
+	});
+
+	it("split domains-ts by domain, with the bus and the events apart", () => {
+		const target = join(workdir, "domains");
+		createProject({ target, template: "domains-ts", version: "0.17.0" });
+		const source = (...parts) =>
+			readFileSync(join(target, "src", ...parts), "utf8");
+
+		expect(source("bus.ts")).not.toMatch(/from "\.\/domains/);
+		for (const domain of readdirSync(join(target, "src", "domains"))) {
+			const files = readdirSync(join(target, "src", "domains", domain));
+			expect(files).toContain(`${domain}.ts`);
+			expect(files).toContain(`${domain}-handlers.ts`);
+			expect(files).toContain(`${domain}-module.ts`);
+			expect(source("domains", domain, `${domain}.ts`)).not.toMatch(
+				/from "(\.\.\/)+bus"/,
+			);
+			expect(source("domains", domain, `${domain}-module.ts`)).toMatch(
+				/createModule/,
+			);
+		}
+		expect(readdirSync(join(target, "src", "domains")).sort()).toEqual([
+			"catalog",
+			"checkout",
+		]);
+		expect(source("ui", "ProductsProvider.tsx")).toMatch(/not a global store/);
 	});
 
 	it("make a TypeScript project from react-ts", async () => {

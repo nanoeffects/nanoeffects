@@ -46,10 +46,13 @@ Pass `--template` to skip the question. With npm, put `--` before the option.
 | `react` | The same handler with `useEmitter` and `useEventState`, and `usePolicy` for a debounced save in a component | You build a React app |
 | `vanilla-ts` | The `vanilla` app in TypeScript | You want the compiler to check events and handlers |
 | `react-ts` | The `react` app in TypeScript | You build a React app in TypeScript |
+| `domains-ts` | Commands, a job and modules, with the logic split into domain folders and React as a thin layer | You build an app with more than one feature and want the logic off the UI |
 
 ```bash
 npm create nanoeffects@latest my-app -- --template react
 ```
+
+In the `react` templates, `useEventState` keeps the found items in the component. It is not a global store: another component gets its own copy. To share a value between components, use a state manager and see [Stores](stores.md).
 
 The TypeScript templates are the same apps with the same files, written in `.ts` and `.tsx`. Events are made with `createAction<Payload>`, so handlers and `useEventState` get their types from the events, with no annotation in the component. `npm run build` type-checks the project (`tsc --noEmit`) before bundling it.
 
@@ -57,9 +60,27 @@ The TypeScript templates are the same apps with the same files, written in `.ts`
 npm create nanoeffects@latest my-app -- --template react-ts
 ```
 
+### Start with domains
+
+`domains-ts` is not the search box of the other templates grown in TypeScript: it shows where logic goes when an app has several features. Each domain is a folder under `src/domains/`. It has the events of the domain, the work that handles them, and a module that mounts the work. The React components only emit events and read values.
+
+```bash
+npm create nanoeffects@latest my-app -- --template domains-ts
+```
+
+| Path | Job |
+| ---- | --- |
+| `src/bus.ts` | Creates the bus. It imports no events and no domain. |
+| `src/app.ts` | Mounts the domains with `modulePlugin`. |
+| `src/domains/catalog/` | Searching products: `catalog.ts` (events and a command), `catalog-handlers.ts` (`debounce` and `latest`), `catalog-module.ts`. |
+| `src/domains/checkout/` | Placing an order: `checkout.ts` (a job), `checkout-handlers.ts` (`leading` and `retry`), `checkout-store.ts` (state written from the job's outcomes), `checkout-module.ts`. |
+| `src/ui/` | The components. None of them calls the fake server in `src/api.ts`. |
+
+The commands, jobs and modules themselves are explained in [Actions, commands, jobs and modules](actions.md). The template keeps found products in a Context provider with one `useEventState`, and the order state in a store of its own: `useEventState` is [not a store](react.md#show-the-last-value-of-an-event-as-state).
+
 ## Read the files
 
-Every template splits the code the way [the guide](guide.md) does: one job per file. In the TypeScript templates the files end in `.ts` (and `.tsx` for components).
+Every template except `domains-ts` splits the code the way [the guide](guide.md) does: one job per file. In the TypeScript templates the files end in `.ts` (and `.tsx` for components).
 
 | File | Job |
 | ---- | --- |

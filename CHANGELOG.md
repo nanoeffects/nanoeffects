@@ -2,6 +2,11 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
+## Unreleased
+
+### Added
+- `npm create nanoeffects@latest my-app -- --template domains-ts` makes a React and TypeScript project with the logic split into domains: commands, a job with a policy, and modules. [Docs](docs/starter.md#start-with-domains)
+
 ## 0.18.1
 
 ### Fixed

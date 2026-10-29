@@ -6,6 +6,8 @@ If you only need `on` / `emit` or policies, stay in the [Guide](guide.md) until 
 
 Recipe without a UI framework: [`examples/modules.ts`](../examples/modules.ts).
 
+A whole project with two domains, a job and React as a thin layer: `npm create nanoeffects@latest my-app -- --template domains-ts` (see [Start a project from a template](starter.md#start-with-domains)).
+
 ## Return a value from `emit` with a command
 
 The bus lives in one file and its events in another, so any module can import both without a cycle.
