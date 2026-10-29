@@ -9,11 +9,11 @@ bus.on(
   queryChanged,
   debounce(
     300,
-    latest(async (query, ctx) => {
-      // ctx.signal is aborted by latest; passing it on cancels the request itself
-      const found = await api.search(query, { signal: ctx.signal });
-      // ctx.emit — tell the bus the result; nothing is delivered after an abort
-      ctx.emit(searchLoaded(found));
+    latest(async (query, { signal, emit }) => {
+      // signal is aborted by latest; passing it on cancels the request itself
+      const found = await api.search(query, { signal });
+      // emit — tell the bus the result; nothing is delivered after an abort
+      emit(searchLoaded(found));
     }),
   ),
 );
