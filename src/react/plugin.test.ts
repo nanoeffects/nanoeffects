@@ -261,3 +261,191 @@ describe("reactPlugin: useEmitter", () => {
 		);
 	});
 });
+
+describe("reactPlugin: useEventState", () => {
+	const roots: Array<{ unmount: () => void }> = [];
+
+	beforeAll(() => {
+		Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
+	});
+
+	afterEach(() => {
+		for (const root of roots.splice(0)) {
+			act(() => root.unmount());
+		}
+	});
+
+	// mounts a component that renders `useHook()` and records every state it sees
+	const mountState = <S>(
+		useHook: () => [S, (next: S | ((previous: S) => S)) => void],
+		strict = true,
+	) => {
+		const container = document.createElement("div");
+		const seen: S[] = [];
+		const control = { set: (_next: S | ((previous: S) => S)) => {} };
+
+		const Component = () => {
+			const [state, setState] = useHook();
+			control.set = setState;
+			seen.push(state);
+			return createElement("span", null, "x");
+		};
+
+		const root = createRoot(container);
+		roots.push(root);
+		const element = createElement(Component);
+		act(() => {
+			root.render(strict ? createElement(StrictMode, null, element) : element);
+		});
+
+		return { control, root, seen };
+	};
+
+	it("returns initial on the first render", () => {
+		const app = createApp();
+		const { seen } = mountState(() =>
+			app.useEventState("name/changed", "Adam"),
+		);
+
+		expect(seen.at(0)).toBe("Adam");
+		expect(seen.at(-1)).toBe("Adam");
+	});
+
+	it("calls a lazy initial once per render pass", () => {
+		const app = createApp();
+		const initial = vi.fn(() => "Adam");
+		const { seen } = mountState(
+			() => app.useEventState("name/changed", initial),
+			false,
+		);
+
+		expect(initial).toHaveBeenCalledTimes(1);
+		expect(seen.at(-1)).toBe("Adam");
+	});
+
+	it("sets the state to the payload of the event", () => {
+		const app = createApp();
+		const { seen } = mountState(() =>
+			app.useEventState("name/changed", "Adam"),
+		);
+
+		act(() => app.emit("name/changed", "Eve"));
+
+		expect(seen.at(-1)).toBe("Eve");
+	});
+
+	it("takes the event from an action creator", () => {
+		const app = createApp();
+		const { seen } = mountState(() => app.useEventState(nameChanged, "Adam"));
+
+		act(() => app.emit("name/changed", "Eve"));
+
+		expect(seen.at(-1)).toBe("Eve");
+	});
+
+	it("does not render again for an equal payload", () => {
+		const app = createApp();
+		const { seen } = mountState(
+			() => app.useEventState("name/changed", "Adam"),
+			false,
+		);
+		const before = seen.length;
+
+		act(() => app.emit("name/changed", "Adam"));
+
+		expect(seen.length).toBe(before);
+	});
+
+	it("stores a function payload and does not call it", () => {
+		type Callbacks = { "callback/set": () => string };
+		const app = createBus<Callbacks>().use(reactPlugin());
+		const callback = vi.fn(() => "called");
+		const { seen } = mountState(() =>
+			app.useEventState("callback/set", () => "initial"),
+		);
+
+		act(() => app.emit("callback/set", callback));
+
+		expect(seen.at(-1)).toBe(callback);
+		expect(callback).not.toHaveBeenCalled();
+	});
+
+	it("sets the state locally and emits nothing", () => {
+		const app = createApp();
+		const heard = vi.fn();
+		app.on("name/changed", heard);
+		const { control, seen } = mountState(() =>
+			app.useEventState("name/changed", "Adam"),
+		);
+
+		act(() => control.set("Eve"));
+
+		expect(seen.at(-1)).toBe("Eve");
+		expect(heard).not.toHaveBeenCalled();
+	});
+
+	it("leaves no listener after unmount", () => {
+		const app = createApp();
+		const { root, seen } = mountState(
+			() => app.useEventState("name/changed", "Adam"),
+			false,
+		);
+		const before = seen.length;
+
+		act(() => root.unmount());
+		app.emit("name/changed", "Eve");
+
+		expect(seen.length).toBe(before);
+	});
+
+	it("keeps one listener under StrictMode", () => {
+		const app = createApp();
+		const { seen } = mountState(() =>
+			app.useEventState("name/changed", "Adam"),
+		);
+		const before = seen.length;
+
+		act(() => app.emit("name/changed", "Eve"));
+
+		// one emit: one state change, so one more render pass (two in StrictMode)
+		expect(seen.length - before).toBeLessThanOrEqual(2);
+		expect(seen.at(-1)).toBe("Eve");
+	});
+
+	it("resubscribes when the event changes", () => {
+		type TwoEvents = Events & { "other/changed": string };
+		const app = createBus<TwoEvents>().use(reactPlugin());
+		const seen: string[] = [];
+		const Component = ({
+			event,
+		}: {
+			event: "name/changed" | "other/changed";
+		}) => {
+			const [state] = app.useEventState(event, "none");
+			seen.push(state);
+			return createElement("span", null, "x");
+		};
+		const root = createRoot(document.createElement("div"));
+		roots.push(root);
+		act(() => root.render(createElement(Component, { event: "name/changed" })));
+		act(() =>
+			root.render(createElement(Component, { event: "other/changed" })),
+		);
+
+		act(() => app.emit("name/changed", "old"));
+		expect(seen.at(-1)).toBe("none");
+
+		act(() => app.emit("other/changed", "new"));
+		expect(seen.at(-1)).toBe("new");
+	});
+
+	it("is a free hook when taken from the bus", () => {
+		const app = createApp();
+		const { useEventState } = app;
+		const { seen } = mountState(() => useEventState("name/changed", "Adam"));
+
+		act(() => app.emit("name/changed", "Eve"));
+
+		expect(seen.at(-1)).toBe("Eve");
+	});
+});

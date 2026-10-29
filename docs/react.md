@@ -162,6 +162,66 @@ const checkName = latest(async (name, ctx) => {
 
 In the component, add `bus.emit("form/closed")` to the cleanup function of the effect. This is optional: skip it when finishing a request after unmount does no harm, as for a cheap check.
 
+## Show the last value of an event as state
+
+**Problem.** A component often needs the latest result of an event, such as the found items of a search. The hand-written form is easy to get slightly wrong:
+
+<!-- docs-check: skip - the hand-written form that this section replaces -->
+```jsx
+useEffect(() => bus.on(searchLoaded, setFound), []);
+```
+
+It needs a `useState` next to it, the empty `[]` hides the dependency on the event, and it breaks if the payload is a function, because React calls `setFound(payload)` as an updater.
+
+**When.** The value you show comes from the bus, not from the component. For the opposite direction, a value of the component that the bus must hear, use `useEmitter`.
+
+`useEventState(event, initial)` has the signature of `useState`: it returns `[state, setState]`. `initial` is the state before the first event and may be a function, as in `useState`. After that, every emit of `event` sets the state to its payload. The hook unsubscribes when the component unmounts.
+
+```js
+// bus.js
+import { createBus } from "nanoeffects";
+import { reactPlugin } from "nanoeffects/react";
+
+// createBus — the event bus, created once outside React
+// reactPlugin — adds the hooks bus.useEmitter and bus.useEventState
+export const bus = createBus().use(reactPlugin());
+export const { useEventState } = bus; // a free hook: components import it without the bus
+```
+
+```js
+// search.js
+import { createAction } from "nanoeffects/actions";
+
+// createAction — the event name; the handlers emit it with the found titles
+export const searchLoaded = createAction("search/loaded");
+```
+
+```jsx
+// Found.jsx
+import { useEventState } from "./bus";
+import { searchLoaded } from "./search";
+
+export function Found() {
+  // useEventState — like useState([]), but searchLoaded sets the value
+  const [found, setFound] = useEventState(searchLoaded, []);
+
+  return (
+    <>
+      <ul>
+        {found.map((title) => (
+          <li key={title}>{title}</li>
+        ))}
+      </ul>
+      <button onClick={() => setFound([])}>Clear</button>
+    </>
+  );
+}
+```
+
+`setFound` is the setter of React. It changes the state of this component only and emits nothing.
+
+The bus keeps no values, so the hook cannot replay an event. An event emitted before the component mounts is not seen: if that matters, read the current value into `initial`.
+
 ## Keep a debounced handler between renders
 
 **Problem.** A component runs again on every render. A policy made in its body, such as `debounce(300, search)`, is made again each time and loses its timer. A policy made once keeps the callback of the first render, which reads old props and state.

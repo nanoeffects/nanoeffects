@@ -1,17 +1,16 @@
-import { useEffect, useState } from "react";
-import { bus, useEmitter } from "./bus";
+import { useState } from "react";
+import { useEmitter, useEventState } from "./bus";
 import { Notes } from "./Notes";
 import { queryChanged, searchLoaded } from "./search";
 
 export function App() {
   const [query, setQuery] = useState("");
-  const [found, setFound] = useState([]);
+
+  // useEventState — like useState, but searchLoaded sets the value; it unsubscribes on unmount
+  const [found] = useEventState(searchLoaded, []);
 
   // useEmitter — emits queryChanged after each change of query, never on mount
   useEmitter(queryChanged, query);
-
-  // bus.on returns the function that unsubscribes; returning it from the effect cleans up on unmount
-  useEffect(() => bus.on(searchLoaded, setFound), []);
 
   return (
     <>

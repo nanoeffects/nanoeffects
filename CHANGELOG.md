@@ -2,6 +2,11 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
+## Unreleased
+
+### Added
+- `bus.useEventState(event, initial)` is a React hook with the signature of `useState`: every emit of `event` sets the state to its payload. [Docs](docs/react.md#show-the-last-value-of-an-event-as-state)
+
 ## 0.17.0
 
 ### Added

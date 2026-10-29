@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ActionCreator, FreeActionCreator } from "../core/action-creator";
 import type { Bus, EventKey, EventLike } from "../core/bus";
 import { type Origin, type OriginOptions, originKey } from "../core/origin-key";
@@ -40,7 +40,39 @@ export type ReactApi<E extends EventMap> = {
 			options?: UseEmitterOptions<P>,
 		): void;
 	};
+
+	/**
+	 * A React hook with the signature of `useState`: returns `[state, setState]`, and
+	 * every emit of `event` sets the state to its payload while the component is
+	 * mounted. `initial` may be a function, as in `useState`. The bus keeps no values,
+	 * so an event emitted before the first commit is not seen: read a current value
+	 * into `initial` when that matters. The method does not read `this`, so
+	 * `export const { useEventState } = bus` gives a free hook.
+	 *
+	 * @example
+	 * ```tsx
+	 * const [found, setFound] = useEventState(searchLoaded, []); // [] until the first searchLoaded
+	 * ```
+	 */
+	useEventState: {
+		<K extends EventKey<E>>(
+			event: K,
+			initial: E[K] | (() => E[K]),
+		): EventState<E[K]>;
+		/** A creator without a payload type: the payload comes from the event map. */
+		<K extends EventKey<E>>(
+			creator: FreeActionCreator<K>,
+			initial: E[K] | (() => E[K]),
+		): EventState<E[K]>;
+		<P, T extends string>(
+			creator: ActionCreator<P, T>,
+			initial: P | (() => P),
+		): EventState<P>;
+	};
 };
+
+/** What `useEventState` returns: the pair of `useState`, with the payload of the event as state. */
+export type EventState<P> = [P, (next: P | ((previous: P) => P)) => void];
 
 type Creator = (...args: never[]) => { type: string; payload?: unknown };
 
@@ -134,5 +166,37 @@ export const reactPlugin =
 			}, [value]);
 		}
 
-		return Object.assign(bus, { useEmitter });
+		function useEventState<K extends EventKey<E>>(
+			event: K,
+			initial: E[K] | (() => E[K]),
+		): EventState<E[K]>;
+		function useEventState<K extends EventKey<E>>(
+			creator: FreeActionCreator<K>,
+			initial: E[K] | (() => E[K]),
+		): EventState<E[K]>;
+		function useEventState<P, T extends string>(
+			creator: ActionCreator<P, T>,
+			initial: P | (() => P),
+		): EventState<P>;
+		function useEventState<S>(
+			event: string | Creator,
+			initial: S | (() => S),
+		): EventState<S> {
+			const [state, setState] = useState(initial);
+
+			useEffect(() => {
+				// the overloads above check the event; here it is only passed on
+				const target = event as never;
+				// `() => next` stores a function payload instead of calling it as an updater
+				const listener = (payload: unknown) => {
+					const next = payload as S;
+					setState(() => next);
+				};
+				return bus.on(target, listener);
+			}, [event]);
+
+			return [state, setState];
+		}
+
+		return Object.assign(bus, { useEmitter, useEventState });
 	};

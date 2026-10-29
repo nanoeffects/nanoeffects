@@ -43,7 +43,7 @@ Pass `--template` to skip the question. With npm, put `--` before the option.
 | Template | What it shows | Use it when |
 | -------- | ------------- | ----------- |
 | `vanilla` | A bus, one event and a `debounce` plus `latest` handler, with plain DOM code | You use no framework, or want to see the bus alone |
-| `react` | The same handler with `useEmitter`, and `usePolicy` for a debounced save in a component | You build a React app |
+| `react` | The same handler with `useEmitter` and `useEventState`, and `usePolicy` for a debounced save in a component | You build a React app |
 
 ```bash
 npm create nanoeffects@latest my-app -- --template react

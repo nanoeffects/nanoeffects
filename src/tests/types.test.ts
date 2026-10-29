@@ -1176,6 +1176,40 @@ describe("reactPlugin", () => {
 		};
 		expectTypeOf(wrongCalls).toBeFunction();
 	});
+
+	it("types the state of useEventState from the event", () => {
+		const bus = createBus<ProfileEvents>().use(reactPlugin());
+		const nameChanged = createAction<string>("name/changed");
+		const calls = () => {
+			const [name, setName] = bus.useEventState("name/changed", "Adam");
+			expectTypeOf(name).toEqualTypeOf<string>();
+			setName("Eve");
+			setName((previous) => previous.toUpperCase());
+
+			const [profile] = bus.useEventState("profile/changed", () => ({
+				name: "Adam",
+			}));
+			expectTypeOf(profile).toEqualTypeOf<{ name: string }>();
+
+			const [fromCreator] = bus.useEventState(nameChanged, "Adam");
+			expectTypeOf(fromCreator).toEqualTypeOf<string>();
+		};
+		expectTypeOf(calls).toBeFunction();
+	});
+
+	it("rejects an initial of another type and an unknown event in useEventState", () => {
+		const bus = createBus<ProfileEvents>().use(reactPlugin());
+		const nameChanged = createAction<string>("name/changed");
+		const wrongCalls = () => {
+			// @ts-expect-error the payload of name/changed is a string
+			bus.useEventState("name/changed", 1);
+			// @ts-expect-error the creator takes a string
+			bus.useEventState(nameChanged, 1);
+			// @ts-expect-error the bus has no such event
+			bus.useEventState("missing", "Adam");
+		};
+		expectTypeOf(wrongCalls).toBeFunction();
+	});
 });
 
 describe("scope", () => {

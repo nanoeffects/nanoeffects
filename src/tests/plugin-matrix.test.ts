@@ -526,6 +526,11 @@ const probes: Probe[] = [
 		run: ({ bus }) => isFunction(field(bus, "useEmitter")),
 	},
 	{
+		id: "bus.useEventState is there",
+		needs: ["react"],
+		run: ({ bus }) => isFunction(field(bus, "useEventState")),
+	},
+	{
 		id: "the module is mounted, answers, and unmounts",
 		needs: ["modules"],
 		run: ({ bus, app, seen }) => {
