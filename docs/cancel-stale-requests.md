@@ -60,7 +60,7 @@ const bus = createBus(); // the bus: events and handlers
 // latest: a newer search aborts the request in flight
 const searchLatest = latest(async (query, { signal }) => {
   const items = await api.search(query, { signal });
-  bus.emit("results", items);
+  render(items);
 });
 
 // debounce: run after 300 ms without a new "typed"

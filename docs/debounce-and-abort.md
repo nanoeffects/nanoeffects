@@ -25,13 +25,11 @@ const bus = createBus(); // the bus: events and handlers
 const searchLatest = latest(async (query, { signal }) => {
   // signal: pass it on so the browser cancels the request itself
   const items = await api.search(query, { signal });
-  bus.emit("results", items);
+  render(items);
 });
 
 // debounce: run searchLatest after 300 ms without a new "typed"
 bus.on("typed", debounce(300, searchLatest));
-
-bus.on("results", (items) => render(items));
 ```
 
 What to replace: `api.search` is your own request function. It must accept `{ signal }` and give it to `fetch`. `render` shows the items.
