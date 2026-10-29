@@ -47,6 +47,7 @@ Pass `--template` to skip the question. With npm, put `--` before the option.
 | `vanilla-ts` | The `vanilla` app in TypeScript | You want the compiler to check events and handlers |
 | `react-ts` | The `react` app in TypeScript | You build a React app in TypeScript |
 | `domains-ts` | Commands, a job and modules, with the logic split into domain folders and React as a thin layer | You build an app with more than one feature and want the logic off the UI |
+| `vue-ts` | The `react-ts` app in Vue 3, with a small composable that keeps an event in a `ref` | You build a Vue 3 app |
 
 ```bash
 npm create nanoeffects@latest my-app -- --template react
@@ -59,6 +60,16 @@ The TypeScript templates are the same apps with the same files, written in `.ts`
 ```bash
 npm create nanoeffects@latest my-app -- --template react-ts
 ```
+
+### Start with Vue
+
+`vue-ts` is the search app of `react-ts` in Vue 3 with `<script setup lang="ts">`. It adds no API to nanoeffects. One small file of the project, `src/use-event-ref.ts`, keeps the last payload of an event in a `ref` and stops listening when the component unmounts, the way `useEventState` does in React. Like `useEventState`, it is [not a store](react.md#show-the-last-value-of-an-event-as-state): a value that several components share belongs in a store such as Pinia.
+
+```bash
+npm create nanoeffects@latest my-app -- --template vue-ts
+```
+
+`npm run build` type-checks the `.vue` files with `vue-tsc`, which needs TypeScript 5: the template depends on it.
 
 ### Start with domains
 
@@ -82,7 +93,7 @@ The commands, jobs and modules themselves are explained in [Actions, commands, j
 
 ## Read the files
 
-Every template except `domains-ts` splits the code the way [the guide](guide.md) does: one job per file. In the TypeScript templates the files end in `.ts` (and `.tsx` for components).
+Every template except `domains-ts` splits the code the way [the guide](guide.md) does: one job per file. In the TypeScript templates the files end in `.ts` (and `.tsx` for React components, `.vue` for Vue components).
 
 | File | Job |
 | ---- | --- |

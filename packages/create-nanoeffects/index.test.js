@@ -183,7 +183,9 @@ describe("refusals", () => {
 				print,
 				version: "0.17.0",
 			}),
-		).rejects.toThrow(/vanilla, react, vanilla-ts, react-ts, domains-ts/);
+		).rejects.toThrow(
+			/vanilla, react, vanilla-ts, react-ts, domains-ts, vue-ts/,
+		);
 		expect(existsSync(join(workdir, "app"))).toBe(false);
 	});
 });
@@ -231,6 +233,7 @@ describe("templates", () => {
 			"vanilla-ts",
 			"react-ts",
 			"domains-ts",
+			"vue-ts",
 		]);
 	});
 
@@ -293,6 +296,46 @@ describe("templates", () => {
 			"createAction<string[]>",
 		);
 		expect(manifestOf("my-app").name).toBe("my-app");
+	});
+
+	it("make a Vue project from vue-ts, with the files of react-ts and its own composable", async () => {
+		await run({
+			argv: ["my-app", "--template", "vue-ts"],
+			cwd: workdir,
+			interactive: false,
+			print,
+			version: "0.17.0",
+		});
+		expect(existsSync(join(workdir, "my-app", ".gitignore"))).toBe(true);
+		expect(manifestOf("my-app").scripts.build).toBe(
+			"vue-tsc --noEmit && vite build",
+		);
+		expect(read("my-app", "src", "use-event-ref.ts")).toMatch(
+			/not a global store/,
+		);
+		expect(read("my-app", "src", "App.vue")).toContain("useEventRef");
+	});
+
+	it("give vue-ts the files of react-ts, with .vue for the components and one composable more", () => {
+		const names = (template) => {
+			const target = join(workdir, `vue-files-${template}`);
+			createProject({ target, template, version: "0.17.0" });
+			const files = [
+				...readdirSync(target),
+				...readdirSync(join(target, "src")).map((file) => `src/${file}`),
+			];
+			return files.map((file) => file.replace(/\.(tsx?|vue)$/, "")).sort();
+		};
+		const reactFiles = names("react-ts");
+		const vueFiles = names("vue-ts");
+
+		for (const file of reactFiles) {
+			expect(vueFiles).toContain(file);
+		}
+		expect(vueFiles.filter((file) => !reactFiles.includes(file))).toEqual([
+			"src/env.d",
+			"src/use-event-ref",
+		]);
 	});
 
 	it("give each TypeScript template the files of its JavaScript twin", () => {

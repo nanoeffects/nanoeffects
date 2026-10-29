@@ -46,9 +46,17 @@ for (const template of templates) {
 	};
 	writeFileSync(config, JSON.stringify(options));
 
+	// `tsc` cannot read a .vue file: a template that has one is checked with `vue-tsc`
+	const hasVue = readdirSync(join(directory, "src")).some((file) =>
+		file.endsWith(".vue"),
+	);
+	const [command, ...args] = hasVue
+		? ["node", join(root, "scripts", "vue-tsc.mjs")]
+		: ["pnpm", "exec", "tsc"];
+
 	let output = "";
 	try {
-		execFileSync("pnpm", ["exec", "tsc", "-p", config, "--noEmit"], {
+		execFileSync(command, [...args, "-p", config, "--noEmit"], {
 			cwd: root,
 			encoding: "utf8",
 			stdio: "pipe",

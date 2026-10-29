@@ -8,6 +8,7 @@ How to read an entry: **Breaking** needs a change in your code or setup, **Chang
 - The modules given to `modulePlugin([...])` are mounted at the end of the synchronous block that made the app, not only at the first use of the app or the bus, so an app that uses nothing at start still mounts them. Pass no modules and call `app.mount` to mount when you want. [Docs](docs/actions.md#mount-domains-with-modules)
 
 ### Added
+- `npm create nanoeffects@latest my-app -- --template vue-ts` makes the search app in Vue 3 and TypeScript, with a small composable that keeps an event in a `ref`. [Docs](docs/starter.md#start-with-vue)
 - `app.mount(a, b, c)` and `app.unmount(a, b)` take any number of modules. They are mounted in order and undone in reverse order, and a call that fails leaves none of its modules mounted. [Docs](docs/actions.md#mount-domains-with-modules)
 - A chat example with domains, modules and a small Fastify server that fails on a known schedule, and a page that explains it. [Docs](docs/chat-example.md)
 
