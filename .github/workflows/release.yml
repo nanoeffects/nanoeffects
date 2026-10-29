@@ -1,7 +1,8 @@
 name: Release
 
 # Push a tag `v0.1.0` that matches the version in package.json: the workflow checks everything,
-# publishes to npm and creates the GitHub release with the notes of that version from CHANGELOG.md.
+# publishes to npm and creates the GitHub release with the notes of that version from CHANGELOG.md
+# (scripts/release-notes.mjs: the section, absolute links, and the link to the changes since the version before).
 # npm trusted publishing: on npmjs.com, Settings > Trusted Publisher of the package, add this
 # repository and the workflow file `release.yml`. No token is stored here.
 
@@ -45,5 +46,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          notes="$(awk -v v="${GITHUB_REF_NAME#v}" '$0 == "## " v {found=1; next} /^## / {found=0} found' CHANGELOG.md)"
-          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes "$notes"
+          node scripts/release-notes.mjs "$GITHUB_REF_NAME" > release-notes.md
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file release-notes.md

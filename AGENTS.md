@@ -203,6 +203,13 @@ Bug fixes follow the same line. When the code does not do what a spec or the doc
 npm publishing goes through GitHub Actions with npm trusted publishing (no token): the package settings on npmjs.com name this repository and the workflow `release.yml`. To release:
 
 1. Write the notes under `## <version>` in `CHANGELOG.md`, and set the same `version` in `package.json` (`npm version <x> --no-git-tag-version`).
+
+   The text of the GitHub release is that section, made by `scripts/release-notes.mjs`, so write it to be read on a release page:
+   - Sections by what the reader must do: `### Breaking` (code or setup must change; say how to get the old behavior), `### Changed` (another behavior, rarely breaking), `### Added`, `### Fixed`. Leave out an empty one.
+   - One bullet is one or two lines: what it is and how to turn it on. Put the rest in `docs/` and link it (`[Docs](docs/tracing.md#anchor)`; the script makes the links absolute).
+   - No bundle sizes, test counts, internals or design notes. Those belong to the commit and to `openspec/`.
+   - Nest bullets only to list the parts of one feature, one level deep.
+   - Check a release text with `node scripts/release-notes.mjs v<version>`. To fix a published release: `node scripts/release-notes.mjs v<version> > notes.md && gh release edit v<version> --notes-file notes.md`.
 2. `pnpm verify` (what CI runs), commit.
 3. Tag and push: `git tag v<version> && git push origin main v<version>`. The `Release` workflow checks that the tag, `package.json` and the changelog agree, runs `verify` and `smoke`, publishes with provenance, and creates the GitHub release from the changelog.
 4. After the release, `pnpm consumer-check` installs `nanoeffects@latest` into a clean project, type-checks the README example and runs it. Do not publish from a laptop: provenance works only from Actions, and a published version cannot be replaced.
