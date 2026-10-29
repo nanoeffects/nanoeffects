@@ -2,7 +2,7 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
-## Unreleased
+## 0.14.0
 
 ### Breaking
 - `contextPlugin` moved to its own entry. Change `import { contextPlugin } from "nanoeffects"` to `import { contextPlugin } from "nanoeffects/context"`; `createBus` and the types `NoClash` and `ContextTask` stay in `nanoeffects`. [Docs](docs/context.md)
