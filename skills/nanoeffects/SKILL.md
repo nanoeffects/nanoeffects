@@ -20,6 +20,16 @@ A typed event bus where each handler is a task with an `AbortSignal`. Policies (
 - The job is combining or transforming streams of values: keep RxJS.
 - The job is server state caching (stale-while-revalidate, pagination): use a query library.
 
+## Start a new project
+
+Do not write the setup by hand. `npm create nanoeffects@latest my-app -- --template <name>` makes a working Vite project:
+
+- `vanilla`, `react`: JavaScript, one search handler with `debounce` and `latest`.
+- `vanilla-ts`, `react-ts`: the same apps in TypeScript.
+- `domains-ts`: React and TypeScript with the logic split by domain (commands, a job, modules). Pick it for an app with several features.
+
+In an existing project, start from `docs/cancel-stale-requests.md` (races) or `docs/guide.md`.
+
 ## Rules that generated code often gets wrong
 
 - ESM only. No default export, no `require`.
@@ -29,24 +39,8 @@ A typed event bus where each handler is a task with an `AbortSignal`. Policies (
 - Policies wrap a handler: `bus.on("search", latest(async (query, ctx) => { ... }))`.
 - Import each part from its path: `nanoeffects`, `nanoeffects/policies`, `nanoeffects/effects`, `nanoeffects/actions`, `nanoeffects/redux`, `nanoeffects/react`.
 - `bus.emit(command(payload))` returns the command's result. Plain events return nothing.
-
-## Minimal example
-
-```js
-import { createBus } from "nanoeffects";
-import { latest } from "nanoeffects/policies";
-
-const bus = createBus();
-
-bus.on(
-  "search",
-  latest(async (query, { signal }) => {
-    const items = await api.search(query, { signal });
-    bus.emit("results", items);
-  }),
-);
-```
+- The bus keeps no values: an event emitted before a listener exists is lost. `useEventState(event, initial)` (`nanoeffects/react`) is state of one component, not a store. Share a value through a Context provider at the root or a state manager.
 
 ## Where to read more
 
-The package ships `llms.txt` (index of the docs) and `llms-full.txt` (all docs in one file). Start with `docs/cancel-stale-requests.md` for races and `docs/guide.md` for the step-by-step guide.
+The package ships `llms.txt` (index of the docs) and `llms-full.txt` (all docs in one file).
