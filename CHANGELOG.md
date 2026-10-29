@@ -2,11 +2,11 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
-## Unreleased
+## 0.18.0
 
 ### Added
 - `npm create nanoeffects@latest my-app -- --template react-ts` (or `vanilla-ts`) makes the same app in TypeScript, with the types taken from the events. [Docs](docs/starter.md#choose-a-template)
-- `bus.useEventState(event, initial)` is a React hook with the signature of `useState`: every emit of `event` sets the state to its payload. [Docs](docs/react.md#show-the-last-value-of-an-event-as-state)
+- `bus.useEventState(event, initial)` is a React hook with the signature of `useState`: every emit of `event` sets the state to its payload. The state type comes from the event, or from `initial` when the event has no payload type. [Docs](docs/react.md#show-the-last-value-of-an-event-as-state)
 
 ## 0.17.0
 
