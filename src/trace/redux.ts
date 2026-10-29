@@ -21,6 +21,13 @@ export type PolicyStages =
 	| readonly Phase[]
 	| ((stage: PolicyStage) => boolean);
 
+/**
+ * Which actions carry the payload of the event: `"all"` of them, the
+ * `"essential"` ones (the emits, and the stages that end a call without a result:
+ * `cancel`, `drop`, `error`), or `"none"`.
+ */
+export type PayloadMode = "all" | "essential" | "none";
+
 export type ReduxDevtoolsOptions = {
 	/** Instance name in the Redux DevTools picker. */
 	name?: string;
@@ -45,6 +52,14 @@ export type ReduxDevtoolsOptions = {
 	 * The handler tasks themselves are chosen by `policies`.
 	 */
 	depth?: number;
+	/**
+	 * Which actions carry the payload of their event. Default `"essential"`: the
+	 * emits, and the `cancel`, `drop` and `error` of a task, where the payload is
+	 * the only way to tell which call it was; `start` and `done` repeat the emit
+	 * and have none. `"all"` puts it in every action, `"none"` in no action, for
+	 * size or for data that must not reach the extension.
+	 */
+	payload?: PayloadMode;
 	/** The number of actions that DevTools keeps; its own default is 50. */
 	maxAge?: number;
 };
@@ -58,6 +73,9 @@ export type ReduxDevtoolsState = {
 };
 
 const noop = () => {};
+
+// a task that ends in one of these has no result to look at: its payload says which call it was
+const endsWithoutResult = new Set<Phase>(["cancel", "drop", "error"]);
 
 const never = () => false;
 const always = () => true;
@@ -108,6 +126,7 @@ export const reduxDevtools = (
 
 	const { starts = false, depth: shownDepth = 0, maxAge } = options;
 	const showsStage = stagesOf(options.policies);
+	const mode = options.payload ?? "essential";
 	const connection = extension.connect({
 		name: options.name ?? "nanoeffects",
 		...(maxAge !== void 0 && { maxAge }),
@@ -164,10 +183,21 @@ export const reduxDevtools = (
 		);
 	};
 
+	// the event as an action, with the payload only where the option says so
+	const actionOf = (event: TraceEvent) => {
+		const { payload, ...rest } = event;
+		const carries =
+			mode === "all" ||
+			(mode === "essential" &&
+				(event.effect === "emit" || endsWithoutResult.has(event.phase)));
+
+		return carries ? { ...rest, payload } : rest;
+	};
+
 	const sendStage = (event: TraceEvent, error: unknown) => {
 		connection.send(
 			{
-				...event,
+				...actionOf(event),
 				type: `${event.type}/${event.effect}/${event.phase}`,
 				event: event.type,
 				...(event.phase === "error" && {
@@ -181,7 +211,7 @@ export const reduxDevtools = (
 	return ({ error, ...event }) => {
 		if (event.effect === "emit") {
 			sawEmit = true;
-			connection.send({ ...event, event: event.type }, snapshot());
+			connection.send({ ...actionOf(event), event: event.type }, snapshot());
 			return;
 		}
 

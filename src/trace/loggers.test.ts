@@ -266,6 +266,7 @@ describe("reduxDevtools", () => {
 				extension,
 				name: "app",
 				policies: true,
+				payload: "all",
 				starts: true,
 				depth: Number.POSITIVE_INFINITY,
 			}),
@@ -688,6 +689,123 @@ describe("reduxDevtools, the defaults and policies", () => {
 		} finally {
 			warn.mockRestore();
 		}
+	});
+
+	describe("payload", () => {
+		// one lost call, one that ends, one that fails; the emit of each comes first
+		const flow = (log: ReturnType<typeof reduxDevtools>) => {
+			log(event({ id: 1, effect: "emit", phase: "done", payload: "a" }));
+			log(event({ id: 2, parentId: 9, payload: "a" }));
+			log(event({ id: 2, parentId: 9, payload: "a", phase: "cancel" }));
+			log(event({ id: 3, effect: "emit", phase: "done", payload: "ab" }));
+			log(event({ id: 4, parentId: 9, payload: "ab" }));
+			log(event({ id: 4, parentId: 9, payload: "ab", phase: "done" }));
+			log(event({ id: 5, effect: "emit", phase: "done", payload: "abc" }));
+			log(event({ id: 6, parentId: 9, payload: "abc" }));
+			log(
+				event({
+					id: 6,
+					parentId: 9,
+					payload: "abc",
+					phase: "error",
+					error: new Error("x"),
+				}),
+			);
+		};
+		const actionsOf = (options: Parameters<typeof reduxDevtools>[0]) => {
+			const { connection, log } = setup({
+				policies: true,
+				starts: true,
+				...options,
+			});
+			flow(log);
+
+			return connection.send.mock.calls.map(
+				([action]) => action as Record<string, unknown>,
+			);
+		};
+		const labelOf = (action: Record<string, unknown>) =>
+			`${action.type}${"payload" in action ? ` ${action.payload}` : ""}`;
+
+		it("essential, the default, keeps it on the emits and on cancel, drop and error", () => {
+			expect(actionsOf({}).map(labelOf)).toEqual([
+				"search a",
+				"search/latest/start",
+				"search/latest/cancel a",
+				"search ab",
+				"search/latest/start",
+				"search/latest/done",
+				"search abc",
+				"search/latest/start",
+				"search/latest/error abc",
+			]);
+		});
+
+		it("all keeps it everywhere", () => {
+			expect(actionsOf({ payload: "all" }).map(labelOf)).toEqual([
+				"search a",
+				"search/latest/start a",
+				"search/latest/cancel a",
+				"search ab",
+				"search/latest/start ab",
+				"search/latest/done ab",
+				"search abc",
+				"search/latest/start abc",
+				"search/latest/error abc",
+			]);
+		});
+
+		it("none has it nowhere, also not on a lost or failed call", () => {
+			const actions = actionsOf({ payload: "none" });
+
+			expect(actions).toHaveLength(9);
+			expect(actions.some((action) => "payload" in action)).toBe(false);
+		});
+
+		it("changes nothing but the payload: the same actions, in the same order", () => {
+			const strip = ({ payload: _, ...rest }: Record<string, unknown>) => rest;
+			const all = actionsOf({ payload: "all" }).map(strip);
+
+			expect(actionsOf({}).map(strip)).toEqual(all);
+			expect(actionsOf({ payload: "none" }).map(strip)).toEqual(all);
+		});
+
+		it("keeps the error, the group and the state with none", () => {
+			const { connection, log } = setup({ payload: "none" });
+			log(event({ id: 1, parentId: 9, traceGroupId: "flow" }));
+			log(
+				event({
+					id: 1,
+					parentId: 9,
+					traceGroupId: "flow",
+					phase: "error",
+					error: new Error("x"),
+				}),
+			);
+			const [action] = connection.send.mock.calls[0] ?? [];
+
+			expect(action).toMatchObject({
+				type: "search/latest/error",
+				error: "x",
+				traceGroupId: "flow",
+			});
+			expect(action).not.toHaveProperty("payload");
+		});
+
+		it("an effect below a handler follows the same rule by its phase", () => {
+			const { connection, log } = setup({ depth: 1, starts: true });
+			log(event({ id: 1, parentId: 9 }));
+			log(event({ id: 2, parentId: 1, effect: "retry" }));
+			log(event({ id: 2, parentId: 1, effect: "retry", phase: "done" }));
+			const retries = connection.send.mock.calls
+				.map(([action]) => action as Record<string, unknown>)
+				.filter((action) => action.effect === "retry");
+
+			expect(retries.map((action) => "payload" in action)).toEqual([
+				false,
+				false,
+			]);
+		});
 	});
 
 	it("the running state holds only the tasks that the options show", () => {

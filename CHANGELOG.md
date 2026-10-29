@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `reduxDevtools({ payload })` chooses which actions carry the payload of their event: `"essential"` (the default), `"all"` or `"none"`. **Behavior change:** the default sends the payload with the emit actions and with the `cancel`, `drop` and `error` of a task, and no longer with `start` and `done`, so a large payload is sent once instead of once for each stage. `payload: "all"` restores the output of 0.12; `payload: "none"` keeps the payloads out of the extension. The other fields of the actions and the state are the same.
+
 ## 0.12.0
 
 - `nanoeffects/trace`: `bus.use(tracePlugin())` reports each emit as one trace event, `{ type: <event name>, effect: "emit", phase: "done", payload }`, before its handlers run. It is there when nothing listens, when the listeners report nothing, for a command, and for a `ctx.emit` (the task that emits is its `parentId`). It is a leaf: the parent, root and group of every other task are as before. `"emit"` is a new `EffectName`. `consoleLogger` and `performanceLogger` show it too (a line, a mark) when the plugin is used; without the plugin nothing changes. `createBus` is not changed.

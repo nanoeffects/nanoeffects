@@ -246,6 +246,10 @@ Turn on more when you need it:
 - `policies` — the stages of the handler tasks, as `event/policy/phase`. `true` shows every phase, a list shows those phases, a function gets `{ effect, phase }`.
 - `starts: true` — also send the start of each shown task. Running tasks are in the state `{ running }`.
 - `depth: 1` — also the effects a handler starts (`retry`, `timeout`); `depth: Infinity` — everything below.
+- `payload` — which actions carry the payload of their event:
+  - `"essential"` (default) — the emit actions, and the `cancel`, `drop` and `error` of a task, where the payload is the only way to tell which call it was. `start` and `done` repeat the emit and have none, so a large payload is sent once.
+  - `"all"` — every action, as in 0.12.
+  - `"none"` — no action. Use it for a payload that is large, or holds data that must not reach the browser extension (tokens, personal data). You can then no longer tell which call a policy stopped.
 - `maxAge: 200` — how many actions DevTools keeps (its default is 50).
 
 ```js
@@ -273,7 +277,10 @@ reduxDevtools({
 });
 
 // the old log: every stage, and the effects below the handlers
-reduxDevtools({ name: "app", policies: true, depth: 1 });
+reduxDevtools({ name: "app", policies: true, depth: 1, payload: "all" });
+
+// keep the payloads out of the extension
+reduxDevtools({ name: "app", payload: "none" });
 ```
 
 With two quick `search` emits and a `latest` handler, the default list is `search`, `search`. With `policies: true` it adds the `latest` stages of each call, for example `search/latest/cancel` for the first one.

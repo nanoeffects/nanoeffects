@@ -6,6 +6,9 @@ export {
 export { tracePlugin } from "./plugin";
 export { createTraceRecorder, type Recorder } from "./recorder";
 export {
+	type PayloadMode,
+	type PolicyStage,
+	type PolicyStages,
 	type ReduxDevtoolsOptions,
 	type ReduxDevtoolsState,
 	type ReduxExtension,
