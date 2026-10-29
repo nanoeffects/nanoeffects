@@ -1,5 +1,5 @@
 // Retry a flaky request: the pause grows, has a cap, and is spread by jitter.
-import { createBus } from "nanoeffects";
+import { createBus, type WithSignal } from "nanoeffects";
 import { backoff, retry } from "nanoeffects/effects";
 import { latest } from "nanoeffects/policies";
 
@@ -9,12 +9,12 @@ type Events = {
 };
 
 declare const api: {
-	user(id: number, options: { signal: AbortSignal }): Promise<User>;
+	user(id: number, options: WithSignal): Promise<User>;
 };
 
 export const bus = createBus<Events>();
 
-const loadUser = (id: number, { signal }: { signal: AbortSignal }) =>
+const loadUser = (id: number, { signal }: WithSignal) =>
 	api.user(id, { signal });
 
 // latest — a newer load aborts the older one, and its retries with it

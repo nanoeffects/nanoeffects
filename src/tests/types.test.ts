@@ -41,6 +41,7 @@ import {
 	createBus,
 	type EventsOf,
 	type WithContext,
+	type WithSignal,
 } from "../core/bus";
 import type { Effect } from "../core/effect-types";
 import type { EventMap, Task, UnsubscribeCallback } from "../core/types";
@@ -49,6 +50,7 @@ import {
 	allSettled,
 	cancellable,
 	delay,
+	type EffectContext,
 	effectsPlugin,
 	poll,
 	race,
@@ -68,7 +70,7 @@ import {
 	withPolicy,
 } from "../policies";
 import { reactPlugin, usePolicy } from "../react";
-import { effect } from "../scope";
+import { effect, type Signaled } from "../scope";
 import { signalPlugin } from "../signal";
 import { createEffectsMiddleware, type ReduxStoreApi } from "../store/redux";
 import {
@@ -1129,6 +1131,36 @@ describe("createEffectsMiddleware", () => {
 			createEffectsMiddleware({ filter: () => true });
 		};
 		expectTypeOf(wrongCalls).toBeFunction();
+	});
+});
+
+describe("WithSignal", () => {
+	it("accepts a task context, { signal } and the context of a starter", () => {
+		const take = (_options: WithSignal) => {};
+
+		const calls = (ctx: Context<EventMap>, starter: EffectContext) => {
+			take(ctx);
+			take({ signal: new AbortController().signal });
+			take(starter);
+		};
+		expectTypeOf(calls).toBeFunction();
+	});
+
+	it("rejects an object with no signal and an object with an optional one", () => {
+		const take = (_options: WithSignal) => {};
+		const optional: { signal?: AbortSignal } = {};
+
+		const wrongCalls = () => {
+			// @ts-expect-error there is no signal
+			take({});
+			// @ts-expect-error the signal may be missing
+			take(optional);
+		};
+		expectTypeOf(wrongCalls).toBeFunction();
+	});
+
+	it("is the type that Signaled of nanoeffects/scope names", () => {
+		expectTypeOf<Signaled>().toEqualTypeOf<WithSignal>();
 	});
 });
 

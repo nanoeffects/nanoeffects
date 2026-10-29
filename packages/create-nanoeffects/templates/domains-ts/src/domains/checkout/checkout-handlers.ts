@@ -1,3 +1,4 @@
+import type { WithSignal } from "nanoeffects";
 import { leading } from "nanoeffects/policies";
 import { retry } from "nanoeffects/effects";
 import { api } from "../../api";
@@ -8,7 +9,7 @@ import { api } from "../../api";
 // leading — a second click while the first order runs is dropped, so it is not charged twice
 export const submitOrder = leading(
   retry(
-    async (productId: string, { signal }: { signal: AbortSignal }) => {
+    async (productId: string, { signal }: WithSignal) => {
       return api.placeOrder(productId, { signal });
     },
     { times: 3, delay: 300 },

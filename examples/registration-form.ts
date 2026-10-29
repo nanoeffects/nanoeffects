@@ -1,17 +1,14 @@
 // Registration form, without a UI framework: the wiring of docs/react.md.
 // A username check that does not race, a submit that cannot fire twice, a flaky network.
-import { createBus } from "nanoeffects";
+import { createBus, type WithSignal } from "nanoeffects";
 import { retry } from "nanoeffects/effects";
 import { debounce, latest, leading } from "nanoeffects/policies";
 
 type SignUpForm = { name: string; password: string };
 
 type Api = {
-	usernameAvailable(
-		name: string,
-		options: { signal: AbortSignal },
-	): Promise<boolean>;
-	signUp(form: SignUpForm, options: { signal: AbortSignal }): Promise<string>;
+	usernameAvailable(name: string, options: WithSignal): Promise<boolean>;
+	signUp(form: SignUpForm, options: WithSignal): Promise<string>;
 };
 
 type Events = {

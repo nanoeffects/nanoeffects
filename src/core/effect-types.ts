@@ -1,8 +1,10 @@
-/** What an effect needs of the task it runs for: its signal. A task context fits, and so does `{ signal }`. */
-export type Signaled = { signal: AbortSignal };
+import type { WithSignal } from "./bus";
+
+/** What an effect needs of the task it runs for: its signal. The name `WithSignal` is the one to use; this one stays for `nanoeffects/scope`. */
+export type Signaled = WithSignal;
 
 /** An effect: a function whose first parameter takes `{ signal }`, like `retry(ctx, fn)`. */
-export type SignalFirst = (ctx: Signaled, ...args: never[]) => unknown;
+export type SignalFirst = (ctx: WithSignal, ...args: never[]) => unknown;
 
 /** The effects of a scope or of `effectsPlugin`, by the name they get on the context. */
 export type Effects = Record<string, SignalFirst>;
@@ -23,7 +25,7 @@ declare const bound: unique symbol;
  * ```
  */
 export type Effect<F extends (...args: never[]) => unknown> = ((
-	ctx: Signaled,
+	ctx: WithSignal,
 	...args: Parameters<F>
 ) => ReturnType<F>) & { readonly [bound]?: F };
 

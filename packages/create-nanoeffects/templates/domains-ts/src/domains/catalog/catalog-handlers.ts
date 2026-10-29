@@ -1,3 +1,4 @@
+import type { WithSignal } from "nanoeffects";
 import { debounce, latest } from "nanoeffects/policies";
 import { api } from "../../api";
 import { findProducts, productsLoaded } from "./catalog";
@@ -5,7 +6,7 @@ import { findProducts, productsLoaded } from "./catalog";
 // The work of the catalog domain. It gets `emit` from the task context, so it imports no bus.
 
 // the answer to the findProducts command: one request, aborted when the task is
-export const answerFind = (query: string, { signal }: { signal: AbortSignal }) =>
+export const answerFind = (query: string, { signal }: WithSignal) =>
   api.searchProducts(query, { signal });
 
 // debounce — wait 300 ms of quiet; latest — a newer search aborts the older one

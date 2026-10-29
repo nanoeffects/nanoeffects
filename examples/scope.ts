@@ -1,5 +1,5 @@
 // A command with its own effects, and a test that replaces one of them for a single call.
-import { createBus } from "nanoeffects";
+import { createBus, type WithSignal } from "nanoeffects";
 import { createCommand } from "nanoeffects/actions";
 import { delay, race } from "nanoeffects/effects";
 import { scopePlugin } from "nanoeffects/scope";
@@ -7,7 +7,7 @@ import { scopePlugin } from "nanoeffects/scope";
 type User = { id: string; name: string };
 
 // your own effect: the task goes first, and only its signal is used
-const fetchUser = (ctx: { signal: AbortSignal }, id: string): Promise<User> =>
+const fetchUser = (ctx: WithSignal, id: string): Promise<User> =>
 	fetch(`/users/${id}`, { signal: ctx.signal }).then((response) =>
 		response.json(),
 	);
@@ -32,10 +32,10 @@ const bus = createBus().use(scopePlugin());
 export const real = bus.emit(loadUser("1"));
 
 // a test: the second argument of emit replaces `fetchUser` for this call only
-const fakeFetchUser = async (
-	_ctx: { signal: AbortSignal },
-	id: string,
-): Promise<User> => ({ id, name: "test" });
+const fakeFetchUser = async (_ctx: WithSignal, id: string): Promise<User> => ({
+	id,
+	name: "test",
+});
 export const fake = bus.emit(loadUser("1"), {
 	$effects: { fetchUser: fakeFetchUser },
 });

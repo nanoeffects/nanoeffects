@@ -1,4 +1,4 @@
-import type { Context, EventMap } from "nanoeffects";
+import type { Context, EventMap, WithSignal } from "nanoeffects";
 import { allSettled, take, timeout } from "nanoeffects/effects";
 import { debounce, latest } from "nanoeffects/policies";
 import { api, type Message, type Room, rooms } from "../../api";
@@ -9,10 +9,10 @@ import { searchStore } from "./search-store";
 // One room: the request, limited by timeout. A room that does not answer in 1.5 s fails with a
 // timeout error, and its request is aborted.
 const askRoom = (room: Room, query: string) => {
-	const request = ({ signal }: { signal: AbortSignal }) =>
+	const request = ({ signal }: WithSignal) =>
 		api.searchRoom(room.id, query, { signal });
 
-	return (parent: { signal: AbortSignal }) => timeout(parent, 1500, request);
+	return (parent: WithSignal) => timeout(parent, 1500, request);
 };
 
 // debounce — wait 300 ms of quiet; latest — a newer query aborts the older search

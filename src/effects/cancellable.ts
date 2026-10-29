@@ -1,3 +1,4 @@
+import type { WithSignal } from "../core/bus";
 import { onAbort, report } from "../utils";
 
 export type CancellableHandle<T> = {
@@ -31,7 +32,7 @@ export type CancellableExecutor<T> = (handle: CancellableHandle<T>) => void;
  * ```
  */
 export const cancellable = <T = void>(
-	ctx: { signal: AbortSignal },
+	ctx: WithSignal,
 	executor: CancellableExecutor<T>,
 ): Promise<T> => {
 	if (ctx.signal.aborted) {

@@ -1,5 +1,7 @@
 // The client of the chat server: one function per request. Every function takes the `signal` of
 // the task that asks, so aborting the task also cancels the request in the browser.
+import type { WithSignal } from "nanoeffects";
+
 export type Room = { id: string; name: string };
 export type Message = {
 	id: string;
@@ -26,11 +28,9 @@ export class HttpError extends Error {
 	}
 }
 
-type Options = { signal: AbortSignal };
-
 const request = async <T>(
 	path: string,
-	init: RequestInit & Options,
+	init: RequestInit & WithSignal,
 ): Promise<T> => {
 	const response = await fetch(`/api${path}`, init);
 
@@ -43,12 +43,12 @@ const request = async <T>(
 };
 
 export const api = {
-	loadRooms: (options: Options) => request<Room[]>("/rooms", options),
+	loadRooms: (options: WithSignal) => request<Room[]>("/rooms", options),
 
-	loadHistory: (roomId: string, options: Options) =>
+	loadHistory: (roomId: string, options: WithSignal) =>
 		request<Message[]>(`/rooms/${roomId}/messages`, options),
 
-	send: (roomId: string, text: string, { signal }: Options) =>
+	send: (roomId: string, text: string, { signal }: WithSignal) =>
 		request<Message>(`/rooms/${roomId}/messages`, {
 			method: "POST",
 			headers: { "content-type": "application/json" },
@@ -56,7 +56,7 @@ export const api = {
 			signal,
 		}),
 
-	searchRoom: (roomId: string, query: string, options: Options) =>
+	searchRoom: (roomId: string, query: string, options: WithSignal) =>
 		request<Message[]>(
 			`/search?room=${roomId}&q=${encodeURIComponent(query)}`,
 			options,
@@ -64,7 +64,7 @@ export const api = {
 
 	// `since` is the number of the last update the client has seen; without it the server only
 	// says where it is now
-	loadUpdates: (since: number | undefined, options: Options) =>
+	loadUpdates: (since: number | undefined, options: WithSignal) =>
 		request<Updates>(
 			typeof since === "number" ? `/updates?since=${since}` : "/updates",
 			options,

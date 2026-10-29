@@ -129,6 +129,20 @@ const user = bus.emit(getUser("1")); // Promise<User>
 
 `createModule` of the app only creates the module: it does not mount it, and it keeps no link to the bus. That is why the app in `bus.ts` starts without modules. `createModule` from `nanoeffects/actions` stays for a module made without a bus: there you write the event map yourself, `createModule<AppEvents>("user", …)`.
 
+## Type a function that takes the signal
+
+A function that makes a request should take the `signal` of the task, so aborting the task cancels the request. `WithSignal` is the type for that parameter: an object with a `signal`. It is checker-only, like `WithContext`: it adds nothing to your bundle.
+
+```ts
+import type { WithSignal } from "nanoeffects";
+
+// WithSignal — { signal: AbortSignal }; a task context fits it, and so does { signal } on its own
+const search = (query: string, { signal }: WithSignal) =>
+  fetch(`/search?q=${encodeURIComponent(query)}`, { signal });
+```
+
+Pass `ctx` (or `{ signal }`) when you call it. The effects of `nanoeffects/effects` (`retry`, `timeout`, `all`) take an optional signal instead, because outside a task you may pass `{}`; that is a different type, and you do not write it.
+
 ## Keep the contract apart from the code
 
 When the file with the command must not import the code that implements it, make the command without a handler. Here you write the payload and the result once, as generics, and the handler goes to a module, where it needs no annotation:

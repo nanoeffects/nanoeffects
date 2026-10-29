@@ -1,6 +1,6 @@
 // The code of docs/guide.md, step by step. Each step is a function that returns what it saw,
 // so the guide is type-checked and run by `src/tests/guide.test.ts`.
-import { createBus } from "nanoeffects";
+import { createBus, type WithSignal } from "nanoeffects";
 import {
 	commandsPlugin,
 	createAction,
@@ -14,10 +14,10 @@ import { debounce, latest, queue, throttle } from "nanoeffects/policies";
 type Item = { id: number };
 type User = { id: string; name: string };
 declare const api: {
-	search(query: string, options: { signal: AbortSignal }): Promise<Item[]>;
-	save(draft: string, options: { signal: AbortSignal }): Promise<void>;
-	user(id: string, options: { signal: AbortSignal }): Promise<User>;
-	posts(id: string, options: { signal: AbortSignal }): Promise<string[]>;
+	search(query: string, options: WithSignal): Promise<Item[]>;
+	save(draft: string, options: WithSignal): Promise<void>;
+	user(id: string, options: WithSignal): Promise<User>;
+	posts(id: string, options: WithSignal): Promise<string[]>;
 };
 
 type Events = {
@@ -107,7 +107,7 @@ export const step4 = () => {
 };
 
 // 5. The first effects: retry and timeout wrap a handler
-const searchTask = (query: string, { signal }: { signal: AbortSignal }) =>
+const searchTask = (query: string, { signal }: WithSignal) =>
 	api.search(query, { signal });
 
 export const step5 = () => {

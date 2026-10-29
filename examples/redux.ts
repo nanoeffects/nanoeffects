@@ -1,14 +1,11 @@
 // Redux recipe — actions from Redux Toolkit; nanoeffects only supplies the middleware + policies.
 // Prefer the JS snippet in docs/stores.md. This file is .ts for `pnpm tsgo`.
 import { createAction } from "@reduxjs/toolkit";
-import { createBus, type WithContext } from "nanoeffects";
+import { createBus, type WithContext, type WithSignal } from "nanoeffects";
 import { latest } from "nanoeffects/policies";
 import { createEffectsMiddleware, type ReduxStoreApi } from "nanoeffects/redux";
 
-declare const fetchUser: (
-	id: string,
-	options: { signal: AbortSignal },
-) => Promise<string>;
+declare const fetchUser: (id: string, options: WithSignal) => Promise<string>;
 
 // RTK action creators (or take them from createSlice(...).actions)
 const userRequested = createAction<string>("user/requested");

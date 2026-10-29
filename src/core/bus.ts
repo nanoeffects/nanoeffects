@@ -27,6 +27,18 @@ export type EventKey<E extends EventMap> = Keys<E>;
 export type EventPayload<E extends EventMap> = E[EventKey<E>];
 export type WithType<K extends string> = { type: K };
 
+/**
+ * An object that has the `signal` of a task: the context of a task, `{ signal }`, or the
+ * `{ signal, abort }` that a starter of `all` and `race` gets. A function that only needs to
+ * stop its request when the task is aborted takes `WithSignal`:
+ *
+ * @example
+ * ```ts
+ * const search = (query: string, { signal }: WithSignal) => fetch(`/search?q=${query}`, { signal });
+ * ```
+ */
+export type WithSignal = { signal: AbortSignal };
+
 export type HandlerRef<E extends EventMap, Response = unknown> = (
 	action: Action<E>,
 ) => Response;

@@ -1,5 +1,5 @@
 // SPA search: wait for quiet, then a newer query aborts the older request.
-import { createBus } from "nanoeffects";
+import { createBus, type WithSignal } from "nanoeffects";
 import { debounce, latest } from "nanoeffects/policies";
 
 type Item = { id: number; title: string };
@@ -9,7 +9,7 @@ type Events = {
 };
 
 declare const api: {
-	search(query: string, options: { signal: AbortSignal }): Promise<Item[]>;
+	search(query: string, options: WithSignal): Promise<Item[]>;
 };
 
 export const bus = createBus<Events>();

@@ -1,4 +1,4 @@
-import type { Context } from "../core/bus";
+import type { Context, WithSignal } from "../core/bus";
 import type { EventMap, Task } from "../core/types";
 import { clearTimer, onAbort, setTimer, type Timer } from "../utils";
 import { bodyOf, runTraced, withGroup } from "./group";
@@ -15,7 +15,7 @@ export type PollOptions = {
 
 // What `poll` does for both of its forms: `call` runs one call in the context of its own
 const pollBody = (
-	ctx: { signal: AbortSignal },
+	ctx: WithSignal,
 	call: (child: Context<EventMap>, tick: number) => unknown,
 	ms: number | ((call: number) => number),
 	options: PollOptions,
@@ -124,13 +124,13 @@ export function poll<P, E extends EventMap, R>(
 	options?: PollOptions,
 ): Task<P, E, Promise<void>>;
 export function poll(
-	ctx: { signal: AbortSignal },
+	ctx: WithSignal,
 	fn: (tick: number) => unknown,
 	ms: PollMs,
 	options?: PollOptions,
 ): Promise<void>;
 export function poll(
-	first: PollMs | { signal: AbortSignal },
+	first: PollMs | WithSignal,
 	second: Task<unknown, EventMap, unknown> | ((tick: number) => unknown),
 	third?: PollMs | PollOptions,
 	fourth: PollOptions = {},

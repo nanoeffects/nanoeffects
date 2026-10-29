@@ -1,4 +1,6 @@
 // A fake server: replace it with your own requests. Each call takes a moment and honors the signal.
+import type { WithSignal } from "nanoeffects";
+
 export type Product = { id: string; title: string; price: number };
 
 const products: Product[] = [
@@ -20,13 +22,13 @@ const wait = (ms: number, signal: AbortSignal) =>
 let orders = 0;
 
 export const api = {
-  async searchProducts(query: string, { signal }: { signal: AbortSignal }): Promise<Product[]> {
+  async searchProducts(query: string, { signal }: WithSignal): Promise<Product[]> {
     await wait(500, signal);
     return products.filter((product) => product.title.toLowerCase().includes(query.toLowerCase()));
   },
 
   // fails on its first call on purpose, so you can see retry and the failed state
-  async placeOrder(productId: string, { signal }: { signal: AbortSignal }): Promise<string> {
+  async placeOrder(productId: string, { signal }: WithSignal): Promise<string> {
     await wait(600, signal);
     orders += 1;
     if (orders % 3 === 1) {

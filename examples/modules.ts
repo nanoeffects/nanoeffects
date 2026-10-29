@@ -1,14 +1,11 @@
 // Domain on the bus, no UI: the "user" feature mounts and unmounts as one unit.
-import { createBus } from "nanoeffects";
+import { createBus, type WithSignal } from "nanoeffects";
 import { createCommand, createModule, modulePlugin } from "nanoeffects/actions";
 
 type User = { id: string; name: string };
 type Events = { "user/loaded": User };
 
-declare const fetchUser: (
-	id: string,
-	options: { signal: AbortSignal },
-) => Promise<User>;
+declare const fetchUser: (id: string, options: WithSignal) => Promise<User>;
 
 // createCommand without a handler — contract; the module answers while mounted
 export const getUser = createCommand<string, Promise<User>>("user/get");

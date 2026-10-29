@@ -22,6 +22,7 @@ export {
 	type On,
 	type WithContext,
 	type WithPayload,
+	type WithSignal,
 	type WithType,
 } from "./core/bus";
 export type {
