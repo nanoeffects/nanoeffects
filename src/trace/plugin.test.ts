@@ -298,3 +298,40 @@ describe("tracePlugin where listeners are made for you", () => {
 		).toBe(true);
 	});
 });
+
+describe("tracePlugin in the notrace build", () => {
+	it("changes nothing on the bus, and a handler with an option runs as it does without it", async () => {
+		// the flag is read when the modules load, so they are loaded again with it off
+		vi.stubGlobal("__NANOEFFECTS_TRACE__", false);
+		vi.resetModules();
+		try {
+			const { createBus: freshBus } = await import("../core/bus");
+			const { createTraceRecorder: freshRecorder } = await import("./recorder");
+			const { createTracer: freshTracer } = await import("./tracer");
+			const { tracePlugin: freshPlugin } = await import("./plugin");
+
+			const recorder = freshRecorder();
+			const bus = freshBus<Events>({ trace: freshTracer(recorder) });
+			const { emit, on, once, off } = bus;
+			expect(bus.use(freshPlugin())).toBe(bus);
+
+			expect([bus.emit, bus.on, bus.once, bus.off]).toEqual([
+				emit,
+				on,
+				once,
+				off,
+			]);
+			const handler = vi.fn(async (name: string) => name);
+			bus.on("name/changed", handler, { traceId: "x" });
+			bus.emit("name/changed", "Eva");
+			await settle();
+
+			expect(handler).toHaveBeenCalledTimes(1);
+			expect(handler.mock.calls[0]?.[0]).toBe("Eva");
+			expect(recorder.events).toEqual([]);
+		} finally {
+			vi.unstubAllGlobals();
+			vi.resetModules();
+		}
+	});
+});

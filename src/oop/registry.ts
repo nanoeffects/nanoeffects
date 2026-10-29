@@ -1,3 +1,4 @@
+import type { ListenerOptions } from "../core/types";
 import type { Wrap } from "./types";
 
 // what `@On` and `@Once` remember about a method; the key is the function of the method
@@ -5,6 +6,8 @@ export type Spec = {
 	event: unknown;
 	wrap: Wrap | undefined;
 	once: boolean;
+	// `{ traceId }`, given on to `on` and `once` of the instance
+	options: ListenerOptions | undefined;
 };
 
 export const decorated = new WeakMap<object, Spec>();

@@ -2,6 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import { createAction, createCommand } from "../actions";
 import { createBus } from "../core/bus";
 import { latest } from "../policies";
+import { tracePlugin } from "../trace/plugin";
+import { createTraceRecorder } from "../trace/recorder";
+import { createTracer } from "../trace/tracer";
 import { type MatchApi, matchPlugin } from ".";
 
 type Events = {
@@ -318,4 +321,35 @@ describe("matchPlugin", () => {
 
 		expect(handler).toHaveBeenCalledTimes(1);
 	});
+});
+
+describe("matchPlugin and the options of on", () => {
+	it.each([
+		["before", true],
+		["after", false],
+	])(
+		"passes { traceId } on to the method below it, with tracePlugin used %s it",
+		(_name, traceFirst) => {
+			const recorder = createTraceRecorder();
+			const bus = createBus<Record<string, unknown>>({
+				trace: createTracer(recorder),
+			});
+			if (traceFirst) {
+				bus.use(tracePlugin());
+			}
+			bus.use(matchPlugin());
+			if (!traceFirst) {
+				bus.use(tracePlugin());
+			}
+			const handler = vi.fn();
+			bus.on("ping", handler, { traceId: "pinger" });
+
+			bus.emit("ping", 1);
+
+			expect(handler).toHaveBeenCalledTimes(1);
+			expect(recorder.events.some((event) => event.type === "pinger")).toBe(
+				true,
+			);
+		},
+	);
 });

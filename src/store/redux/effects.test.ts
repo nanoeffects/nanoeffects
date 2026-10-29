@@ -4,6 +4,9 @@ import { createBus } from "../../core/bus";
 import { delay, effectsPlugin } from "../../effects";
 import { latest } from "../../policies";
 import { deferred } from "../../tests/test-helpers";
+import { tracePlugin } from "../../trace/plugin";
+import { createTraceRecorder } from "../../trace/recorder";
+import { createTracer } from "../../trace/tracer";
 import { createEffectsMiddleware, type ReduxStoreApi } from "./effects";
 
 type State = { count: number };
@@ -236,5 +239,19 @@ describe("createEffectsMiddleware: loops and errors", () => {
 		const store = createMiniRedux([middleware, () => () => reducerFailure]);
 
 		expect(() => store.dispatch(added(1))).toThrow("reducer failed");
+	});
+	it("gives its trace options to the root of each action", () => {
+		const recorder = createTraceRecorder();
+		const bus = createBus<Events>({ trace: createTracer(recorder) });
+		bus.use(tracePlugin());
+		bus.on(added, () => {});
+		const redux = createMiniRedux([
+			createEffectsMiddleware(bus, { traceId: "store", traceGroupId: "flow" }),
+		]);
+
+		redux.dispatch(added(1));
+
+		const root = recorder.events.find((event) => event.type === "store");
+		expect(root?.traceGroupId).toBe("flow");
 	});
 });

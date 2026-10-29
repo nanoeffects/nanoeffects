@@ -148,6 +148,21 @@ bus.once("name/changed", (name) => console.log(name), { traceId: "auditLog" });
 [nanoeffects] saveNotifier · run done
 ```
 
+## Keep the chain: `ctx.emit`, not `bus.emit`
+
+Inside a handler, emit with `ctx.emit`. It keeps the chain: what it starts is below the handler, and its events have the `rootId` of the chain. A plain `bus.emit` inside a handler starts a new root with no `parentId` and no `rootId`, so the trace loses the link. The bus cannot warn about it, because it does not know which handler is running.
+
+The names work wherever an event or a listener is made:
+
+| Where | How to name it |
+| ----- | -------------- |
+| `useEmitter` and `bus.emitter` | `{ traceId, traceGroupId }` in the options |
+| A Redux dispatch | `createEffectsMiddleware(bus, { traceId, traceGroupId })` |
+| A listener, `bus.on` and `bus.once` | `{ traceId }` as the third argument |
+| A listener of a module or of an instance of `extendBus` | the same third argument of its `on` and `once` |
+| A method with `@On` or `@Once` | `{ traceId }` in the decorator |
+| A command, a job or an action | `traceGroupId` in its scope |
+
 ## Turn the names off
 
 `tracePlugin` is optional, and none of it changes how your code runs:

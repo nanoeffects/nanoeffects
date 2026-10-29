@@ -3,7 +3,17 @@ import { createAction, createCommand } from "../actions";
 import { createBus } from "../core/bus";
 import { latest } from "../policies";
 import { deferred } from "../tests/test-helpers";
-import { extendBus, type MethodDecorator, On, Once, WithBus } from ".";
+import { tracePlugin } from "../trace/plugin";
+import { createTraceRecorder } from "../trace/recorder";
+import { createTracer } from "../trace/tracer";
+import {
+	disposeBus,
+	extendBus,
+	type MethodDecorator,
+	On,
+	Once,
+	WithBus,
+} from ".";
 
 type Events = { ping: number; pong: string };
 
@@ -241,5 +251,111 @@ describe("WithBus", () => {
 		const Service = WithBus()(class {});
 
 		expect(new Service().bus).toBe(Service.bus);
+	});
+});
+
+describe("@On and @Once with a traceId", () => {
+	const tracedBus = () => {
+		const recorder = createTraceRecorder();
+		const bus = createBus<Events>({ trace: createTracer(recorder) });
+		bus.use(tracePlugin());
+
+		return { bus, recorder };
+	};
+
+	it("name the method in the trace, with the options as the second argument", () => {
+		const { bus, recorder } = tracedBus();
+		const calls: number[] = [];
+		class Base {
+			handle(payload: number) {
+				calls.push(payload);
+			}
+		}
+		standard(On("ping", { traceId: "pinger" }), Base.prototype, "handle");
+		new (extendBus(bus, Base))();
+
+		bus.emit("ping", 1);
+
+		expect(calls).toEqual([1]);
+		expect(recorder.events.some((event) => event.type === "pinger")).toBe(true);
+	});
+
+	it("take the options as the third argument after a wrapper", async () => {
+		const { bus, recorder } = tracedBus();
+		const calls: number[] = [];
+		class Base {
+			async handle(payload: number) {
+				calls.push(payload);
+			}
+		}
+		standard(
+			On("ping", latest, { traceId: "pinger" }),
+			Base.prototype,
+			"handle",
+		);
+		new (extendBus(bus, Base))();
+
+		bus.emit("ping", 1);
+		await Promise.resolve();
+
+		expect(calls).toEqual([1]);
+		expect(recorder.events.some((event) => event.type === "pinger")).toBe(true);
+	});
+
+	it("name a method that runs once", () => {
+		const { bus, recorder } = tracedBus();
+		const calls: number[] = [];
+		class Base {
+			handle(payload: number) {
+				calls.push(payload);
+			}
+		}
+		standard(Once("ping", { traceId: "first" }), Base.prototype, "handle");
+		new (extendBus(bus, Base))();
+
+		bus.emit("ping", 1);
+		bus.emit("ping", 2);
+
+		expect(calls).toEqual([1]);
+		expect(
+			recorder.events.filter(
+				(event) => event.type === "first" && event.phase === "start",
+			),
+		).toHaveLength(1);
+	});
+
+	it("run the method as before without tracePlugin", () => {
+		const bus = createBus<Events>({
+			trace: createTracer(createTraceRecorder()),
+		});
+		const calls: number[] = [];
+		class Base {
+			handle(payload: number) {
+				calls.push(payload);
+			}
+		}
+		standard(On("ping", { traceId: "pinger" }), Base.prototype, "handle");
+		new (extendBus(bus, Base))();
+
+		bus.emit("ping", 1);
+
+		expect(calls).toEqual([1]);
+	});
+
+	it("are removed by dispose", () => {
+		const { bus } = tracedBus();
+		const calls: number[] = [];
+		class Base {
+			handle(payload: number) {
+				calls.push(payload);
+			}
+		}
+		standard(On("ping", { traceId: "pinger" }), Base.prototype, "handle");
+		const instance = new (extendBus(bus, Base))();
+		disposeBus(instance);
+
+		bus.emit("ping", 1);
+
+		expect(calls).toEqual([]);
 	});
 });

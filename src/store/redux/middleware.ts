@@ -1,14 +1,20 @@
 import type { Bus } from "../../core/bus";
+import {
+	type Origin,
+	type OriginOptions,
+	originKey,
+} from "../../core/origin-key";
 import type { EventMap } from "../../core/types";
 
 /** What Redux passes through a middleware: an action is a plain object with a `type`. */
 type ReduxAction = { type: string; payload?: unknown };
 
-export type NanoeffectsMiddlewareOptions = {
+export type NanoeffectsMiddlewareOptions = OriginOptions & {
 	/** Return `false` for the actions that the bus should not get. Default: all of them. */
 	filter?: (action: ReduxAction) => boolean;
 	/** Receives an error that `emit` throws, so `dispatch` does not. Default: the error is thrown. */
 	onError?: (error: unknown, action: ReduxAction) => void;
+	// `traceId` and `traceGroupId` name the root of the trace of each action; `tracePlugin` reads them
 };
 
 const isAction = (value: unknown): value is ReduxAction =>
@@ -49,7 +55,13 @@ export const nanoeffectsMiddleware = <E extends EventMap>(
 	// `emit` throws the first error of a handler unless the bus has an `onError`
 	const send = (action: ReduxAction) => {
 		try {
-			emit(action);
+			// `tracePlugin` puts the root of the trace on the bus; without it the action is emitted as it is
+			const origin: Origin | undefined = Reflect.get(bus, originKey);
+			if (origin) {
+				origin(action, options);
+			} else {
+				emit(action);
+			}
 		} catch (error) {
 			if (!options.onError) {
 				throw error;

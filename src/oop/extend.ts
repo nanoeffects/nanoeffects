@@ -76,7 +76,8 @@ const subscribeMethods = (instance: object, bus: object) => {
 		const handler = (payload: unknown, ctx: unknown) =>
 			Reflect.apply(method, instance, [payload, ctx]);
 		const given = spec.wrap ? spec.wrap(handler) : handler;
-		subscribe(instance, bus, spec.once ? "once" : "on", [spec.event, given]);
+		const kind = spec.once ? "once" : "on";
+		subscribe(instance, bus, kind, [spec.event, given, spec.options]);
 	}
 };
 

@@ -13,7 +13,7 @@ export type ReduxStoreApi<State = unknown> = {
 
 export type EffectsMiddlewareOptions = Pick<
 	NanoeffectsMiddlewareOptions,
-	"filter"
+	"filter" | "traceId" | "traceGroupId"
 >;
 
 /**
@@ -86,6 +86,10 @@ export const createEffectsMiddleware = <E extends EventMap>(
 	};
 
 	const forward = nanoeffectsMiddleware(bus, {
+		...(options.traceId === void 0 ? {} : { traceId: options.traceId }),
+		...(options.traceGroupId === void 0
+			? {}
+			: { traceGroupId: options.traceGroupId }),
 		filter: (action) =>
 			origins.get(action) !== action.type && (options.filter?.(action) ?? true),
 		// without an `onError` on the bus, `emit` throws the first error of a handler. Written as

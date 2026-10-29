@@ -83,6 +83,10 @@ String event names (`"user/requested"`) work the same. Use your usual RTK action
 
 The only option is `filter`, which keeps rejected actions away from the bus. Options of the bus (`onError`, `context`, `trace`) go to `createBus`. Use one bus for one store. Values that are not plain actions (thunks) go through untouched. Nothing here depends on the `redux` package at runtime.
 
+### Show which dispatch began a chain
+
+With a tracer and `tracePlugin` on the bus, each dispatched action reaches the bus from a root task of the trace. Name it with `traceId`, and put the flow in a group with `traceGroupId`: `createEffectsMiddleware(bus, { traceId: "store", traceGroupId: "checkout" })`. Without a `traceId` the root has the type of the action. Without the plugin the options are ignored. More in [Tracing](tracing.md#show-which-subscription-began-a-chain).
+
 ### Type `ctx.store` (optional)
 
 Only if you want TypeScript to know `store` on handlers. **Skip this in JavaScript** — the middleware already puts `store` on the task at runtime. These lines do not connect the store across the app.

@@ -1,5 +1,5 @@
 import type { Bus } from "../core/bus";
-import type { EventMap } from "../core/types";
+import type { EventMap, ListenerOptions } from "../core/types";
 import { extendBus } from "./extend";
 import { decorated } from "./registry";
 import type {
@@ -48,11 +48,19 @@ const methodOf = (args: unknown[]) => {
 	return target;
 };
 
-const remember = (event: unknown, wrap: Wrap | undefined, once: boolean) =>
+// the second argument of a decorator is a wrapper (a function), or the options (an object)
+const remember = (
+	event: unknown,
+	second: Wrap | ListenerOptions | undefined,
+	third: ListenerOptions | undefined,
+	once: boolean,
+) =>
 	((...args: unknown[]) => {
 		const method = methodOf(args);
 		if (typeof method === "function") {
-			decorated.set(method, { event, wrap, once });
+			const wrap = typeof second === "function" ? second : void 0;
+			const options = typeof second === "function" ? third : (second ?? third);
+			decorated.set(method, { event, wrap, once, options });
 		}
 	}) as MethodDecorator<never>;
 
@@ -60,8 +68,10 @@ const remember = (event: unknown, wrap: Wrap | undefined, once: boolean) =>
  * Makes a method of a class from `extendBus` or `@WithBus` a handler of `event`
  * for each instance, with `this` bound to the instance, from the construction
  * until `dispose()`. `wrap` takes the bound handler and returns the one to
- * subscribe, such as `latest`. An event emitted inside the constructor of the
- * base class does not reach it: the subscription is made right after.
+ * subscribe, such as `latest`. `{ traceId }`, as the second or the third
+ * argument, names the method in the trace (see `tracePlugin`). An event emitted
+ * inside the constructor of the base class does not reach it: the
+ * subscription is made right after.
  *
  * @example
  * ```ts
@@ -71,15 +81,55 @@ const remember = (event: unknown, wrap: Wrap | undefined, once: boolean) =>
  * }
  * ```
  */
-export function On<P>(event: EventOf<P>, wrap?: Wrap): MethodDecorator<P>;
-export function On(event: string, wrap?: Wrap): MethodDecorator<never>;
-export function On(event: unknown, wrap?: Wrap): unknown {
-	return remember(event, wrap, false);
+export function On<P>(
+	event: EventOf<P>,
+	wrap?: Wrap,
+	options?: ListenerOptions,
+): MethodDecorator<P>;
+export function On<P>(
+	event: EventOf<P>,
+	options: ListenerOptions,
+): MethodDecorator<P>;
+export function On(
+	event: string,
+	wrap?: Wrap,
+	options?: ListenerOptions,
+): MethodDecorator<never>;
+export function On(
+	event: string,
+	options: ListenerOptions,
+): MethodDecorator<never>;
+export function On(
+	event: unknown,
+	second?: Wrap | ListenerOptions,
+	third?: ListenerOptions,
+): unknown {
+	return remember(event, second, third, false);
 }
 
 /** Like `On`, but the handler runs at most once for an instance. */
-export function Once<P>(event: EventOf<P>, wrap?: Wrap): MethodDecorator<P>;
-export function Once(event: string, wrap?: Wrap): MethodDecorator<never>;
-export function Once(event: unknown, wrap?: Wrap): unknown {
-	return remember(event, wrap, true);
+export function Once<P>(
+	event: EventOf<P>,
+	wrap?: Wrap,
+	options?: ListenerOptions,
+): MethodDecorator<P>;
+export function Once<P>(
+	event: EventOf<P>,
+	options: ListenerOptions,
+): MethodDecorator<P>;
+export function Once(
+	event: string,
+	wrap?: Wrap,
+	options?: ListenerOptions,
+): MethodDecorator<never>;
+export function Once(
+	event: string,
+	options: ListenerOptions,
+): MethodDecorator<never>;
+export function Once(
+	event: unknown,
+	second?: Wrap | ListenerOptions,
+	third?: ListenerOptions,
+): unknown {
+	return remember(event, second, third, true);
 }

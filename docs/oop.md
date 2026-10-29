@@ -194,6 +194,8 @@ Things to know:
 - On a class that `extendBus` did not make, a decorator does nothing.
 - Both the decorators of the language and `experimentalDecorators` work. Your compiler has to support the one you use: TypeScript 5 or newer for the first, and the `experimentalDecorators` option for the second.
 
+Name a method for the [trace](tracing.md#name-a-listener) with `{ traceId }`, as the second argument or, after a wrapper, the third: `@On(queryChanged, { traceId: "searcher" })` or `@On(queryChanged, latest, { traceId: "searcher" })`. It needs `tracePlugin` on the bus and is ignored without it.
+
 ## Decorate the class with `@WithBus`
 
 `@WithBus(bus)` does what `extendBus(bus, Base)` does, as a class decorator. `@WithBus()` makes a bus for the class.

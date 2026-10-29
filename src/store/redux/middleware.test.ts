@@ -3,6 +3,9 @@ import { createAction } from "../../actions";
 import { createBus, type WithContext } from "../../core/bus";
 import { latest } from "../../policies";
 import { deferred } from "../../tests/test-helpers";
+import { tracePlugin } from "../../trace/plugin";
+import { createTraceRecorder } from "../../trace/recorder";
+import { createTracer } from "../../trace/tracer";
 import { nanoeffectsMiddleware } from "./middleware";
 
 type State = { count: number };
@@ -177,5 +180,74 @@ describe("nanoeffectsMiddleware", () => {
 		store.dispatch(added(1));
 
 		expect(store.getState().count).toBe(11);
+	});
+});
+
+describe("nanoeffectsMiddleware: the trace", () => {
+	const traced = () => {
+		const recorder = createTraceRecorder();
+		const bus = createBus<Events>({ trace: createTracer(recorder) });
+		bus.use(tracePlugin());
+
+		return { bus, recorder };
+	};
+
+	it("sends each action from a root named by traceId, in the group", () => {
+		const { bus, recorder } = traced();
+		const heard = vi.fn();
+		bus.on(added, heard);
+		const store = createMiniStore(
+			nanoeffectsMiddleware(bus, {
+				traceId: "store",
+				traceGroupId: "checkout",
+			})(),
+		);
+
+		store.dispatch(added(2));
+
+		expect(heard).toHaveBeenCalledTimes(1);
+		const root = recorder.events.find((event) => event.type === "store");
+		expect(root?.effect).toBe("run");
+		expect(root?.traceGroupId).toBe("checkout");
+		expect(root?.payload).toEqual({ type: "counter/added", payload: 2 });
+	});
+
+	it("names the root after the action when there is no traceId", () => {
+		const { bus, recorder } = traced();
+		bus.on(added, () => {});
+		const store = createMiniStore(nanoeffectsMiddleware(bus)());
+
+		store.dispatch(added(2));
+
+		expect(recorder.events[0]?.type).toBe("counter/added");
+	});
+
+	it("ignores the options without tracePlugin, also with a tracer", () => {
+		const recorder = createTraceRecorder();
+		const bus = createBus<Events>({ trace: createTracer(recorder) });
+		const heard = vi.fn();
+		bus.on(added, heard);
+		const store = createMiniStore(
+			nanoeffectsMiddleware(bus, { traceId: "store" })(),
+		);
+
+		store.dispatch(added(2));
+
+		expect(heard).toHaveBeenCalledTimes(1);
+		expect(recorder.events.some((event) => event.type === "store")).toBe(false);
+	});
+
+	it("still hands an error of a handler to onError", () => {
+		const { bus } = traced();
+		bus.on(added, () => {
+			throw new Error("boom");
+		});
+		const onError = vi.fn();
+		const store = createMiniStore(
+			nanoeffectsMiddleware(bus, { traceId: "store", onError })(),
+		);
+
+		expect(() => store.dispatch(added(2))).not.toThrow();
+		expect(onError).toHaveBeenCalledTimes(1);
 	});
 });

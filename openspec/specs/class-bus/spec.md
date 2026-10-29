@@ -101,7 +101,7 @@ A handler passed to `this.on` or `this.once` SHALL be called as the bus calls it
 - **THEN** `handle` runs on the instance
 
 ### Requirement: Method decorators subscribe the methods of an instance
-`@On(event, wrap?)` and `@Once(event, wrap?)` SHALL make the decorated method a handler of `event` for each instance of a class made by `extendBus` or `@WithBus`, subscribed when the instance is constructed (after the constructor of `Base` has run) through the `on` and `once` of the instance. The method SHALL be called with `this` bound to the instance and with the payload and the task context of the event. `event` is an event name, an action creator or a command, as for `on`. `wrap`, if given, SHALL be a function that takes the bound handler and returns the handler to subscribe, such as `latest` or `(handler) => debounce(300, handler)`. These subscriptions SHALL be the subscriptions of the instance: `dispose()` removes them. A subclass SHALL inherit them, and a method that a subclass overrides SHALL be subscribed only if the override is decorated. The decorators SHALL work for decorators of the language and for `experimentalDecorators`. On a class that is not made by `extendBus` or `@WithBus` they SHALL do nothing.
+`@On(event, wrap?, options?)` and `@Once(event, wrap?, options?)` SHALL make the decorated method a handler of `event` for each instance of a class made by `extendBus` or `@WithBus`, subscribed when the instance is constructed (after the constructor of `Base` has run) through the `on` and `once` of the instance. The method SHALL be called with `this` bound to the instance and with the payload and the task context of the event. `event` is an event name, an action creator or a command, as for `on`. `wrap`, if given, SHALL be a function that takes the bound handler and returns the handler to subscribe, such as `latest` or `(handler) => debounce(300, handler)`. The second argument MAY be the `options` instead of `wrap` when it is an object: `{ traceId }` SHALL be given on to the `on` or `once` of the instance as the options of `bus.on`, and has an effect only with `tracePlugin` (see `trace-plugin`). These subscriptions SHALL be the subscriptions of the instance: `dispose()` removes them. A subclass SHALL inherit them, and a method that a subclass overrides SHALL be subscribed only if the override is decorated. The decorators SHALL work for decorators of the language and for `experimentalDecorators`. On a class that is not made by `extendBus` or `@WithBus` they SHALL do nothing.
 
 #### Scenario: A decorated method is a handler with this bound
 - **WHEN** a method is decorated with `@On("ping")`, an instance is made, and `ping` is emitted with `1`
@@ -138,6 +138,14 @@ A handler passed to `this.on` or `this.once` SHALL be called as the bus calls it
 #### Scenario: Not a class of the entry
 - **WHEN** a class that is not made by `extendBus` or `@WithBus` has a method decorated with `@On("ping")`
 - **THEN** nothing is subscribed and nothing is thrown
+
+#### Scenario: A named decorated method
+- **WHEN** a method is decorated with `@On("ping", { traceId: "pinger" })` and the bus has a tracer and `tracePlugin`
+- **THEN** each call of the method is a task named `pinger`, and the method runs as without the option
+
+#### Scenario: A policy and a name
+- **WHEN** a method is decorated with `@On("ping", latest, { traceId: "pinger" })`
+- **THEN** `latest` wraps the method and the listener is named
 
 ### Requirement: A decorator does the same as extendBus
 `WithBus(bus?)` SHALL return a class decorator. `@WithBus(bus) class A {}` SHALL replace `A` by `extendBus(bus, A)`, and `@WithBus() class A {}` by `extendBus(A)`. It SHALL work for decorators of the language and for `experimentalDecorators`.
