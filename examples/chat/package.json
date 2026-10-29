@@ -7,6 +7,7 @@
 	},
 	"dependencies": {
 		"fastify": "^5.0.0",
+		"immer": "^10.1.0",
 		"nanoeffects": "^0.19.1",
 		"react": "^19.0.0",
 		"react-dom": "^19.0.0",

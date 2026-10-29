@@ -3,19 +3,22 @@ import { messageReceived } from "../incoming/incoming";
 import { roomSelected } from "../rooms/rooms";
 import { loadHistory, messageMarked, sendMessage } from "./messages";
 import { deliver, fetchHistory, SendFailed } from "./messages-handlers";
-import { type ChatMessage, messagesStore } from "./messages-store";
-
-// the same list, with the changes applied to the message that has this id
-const changeMessage = (
-	messages: ChatMessage[],
-	localId: string,
-	next: Partial<ChatMessage>,
-) =>
-	messages.map((message) =>
-		message.id === localId ? { ...message, ...next } : message,
-	);
+import { messagesStore } from "./messages-store";
 
 export const messagesModule = createModule("messages", (module) => {
+	// the mutations of the store: each one is called with the data of an event
+	const {
+		startLoading,
+		showHistory,
+		stopLoading,
+		addSending,
+		markDelivered,
+		markFailed,
+		failEverythingSending,
+		addReceived,
+		mark,
+	} = messagesStore.getState();
+
 	// handle — this module does the work of its two jobs while it is mounted
 	module.handle(loadHistory, fetchHistory);
 	module.handle(sendMessage, deliver);
@@ -26,76 +29,22 @@ export const messagesModule = createModule("messages", (module) => {
 	});
 
 	// the outcomes of the load: the state follows them, so an aborted load clears the flag too
-	module.on(loadHistory.pending, (roomId) =>
-		messagesStore.setState({
-			roomId,
-			loading: true,
-			messages: [],
-			marked: null,
-		}),
-	);
-	module.on(loadHistory.success, (messages) =>
-		messagesStore.setState({
-			loading: false,
-			messages: messages.map(
-				(message): ChatMessage => ({ ...message, state: "delivered" }),
-			),
-		}),
-	);
-	module.on(loadHistory.fail, () => messagesStore.setState({ loading: false }));
-	module.on(loadHistory.cancel, () =>
-		messagesStore.setState({ loading: false }),
-	);
+	module.on(loadHistory.pending, startLoading);
+	module.on(loadHistory.success, showHistory);
+	module.on(loadHistory.fail, stopLoading);
+	module.on(loadHistory.cancel, stopLoading);
 
 	// the outcomes of a send: the message is shown at once, then delivered or failed
-	module.on(sendMessage.pending, (call) =>
-		messagesStore.setState((state) => {
-			const optimistic: ChatMessage = {
-				id: call.localId,
-				roomId: call.roomId,
-				author: "me",
-				text: call.text,
-				state: "sending",
-			};
-			return { messages: [...state.messages, optimistic] };
-		}),
-	);
-	module.on(sendMessage.success, ({ localId, message }) =>
-		messagesStore.setState((state) => ({
-			messages: changeMessage(state.messages, localId, {
-				...message,
-				state: "delivered",
-			}),
-		})),
-	);
+	module.on(sendMessage.pending, addSending);
+	module.on(sendMessage.success, markDelivered);
 	module.on(sendMessage.fail, (error) => {
+		// the outcome `fail` carries only the error; SendFailed says which message it was
 		if (error instanceof SendFailed) {
-			const { localId } = error;
-			messagesStore.setState((state) => ({
-				messages: changeMessage(state.messages, localId, { state: "failed" }),
-			}));
+			markFailed(error.localId);
 		}
 	});
-	// cancel — the task was aborted: what was still sending will not arrive
-	module.on(sendMessage.cancel, () =>
-		messagesStore.setState((state) => ({
-			messages: state.messages.map(
-				(message): ChatMessage =>
-					message.state === "sending"
-						? { ...message, state: "failed" }
-						: message,
-			),
-		})),
-	);
+	module.on(sendMessage.cancel, failEverythingSending);
 
-	// an incoming message joins the open room only
-	module.on(messageReceived, (message) =>
-		messagesStore.setState((state) =>
-			message.roomId === state.roomId
-				? { messages: [...state.messages, { ...message, state: "delivered" }] }
-				: {},
-		),
-	);
-
-	module.on(messageMarked, (id) => messagesStore.setState({ marked: id }));
+	module.on(messageReceived, addReceived);
+	module.on(messageMarked, mark);
 });

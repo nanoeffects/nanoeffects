@@ -5,11 +5,13 @@ import { roomsStore } from "./rooms-store";
 
 // createModule — one domain: mounting it starts what it lists, unmounting undoes all of it
 export const roomsModule = createModule("rooms", (module) => {
+	const { select } = roomsStore.getState();
+
 	// handle — this module does the work of the loadRooms job while it is mounted
 	module.handle(loadRooms, fetchRooms);
 
 	// on — keep the selected room for the components that read the store
-	module.on(roomSelected, (id) => roomsStore.setState({ selected: id }));
+	module.on(roomSelected, select);
 
 	// the first room is selected as soon as the list arrives
 	module.on(loadRooms.success, (rooms, ctx) => {

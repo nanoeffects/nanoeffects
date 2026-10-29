@@ -232,7 +232,7 @@ In the example a button calls `app.unmount(incomingModule)` and `app.mount(incom
 
 ## Know where each value lives
 
-Each domain keeps its state in a [Zustand](https://zustand.docs.pmnd.rs/) store that the module writes and a component reads with `useStore`. The list of rooms is the exception: it is read with one `useEventState` in a provider at the root. `useEventState` is not a store: an event that came before the provider mounted is lost, and a second component gets its own copy. See [Show the last value of an event as state](react.md#show-the-last-value-of-an-event-as-state).
+Each domain keeps its state in a [Zustand](https://zustand.docs.pmnd.rs/) store that the module writes and a component reads with `useStore`. Each store lists its mutations, such as `startLoading(roomId)` and `markFailed(localId)`, and a module calls them with the data of an event: `module.on(loadHistory.pending, startLoading)`. The stores use the `immer` middleware, so a mutation changes the state in place, as in `state.loading = false`, and the store still gives React a new object. Nothing else writes the state. The list of rooms is the exception: it is read with one `useEventState` in a provider at the root. `useEventState` is not a store: an event that came before the provider mounted is lost, and a second component gets its own copy. See [Show the last value of an event as state](react.md#show-the-last-value-of-an-event-as-state).
 
 ## Where to go next
 

@@ -89,12 +89,23 @@ The `incoming` domain SHALL ask the server for new messages at an interval with 
 - **WHEN** the `incoming` module is unmounted
 - **THEN** no further incoming message is emitted
 
-### Requirement: The UI is thin and says that useEventState is not a store
-Components SHALL emit events and read values, and SHALL NOT call the server client `api`. State that a domain keeps SHALL be read through a store of that domain with `useSyncExternalStore`. Where a component reads an event into state with `useEventState`, a comment SHALL say that it is not a global store, that an event before the mount is lost, and where a value that must outlive the component belongs.
+### Requirement: The UI is thin and state changes only through mutations
+Components SHALL emit events and read values, and SHALL NOT call the server client `api`. State that a domain keeps SHALL live in a Zustand store of that domain, written only through mutations that the store lists, which its module calls with the data of events, and read by components with `useStore`.
 
 #### Scenario: Components do not call the api
 - **WHEN** the files of `examples/chat/` that are components are read
 - **THEN** none imports the server client `api`
+
+#### Scenario: A module calls a mutation with data
+- **WHEN** a module reacts to the outcome `pending` of a job
+- **THEN** it calls a mutation of its store with the payload of the event, and does not set the state itself
+
+### Requirement: The example says that useEventState is not a store
+Where a component reads an event into state with `useEventState`, a comment SHALL say that it is not a global store, that an event before the mount is lost, and where a value that must outlive the component belongs.
+
+#### Scenario: The comment is present
+- **WHEN** the file that calls `useEventState` is read
+- **THEN** it has that comment next to the call
 
 ### Requirement: A docs page explains the example
 `docs/chat-example.md` SHALL explain the example by the problems it solves (loading that must not race, a send that can fail, a slow room in a search, a poll tied to a module) and SHALL say when to use each piece. It SHALL say how the server misbehaves and how to turn that off, and SHALL link to `docs/actions.md` for the API. The page SHALL be linked from `llms.txt`, `docs/actions.md`, `docs/starter.md` and `examples/README.md`, and every code block of it SHALL pass `pnpm docs:check`.

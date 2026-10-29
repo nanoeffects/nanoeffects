@@ -145,7 +145,12 @@ export const buildServer = () => {
 		const line = lines[said % lines.length];
 		said += 1;
 		if (line) {
-			const message = { ...line, id: `in-${said}` };
+			// the number in the text tells one message from the next, as the lines repeat
+			const message = {
+				...line,
+				id: `in-${said}`,
+				text: `${line.text} (${said})`,
+			};
 			history[line.roomId]?.push(message);
 			updates.push(message);
 		}

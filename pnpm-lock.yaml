@@ -44,6 +44,9 @@ importers:
       happy-dom:
         specifier: ^21.0.4
         version: 21.0.4
+      immer:
+        specifier: ^10.2.0
+        version: 10.2.0
       jotai:
         specifier: ^3.0.1
         version: 3.0.1(@types/react@19.3.0)(react@19.3.1)
@@ -94,7 +97,7 @@ importers:
         version: 5.112.0(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.30)
       zustand:
         specifier: ^5.0.15
-        version: 5.0.15(@types/react@19.3.0)(immer@11.1.21)(react@19.3.1)
+        version: 5.0.15(@types/react@19.3.0)(immer@10.2.0)(react@19.3.1)
 
   packages/create-nanoeffects: {}
 
@@ -1295,6 +1298,9 @@ packages:
 
   hookable@6.1.2:
     resolution: {integrity: sha512-+abwxtiEA52GCVIsQqut3S/uKTbUwYIp4Pe/vv+6py5XiXBCqMZHg6pA6Y5qhgLSEys0/cYuPbO0z1QFj5ZCmg==}
+
+  immer@10.2.0:
+    resolution: {integrity: sha512-d/+XTN3zfODyjr89gM3mPq1WNX2B8pYsu7eORitdwyA2sBubnTl3laYlBk4sXY5FUa5qTZGBDPJICVbvqzjlbw==}
 
   immer@11.1.21:
     resolution: {integrity: sha512-bZSadeCPGdaY5/qRLgr6mDSH1ra21rD3rqpiWk7+QTr4ayYPTE9qZYdLh/NdPhMe0wSrTvHD/Lk8q5EwhUs0aw==}
@@ -3222,6 +3228,8 @@ snapshots:
 
   hookable@6.1.2: {}
 
+  immer@10.2.0: {}
+
   immer@11.1.21: {}
 
   import-fresh@3.3.1:
@@ -4020,8 +4028,8 @@ snapshots:
       '@yuku-toolchain/types': 0.19.0
       yuku-core: 0.19.0
 
-  zustand@5.0.15(@types/react@19.3.0)(immer@11.1.21)(react@19.3.1):
+  zustand@5.0.15(@types/react@19.3.0)(immer@10.2.0)(react@19.3.1):
     optionalDependencies:
       '@types/react': 19.3.0
-      immer: 11.1.21
+      immer: 10.2.0
       react: 19.3.1
