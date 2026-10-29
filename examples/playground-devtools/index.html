@@ -13,8 +13,9 @@
 	<body>
 		<h1>Tasks in Redux DevTools</h1>
 		<p>
-			Type a query: every search task is sent to Redux DevTools as an action
-			(a cancelled one too). Redux DevTools is a browser extension. Open this
+			Type a query: every emit is sent to Redux DevTools as an action, and so is
+			each call that a newer one stopped (<code>typed/debounce/drop</code>,
+			<code>typed/latest/cancel</code>). Redux DevTools is a browser extension. Open this
 			preview in its own tab, then pick the instance named
 			<b>search playground</b> in the instance list of the extension.
 		</p>

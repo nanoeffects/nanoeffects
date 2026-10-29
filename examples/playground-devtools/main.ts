@@ -1,7 +1,7 @@
-// The search of the DOM playground, with its tasks sent to Redux DevTools.
+// The search of the DOM playground, with its emits and stopped calls sent to Redux DevTools.
 import { createBus } from "nanoeffects";
 import { debounce, latest } from "nanoeffects/policies";
-import { createTracer, reduxDevtools } from "nanoeffects/trace";
+import { createTracer, reduxDevtools, tracePlugin } from "nanoeffects/trace";
 import { api, type Item } from "./fake-api";
 
 type Events = {
@@ -9,11 +9,14 @@ type Events = {
 	results: Item[];
 };
 
-// reduxDevtools — a logger that sends each finished task to the extension as an action;
-// it does nothing when the extension is absent. name is the instance in the extension's list
-const trace = createTracer(reduxDevtools({ name: "search playground" }));
+// reduxDevtools — a logger that sends the emits to the extension; it does nothing when the extension is absent.
+// name is the instance in the extension's list; policies adds the calls that a policy stopped
+const trace = createTracer(
+	reduxDevtools({ name: "search playground", policies: ["cancel", "drop"] }),
+);
 
-const bus = createBus<Events>({ trace });
+// tracePlugin — reports each emit as an event, which is what the extension lists by default
+const bus = createBus<Events>({ trace }).use(tracePlugin());
 
 // debounce — wait 300 ms of quiet; latest — abort the previous search
 bus.on(

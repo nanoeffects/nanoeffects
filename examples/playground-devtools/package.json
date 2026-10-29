@@ -6,7 +6,7 @@
 		"dev": "vite"
 	},
 	"dependencies": {
-		"nanoeffects": "^0.8.0"
+		"nanoeffects": "^0.12.0"
 	},
 	"devDependencies": {
 		"vite": "^7.0.0"
