@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createCommand, createModule, modulePlugin } from "../actions";
 import { createBus } from "../core/bus";
 import { extendBus } from "../oop";
+import { latest } from "../policies";
 import { noPayload } from "../tests/test-helpers";
 import { tracePlugin } from "./plugin";
 import { createTraceRecorder } from "./recorder";
@@ -333,5 +334,61 @@ describe("tracePlugin in the notrace build", () => {
 			vi.unstubAllGlobals();
 			vi.resetModules();
 		}
+	});
+});
+
+describe("tracePlugin in less common places", () => {
+	it("names a listener that a handler adds with ctx.on, and ctx.on still ends it with the task", async () => {
+		const { bus, recorder } = setup();
+		const inner = vi.fn();
+		bus.on("other", (_value, ctx) => {
+			ctx.on("name/changed", inner, { traceId: "taskListener" });
+		});
+
+		bus.emit("other", 1);
+		bus.emit("name/changed", "Eva");
+
+		expect(inner).toHaveBeenCalledTimes(1);
+		expect(recorder.events.some((event) => event.type === "taskListener")).toBe(
+			true,
+		);
+	});
+
+	it("keeps a policy of a named listener working, below the named node", async () => {
+		const { bus, recorder } = setup();
+		const finished: string[] = [];
+		const signals: AbortSignal[] = [];
+		bus.on(
+			"name/changed",
+			latest(async (name: string, { signal }) => {
+				signals.push(signal);
+				await new Promise((resolve) => setTimeout(resolve, 5));
+				if (!signal.aborted) {
+					finished.push(name);
+				}
+			}),
+			{ traceId: "searcher" },
+		);
+
+		bus.emit("name/changed", "a");
+		bus.emit("name/changed", "b");
+		await new Promise((resolve) => setTimeout(resolve, 20));
+
+		expect(finished).toEqual(["b"]);
+		expect(signals[0]?.aborted).toBe(true);
+		const nodes = new Set(
+			recorder.events
+				.filter((event) => event.type === "searcher")
+				.map((event) => event.id),
+		);
+		const policyRuns = recorder.events.filter(
+			(event) => event.effect === "latest",
+		);
+		expect(nodes.size).toBe(2);
+		expect(policyRuns.length).toBeGreaterThan(0);
+		// each policy run is a child task of the named node of its own call
+		expect(policyRuns.every((event) => nodes.has(Number(event.parentId)))).toBe(
+			true,
+		);
 	});
 });
