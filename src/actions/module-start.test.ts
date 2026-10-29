@@ -252,3 +252,134 @@ describe("modulePlugin keeps the order of the listeners", () => {
 		}
 	});
 });
+
+describe("modulePlugin starts at the end of the synchronous block", () => {
+	const tick = () => Promise.resolve();
+
+	it("mounts the given modules when nothing uses the app", async () => {
+		const bus = createBus<TestEvents>();
+		const setup = vi.fn();
+		bus.use(modulePlugin([createModule<TestEvents>("a", setup)]));
+
+		expect(setup).not.toHaveBeenCalled();
+		await tick();
+		expect(setup).toHaveBeenCalledTimes(1);
+	});
+
+	it("starts once when something uses the app before the end of the block", async () => {
+		const bus = createBus<TestEvents>();
+		const setup = vi.fn();
+		bus.use(modulePlugin([createModule<TestEvents>("a", setup)]));
+		bus.emit("t", 1);
+
+		expect(setup).toHaveBeenCalledTimes(1);
+		await tick();
+		expect(setup).toHaveBeenCalledTimes(1);
+	});
+
+	it("gives the modules the fields of a plugin used later in the same block, with no use", async () => {
+		const bus = createBus<TestEvents>();
+		const store = { name: "main" };
+		const seen: unknown[] = [];
+		bus.use(
+			modulePlugin([
+				createModule<TestEvents>("a", (moduleContext) => {
+					seen.push(Reflect.get(moduleContext, "store"));
+				}),
+			]),
+		);
+		bus.use(contextPlugin({ store }));
+		await tick();
+
+		expect(seen).toEqual([store]);
+	});
+
+	it("schedules nothing for no module, so the bus keeps its wrapper until the first use", async () => {
+		const bus = createBus<TestEvents>();
+		const before = bus.emit;
+		bus.use(modulePlugin<TestEvents>());
+		await tick();
+
+		expect(bus.emit).not.toBe(before);
+		bus.emit("t", 1);
+		expect(bus.emit).toBe(before);
+	});
+
+	it("leaves the modules unmounted when the app is disposed before the end of the block", async () => {
+		const bus = createBus<TestEvents>();
+		const setup = vi.fn();
+		const app = bus.use(modulePlugin([createModule<TestEvents>("a", setup)]));
+		app.dispose();
+		await tick();
+
+		expect(setup).not.toHaveBeenCalled();
+		expect(() => app.mount(createModule<TestEvents>("b", () => {}))).toThrow();
+	});
+
+	it("starts under fake timers, which do not fake queueMicrotask", async () => {
+		vi.useFakeTimers();
+		try {
+			const bus = createBus<TestEvents>();
+			const setup = vi.fn();
+			bus.use(modulePlugin([createModule<TestEvents>("a", setup)]));
+			await tick();
+
+			expect(setup).toHaveBeenCalledTimes(1);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("reports a setup that throws, rolls the list back, replays the held listeners and stays usable", async () => {
+		const error = vi.spyOn(console, "error").mockImplementation(() => {});
+		try {
+			const bus = createBus<TestEvents>();
+			const log: string[] = [];
+			const app = bus.use(
+				modulePlugin([
+					createModule<TestEvents>("a", (moduleContext) => {
+						log.push("mount a");
+						moduleContext.signal.addEventListener("abort", () =>
+							log.push("stop a"),
+						);
+					}),
+					createModule<TestEvents>("broken", () => {
+						throw new Error("setup failed");
+					}),
+				]),
+			);
+			const outside = vi.fn();
+			bus.on("t", outside);
+			await tick();
+
+			expect(error).toHaveBeenCalledTimes(1);
+			expect(log).toEqual(["mount a", "stop a"]);
+
+			bus.emit("t", 1);
+			expect(outside).toHaveBeenCalledTimes(1);
+
+			const later = vi.fn();
+			app.mount(createModule<TestEvents>("later", later));
+			expect(later).toHaveBeenCalledTimes(1);
+		} finally {
+			error.mockRestore();
+		}
+	});
+
+	it("still throws a setup error from the first use that starts the app", () => {
+		const bus = createBus<TestEvents>();
+		const outside = vi.fn();
+		bus.use(
+			modulePlugin([
+				createModule<TestEvents>("broken", () => {
+					throw new Error("setup failed");
+				}),
+			]),
+		);
+		bus.on("t", outside);
+
+		expect(() => bus.emit("t", 1)).toThrow("setup failed");
+		bus.emit("t", 2);
+		expect(outside).toHaveBeenCalledTimes(1);
+	});
+});

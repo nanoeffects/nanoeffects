@@ -5,8 +5,9 @@ import { messagesModule } from "./domains/messages/messages-module";
 import { roomsModule } from "./domains/rooms/rooms-module";
 import { searchModule } from "./domains/search/search-module";
 
-// modulePlugin — the app that mounts and unmounts domains; it starts with none
-export const app = bus.use(modulePlugin([]));
-
-// mount — start the domains in this order. Rooms goes last: it starts loading as soon as it is mounted.
-app.mount(messagesModule, searchModule, incomingModule, roomsModule);
+// modulePlugin — the app that mounts and unmounts domains. The given domains start at the end of
+// this block, in this order, even if nothing uses the bus yet. Rooms goes last: it starts
+// loading as soon as it is mounted.
+export const app = bus.use(
+	modulePlugin([messagesModule, searchModule, incomingModule, roomsModule]),
+);

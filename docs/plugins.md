@@ -82,7 +82,7 @@ import { modulePlugin } from "nanoeffects/actions";
 
 const bus = createBus();
 
-// modulePlugin — mounts userModule on the first use of the app or the bus, and returns the app
+// modulePlugin — mounts userModule at the end of this block, or at the first use if that is earlier, and returns the app
 const app = bus.use(modulePlugin([userModule]));
 
 app.unmount(userModule); // its listeners, bound commands and tasks are gone
@@ -261,7 +261,7 @@ export const bus = createBus()
 // commandsPlugin — the registry of command handlers; keep it to bind handlers later
 export const commands = bus.use(commandsPlugin());
 
-// modulePlugin — mounts userModule on the first use; keep app to mount and unmount later
+// modulePlugin — mounts userModule at the end of this block; keep app to mount and unmount later
 export const app = bus.use(modulePlugin([userModule]));
 
 // devPlugin — reports leaks and modules while you develop; keep disconnect to remove it
@@ -274,7 +274,7 @@ The plugins give the same result in any order. Use them as they read best, and p
 
 Two things happen because modules are mounted late:
 
-- **Modules start on the first use.** `modulePlugin([userModule])` mounts `userModule` when the app or the bus is first used: the first `bus.emit`, or the first call of `app.mount`, `app.unmount`, `app.isMounted`, `app.dispose` or the read of `app.commands`. By then every plugin is on the bus, so a module and the tasks it spawns have the fields, effects and scopes of the plugins you used after `modulePlugin`, and `m.on(fn, handler)` works with `matchPlugin`.
+- **Modules start at the end of the block.** `modulePlugin([userModule])` mounts `userModule` when the synchronous block that made it has finished, or earlier if the app or the bus is used first: the first `bus.emit`, or the first call of `app.mount`, `app.unmount`, `app.isMounted`, `app.dispose` or the read of `app.commands`. By then every plugin used in the same block is on the bus, so a module and the tasks it spawns have the fields, effects and scopes of the plugins you used after `modulePlugin`, and `m.on(fn, handler)` works with `matchPlugin`. A plugin used after an `await` can come too late: use every plugin before the first `await`. With no module, `modulePlugin()` starts nothing until the first use.
 - **Listeners keep their place.** A `bus.on` after `bus.use(modulePlugin(...))` is held until the modules are mounted, then made, in the order you wrote them. The listeners of a module therefore stay ahead of the ones registered after the plugin, and behind the ones registered before it. The function `bus.on` returns works before and after.
 
 Other plugins do not need an order for another reason:

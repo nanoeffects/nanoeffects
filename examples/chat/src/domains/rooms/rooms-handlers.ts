@@ -1,5 +1,7 @@
+import type { Context, EventMap } from "nanoeffects";
 import { api } from "../../api";
 
-// the work of the rooms domain: it gets the signal from the task, so it needs no bus
-export const fetchRooms = (_: unknown, { signal }: { signal: AbortSignal }) =>
-	api.loadRooms({ signal });
+// The work of the rooms domain. It gets the signal from the context of its task, so it needs no bus.
+// The first argument is the payload of the task; there is none, so it is not used.
+export const fetchRooms = (_: unknown, ctx: Context<EventMap>) =>
+	api.loadRooms({ signal: ctx.signal });

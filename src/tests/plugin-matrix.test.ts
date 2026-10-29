@@ -544,6 +544,20 @@ const probes: Probe[] = [
 		},
 	},
 	{
+		id: "the module is mounted at the end of the block, with no use of the bus, and sees the plugins",
+		needs: ["modules"],
+		run: async ({ seen, order }) => {
+			await Promise.resolve();
+			const [setup] = seen.setup;
+
+			return (
+				seen.setup.length === 1 &&
+				(!order.includes("context") || field(setup, "store") === "main") &&
+				(!order.includes("effects") || field(setup, "delay") === true)
+			);
+		},
+	},
+	{
 		id: "a module handler sees the context fields of the bus",
 		needs: ["modules"],
 		run: async ({ bus, seen, order }) => {

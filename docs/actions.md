@@ -254,7 +254,7 @@ app.commands.handle(getUser, fakeUser); // in a test
 app.dispose(); // unmounts every module
 ```
 
-`mount` and `unmount` take any number of modules. Use it to start the domains of an app yourself, in the order you give, instead of waiting for the first use of the bus:
+`mount` and `unmount` take any number of modules. Use it to start the domains of an app yourself, at the moment you choose and in the order you give, when you do not give them to `modulePlugin`:
 
 ```js
 import { createModule } from "nanoeffects/actions";
@@ -285,7 +285,8 @@ If the `setup` of one module throws, the modules of that call that were already 
 - **A module is known by its name.** Mounting a module whose name is taken replaces the mounted one (see [Hot reload](hmr.md)).
 - **Registry.** If `bus.use(commandsPlugin())` ran first, that registry is used; otherwise the module plugin attaches its own. Either way it is `bus.commands` and `app.commands`.
 - A disposed app cannot mount modules.
-- **The given modules are mounted on the first use** of the app or the bus (the first `bus.emit`, or a call of `mount`, `unmount`, `isMounted`, `dispose`, or the read of `commands`), so the plugins you use after `modulePlugin` still reach them. The `bus.on` calls made in between are held and made right after, so the listeners of a module stay ahead of them. See [using plugins in any order](plugins.md#use-them-in-any-order).
+- **The given modules are mounted at the end of the block that made the app**, or at the first use of the app or the bus if that comes first (the first `bus.emit`, or a call of `mount`, `unmount`, `isMounted`, `dispose`, or the read of `commands`). Nothing needs to use the app: `bus.use(modulePlugin([a, b]))` is enough to start them. The plugins that you use after `modulePlugin` in the same block still reach them, because the modules wait until that block has finished. A plugin used after an `await` can come too late: use every plugin before the first `await`. The `bus.on` calls made in between are held and made right after, so the listeners of a module stay ahead of them. See [using plugins in any order](plugins.md#use-them-in-any-order).
+- **To mount by hand instead**, pass no modules: `modulePlugin()` starts nothing, and `app.mount(...)` starts the modules when you want.
 - Module context = task context plus `handle`, `use`, and `spawn`:
   - `handle` — give a command a handler (contract, or override).
   - `use` — bring sub-modules and commands that carry a handler; the returned function undoes that call.

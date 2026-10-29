@@ -8,7 +8,7 @@ import type {
 	UnsubscribeCallback,
 } from "../core/types";
 import type { Scoped, ScopeSlots } from "../scope/types";
-import { onAbort } from "../utils";
+import { onAbort, report } from "../utils";
 import { type Binding, commandsPlugin } from "./command";
 import { holdListeners } from "./hold";
 import { mountEach } from "./mount-each";
@@ -356,10 +356,14 @@ export const modulePlugin =
 			});
 			// set before the modules are mounted: a `setup` that uses the app does not start it again
 			running = { root, apps: mountEach(mounts(root.ctx)) };
-			if (initial) {
-				running.apps.mount(...modules);
+			try {
+				if (initial) {
+					running.apps.mount(...modules);
+				}
+			} finally {
+				// the listeners that came after `bus.use` are made even when a `setup` throws
+				hold.replay();
 			}
-			hold.replay();
 
 			return running;
 		};
@@ -370,6 +374,20 @@ export const modulePlugin =
 			return Reflect.apply(emitted, bus, args);
 		};
 		bus.emit = starting as Emit<E>;
+
+		// Nothing used the app by the end of this synchronous block: start it now. Every
+		// `bus.use` of the same block has run by then, so the plugins used after this one
+		// still reach the modules. If the app was used or disposed before, `start` does nothing.
+		if (modules.length > 0) {
+			queueMicrotask(() => {
+				try {
+					start();
+				} catch (error) {
+					// there is no caller to throw to; the modules of the list are rolled back
+					report("the modules of the app could not start", error);
+				}
+			});
+		}
 
 		const app: ModuleApi<E> = {
 			get commands() {
