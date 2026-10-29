@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { createBus } from "../core/bus";
 import type { TraceEvent } from "../core/types";
+import { latest } from "../policies";
 import { createHarness, type TestEvents } from "../tests/test-helpers";
+import { delay } from "../utils";
 import { consoleLogger } from "./console";
 import { performanceLogger } from "./performance";
+import { tracePlugin } from "./plugin";
 import { createTraceRecorder } from "./recorder";
 import { type ReduxExtension, reduxDevtools } from "./redux";
 import { createTracer } from "./tracer";
@@ -262,6 +265,7 @@ describe("reduxDevtools", () => {
 			log: reduxDevtools({
 				extension,
 				name: "app",
+				policies: true,
 				starts: true,
 				depth: Number.POSITIVE_INFINITY,
 			}),
@@ -368,7 +372,7 @@ describe("reduxDevtools", () => {
 		};
 		global.__REDUX_DEVTOOLS_EXTENSION__ = { connect: () => connection };
 		try {
-			reduxDevtools()(event({ phase: "done" }));
+			reduxDevtools()(event({ effect: "emit", phase: "done" }));
 
 			expect(connection.send).toHaveBeenCalledTimes(1);
 		} finally {
@@ -376,20 +380,23 @@ describe("reduxDevtools", () => {
 		}
 	});
 
-	it("works end to end on a bus: one action for a task, when it ends", async () => {
+	it("works end to end on a bus: the emit, then one action for a stage, when it ends", async () => {
 		const connection = { init: vi.fn(), send: vi.fn() };
 		const bus = createBus<TestEvents>({
 			trace: createTracer(
-				reduxDevtools({ extension: { connect: () => connection } }),
+				reduxDevtools({
+					extension: { connect: () => connection },
+					policies: true,
+				}),
 			),
-		});
+		}).use(tracePlugin());
 		bus.on("t", (_, ctx) => ctx.run(() => 1));
 		bus.emit("t", 1);
 		await Promise.resolve();
 		await Promise.resolve();
 		const types = connection.send.mock.calls.map((call) => call[0].type);
 
-		expect(types).toEqual(["t/run/done"]);
+		expect(types).toEqual(["t", "t/run/done"]);
 	});
 });
 
@@ -401,7 +408,8 @@ describe("reduxDevtools, quiet by default", () => {
 		return {
 			connection,
 			extension,
-			log: reduxDevtools({ extension, ...options }),
+			// the stages of the handlers are on in these tests; the defaults have their own suite
+			log: reduxDevtools({ extension, policies: true, ...options }),
 			types: () =>
 				connection.send.mock.calls.map(
 					([action]) => (action as { type: string }).type,
@@ -430,8 +438,8 @@ describe("reduxDevtools, quiet by default", () => {
 		});
 	});
 
-	it("shows the handler tasks and the effects they start, not the attempts under them", () => {
-		const { log, types } = setup();
+	it("depth 1 shows the effects a handler starts, not the attempts under them", () => {
+		const { log, types } = setup({ depth: 1 });
 		log(event({ id: 1, phase: "start" }));
 		log(event({ id: 2, parentId: 1, effect: "retry", phase: "start" }));
 		log(event({ id: 3, parentId: 2, effect: "run", phase: "start" }));
@@ -442,8 +450,8 @@ describe("reduxDevtools, quiet by default", () => {
 		expect(types()).toEqual(["search/retry/done", "search/latest/done"]);
 	});
 
-	it("depth 0 shows only the handler tasks, a deeper depth shows more", () => {
-		const roots = setup({ depth: 0 });
+	it("without depth only the handler tasks are shown, a deeper depth shows more", () => {
+		const roots = setup();
 		const deep = setup({ depth: 2 });
 		for (const { log } of [roots, deep]) {
 			log(event({ id: 1 }));
@@ -462,8 +470,8 @@ describe("reduxDevtools, quiet by default", () => {
 		]);
 	});
 
-	it("a dropped task that never started is shown by the depth of its parent", () => {
-		const { log, types } = setup();
+	it("a dropped task that never started is shown by the level of its parent", () => {
+		const { log, types } = setup({ depth: 1 });
 		log(event({ id: 1 }));
 		log(event({ id: 5, parentId: 1, effect: "throttle", phase: "drop" }));
 
@@ -500,6 +508,200 @@ describe("reduxDevtools, quiet by default", () => {
 	});
 });
 
+describe("reduxDevtools, the defaults and policies", () => {
+	const setup = (options: Parameters<typeof reduxDevtools>[0] = {}) => {
+		const connection = { init: vi.fn(), send: vi.fn() };
+		const extension: ReduxExtension = { connect: vi.fn(() => connection) };
+
+		return {
+			connection,
+			log: reduxDevtools({ extension, ...options }),
+			types: () =>
+				connection.send.mock.calls.map(
+					([action]) => (action as { type: string }).type,
+				),
+		};
+	};
+
+	// one call of a `latest` handler that is cancelled, one that ends, one that fails
+	const flow = (log: ReturnType<typeof reduxDevtools>) => {
+		log(event({ id: 1, effect: "emit", phase: "done" }));
+		log(event({ id: 2, parentId: 9 }));
+		log(event({ id: 2, parentId: 9, phase: "cancel" }));
+		log(event({ id: 3, parentId: 9 }));
+		log(event({ id: 4, parentId: 3, effect: "retry" }));
+		log(event({ id: 4, parentId: 3, effect: "retry", phase: "done" }));
+		log(event({ id: 3, parentId: 9, phase: "done" }));
+		log(event({ id: 5, parentId: 9 }));
+		log(event({ id: 5, parentId: 9, phase: "error", error: new Error("x") }));
+	};
+
+	it("sends the emits and the failed handlers, and nothing else, by default", () => {
+		const { log, types } = setup();
+		flow(log);
+
+		expect(types()).toEqual(["search", "search/latest/error"]);
+	});
+
+	it("keeps the emit action as the event, with its payload and parent", () => {
+		const { connection, log } = setup();
+		log(event({ id: 7, parentId: 2, effect: "emit", phase: "done" }));
+
+		expect(connection.send.mock.calls[0]?.[0]).toMatchObject({
+			type: "search",
+			event: "search",
+			effect: "emit",
+			id: 7,
+			parentId: 2,
+			payload: "q",
+		});
+	});
+
+	it("does not put an emit in the running state", () => {
+		const { connection, log } = setup({ policies: true, starts: true });
+		log(event({ id: 1, effect: "emit", phase: "done" }));
+
+		expect(connection.send.mock.calls[0]?.[1]).toEqual({ running: {} });
+	});
+
+	it("policies: true adds every stage of the handler tasks, not the effects", () => {
+		const { log, types } = setup({ policies: true });
+		flow(log);
+
+		expect(types()).toEqual([
+			"search",
+			"search/latest/cancel",
+			"search/latest/done",
+			"search/latest/error",
+		]);
+	});
+
+	it("policies as a list of phases shows only those, and the failures", () => {
+		const { log, types } = setup({ policies: ["cancel", "drop"] });
+		flow(log);
+
+		expect(types()).toEqual([
+			"search",
+			"search/latest/cancel",
+			"search/latest/error",
+		]);
+	});
+
+	it("policies as a function gets the effect and the phase", () => {
+		const seen: string[] = [];
+		const { log, types } = setup({
+			policies: ({ effect, phase }) => {
+				seen.push(`${effect}/${phase}`);
+				return effect === "latest" && phase === "done";
+			},
+		});
+		flow(log);
+
+		expect(types()).toEqual([
+			"search",
+			"search/latest/done",
+			"search/latest/error",
+		]);
+		expect(seen).toContain("latest/cancel");
+	});
+
+	it("an empty list or a false policy still shows the failures", () => {
+		for (const policies of [[], false, () => false] as const) {
+			const { log, types } = setup({ policies });
+			flow(log);
+
+			expect(types()).toEqual(["search", "search/latest/error"]);
+		}
+	});
+
+	it("depth works without policies, for the effects below the handlers", () => {
+		const { log, types } = setup({ depth: 1 });
+		flow(log);
+
+		expect(types()).toEqual([
+			"search",
+			"search/retry/done",
+			"search/latest/error",
+		]);
+	});
+
+	it("on a real bus: two emits of a latest handler give two actions, and the stages when asked", async () => {
+		const run = async (options: Parameters<typeof reduxDevtools>[0]) => {
+			const { log, types } = setup(options);
+			const bus = createBus<TestEvents>({ trace: createTracer(log) }).use(
+				tracePlugin(),
+			);
+			bus.on(
+				"t",
+				latest(async (_, ctx) => {
+					await ctx.run(() => delay(ctx, 5));
+				}),
+			);
+			bus.emit("t", 1);
+			bus.emit("t", 2);
+			await vi.advanceTimersByTimeAsync(10);
+
+			return types();
+		};
+		vi.useFakeTimers();
+		try {
+			expect(await run({})).toEqual(["t", "t"]);
+			expect(await run({ policies: ["cancel"] })).toEqual([
+				"t",
+				"t",
+				"t/latest/cancel",
+				// ctx.run in the handler is a task of the listener too, so it is a stage as well
+				"t/run/cancel",
+			]);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("warns once when a handler task ends and no emit event came before it", () => {
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+		try {
+			const { log } = setup();
+			log(event({ id: 1, parentId: 9 }));
+			expect(warn).not.toHaveBeenCalled();
+			log(event({ id: 1, parentId: 9, phase: "done" }));
+			log(event({ id: 2, parentId: 9, phase: "done" }));
+
+			expect(warn).toHaveBeenCalledTimes(1);
+			expect(warn.mock.calls[0]?.[0]).toContain("tracePlugin");
+		} finally {
+			warn.mockRestore();
+		}
+	});
+
+	it("does not warn when an emit came first, or when only an effect below a handler ends", () => {
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+		try {
+			const withEmit = setup();
+			withEmit.log(event({ id: 1, effect: "emit", phase: "done" }));
+			withEmit.log(event({ id: 2, parentId: 9, phase: "done" }));
+			const below = setup({ depth: 1 });
+			below.log(event({ id: 3, parentId: 9 }));
+			below.log(event({ id: 4, parentId: 3, effect: "retry", phase: "done" }));
+
+			expect(warn).not.toHaveBeenCalled();
+		} finally {
+			warn.mockRestore();
+		}
+	});
+
+	it("the running state holds only the tasks that the options show", () => {
+		const { connection, log } = setup({
+			policies: ["done"],
+			starts: true,
+		});
+		log(event({ id: 1, parentId: 9 }));
+		log(event({ id: 1, parentId: 9, phase: "done" }));
+
+		expect(connection.send.mock.calls[0]?.[1]).toEqual({ running: {} });
+	});
+});
+
 describe("the group and the root in the loggers", () => {
 	it("performanceLogger puts them in the detail, and only when they are set", () => {
 		const perf = { now: vi.fn(() => 0), measure: vi.fn(), mark: vi.fn() };
@@ -526,7 +728,12 @@ describe("the group and the root in the loggers", () => {
 	it("reduxDevtools keeps them in the action, and the group in the running tasks", () => {
 		const connection = { init: vi.fn(), send: vi.fn() };
 		const extension: ReduxExtension = { connect: vi.fn(() => connection) };
-		const log = reduxDevtools({ extension, starts: true, depth: 9 });
+		const log = reduxDevtools({
+			extension,
+			policies: true,
+			starts: true,
+			depth: 9,
+		});
 		log(event({ id: 3, rootId: 1, traceGroupId: "checkout" }));
 
 		const [action, state] = connection.send.mock.calls[0] ?? [];

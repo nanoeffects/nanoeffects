@@ -24,7 +24,7 @@ Each `TraceEvent` has:
 | `parentId` | Id of the task that started this one (absent for handler tasks) |
 | `rootId` | Id of the root task of the chain; absent on the root itself, and it is the same through a listener that reports nothing |
 | `type` | Event type the task works on |
-| `effect` | `latest`, `debounce`, `throttle`, `leading`, `run`, `all`, `race`, … |
+| `effect` | `latest`, `debounce`, `throttle`, `leading`, `run`, `all`, `race`, …; `emit` for the emit event of `tracePlugin` |
 | `phase` | `start`, `done`, `error`, `cancel`, or `drop` |
 | `payload` | Event payload |
 | `error` | Thrown value, only for `error` |
@@ -52,6 +52,32 @@ bus.on("load", async (id, ctx) => {
   });
 });
 ```
+
+## Show every emit
+
+**When.** You want the log to say what was emitted, also when nothing listens or the listener is a plain function. Without it the trace has only the tasks that report: a policy (`latest`, ...) or a `ctx.run`.
+
+`tracePlugin` reports one event for each emit, with `effect: "emit"` and `phase: "done"`, before the handlers run. `type` is the event name and `payload` is what was emitted. A `ctx.emit` has the task that emits as its `parentId`.
+
+```js
+// bus.js
+import { createBus } from "nanoeffects";
+import { consoleLogger, createTracer, tracePlugin } from "nanoeffects/trace";
+
+export const bus = createBus({ trace: createTracer(consoleLogger()) })
+  .use(tracePlugin()); // tracePlugin: reports each emit as an event
+```
+
+```js
+import { bus } from "./bus";
+
+bus.emit("search", "nano"); // logs: search · emit done
+```
+
+The event changes nothing else: the other tasks keep their `parentId`, `rootId` and `traceGroupId`. Without the plugin the trace has no `emit` events.
+
+- **What counts as an emit.** Every `bus.emit`, also the ones a library makes for you: a job emits its `pending` and `success` (or `fail`, `cancel`), so one call of a job is several `emit` events.
+- **Cost.** One small task per emit, about 60 ns on a bus that already has a tracer (a bus with a tracer and no plugin: about 250 ns more than a bus without one). `sample` and `filter` of `createTracer` cut it in the log, not in the work.
 
 ## Show which subscription began a chain
 
@@ -186,7 +212,7 @@ const bus = createBus({
 
 | Logger | What it does |
 | ------ | ------------ |
-| `reduxDevtools()` | Sends tasks to Redux DevTools as `type/effect/phase`; state is `{ running }` |
+| `reduxDevtools()` | Sends the emits to Redux DevTools, and with `policies` the stages of the handlers as `type/effect/phase`; state is `{ running }` |
 | `consoleLogger()` | Prints one line per phase, indented by task depth |
 | `performanceLogger()` | User Timing measures for the browser Performance panel |
 | `createTraceRecorder()` | Keeps events in `recorder.events`, for tests |
@@ -209,18 +235,48 @@ createTracer(logger, {
 
 Read-only (the bus owns no state, so there is no time travel). Does nothing when the extension is not installed. Has its own instance in the DevTools picker, apart from your store.
 
-Quiet by default:
+Quiet by default, so you see what happened before you see how:
 
-- **A task is one action**, sent when it ends (`done`, `error`, `cancel`, `drop`). Running tasks are in `{ running }`. `starts: true` also sends every start.
-- **Only the top is shown**: handler tasks and the effects they start. Attempts and starters under them are hidden. `depth: 0` — handlers only; `depth: 3` — more; `Infinity` — everything.
+- **One action per emit**, named after the event (`search`), with its payload. This needs `bus.use(tracePlugin())` (see [Show every emit](#show-every-emit)); without it the default log is empty, and the logger prints one `console.warn` when the first handler task ends with no emit before it.
+- **A failed handler** is sent as `search/latest/error`.
+- Nothing else: no start, no `done`, no policy stages, no effects.
+
+Turn on more when you need it:
+
+- `policies` — the stages of the handler tasks, as `event/policy/phase`. `true` shows every phase, a list shows those phases, a function gets `{ effect, phase }`.
+- `starts: true` — also send the start of each shown task. Running tasks are in the state `{ running }`.
+- `depth: 1` — also the effects a handler starts (`retry`, `timeout`); `depth: Infinity` — everything below.
 - `maxAge: 200` — how many actions DevTools keeps (its default is 50).
+
+```js
+// bus.js
+import { createBus } from "nanoeffects";
+import { createTracer, reduxDevtools, tracePlugin } from "nanoeffects/trace";
+
+// reduxDevtools: sends the trace to the extension; it has the emits and the failures only
+const logger = reduxDevtools({ name: "app" });
+
+export const bus = createBus({ trace: createTracer(logger) })
+  .use(tracePlugin()); // tracePlugin: makes the emit events
+```
 
 ```js
 import { reduxDevtools } from "nanoeffects/trace";
 
-reduxDevtools({ name: "app", depth: 0 }); // one line per handler call
-reduxDevtools({ name: "app", starts: true, depth: Infinity }); // everything
+// debugging a race: which calls did a policy cancel or drop?
+reduxDevtools({ name: "app", policies: ["cancel", "drop"] });
+
+// every stage of every policy, one function for the choice
+reduxDevtools({
+  name: "app",
+  policies: ({ effect, phase }) => effect === "latest" && phase !== "start",
+});
+
+// the old log: every stage, and the effects below the handlers
+reduxDevtools({ name: "app", policies: true, depth: 1 });
 ```
+
+With two quick `search` emits and a `latest` handler, the default list is `search`, `search`. With `policies: true` it adds the `latest` stages of each call, for example `search/latest/cancel` for the first one.
 
 ### Write your own logger
 

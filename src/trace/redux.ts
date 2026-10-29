@@ -1,4 +1,4 @@
-import type { TraceLogger } from "../core/types";
+import type { EffectName, Phase, TraceEvent, TraceLogger } from "../core/types";
 
 type ReduxConnection = {
 	init: (state: unknown) => void;
@@ -9,21 +9,40 @@ export type ReduxExtension = {
 	connect: (options?: { name?: string; maxAge?: number }) => ReduxConnection;
 };
 
+/** A stage of a handler task: which policy (or `run`) and which phase of it. */
+export type PolicyStage = { effect: EffectName; phase: Phase };
+
+/**
+ * Which stages of the handler tasks to show: `true` for all, a list of phases
+ * (`["cancel", "drop"]`), or a function of the stage.
+ */
+export type PolicyStages =
+	| boolean
+	| readonly Phase[]
+	| ((stage: PolicyStage) => boolean);
+
 export type ReduxDevtoolsOptions = {
 	/** Instance name in the Redux DevTools picker. */
 	name?: string;
 	/** Defaults to `globalThis.__REDUX_DEVTOOLS_EXTENSION__`. */
 	extension?: ReduxExtension;
 	/**
-	 * Also send the start of every task as an action. Default `false`: a task
-	 * is one action, sent when it ends, and the tasks that are running are in
-	 * the state.
+	 * Also show the stages of the handler tasks, the tasks that a policy
+	 * (`latest`, `debounce`, ...) or `ctx.run` starts: `true` for every phase, a
+	 * list of phases, or a function of `{ effect, phase }`. Default: none, the
+	 * log has the emits only. The error of a handler task is always shown.
+	 */
+	policies?: PolicyStages;
+	/**
+	 * Also send the start of every shown task as an action. Default `false`: a
+	 * task is one action, sent when it ends, and the tasks that are running are
+	 * in the state.
 	 */
 	starts?: boolean;
 	/**
-	 * How deep in the tree of tasks to show: `0` is the handler tasks only, `1`
-	 * also the effects they start (`retry`, `timeout`, ...), and so on. The
-	 * attempts and the starters under them are hidden at the default, `1`.
+	 * How deep below the handler tasks to show: `0` is none, `1` also the
+	 * effects they start (`retry`, `timeout`, ...), and so on. Default `0`.
+	 * The handler tasks themselves are chosen by `policies`.
 	 */
 	depth?: number;
 	/** The number of actions that DevTools keeps; its own default is 50. */
@@ -40,19 +59,39 @@ export type ReduxDevtoolsState = {
 
 const noop = () => {};
 
+const never = () => false;
+const always = () => true;
+
+// one predicate for the three forms of `policies`
+const stagesOf = (policies: PolicyStages | undefined) => {
+	if (typeof policies === "function") {
+		return policies;
+	}
+	if (Array.isArray(policies)) {
+		const phases = new Set<Phase>(policies);
+
+		return ({ phase }: PolicyStage) => phases.has(phase);
+	}
+
+	return policies ? always : never;
+};
+
 /**
- * Trace logger that sends the tasks to Redux DevTools as actions
- * `type/effect/phase`, with the running tasks as state. By default it is quiet:
- * a task is one action, when it ends, and only the handler tasks and the
- * effects they start are shown (see `starts` and `depth` to show more).
- * Read-only: there is no time travel. Does nothing when the extension is not
- * installed.
+ * Trace logger that sends the trace to Redux DevTools. By default it is quiet:
+ * one action for each emit (`type` is the event name, it needs `tracePlugin`),
+ * and the failures of handlers. `policies` adds the stages of the handler tasks
+ * as actions `event/policy/phase`, and `depth` the effects below them; the
+ * running tasks are in the state. Read-only: there is no time travel. Does
+ * nothing when the extension is not installed.
  *
  * @example
  * ```ts
  * const bus = createBus<Events>({
  *   trace: createTracer(reduxDevtools({ name: "app" })),
- * });
+ * }).use(tracePlugin());
+ *
+ * // and the cancelled and dropped calls of the policies
+ * reduxDevtools({ name: "app", policies: ["cancel", "drop"] });
  * ```
  */
 export const reduxDevtools = (
@@ -67,7 +106,8 @@ export const reduxDevtools = (
 		return noop;
 	}
 
-	const { starts = false, depth: shownDepth = 1, maxAge } = options;
+	const { starts = false, depth: shownDepth = 0, maxAge } = options;
+	const showsStage = stagesOf(options.policies);
 	const connection = extension.connect({
 		name: options.name ?? "nanoeffects",
 		...(maxAge !== void 0 && { maxAge }),
@@ -84,31 +124,47 @@ export const reduxDevtools = (
 
 	connection.init(snapshot());
 
-	return ({ error, ...event }) => {
-		const parentDepth =
-			event.parentId === void 0 ? -1 : (depths.get(event.parentId) ?? -1);
-		const depth = parentDepth + 1;
-		const shown = depth <= shownDepth;
+	// the handler tasks (level 0) are shown by `policies`, the tasks below them by `depth`
+	const showsPhase = (effect: EffectName, phase: Phase, depth: number) => {
+		if (depth === 0) {
+			return showsStage({ effect, phase });
+		}
 
-		if (event.phase === "start") {
-			depths.set(event.id, depth);
-			if (shown) {
-				running.set(event.id, {
-					type: event.type,
-					effect: event.effect,
-					...(event.traceGroupId !== void 0 && {
-						traceGroupId: event.traceGroupId,
-					}),
-				});
-			}
-		} else {
+		return depth <= shownDepth;
+	};
+
+	const track = (event: TraceEvent, depth: number) => {
+		if (event.phase !== "start") {
 			depths.delete(event.id);
 			running.delete(event.id);
-		}
-		if (!shown || (event.phase === "start" && !starts)) {
 			return;
 		}
+		depths.set(event.id, depth);
+		if (showsPhase(event.effect, "start", depth)) {
+			running.set(event.id, {
+				type: event.type,
+				effect: event.effect,
+				...(event.traceGroupId !== void 0 && {
+					traceGroupId: event.traceGroupId,
+				}),
+			});
+		}
+	};
 
+	// a finished handler task with no emit before it means `tracePlugin` is not used (or sample / filter cut the emits)
+	let sawEmit = false;
+	let warned = false;
+	const checkEmits = (phase: Phase, depth: number) => {
+		if (sawEmit || warned || depth !== 0 || phase === "start") {
+			return;
+		}
+		warned = true;
+		globalThis.console?.warn(
+			"[nanoeffects] reduxDevtools got a task but no emit event: add bus.use(tracePlugin()) to see the emits.",
+		);
+	};
+
+	const sendStage = (event: TraceEvent, error: unknown) => {
 		connection.send(
 			{
 				...event,
@@ -120,5 +176,26 @@ export const reduxDevtools = (
 			},
 			snapshot(),
 		);
+	};
+
+	return ({ error, ...event }) => {
+		if (event.effect === "emit") {
+			sawEmit = true;
+			connection.send({ ...event, event: event.type }, snapshot());
+			return;
+		}
+
+		const parentDepth =
+			event.parentId === void 0 ? -1 : (depths.get(event.parentId) ?? -1);
+		const depth = parentDepth + 1;
+		track(event, depth);
+		checkEmits(event.phase, depth);
+
+		// a failed handler is never hidden; the attempts of an effect follow `depth`
+		const failed = event.phase === "error" && depth === 0;
+		const shown = failed || showsPhase(event.effect, event.phase, depth);
+		if (shown && (event.phase !== "start" || starts)) {
+			sendStage(event, error);
+		}
 	};
 };
