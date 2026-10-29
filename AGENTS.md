@@ -35,6 +35,8 @@ src/effects/            retry, timeout, poll, take, all, allSettled, race, cance
 src/policies/           latest, leading, debounce, throttle, queue, keyed (byKey), latestWith (shared core)
 src/actions/            createAction, createCommand(s), createJob, createModule, modulePlugin
 src/context/           contextPlugin (entry nanoeffects/context); its types NoClash and ContextTask stay in src/core/context-types.ts
+src/react/             reactPlugin (useEmitter, useEventState), usePolicy (entry nanoeffects/react, optional peer react, no notrace build)
+src/vue/               vuePlugin (watchEmitter, useEventRef) (entry nanoeffects/vue, optional peer vue, no notrace build); the type of the state of an event is shared with react from src/core/state-of.ts
 src/oop/               extendBus, Emitter, WithBus, On, Once, disposeBus: the methods of a bus on a class (entry nanoeffects/oop, own size-limit)
 src/store/redux/        createEffectsMiddleware(bus, { filter }): the Redux middleware for a bus that already exists; it puts `ctx.store` on the tasks through `bus.addContext` (no dependency on redux); `middleware.ts` is its inner part, not exported
 src/observable.ts       createObserve, Subject: an event of the bus as a TC39 Observable, and as a class with `next` (entry nanoeffects/observable, no notrace build)

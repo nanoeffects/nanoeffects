@@ -126,6 +126,10 @@
 			"types": "./dist/react.d.ts",
 			"import": "./dist/react.js"
 		},
+		"./vue": {
+			"types": "./dist/vue.d.ts",
+			"import": "./dist/vue.js"
+		},
 		"./dev": {
 			"production": {
 				"types": "./dist/dev.d.ts",
@@ -258,6 +262,14 @@
 			"limit": "1.24 kB"
 		},
 		{
+			"name": "vue",
+			"path": "dist/vue.js",
+			"ignore": [
+				"vue"
+			],
+			"limit": "0.4 kB"
+		},
+		{
 			"name": "dev",
 			"path": "dist/dev.js",
 			"limit": "1 kB"
@@ -269,10 +281,14 @@
 		}
 	],
 	"peerDependencies": {
-		"react": ">=18"
+		"react": ">=18",
+		"vue": ">=3.3"
 	},
 	"peerDependenciesMeta": {
 		"react": {
+			"optional": true
+		},
+		"vue": {
 			"optional": true
 		}
 	}

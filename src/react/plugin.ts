@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ActionCreator, FreeActionCreator } from "../core/action-creator";
 import type { Bus, EventKey, EventLike } from "../core/bus";
 import { type Origin, type OriginOptions, originKey } from "../core/origin-key";
+import type { StateOf } from "../core/state-of";
 import type { EventMap } from "../core/types";
 
 /** Tells whether two values are the same: `Object.is` unless the caller gives another. */
@@ -73,12 +74,6 @@ export type ReactApi<E extends EventMap> = {
 
 /** What `useEventState` returns: the pair of `useState`, with the payload of the event as state. */
 export type EventState<P> = [P, (next: P | ((previous: P) => P)) => void];
-
-// `[]` is `never[]` to TypeScript, which nothing can be read from
-type Widen<S> = [S] extends [never[]] ? unknown[] : S;
-
-// the payload type when the event has one; otherwise the type of `initial`
-type StateOf<P, S> = unknown extends P ? Widen<S> : P;
 
 type Creator = (...args: never[]) => { type: string; payload?: unknown };
 

@@ -36,7 +36,6 @@ interface ImportMeta {
 }
 // libraries that the docs import but the project does not install: every import is `any`
 declare module "react";
-declare module "vue";
 declare module "pinia";
 declare module "nanostores";
 declare module "@nanostores/react";

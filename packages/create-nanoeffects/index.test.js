@@ -298,7 +298,7 @@ describe("templates", () => {
 		expect(manifestOf("my-app").name).toBe("my-app");
 	});
 
-	it("make a Vue project from vue-ts, with the files of react-ts and its own composable", async () => {
+	it("make a Vue project from vue-ts, which uses the plugin of nanoeffects/vue", async () => {
 		await run({
 			argv: ["my-app", "--template", "vue-ts"],
 			cwd: workdir,
@@ -310,13 +310,15 @@ describe("templates", () => {
 		expect(manifestOf("my-app").scripts.build).toBe(
 			"vue-tsc --noEmit && vite build",
 		);
-		expect(read("my-app", "src", "use-event-ref.ts")).toMatch(
-			/not a global store/,
+		expect(read("my-app", "src", "bus.ts")).toContain("vuePlugin");
+		expect(read("my-app", "src", "App.vue")).toMatch(/not a global store/);
+		expect(read("my-app", "src", "App.vue")).toContain("watchEmitter");
+		expect(existsSync(join(workdir, "my-app", "src", "use-event-ref.ts"))).toBe(
+			false,
 		);
-		expect(read("my-app", "src", "App.vue")).toContain("useEventRef");
 	});
 
-	it("give vue-ts the files of react-ts, with .vue for the components and one composable more", () => {
+	it("give vue-ts the files of react-ts, with .vue for the components and the shim for them", () => {
 		const names = (template) => {
 			const target = join(workdir, `vue-files-${template}`);
 			createProject({ target, template, version: "0.17.0" });
@@ -334,7 +336,6 @@ describe("templates", () => {
 		}
 		expect(vueFiles.filter((file) => !reactFiles.includes(file))).toEqual([
 			"src/env.d",
-			"src/use-event-ref",
 		]);
 	});
 

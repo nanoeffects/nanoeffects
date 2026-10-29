@@ -1,19 +1,21 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
-import { bus } from "./bus";
+import { ref } from "vue";
+import { useEventRef, watchEmitter } from "./bus";
 import Notes from "./Notes.vue";
 import { queryChanged, searchLoaded } from "./search";
-import { useEventRef } from "./use-event-ref";
 
 const query = ref("");
 
-// useEventRef — like ref([]), but searchLoaded sets the value; it stops listening on unmount.
+// watchEmitter — emits queryChanged(query) when query changes, never on mount
+watchEmitter(query, queryChanged);
+
+// useEventRef — like ref([]), but searchLoaded sets the value; it stops listening on unmount
+// WARNING: this is state of this component, not a global store. A second component gets its
+// own copy, and an event that came before this component was made is lost: the bus keeps no values.
+// To share a value, keep it in a store (for example Pinia) and write to it from a handler of the
+// event, or call useEventRef once in a component at the root and pass the ref down with provide/inject.
 // found is string[]: the type comes from createAction<string[]> in search.ts
 const found = useEventRef(searchLoaded, []);
-
-// watch runs when query changes, not on mount, so nothing is emitted until the user types.
-// bus.emit — tell the bus the query changed; the handler debounces and searches
-watch(query, (value) => bus.emit(queryChanged(value)));
 </script>
 
 <template>

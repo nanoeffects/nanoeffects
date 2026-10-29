@@ -1,7 +1,9 @@
 // What a user sees from the type checker: payloads and contexts are inferred
 // without writing generics, and wrong calls are errors. Nothing here runs
 // anything that matters; `pnpm tsgo` is the test.
+
 import { describe, expectTypeOf, it } from "vitest";
+import { ref, type ShallowRef } from "vue";
 import type {
 	// the types a bus needs stay in the root
 	Bus,
@@ -83,6 +85,7 @@ import {
 	type Tracer,
 	tracePlugin,
 } from "../trace";
+import { vuePlugin } from "../vue";
 
 type User = { id: string; name: string };
 type Events = {
@@ -1131,6 +1134,56 @@ describe("createEffectsMiddleware", () => {
 			createEffectsMiddleware({ filter: () => true });
 		};
 		expectTypeOf(wrongCalls).toBeFunction();
+	});
+});
+
+describe("vuePlugin", () => {
+	type VueEvents = {
+		"name/changed": string;
+		"names/saved": string[];
+	};
+
+	it("types the ref of useEventRef from the event, and from initial when the event has none", () => {
+		const bus = createBus<VueEvents>().use(vuePlugin());
+		const untyped = createBus().use(vuePlugin());
+		const nameSaved = createAction("name/saved");
+		const calls = () => {
+			expectTypeOf(bus.useEventRef("names/saved", [])).toEqualTypeOf<
+				ShallowRef<string[]>
+			>();
+			expectTypeOf(untyped.useEventRef(nameSaved, ["a"])).toEqualTypeOf<
+				ShallowRef<string[]>
+			>();
+			expectTypeOf(untyped.useEventRef(nameSaved, [])).toEqualTypeOf<
+				ShallowRef<unknown[]>
+			>();
+		};
+		expectTypeOf(calls).toBeFunction();
+	});
+
+	it("rejects a wrong value, a wrong initial and a wrong comparison", () => {
+		const bus = createBus<VueEvents>().use(vuePlugin());
+		const name = ref("Adam");
+		const wrongCalls = () => {
+			// @ts-expect-error the payload of name/changed is a string
+			bus.watchEmitter(ref(1), "name/changed");
+			// @ts-expect-error the comparison gets values of the payload type
+			bus.watchEmitter(name, "name/changed", {
+				equals: (previous: number) => previous > 0,
+			});
+			// @ts-expect-error the payload of name/changed is a string
+			bus.useEventRef("name/changed", 1);
+			// @ts-expect-error the bus has no such event
+			bus.useEventRef("missing", "a");
+		};
+		const rightCalls = () => {
+			bus.watchEmitter(name, "name/changed");
+			bus.watchEmitter(() => name.value, "name/changed", {
+				traceId: "Profile",
+			});
+		};
+		expectTypeOf(wrongCalls).toBeFunction();
+		expectTypeOf(rightCalls).toBeFunction();
 	});
 });
 

@@ -47,7 +47,7 @@ Pass `--template` to skip the question. With npm, put `--` before the option.
 | `vanilla-ts` | The `vanilla` app in TypeScript | You want the compiler to check events and handlers |
 | `react-ts` | The `react` app in TypeScript | You build a React app in TypeScript |
 | `domains-ts` | Commands, a job and modules, with the logic split into domain folders and React as a thin layer | You build an app with more than one feature and want the logic off the UI |
-| `vue-ts` | The `react-ts` app in Vue 3, with a small composable that keeps an event in a `ref` | You build a Vue 3 app |
+| `vue-ts` | The `react-ts` app in Vue 3, with `watchEmitter` and `useEventRef` from `nanoeffects/vue` | You build a Vue 3 app |
 
 ```bash
 npm create nanoeffects@latest my-app -- --template react
@@ -63,7 +63,7 @@ npm create nanoeffects@latest my-app -- --template react-ts
 
 ### Start with Vue
 
-`vue-ts` is the search app of `react-ts` in Vue 3 with `<script setup lang="ts">`. It adds no API to nanoeffects. One small file of the project, `src/use-event-ref.ts`, keeps the last payload of an event in a `ref` and stops listening when the component unmounts, the way `useEventState` does in React. Like `useEventState`, it is [not a store](react.md#show-the-last-value-of-an-event-as-state): a value that several components share belongs in a store such as Pinia.
+`vue-ts` is the search app of `react-ts` in Vue 3 with `<script setup lang="ts">`. Its bus uses `vuePlugin` from `nanoeffects/vue`: `watchEmitter` sends the query to the bus when it changes, and `useEventRef` keeps the result of the search in a `ref`. Like `useEventState` in React, `useEventRef` is [not a store](vue.md#it-is-not-a-store): a value that several components share belongs in a store such as Pinia.
 
 ```bash
 npm create nanoeffects@latest my-app -- --template vue-ts

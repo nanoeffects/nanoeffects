@@ -23,6 +23,7 @@ import {
 	type Recorder,
 	tracePlugin,
 } from "../trace";
+import { vuePlugin } from "../vue";
 import { noPayload } from "./test-helpers";
 
 // Every plugin of the package, in many orders. For each order the bus gets the plugins, and the
@@ -40,7 +41,8 @@ type Name =
 	| "signal"
 	| "dev"
 	| "trace"
-	| "react";
+	| "react"
+	| "vue";
 
 const names: Name[] = [
 	"context",
@@ -54,6 +56,7 @@ const names: Name[] = [
 	"dev",
 	"trace",
 	"react",
+	"vue",
 ];
 
 type Registry = ReturnType<ReturnType<typeof commandsPlugin>>;
@@ -167,8 +170,10 @@ const make = (order: Name[]): Build => {
 			);
 		} else if (name === "trace") {
 			build.bus.use(tracePlugin());
-		} else {
+		} else if (name === "react") {
 			build.bus.use(reactPlugin());
+		} else {
+			build.bus.use(vuePlugin());
 		}
 	}
 
@@ -524,6 +529,13 @@ const probes: Probe[] = [
 		id: "bus.useEmitter is there",
 		needs: ["react"],
 		run: ({ bus }) => isFunction(field(bus, "useEmitter")),
+	},
+	{
+		id: "bus.watchEmitter and bus.useEventRef are there",
+		needs: ["vue"],
+		run: ({ bus }) =>
+			isFunction(field(bus, "watchEmitter")) &&
+			isFunction(field(bus, "useEventRef")),
 	},
 	{
 		id: "bus.useEventState is there",

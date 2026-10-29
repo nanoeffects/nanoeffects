@@ -7,8 +7,8 @@ import { pathToFileURL } from "node:url";
 const notrace = process.argv.includes("--notrace");
 const entry = (dir, name) =>
 	import(pathToFileURL(join(process.cwd(), "dist", dir, `${name}.js`)).href);
-// `observable` and `react` have no build without tracing: they have no tracing in it
-const withoutTraceBuild = ["observable", "react"];
+// `observable`, `react` and `vue` have no build without tracing: they have no tracing in it
+const withoutTraceBuild = ["observable", "react", "vue"];
 const load = (name) =>
 	entry(notrace && !withoutTraceBuild.includes(name) ? "notrace" : "", name);
 
@@ -24,6 +24,12 @@ const hasReact = await import("react").then(
 	() => false,
 );
 const reactEntry = hasReact ? await load("react") : null;
+// vue is an optional peer dependency as well
+const hasVue = await import("vue").then(
+	() => true,
+	() => false,
+);
+const vueEntry = hasVue ? await load("vue") : null;
 
 const fail = (message) => {
 	console.error(`smoke test failed: ${message}`);
@@ -99,6 +105,9 @@ if (observed.join() !== "again") {
 }
 if (reactEntry && typeof reactEntry.reactPlugin !== "function") {
 	fail("react");
+}
+if (vueEntry && typeof vueEntry.vuePlugin !== "function") {
+	fail("vue");
 }
 if (
 	[debounce, queue, throttle].some((policy) => typeof policy !== "function")
