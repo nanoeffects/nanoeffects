@@ -282,7 +282,8 @@ describe("webpack", () => {
 
 		expect(normal).toContain("settler");
 		expect(lean).not.toContain("settler");
-		expect(lean.length).toBeLessThan(normal.length);
+		// no length check: this bundle is not minified and names every module by its path,
+		// and the paths of the notrace build are longer, so the length depends on the machine
 		expect(await runCommonJs(file)).toEqual([1]);
 	});
 
