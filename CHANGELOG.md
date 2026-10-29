@@ -2,6 +2,11 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
+## Unreleased
+
+### Added
+- `npm create nanoeffects@latest my-app` makes a Vite project from the `vanilla` or `react` template. [Docs](docs/starter.md)
+
 ## 0.16.0
 
 ### Breaking

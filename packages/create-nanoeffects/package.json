@@ -1,0 +1,37 @@
+{
+	"name": "create-nanoeffects",
+	"version": "0.16.0",
+	"description": "Start a project with nanoeffects: npm create nanoeffects@latest my-app",
+	"keywords": [
+		"create",
+		"scaffold",
+		"starter",
+		"nanoeffects"
+	],
+	"license": "MIT",
+	"author": "Vladimir Yazykov <neizerth@gmail.com>",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/nanoeffects/nanoeffects.git",
+		"directory": "packages/create-nanoeffects"
+	},
+	"bugs": {
+		"url": "https://github.com/nanoeffects/nanoeffects/issues"
+	},
+	"homepage": "https://github.com/nanoeffects/nanoeffects#readme",
+	"engines": {
+		"node": ">=18"
+	},
+	"type": "module",
+	"bin": {
+		"create-nanoeffects": "./index.js"
+	},
+	"files": [
+		"index.js",
+		"templates",
+		"README.md"
+	],
+	"publishConfig": {
+		"access": "public"
+	}
+}

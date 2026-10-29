@@ -29,7 +29,11 @@ export default defineConfig({
 		],
 	},
 	test: {
-		include: ["src/**/*.test.ts", "scripts/**/*.test.mjs"],
+		include: [
+			"src/**/*.test.ts",
+			"scripts/**/*.test.mjs",
+			"packages/*/*.test.js",
+		],
 		// ArchUnitTS adds its matcher to the global `expect`
 		globals: true,
 	},

@@ -1,10 +1,13 @@
 name: Release
 
-# Push a tag `v0.1.0` that matches the version in package.json: the workflow checks everything,
-# publishes to npm and creates the GitHub release with the notes of that version from CHANGELOG.md
+# Push a tag `v0.1.0` that matches the version in package.json and in packages/create-nanoeffects:
+# the workflow checks everything, publishes both packages to npm (nanoeffects first, because the
+# project that create-nanoeffects makes depends on it) and creates the GitHub release with the notes
+# of that version from CHANGELOG.md
 # (scripts/release-notes.mjs: the section, absolute links, and the link to the changes since the version before).
 # npm trusted publishing: on npmjs.com, Settings > Trusted Publisher of the package, add this
-# repository and the workflow file `release.yml`. No token is stored here.
+# repository and the workflow file `release.yml`, for nanoeffects and for create-nanoeffects.
+# No token is stored here.
 
 on:
   push:
@@ -29,10 +32,12 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
-      - name: The tag matches the version of the package
+      - name: The tag matches the version of both packages
         run: |
           version="$(node -p "require('./package.json').version")"
+          starter="$(node -p "require('./packages/create-nanoeffects/package.json').version")"
           test "v$version" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME, package $version"; exit 1; }
+          test "$starter" = "$version" || { echo "nanoeffects $version, create-nanoeffects $starter"; exit 1; }
 
       - name: The changelog has notes for this version
         run: grep -q "^## ${GITHUB_REF_NAME#v}$" CHANGELOG.md
@@ -43,6 +48,10 @@ jobs:
       - run: pnpm smoke
 
       - run: npm publish --provenance --access public
+
+      # after nanoeffects: the project it makes asks npm for this version of nanoeffects
+      - run: npm publish --provenance --access public
+        working-directory: packages/create-nanoeffects
 
       - name: GitHub release
         env:

@@ -41,6 +41,7 @@ src/observable.ts       createObserve, Subject: an event of the bus as a TC39 Ob
 src/dev/                devPlugin: leak warning and module messages; wraps bus.on and app.mount, no dev code in core or actions; `noop.ts` is the production build
 src/trace/              createTracer + loggers (console, performance, recorder, redux devtools)
 src/utils/              onAbort hub, linkedController, delay, setTimer/clearTimer, raceAbort, promise, report
+packages/create-nanoeffects/  the npm package behind `npm create nanoeffects`: `index.js` (the CLI, no dependencies, no build), `templates/vanilla` and `templates/react` (JavaScript, Vite; biome ignores them), `index.test.js`
 src/tests/              tests that cross modules (flows, fuzz, scenarios, regressions.*) and test-helpers.ts
 integration/            tests with the real libraries and bundlers (own vitest config: vitest.integration.config.ts)
 docs/, examples/        user documentation (see Documentation); examples are type-checked (tsconfig paths map `nanoeffects/*` to `src`)
@@ -203,7 +204,7 @@ Bug fixes follow the same line. When the code does not do what a spec or the doc
 
 npm publishing goes through GitHub Actions with npm trusted publishing (no token): the package settings on npmjs.com name this repository and the workflow `release.yml`. To release:
 
-1. Write the notes under `## <version>` in `CHANGELOG.md`, and set the same `version` in `package.json` (`npm version <x> --no-git-tag-version`).
+1. Write the notes under `## <version>` in `CHANGELOG.md`, and set the same `version` in `package.json` (`npm version <x> --no-git-tag-version`) and in `packages/create-nanoeffects/package.json` (`npm version <x> --no-git-tag-version --prefix packages/create-nanoeffects`): the two packages always have one version, and the project that `create-nanoeffects` makes depends on `^<that version>` of `nanoeffects`.
 
    The text of the GitHub release is that section, made by `scripts/release-notes.mjs`, so write it to be read on a release page:
    - Sections by what the reader must do: `### Breaking` (code or setup must change; say how to get the old behavior), `### Changed` (another behavior, rarely breaking), `### Added`, `### Fixed`. Leave out an empty one.
@@ -212,7 +213,7 @@ npm publishing goes through GitHub Actions with npm trusted publishing (no token
    - Nest bullets only to list the parts of one feature, one level deep.
    - Check a release text with `node scripts/release-notes.mjs v<version>`. To fix a published release: `node scripts/release-notes.mjs v<version> > notes.md && gh release edit v<version> --notes-file notes.md`.
 2. `pnpm verify` (what CI runs), commit.
-3. Tag and push: `git tag v<version> && git push origin main v<version>`. The `Release` workflow checks that the tag, `package.json` and the changelog agree, runs `verify` and `smoke`, publishes with provenance, and creates the GitHub release from the changelog.
+3. Tag and push: `git tag v<version> && git push origin main v<version>`. The `Release` workflow checks that the tag, both `package.json` files and the changelog agree, runs `verify` and `smoke`, publishes `nanoeffects` and then `create-nanoeffects` with provenance, and creates the GitHub release from the changelog. If the second publish fails, `nanoeffects` is already out: re-run the failed step, do not re-tag. Both packages need a trusted publisher for `release.yml` on npmjs.com (the first publish of a new name is done by hand once to claim it).
 4. After the release, `pnpm consumer-check` installs `nanoeffects@latest` into a clean project, type-checks the README example and runs it. Do not publish from a laptop: provenance works only from Actions, and a published version cannot be replaced.
 
 ## Tooling notes

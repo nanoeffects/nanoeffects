@@ -15,6 +15,8 @@ npm install nanoeffects
 
 ESM only, no dependencies, types included.
 
+Starting a new project? `npm create nanoeffects@latest my-app` makes a Vite app with a bus ([Docs](docs/starter.md)).
+
 Want to try it first? [Open the playground](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/playground): a search box with `debounce` and `latest`, running in your browser, no install. More playgrounds (React) and recipes: [Examples](examples/README.md).
 
 ## Create a bus
