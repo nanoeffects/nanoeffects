@@ -18,9 +18,11 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      # v6, not v7: v7 stops exporting the dummy NODE_AUTH_TOKEN, which the publish below has run with;
+      # change it when a release can be watched
+      - uses: actions/setup-node@v6
         with:
           node-version: 24 # npm 11.5.1 or newer is needed for trusted publishing
           registry-url: https://registry.npmjs.org
