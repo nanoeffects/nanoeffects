@@ -42,7 +42,9 @@ import { createBus } from "nanoeffects";
 import { delay, effectsPlugin, race } from "nanoeffects/effects";
 
 // effectsPlugin — race and delay are bound to the task of each handler
-const bus = createBus().use(effectsPlugin({ race, delay }));
+const effects = effectsPlugin({ race, delay });
+
+const bus = createBus().use(effects);
 
 bus.on("load", async (id, { race, delay }) => {
   const result = await race({
@@ -148,8 +150,12 @@ With a tracer on the bus, the plugin lets a trace say which subscription began a
 import { createBus } from "nanoeffects";
 import { consoleLogger, createTracer, tracePlugin } from "nanoeffects/trace";
 
+// createTracer: sends each trace event to the logger; consoleLogger: prints one line each
+const trace = createTracer(consoleLogger());
+
 // tracePlugin — names the roots, groups and listeners of the trace
-const bus = createBus({ trace: createTracer(consoleLogger()) }).use(tracePlugin());
+const bus = createBus({ trace })
+  .use(tracePlugin());
 
 bus.on("name/changed", saveName, { traceId: "saveNotifier" }); // a listener you can find in the log
 ```

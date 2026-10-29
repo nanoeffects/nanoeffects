@@ -84,7 +84,11 @@ const searchOnce = timeout(5000, (query, { signal }) => api.search(query, { sign
 // retry: up to 4 attempts, backoff makes the pause longer each time
 const searchWithRetry = retry(searchOnce, {
   times: 4,
-  delay: backoff({ base: 200, max: 5000, jitter: true }),
+  delay: backoff({
+    base: 200,
+    max: 5000,
+    jitter: true,
+  }),
 });
 
 // latest: a newer search aborts the whole retry chain

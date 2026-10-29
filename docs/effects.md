@@ -124,7 +124,11 @@ import { backoff, retry } from "nanoeffects/effects";
 const loadWithRetry = retry(loadUser, {
   times: 5,
   // backoff — pause 200, 400, 800, … ms, never over 5 s, a random part of it
-  delay: backoff({ base: 200, max: 5000, jitter: true }),
+  delay: backoff({
+    base: 200,
+    max: 5000,
+    jitter: true,
+  }),
 });
 ```
 
@@ -147,8 +151,11 @@ If handlers call the same helpers often, put them on the task once. A handler th
 import { createBus } from "nanoeffects";
 import { all, delay, effectsPlugin, race } from "nanoeffects/effects";
 
-// effectsPlugin — add race, all and delay to the context of every task; returns the same bus
-const bus = createBus().use(effectsPlugin({ race, all, delay }));
+// effectsPlugin — add race, all and delay to the context of every task
+const effects = effectsPlugin({ race, all, delay });
+
+// use returns the same bus, typed with the new fields
+const bus = createBus().use(effects);
 
 bus.on("load", async (id, { race, all, delay }) => {
   // race — same as race(ctx, …)

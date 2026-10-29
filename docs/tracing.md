@@ -66,7 +66,10 @@ bus.on("load", async (id, ctx) => {
 import { createBus } from "nanoeffects";
 import { consoleLogger, createTracer, tracePlugin } from "nanoeffects/trace";
 
-export const bus = createBus({ trace: createTracer(consoleLogger()) })
+// createTracer: sends each trace event to the logger; consoleLogger: prints one line each
+const trace = createTracer(consoleLogger());
+
+export const bus = createBus({ trace })
   .use(tracePlugin()); // tracePlugin: reports each emit as an event
 ```
 
@@ -95,7 +98,9 @@ import { createAction, emitterPlugin } from "nanoeffects/actions";
 import { consoleLogger, createTracer, tracePlugin } from "nanoeffects/trace";
 
 // createTracer: reports every task phase to the console
-const bus = createBus({ trace: createTracer(consoleLogger()) })
+const trace = createTracer(consoleLogger());
+
+const bus = createBus({ trace })
   .use(tracePlugin()) // tracePlugin: makes the root task that traceId names
   .use(emitterPlugin());
 
@@ -136,8 +141,12 @@ import { createBus } from "nanoeffects";
 import { createCommand } from "nanoeffects/actions";
 import { consoleLogger, createTracer, tracePlugin } from "nanoeffects/trace";
 
+// createTracer: sends each trace event to the logger; consoleLogger: prints one line each
+const trace = createTracer(consoleLogger());
+
 // tracePlugin: reads traceGroupId from the scope of a call
-const bus = createBus({ trace: createTracer(consoleLogger()) }).use(tracePlugin());
+const bus = createBus({ trace })
+  .use(tracePlugin());
 
 // the scope names the flow; traceGroupId is for the tracer, not a field of ctx
 const pay = createCommand("checkout/pay", async () => {}, {
@@ -163,7 +172,11 @@ Give the listener a `traceId` when you register it. The plugin makes each call o
 import { createBus } from "nanoeffects";
 import { consoleLogger, createTracer, tracePlugin } from "nanoeffects/trace";
 
-const bus = createBus({ trace: createTracer(consoleLogger()) }).use(tracePlugin());
+// createTracer: sends each trace event to the logger; consoleLogger: prints one line each
+const trace = createTracer(consoleLogger());
+
+const bus = createBus({ trace })
+  .use(tracePlugin());
 
 // traceId: the name of this listener in the trace
 bus.on("name/changed", saveName, { traceId: "saveNotifier" });
@@ -270,7 +283,10 @@ export const bus = createBus({ trace: createTracer(logger) })
 import { reduxDevtools } from "nanoeffects/trace";
 
 // debugging a race: which calls did a policy cancel or drop?
-reduxDevtools({ name: "app", policies: ["cancel", "drop"] });
+reduxDevtools({
+  name: "app",
+  policies: ["cancel", "drop"],
+});
 
 // every stage of every policy, one function for the choice
 reduxDevtools({
@@ -279,10 +295,18 @@ reduxDevtools({
 });
 
 // the old log: every stage, and the effects below the handlers
-reduxDevtools({ name: "app", policies: true, depth: 1, payload: "all" });
+reduxDevtools({
+  name: "app",
+  policies: true,
+  depth: 1,
+  payload: "all",
+});
 
 // keep the payloads out of the extension
-reduxDevtools({ name: "app", payload: "none" });
+reduxDevtools({
+  name: "app",
+  payload: "none",
+});
 ```
 
 With two quick `search` emits and a `latest` handler, the default list is `search`, `search`. With `policies: true` it adds the `latest` stages of each call, for example `search/latest/cancel` for the first one.
