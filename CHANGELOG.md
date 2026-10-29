@@ -5,6 +5,7 @@ How to read an entry: **Breaking** needs a change in your code or setup, **Chang
 ## Unreleased
 
 ### Added
+- `app.mount(a, b, c)` and `app.unmount(a, b)` take any number of modules. They are mounted in order and undone in reverse order, and a call that fails leaves none of its modules mounted. [Docs](docs/actions.md#mount-domains-with-modules)
 - A chat example with domains, modules and a small Fastify server that fails on a known schedule, and a page that explains it. [Docs](docs/chat-example.md)
 
 ## 0.19.1

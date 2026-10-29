@@ -151,6 +151,37 @@ describe("devPlugin: modules", () => {
 		expect(calls).toEqual(["new"]);
 	});
 
+	it("reports each module of a call with several, in order, and their unmounts in reverse", () => {
+		const { app, messages } = withApp();
+		const first = createModule<TestEvents>("first", () => {});
+		const second = createModule<TestEvents>("second", () => {});
+
+		const stop = app.mount(first, second);
+		stop();
+
+		expect(messages).toEqual([
+			'[nanoeffects] module "first" mounted',
+			'[nanoeffects] module "second" mounted',
+			'[nanoeffects] module "second" unmounted',
+			'[nanoeffects] module "first" unmounted',
+		]);
+	});
+
+	it("reports the unmount of several modules through app.unmount", () => {
+		const { app, messages } = withApp();
+		const first = createModule<TestEvents>("first", () => {});
+		const second = createModule<TestEvents>("second", () => {});
+		app.mount(first, second);
+		messages.length = 0;
+
+		app.unmount(first, second);
+
+		expect(messages).toEqual([
+			'[nanoeffects] module "second" unmounted',
+			'[nanoeffects] module "first" unmounted',
+		]);
+	});
+
 	it("reports an unmount, through app.unmount and through the returned function", () => {
 		const { app, messages } = withApp();
 		const first = createModule<TestEvents>("first", () => {});

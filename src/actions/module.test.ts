@@ -736,3 +736,116 @@ describe("modules in the trace", () => {
 		).toEqual(["math/double/command/start", "math/double/command/done"]);
 	});
 });
+
+describe("app.mount and app.unmount with several modules", () => {
+	const named = (name: string, log: string[]) =>
+		createModule<Events>(name, (moduleContext) => {
+			log.push(`mount ${name}`);
+			moduleContext.signal.addEventListener("abort", () =>
+				log.push(`stop ${name}`),
+			);
+		});
+
+	it("mounts one module as before", () => {
+		const log: string[] = [];
+		const app = createApp<Events>();
+		const first = named("first", log);
+		const stop = app.mount(first);
+
+		expect(app.isMounted(first)).toBe(true);
+		stop();
+		expect(app.isMounted(first)).toBe(false);
+	});
+
+	it("mounts several modules in order and returns one function that undoes them, last first", () => {
+		const log: string[] = [];
+		const app = createApp<Events>();
+		const stop = app.mount(named("a", log), named("b", log), named("c", log));
+
+		expect(log).toEqual(["mount a", "mount b", "mount c"]);
+		log.length = 0;
+		stop();
+		expect(log).toEqual(["stop c", "stop b", "stop a"]);
+	});
+
+	it("leaves a module that was mounted before, also when the function is called", () => {
+		const log: string[] = [];
+		const app = createApp<Events>();
+		const a = named("a", log);
+		const b = named("b", log);
+		const c = named("c", log);
+		app.mount(b);
+		log.length = 0;
+
+		const stop = app.mount(a, b, c);
+		expect(log).toEqual(["mount a", "mount c"]);
+
+		stop();
+		expect(app.isMounted(b)).toBe(true);
+		expect(app.isMounted(a)).toBe(false);
+		expect(app.isMounted(c)).toBe(false);
+	});
+
+	it("unmounts several modules in reverse order of the arguments", () => {
+		const log: string[] = [];
+		const app = createApp<Events>();
+		const a = named("a", log);
+		const b = named("b", log);
+		app.mount(a, b);
+		log.length = 0;
+
+		app.unmount(a, b);
+		expect(log).toEqual(["stop b", "stop a"]);
+	});
+
+	it("undoes the modules of the call when the setup of one throws, and throws the error", () => {
+		const log: string[] = [];
+		const app = createApp<Events>();
+		const broken = createModule<Events>("broken", () => {
+			throw new Error("setup failed");
+		});
+		const c = named("c", log);
+
+		expect(() => app.mount(named("a", log), broken, c)).toThrow("setup failed");
+		expect(log).toEqual(["mount a", "stop a"]);
+		expect(app.isMounted(c)).toBe(false);
+	});
+
+	it("does nothing with no module", () => {
+		const app = createApp<Events>();
+		const stop = app.mount();
+
+		expect(stop).toBeTypeOf("function");
+		expect(() => stop()).not.toThrow();
+	});
+
+	it("refuses to mount after dispose, several modules as one", () => {
+		const log: string[] = [];
+		const app = createApp<Events>();
+		app.dispose();
+
+		expect(() => app.mount(named("a", log), named("b", log))).toThrow();
+		expect(log).toEqual([]);
+	});
+
+	it("replaces a module of the same name, as a single mount does", () => {
+		const log: string[] = [];
+		const app = createApp<Events>();
+		app.mount(named("user", log));
+		log.length = 0;
+
+		app.mount(named("user", log), named("other", log));
+		expect(log).toEqual(["stop user", "mount user", "mount other"]);
+	});
+
+	it("takes a list that is spread", () => {
+		const log: string[] = [];
+		const app = createApp<Events>();
+		const modules = [named("a", log), named("b", log)];
+		const stop = app.mount(...modules);
+
+		expect(modules.every((module) => app.isMounted(module))).toBe(true);
+		stop();
+		expect(modules.some((module) => app.isMounted(module))).toBe(false);
+	});
+});

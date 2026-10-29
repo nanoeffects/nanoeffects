@@ -254,6 +254,33 @@ app.commands.handle(getUser, fakeUser); // in a test
 app.dispose(); // unmounts every module
 ```
 
+`mount` and `unmount` take any number of modules. Use it to start the domains of an app yourself, in the order you give, instead of waiting for the first use of the bus:
+
+```js
+import { createModule } from "nanoeffects/actions";
+import { app } from "./bus";
+
+const userModule = createModule("user", (m) => {
+  m.on("user/loaded", (user) => console.log(user));
+});
+const orderModule = createModule("order", (m) => {
+  m.on("order/placed", (order) => console.log(order));
+});
+
+// mount — start both modules, left to right
+const stop = app.mount(userModule, orderModule);
+
+// the returned function stops them again, last mounted first (orderModule, then userModule)
+stop();
+
+// the same for modules that you already have in an array: spread it
+const modules = [userModule, orderModule];
+app.mount(...modules);
+app.unmount(...modules); // also in reverse order
+```
+
+If the `setup` of one module throws, the modules of that call that were already mounted are unmounted again and the error is thrown, so a call mounts all of its modules or none. A module that is mounted already is skipped.
+
 - **Unmounting undoes everything** the module did: subscriptions, bound commands, sub-modules, and background tasks (aborted).
 - **A module is known by its name.** Mounting a module whose name is taken replaces the mounted one (see [Hot reload](hmr.md)).
 - **Registry.** If `bus.use(commandsPlugin())` ran first, that registry is used; otherwise the module plugin attaches its own. Either way it is `bus.commands` and `app.commands`.

@@ -11,6 +11,7 @@ import type { Scoped, ScopeSlots } from "../scope/types";
 import { onAbort } from "../utils";
 import { type Binding, commandsPlugin } from "./command";
 import { holdListeners } from "./hold";
+import { mountEach } from "./mount-each";
 
 /**
  * What a module's `setup` gets: the context of the module's task, so `on`,
@@ -152,8 +153,8 @@ type Registry<E extends EventMap> = ReturnType<
  * of what `modulePlugin` returns that `devPlugin` wraps.
  */
 export interface ModuleHost {
-	mount(module: { readonly name: string }): UnsubscribeCallback;
-	unmount(module: { readonly name: string }): void;
+	mount(...modules: Array<{ readonly name: string }>): UnsubscribeCallback;
+	unmount(...modules: Array<{ readonly name: string }>): void;
 	isMounted(module: { readonly name: string }): boolean;
 }
 
@@ -166,9 +167,14 @@ export interface WithApp {
 export type ModuleApi<E extends EventMap = EventMap> = {
 	/** The registry of command handlers of the bus: the one it was made with, or the app's own. */
 	commands: Registry<E>;
-	/** Mounts a module and returns the function that unmounts it; a module that is mounted already is not run again. */
-	mount(module: Module<E>): UnsubscribeCallback;
-	unmount(module: Module<E>): void;
+	/**
+	 * Mounts modules, in the order given, and returns the function that unmounts them, last
+	 * mounted first. A module that is mounted already is not run again. If one of them throws,
+	 * the ones mounted by this call are unmounted and the error is thrown.
+	 */
+	mount(...modules: Module<E>[]): UnsubscribeCallback;
+	/** Unmounts modules, in reverse order of the arguments. */
+	unmount(...modules: Module<E>[]): void;
 	isMounted(module: Module<E>): boolean;
 	/** Unmounts every module; a disposed app cannot mount modules. */
 	dispose(): void;
@@ -331,7 +337,7 @@ export const modulePlugin =
 		const emitted = bus.emit;
 		type Running = {
 			root: ReturnType<typeof createTask<E>>;
-			apps: ReturnType<typeof mounts>;
+			apps: ReturnType<typeof mountEach<Module<E>>>;
 		};
 		let running: Running | undefined;
 
@@ -349,11 +355,9 @@ export const modulePlugin =
 				tracer: bus.trace,
 			});
 			// set before the modules are mounted: a `setup` that uses the app does not start it again
-			running = { root, apps: mounts(root.ctx) };
+			running = { root, apps: mountEach(mounts(root.ctx)) };
 			if (initial) {
-				for (const module of modules) {
-					running.apps.mount(module);
-				}
+				running.apps.mount(...modules);
 			}
 			hold.replay();
 
@@ -372,12 +376,12 @@ export const modulePlugin =
 				start();
 				return registry;
 			},
-			mount: (module) => {
+			mount: (...given) => {
 				const { root, apps } = start();
 				root.ctx.signal.throwIfAborted();
-				return apps.mount(module);
+				return apps.mount(...given);
 			},
-			unmount: (module) => start().apps.unmount(module),
+			unmount: (...given) => start().apps.unmount(...given),
 			isMounted: (module) => start().apps.isMounted(module),
 			// a dispose that comes first starts the app without the initial modules
 			dispose: () => start(false).root.ctx.abort(),

@@ -1,4 +1,5 @@
 import type { ModuleHost, WithApp } from "../actions/module";
+import { mountEach } from "../actions/mount-each";
 import type { Bus } from "../core/bus";
 import { eventKey } from "../core/event";
 import type { EventMap } from "../core/types";
@@ -181,8 +182,14 @@ const watchModules = (app: ModuleHost, info: (message: string) => void) => {
 		}
 		unmount(module);
 	};
-	app.mount = mountReported;
-	app.unmount = unmountReported;
+	// the same form as the app has: any number of modules, each one reported as it goes through
+	const reported = mountEach({
+		mount: mountReported,
+		unmount: unmountReported,
+		isMounted: (module: Named) => app.isMounted(module),
+	});
+	app.mount = reported.mount;
+	app.unmount = reported.unmount;
 
 	return () => {
 		app.mount = mount;

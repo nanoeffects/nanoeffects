@@ -1132,6 +1132,41 @@ describe("createEffectsMiddleware", () => {
 	});
 });
 
+describe("app.mount and app.unmount", () => {
+	type PingEvents = { ping: number };
+
+	it("take any number of modules of the bus", () => {
+		const bus = createBus<PingEvents>();
+		const app = bus.use(modulePlugin());
+		const first = createModule<PingEvents>("first", () => {});
+		const second = createModule<PingEvents>("second", () => {});
+		const modules = [first, second];
+
+		const calls = () => {
+			expectTypeOf(app.mount(first)).toEqualTypeOf<() => void>();
+			expectTypeOf(app.mount(first, second)).toEqualTypeOf<() => void>();
+			app.mount(...modules);
+			app.mount();
+			app.unmount(first, second);
+		};
+		expectTypeOf(calls).toBeFunction();
+	});
+
+	it("reject a value that is not a module", () => {
+		const bus = createBus<PingEvents>();
+		const app = bus.use(modulePlugin());
+		const first = createModule<PingEvents>("first", () => {});
+
+		const wrongCalls = () => {
+			// @ts-expect-error a string is not a module
+			app.mount(first, "second");
+			// @ts-expect-error an array is not a module: spread it
+			app.mount([first]);
+		};
+		expectTypeOf(wrongCalls).toBeFunction();
+	});
+});
+
 describe("reactPlugin", () => {
 	type ProfileEvents = {
 		"name/changed": string;

@@ -8,8 +8,5 @@ import { searchModule } from "./domains/search/search-module";
 // modulePlugin — the app that mounts and unmounts domains; it starts with none
 export const app = bus.use(modulePlugin([]));
 
-// mount — start each domain. Rooms goes last: it starts loading as soon as it is mounted.
-app.mount(messagesModule);
-app.mount(searchModule);
-app.mount(incomingModule);
-app.mount(roomsModule);
+// mount — start the domains in this order. Rooms goes last: it starts loading as soon as it is mounted.
+app.mount(messagesModule, searchModule, incomingModule, roomsModule);
