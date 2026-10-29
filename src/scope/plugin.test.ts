@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createAction, createCommand } from "../actions";
+import { contextPlugin } from "../context";
 import { createBus, type WithContext } from "../core/bus";
-import { contextPlugin } from "../core/context-plugin";
 import type { EventMap } from "../core/types";
 import { delay, effectsPlugin, race } from "../effects";
 import { noPayload } from "../tests/test-helpers";

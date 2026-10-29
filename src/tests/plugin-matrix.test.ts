@@ -7,8 +7,8 @@ import {
 	emitterPlugin,
 	modulePlugin,
 } from "../actions";
+import { contextPlugin } from "../context";
 import { type Bus, createBus } from "../core/bus";
-import { contextPlugin } from "../core/context-plugin";
 import type { EventMap } from "../core/types";
 import { devPlugin } from "../dev";
 import { delay, effectsPlugin, race } from "../effects";

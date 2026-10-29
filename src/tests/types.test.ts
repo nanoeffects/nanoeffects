@@ -12,13 +12,13 @@ import {
 	emitterPlugin,
 	modulePlugin,
 } from "../actions";
+import { contextPlugin } from "../context";
 import {
 	type Context,
 	createBus,
 	type EventsOf,
 	type WithContext,
 } from "../core/bus";
-import { contextPlugin } from "../core/context-plugin";
 import type { Effect } from "../core/effect-types";
 import type { EventMap, Task, UnsubscribeCallback } from "../core/types";
 import {

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { modulePlugin } from "../actions";
+import { createBus, type WithContext } from "../core/bus";
 import { all, effectsPlugin, retry } from "../effects";
-import { createBus, type WithContext } from "./bus";
-import { contextPlugin } from "./context-plugin";
+import { contextPlugin } from "./plugin";
 
 type Store = { readonly name: string };
 type Logger = { readonly level: string };

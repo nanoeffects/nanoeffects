@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 // pull in an entry that a user does not import (see the size of `createBus`)
 const aboveCore = [
 	"src/actions/**",
+	"src/context/**",
 	"src/dev/**",
 	"src/effects/**",
 	"src/policies/**",

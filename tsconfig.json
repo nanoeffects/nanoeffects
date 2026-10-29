@@ -26,6 +26,7 @@
 			"nanoeffects/scope": ["./src/scope/index.ts"],
 			"nanoeffects/match": ["./src/match/index.ts"],
 			"nanoeffects/signal": ["./src/signal/index.ts"],
+			"nanoeffects/context": ["./src/context/index.ts"],
 			"nanoeffects/oop": ["./src/oop/index.ts"]
 		}
 	},

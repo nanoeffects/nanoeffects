@@ -70,8 +70,9 @@ At runtime the bus still gives the task its fields. Only the checker does not kn
 <!-- docs-check: skip - a file of examples/typescript-context, type-checked there -->
 ```ts
 // bus.ts
-import { type Context, contextPlugin, createBus, type EventsOf } from "nanoeffects";
+import { type Context, createBus, type EventsOf } from "nanoeffects";
 import { modulePlugin } from "nanoeffects/actions";
+import { contextPlugin } from "nanoeffects/context";
 import { effectsPlugin, race } from "nanoeffects/effects";
 
 // Events: event name → payload; nothing about ctx is written here

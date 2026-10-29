@@ -1,11 +1,7 @@
 // The bus of the app with a store on every ctx, and the names of its types for the other files.
-import {
-	type Context,
-	contextPlugin,
-	createBus,
-	type EventsOf,
-} from "nanoeffects";
+import { type Context, createBus, type EventsOf } from "nanoeffects";
 import { modulePlugin } from "nanoeffects/actions";
+import { contextPlugin } from "nanoeffects/context";
 import { effectsPlugin, race } from "nanoeffects/effects";
 
 export type User = { id: string; name: string };

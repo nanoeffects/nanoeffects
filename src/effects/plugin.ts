@@ -1,5 +1,5 @@
 import type { Bus, WithContext } from "../core/bus";
-import type { NoClash } from "../core/context-plugin";
+import type { NoClash } from "../core/context-types";
 import type { BoundForm, Effects } from "../core/effect-types";
 import type { EventMap, Keys } from "../core/types";
 import type { delay } from "../utils";

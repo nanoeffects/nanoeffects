@@ -25,10 +25,11 @@ To give fields to **one** command, action, job or module, or to replace them for
 
 ## Type the fields (optional)
 
-In TypeScript, `contextPlugin` puts the fields on every task of **this** bus and takes their types from the value you pass. The event map holds only events. It does not wire anything across the app — another bus can have different fields or none.
+In TypeScript, `contextPlugin` (from `nanoeffects/context`) puts the fields on every task of **this** bus and takes their types from the value you pass. The event map holds only events. It does not wire anything across the app — another bus can have different fields or none.
 
 ```ts
-import { contextPlugin, createBus } from "nanoeffects";
+import { createBus } from "nanoeffects";
+import { contextPlugin } from "nanoeffects/context";
 
 // Events — event name → payload
 type Events = { save: Draft };

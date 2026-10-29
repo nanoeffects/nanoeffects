@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as main from "..";
 import * as actions from "../actions";
+import * as context from "../context";
 import * as effects from "../effects";
 import * as observable from "../observable";
 import * as policies from "../policies";
@@ -12,9 +13,12 @@ describe("public entries", () => {
 		expect(Object.keys(main).sort()).toEqual([
 			"anyEventType",
 			"commandCall",
-			"contextPlugin",
 			"createBus",
 		]);
+	});
+
+	it("context", () => {
+		expect(Object.keys(context).sort()).toEqual(["contextPlugin"]);
 	});
 
 	it("effects", () => {

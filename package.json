@@ -98,6 +98,10 @@
 			"types": "./dist/signal.d.ts",
 			"import": "./dist/signal.js"
 		},
+		"./context": {
+			"types": "./dist/context.d.ts",
+			"import": "./dist/context.js"
+		},
 		"./oop": {
 			"types": "./dist/oop.d.ts",
 			"import": "./dist/oop.js"
@@ -213,6 +217,11 @@
 			"name": "signal (plugin)",
 			"path": "dist/signal.js",
 			"limit": "0.6 kB"
+		},
+		{
+			"name": "context (plugin)",
+			"path": "dist/context.js",
+			"limit": "0.2 kB"
 		},
 		{
 			"name": "oop (class entry)",

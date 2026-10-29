@@ -24,7 +24,8 @@ These four cover what most apps need: shared dependencies, effects, commands and
 Every task gets the same fields on `ctx`: a store, an API client, a logger. The types come from the values. More in [Context fields](context.md).
 
 ```js
-import { contextPlugin, createBus } from "nanoeffects";
+import { createBus } from "nanoeffects";
+import { contextPlugin } from "nanoeffects/context";
 
 // contextPlugin — every handler gets ctx.store
 const bus = createBus().use(contextPlugin({ store }));
@@ -232,7 +233,8 @@ One bus with every plugin that does not need React, in a file of its own. The ev
 
 ```js
 // bus.js
-import { contextPlugin, createBus } from "nanoeffects";
+import { createBus } from "nanoeffects";
+import { contextPlugin } from "nanoeffects/context";
 import {
   commandsPlugin,
   emitterPlugin,

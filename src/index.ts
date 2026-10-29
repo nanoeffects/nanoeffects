@@ -26,11 +26,7 @@ export {
 	type WithPayload,
 	type WithType,
 } from "./core/bus";
-export {
-	type ContextTask,
-	contextPlugin,
-	type NoClash,
-} from "./core/context-plugin";
+export type { ContextTask, NoClash } from "./core/context-types";
 export type { Tracer } from "./core/tracer";
 export type {
 	EffectName,

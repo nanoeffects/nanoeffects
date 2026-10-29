@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import { contextPlugin } from "../context";
 import { createBus } from "../core/bus";
-import { contextPlugin } from "../core/context-plugin";
 import { effectsPlugin } from "../effects";
 import { matchPlugin } from "../match";
 import type { TestEvents } from "../tests/test-helpers";

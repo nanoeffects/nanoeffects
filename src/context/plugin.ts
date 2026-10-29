@@ -1,18 +1,6 @@
-import type { Bus, ContextOf, WithContext } from "./bus";
-import type { EventMap } from "./types";
-
-/** What a function that makes the fields of a task gets to see. */
-export type ContextTask = { type: string; payload?: unknown };
-
-/**
- * `unknown` when none of the `fields` is already a context field of the bus,
- * else `never`: the call does not compile. Used as `bus: Bus<E> & NoClash<…>`.
- */
-export type NoClash<Fields extends object, E extends EventMap> = [
-	keyof Fields & keyof ContextOf<E>,
-] extends [never]
-	? unknown
-	: never;
+import type { Bus, WithContext } from "../core/bus";
+import type { ContextTask, NoClash } from "../core/context-types";
+import type { EventMap } from "../core/types";
 
 const isFactory = <Fields extends object>(
 	fields: Fields | ((task: ContextTask) => Fields),

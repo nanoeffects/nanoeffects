@@ -252,6 +252,17 @@ describe("Vite", () => {
 	});
 });
 
+describe("the main entry", () => {
+	it("is createBus and the core only: the context plugin has its own entry", () => {
+		const main = readFileSync(join(root, "dist/index.js"), "utf8");
+		const plugin = readFileSync(join(root, "dist/context.js"), "utf8");
+
+		expect(main).not.toContain("contextPlugin");
+		expect(main).not.toContain("addContext");
+		expect(plugin).toContain("contextPlugin");
+	});
+});
+
 describe("webpack", () => {
 	it("bundles every entry of the package, and the bundle runs", async () => {
 		const file = await webpackBundle("main.js", "full");

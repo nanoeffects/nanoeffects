@@ -131,8 +131,9 @@ The bus, the events, the handlers and the link from the store to the bus are the
 
 ```js
 // bus.js
-import { contextPlugin, createBus } from "nanoeffects";
+import { createBus } from "nanoeffects";
 import { emitterPlugin } from "nanoeffects/actions";
+import { contextPlugin } from "nanoeffects/context";
 import { store } from "./store";
 
 export const bus = createBus()
@@ -513,8 +514,9 @@ export const query = createValue("");
 
 ```js
 // bus.js
-import { contextPlugin, createBus } from "nanoeffects";
+import { createBus } from "nanoeffects";
 import { emitterPlugin } from "nanoeffects/actions";
+import { contextPlugin } from "nanoeffects/context";
 import { query } from "./query";
 
 // emitterPlugin adds bus.emitter; contextPlugin puts `query` on every task as ctx.query
