@@ -63,6 +63,7 @@ describe("public entries", () => {
 	it("observable", () => {
 		expect(Object.keys(observable).sort()).toEqual([
 			"$$observable",
+			"Subject",
 			"createObserve",
 		]);
 	});

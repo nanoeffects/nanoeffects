@@ -70,6 +70,56 @@ bus.on(queryChanged, (query) => console.log("search for", query));
 
 The Observable can come from anywhere, not only from `createObserve`. `subscription.unsubscribe()` stops it; the bus does not know about it. Pass the callback to `subscribe` as it is, and do not call `bus.emitter(...)` inside the operators on every value.
 
+## Read and write one event with a Subject
+
+Problem: `createObserve` only reads. Code written for streams often also needs to push a value into the same event, and passing a bus and an event name around for that is clumsy.
+
+`Subject` is one event of a bus as one object. `subscribe` listens, `next` emits. It has no `complete`, no `error` and no replay: an event of a bus does not end, and the bus keeps no values.
+
+```js
+import { createBus } from "nanoeffects";
+import { Subject } from "nanoeffects/observable";
+
+const bus = createBus(); // the bus: events and handlers
+
+const typed = new Subject(bus, "typed"); // Subject — the event "typed" as a stream you can also write to
+
+const subscription = typed.subscribe((text) => console.log(text)); // like bus.on("typed", …)
+typed.next("hello"); // like bus.emit("typed", "hello"): bus.on handlers and subscribers both run
+subscription.unsubscribe(); // removes this subscription only
+```
+
+- `next` works when you take it off the subject, so `input.addEventListener("input", (event) => typed.next(event.target.value))` and `store.subscribe(typed.next)` need no wrapper.
+- A subscriber that is added later does not get a value emitted before. Add `startWith` or `shareReplay` in RxJS when it should.
+- RxJS takes a `Subject` as it takes `createObserve`: `from(typed)`. It is not an RxJS `Subject` (no `error`, `complete` or `pipe`), so it does not fit where that type is wanted.
+
+### Extend it for a named stream
+
+Problem: the event name is repeated wherever the stream is made. A subclass fixes it once.
+
+```js
+import { createBus } from "nanoeffects";
+import { Subject } from "nanoeffects/observable";
+
+class TypedText extends Subject {
+  constructor(bus) {
+    super(bus, "typed"); // the event is fixed by the class
+  }
+
+  next(text) {
+    super.next(text.trim()); // a method of the subclass replaces the one of Subject
+  }
+}
+
+const bus = createBus(); // the bus: events and handlers
+const typed = new TypedText(bus);
+typed.next("  hello "); // emits "typed" with "hello"
+```
+
+### Use it inside a class with a bus
+
+A class made with `extendBus` has its own `on` and `emit`. Pass `this` as the source and the subscription belongs to the instance, so `dispose()` ends it ([Classes with a bus](oop.md)).
+
 ## Do the work in a handler, not in `switchMap`
 
 An Observable is good for shaping values. A request is better in a handler with a policy, because the handler has a `signal` and the trace shows it. Split it: RxJS ends at the value, the bus starts the work.

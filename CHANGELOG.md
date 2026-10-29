@@ -2,6 +2,13 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
+## Unreleased
+
+### Added
+- `Emitter` in `nanoeffects/oop`: a base class to extend, `class VideoService extends Emitter<VideoEvents> {}`. Every instance is an independent emitter with `on`, `once`, `off`, `emit`, `dispose` and a bus of its own. [Docs](docs/oop.md#make-an-independent-emitter-with-emitter)
+- `extendBus(bus)` without a class returns a class with the methods of that bus, to extend as it is: `class Service extends extendBus(bus) {}`. It used to throw. [Docs](docs/oop.md#extend-the-result-with-no-class-of-your-own)
+- `Subject` in `nanoeffects/observable`: one event of a bus, or of an instance of a class from `extendBus`, as an Observable that also has `next`. It can be extended, and a `Subject` made over `this` ends with `dispose()`. [Docs](docs/observable.md#read-and-write-one-event-with-a-subject)
+
 ## 0.14.0
 
 ### Breaking

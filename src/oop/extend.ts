@@ -21,10 +21,13 @@ const slots = new Set([
 ]);
 
 // `Symbol.dispose` is missing on old runtimes: the class then has `dispose` only
-const disposeSymbol: symbol | undefined = Reflect.get(Symbol, "dispose");
+export const disposeSymbol: symbol | undefined = Reflect.get(Symbol, "dispose");
 
 const isConstructor = (value: unknown): value is Constructor =>
 	typeof value === "function";
+
+// the base of `extendBus(bus)`, which is given no class
+class Empty {}
 
 // defines a member of the prototype unless the class (or one it extends) has it
 const define = (
@@ -69,7 +72,7 @@ const forwarding =
 		Reflect.apply(Reflect.get(bus, name), bus, args);
 
 // subscribes the methods that `@On` and `@Once` marked, for an instance that was just built
-const subscribeMethods = (instance: object, bus: object) => {
+export const subscribeMethods = (instance: object, bus: object) => {
 	for (const { method, spec } of decoratedOf(
 		Reflect.getPrototypeOf(instance) ?? {},
 	)) {
@@ -141,6 +144,9 @@ const extend = (bus: object, Base: Constructor): unknown => {
  * shared by its instances. The methods of the plugins used on `bus` before this
  * call are on the instances too; the ones of plugins used later are not.
  *
+ * `extendBus(bus)` with no class returns a class over an empty base, to extend
+ * as it is: `class Service extends extendBus(bus) {}`.
+ *
  * @example
  * ```ts
  * class SearchServiceBase {
@@ -162,13 +168,11 @@ export function extendBus<B extends object, C extends Constructor>(
 	bus: B,
 	Base: C,
 ): Extended<C, B>;
+export function extendBus<B extends object>(bus: B): Extended<typeof Empty, B>;
 export function extendBus(first: object, second?: Constructor): unknown {
 	if (isConstructor(first)) {
 		return extend(createBus(), first);
 	}
-	if (!second) {
-		throw new TypeError("extendBus: pass the class to extend");
-	}
 
-	return extend(first, second);
+	return extend(first, second ?? Empty);
 }

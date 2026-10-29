@@ -226,7 +226,7 @@
 		{
 			"name": "oop (class entry)",
 			"path": "dist/oop.js",
-			"limit": "2.5 kB"
+			"limit": "2.6 kB"
 		},
 		{
 			"name": "scope (plugin and effect)",

@@ -1,6 +1,11 @@
 # Use the bus from a class
 
-Use this page when **your domain logic lives in classes**: a service, a store or a controller that needs the bus inside its methods. A class made with `extendBus` has `on`, `emit` and the other methods of the bus, and remembers what each instance subscribed to, so `dispose()` ends it all.
+Use this page when **your domain logic lives in classes**: a service, a store or a controller that needs the bus inside its methods. There are two ways to give a class the methods of a bus, and both remember what each instance subscribed to, so `dispose()` ends it all:
+
+| You want | Use |
+| -------- | --- |
+| every `new Service()` to be an independent emitter | `extends Emitter` |
+| the instances to share a bus, or to use plugins | `extends extendBus(bus)` |
 
 If your logic is plain functions, stay with [modules](actions.md#mount-domains-with-modules): a module is the same idea without a class.
 
@@ -8,7 +13,68 @@ If your logic is plain functions, stay with [modules](actions.md#mount-domains-w
 
 A class that listens to the bus keeps a reference to it, and keeps every unsubscribe function in a list to call when the object goes away. Forget one and the old object keeps handling events. `extendBus` does both for you.
 
-## Give a class the methods of a bus
+## Make an independent emitter with `Emitter`
+
+`Emitter` is a base class. Every instance of a class that extends it has a bus of its own: the events of one instance never reach another. It is the shape of Node's `EventEmitter`.
+
+```js
+// video-service.js
+import { Emitter } from "nanoeffects/oop";
+
+// Emitter — a base class: each new VideoService() gets on, once, off, emit, dispose and its own bus
+export class VideoService extends Emitter {
+  constructor() {
+    super();
+    // this.on — a subscription of this instance; dispose() removes it
+    this.on("played", () => console.log("playing"));
+  }
+}
+```
+
+```js
+import { VideoService } from "./video-service";
+
+const first = new VideoService();
+const second = new VideoService();
+first.on("paused", () => console.log("first paused"));
+second.emit("paused"); // nothing: the instances do not share a bus
+first.emit("paused"); // logs "first paused"
+first.dispose(); // its subscriptions are gone
+```
+
+What you get:
+
+- `on`, `once`, `off`, `emit`, `dispose` and `bus` (the bus of that instance). `instance[Symbol.dispose]()` does the same as `dispose()`, so `using video = new VideoService()` works where the runtime supports it.
+- `@On` and `@Once` work on its methods (see below). They are subscribed when the base constructor runs, so before the fields of your subclass.
+- `on`, `once`, `off` and `emit` are bound to the instance, so `const { emit } = video` works. A subclass replaces one with an arrow property (`emit = (…) => …`); TypeScript does not let it redeclare one as a method. `dispose` is a method and can be overridden as usual.
+- No methods of plugins: the bus is made inside, so no plugin is on it. For plugins, or for a bus that several instances or classes share, use `extendBus` (next sections).
+- For a stream of one event, see [`Subject`](observable.md#read-and-write-one-event-with-a-subject) and [Stream an event with a `Subject`](#stream-an-event-with-a-subject).
+
+### Type the events (optional)
+
+`Emitter` takes the events of the class as a type parameter.
+
+```ts
+// video-service.ts
+import { Emitter } from "nanoeffects/oop";
+
+// VideoEvents — checker only: the payload of each event of this class
+type VideoEvents = { "video/time": number; "video/paused": void };
+
+export class VideoService extends Emitter<VideoEvents> {
+  constructor() {
+    super();
+    // seconds is a number because "video/time" carries one
+    this.on("video/time", (seconds) => console.log(seconds));
+  }
+}
+
+const video = new VideoService();
+video.emit("video/time", 12); // checked against VideoEvents
+video.emit("video/paused"); // no payload
+```
+
+## Give a class the methods of a shared bus
 
 `extendBus(bus, Base)` returns a subclass of `Base`. Its instances have the methods of the bus, and the arguments of `new` go to the constructor of `Base`.
 
@@ -69,9 +135,33 @@ What you get:
 - `bus` is the bus, and `Class.bus` is the same one.
 - `this.on` works in the constructor of `Base`. The methods exist on the prototype of the subclass, which is the prototype of the instance already.
 
+### Extend the result with no class of your own
+
+`extendBus(bus)` without a class returns a class with the methods of that bus and nothing else. Extend it as it is.
+
+```js
+// service.js
+import { createBus } from "nanoeffects";
+import { extendBus } from "nanoeffects/oop";
+
+const bus = createBus(); // the bus that the services share
+
+// extendBus(bus) — a class with on, once, off, emit and dispose over this bus
+export class AudioService extends extendBus(bus) {
+  constructor() {
+    super();
+    this.on("muted", () => console.log("muted")); // ends with dispose()
+  }
+}
+
+const audio = new AudioService();
+bus.emit("muted"); // the instances share this bus: logs "muted"
+audio.dispose();
+```
+
 ## Let the class make its bus
 
-Leave the bus out and the class gets its own, shared by all of its instances.
+Leave the bus out and the class gets its own, shared by all of its instances. That is one bus for each class; `Emitter` makes one for each instance.
 
 ```js
 // notifier.js
@@ -112,6 +202,37 @@ stop(); // the function on returned still works, and does nothing now
 ```
 
 A subscription that you removed yourself (the function `on` returned, `this.off`, or a `once` that fired) is forgotten, so the instance holds nothing for it.
+
+## Stream an event with a `Subject`
+
+Problem: a service hands one of its events to code written for streams, and the stream subscription should end with the service. `createObserve(this.bus)` would not: it subscribes through the bus, so `dispose()` does not know it.
+
+Pass `this` to `Subject` as the source. The subject subscribes through `this.on`, so the subscription belongs to the instance ([Read and write one event with a Subject](observable.md#read-and-write-one-event-with-a-subject)).
+
+```js
+// typing.js
+import { createBus } from "nanoeffects";
+import { Subject } from "nanoeffects/observable";
+import { extendBus } from "nanoeffects/oop";
+
+const bus = createBus(); // the bus: events and handlers
+
+class TypingBase {
+  constructor() {
+    this.typed = new Subject(this, "typed"); // Subject — the event "typed" as a stream; this is the source
+    this.typed.subscribe((text) => console.log(text));
+  }
+}
+
+const Typing = extendBus(bus, TypingBase); // extendBus — a class with on, emit and dispose
+
+const typing = new Typing();
+typing.typed.next("a"); // logs "a"
+typing.dispose(); // ends the subscription of the Subject too
+typing.typed.next("b"); // nothing is logged
+```
+
+In TypeScript, declare `on` and `emit` in the class (`declare on: BusMethods<typeof bus>["on"]`, see [Type the instances](#type-the-instances-optional)) so that `this` fits as the source.
 
 ## Keep a method of your own
 
@@ -285,4 +406,5 @@ service.emit("order/placed", { id: "o1" }); // checked against Events
 
 - `this` is not bound in a handler that you pass by hand (see above).
 - The methods of a plugin used after `extendBus` are not on the class. Use the plugins first, then `extendBus`.
-- One bus for each instance, mixing the methods into an object that exists, and decorators for fields or parameters are not part of this entry.
+- `Emitter` has no methods of plugins, because its bus is made inside. Use `extendBus(bus)` for them.
+- Mixing the methods into an object that exists, and decorators for fields or parameters are not part of this entry.

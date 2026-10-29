@@ -34,7 +34,8 @@ import {
 	timeout,
 } from "../effects";
 import { matchPlugin } from "../match";
-import { type BusMethods, extendBus, On } from "../oop";
+import { Subject } from "../observable";
+import { type BusMethods, Emitter, extendBus, On } from "../oop";
 import {
 	debounce,
 	latest,
@@ -1467,6 +1468,30 @@ describe("the class entry: extendBus", () => {
 		// a string event does not know the payload
 		On("anything")((_payload: number) => {}, context);
 	});
+	it("extendBus(bus) with no class types the instance as the methods of the bus", () => {
+		const bus = createBus<Events>();
+		class Service extends extendBus(bus) {}
+		const service = new Service();
+
+		expectTypeOf(service).toExtend<BusMethods<typeof bus>>();
+		expectTypeOf(service.dispose).toEqualTypeOf<() => void>();
+		const wrongCalls = () => {
+			// @ts-expect-error order/placed carries an object
+			service.emit("order/placed", 1);
+		};
+		expectTypeOf(wrongCalls).toBeFunction();
+	});
+
+	it("tells a class, a bus and a bus with a class apart", () => {
+		const bus = createBus<Events>();
+		const OwnBus = extendBus(Base);
+		const SharedBus = extendBus(bus);
+		const WithBase = extendBus(bus, Base);
+
+		expectTypeOf(new OwnBus("a").describe).returns.toBeString();
+		expectTypeOf(new SharedBus().bus).toEqualTypeOf(bus);
+		expectTypeOf(new WithBase("a").describe).returns.toBeString();
+	});
 });
 
 describe("withPolicy", () => {
@@ -1584,5 +1609,108 @@ describe("tracePlugin", () => {
 			bus.on("name/changed", () => {}, { name: "a" });
 		};
 		expectTypeOf(wrongCalls).toBeFunction();
+	});
+});
+
+describe("Subject", () => {
+	type Events = { typed: string; count: number };
+
+	it("takes the payload type from the event map", () => {
+		const bus = createBus<Events>();
+		const subject = new Subject(bus, "typed");
+
+		expectTypeOf(subject.next).parameter(0).toBeString();
+		subject.subscribe((text) => {
+			expectTypeOf(text).toEqualTypeOf<string>();
+		});
+	});
+
+	it("rejects a wrong payload and an unknown event", () => {
+		const bus = createBus<Events>();
+		const subject = new Subject(bus, "typed");
+		const wrongCalls = () => {
+			// @ts-expect-error typed carries a string
+			subject.next(1);
+			// @ts-expect-error there is no such event
+			new Subject(bus, "missing");
+		};
+		expectTypeOf(wrongCalls).toBeFunction();
+	});
+
+	it("an instance of a class from extendBus fits as the source", () => {
+		const bus = createBus<Events>();
+		class Base {
+			declare on: BusMethods<typeof bus>["on"];
+			declare emit: BusMethods<typeof bus>["emit"];
+			readonly count = new Subject(this, "count");
+		}
+		const Service = extendBus(bus, Base);
+		const service = new Service();
+
+		expectTypeOf(service.count.next).parameter(0).toBeNumber();
+	});
+});
+
+describe("the class entry: Emitter", () => {
+	type VideoEvents = { "video/time": number; "video/play": undefined };
+
+	class Video extends Emitter<VideoEvents> {}
+
+	it("types the handlers and payloads by the event map", () => {
+		const video = new Video();
+		video.on("video/time", (seconds) => {
+			expectTypeOf(seconds).toEqualTypeOf<number>();
+		});
+		video.emit("video/time", 12);
+		video.emit("video/play");
+
+		expectTypeOf(video.dispose).toEqualTypeOf<() => void>();
+	});
+
+	it("types the bus of the instance by the event map", () => {
+		const video = new Video();
+
+		expectTypeOf(video.bus).toEqualTypeOf(createBus<VideoEvents>());
+	});
+
+	it("rejects a wrong payload and an unknown event", () => {
+		const video = new Video();
+		const wrongCalls = () => {
+			// @ts-expect-error video/time carries a number
+			video.emit("video/time", "a");
+			// @ts-expect-error there is no such event
+			video.emit("video/missing", 1);
+		};
+		expectTypeOf(wrongCalls).toBeFunction();
+	});
+
+	it("leaves the events free without an event map", () => {
+		class Free extends Emitter {}
+		const free = new Free();
+		free.on("anything", () => {});
+		free.emit("anything", 1);
+
+		expectTypeOf(free.bus).toEqualTypeOf(createBus());
+	});
+
+	it("lets a subclass replace emit with an arrow property, not with a method", () => {
+		class Logged extends Emitter<VideoEvents> {
+			// a property with the type of emit replaces it
+			override emit = createBus<VideoEvents>().emit;
+		}
+		class Wrapped extends Emitter<VideoEvents> {
+			// @ts-expect-error emit is a property of Emitter, so a method cannot redeclare it
+			override emit(): void {}
+		}
+
+		expectTypeOf(new Logged().emit).toBeFunction();
+		expectTypeOf(new Wrapped().dispose).toBeFunction();
+	});
+
+	it("an instance fits where an object with on and emit is wanted", () => {
+		const video = new Video();
+		const subject = new Subject(video, "video/time");
+
+		expectTypeOf(subject.next).parameter(0).toBeNumber();
 	});
 });

@@ -94,6 +94,42 @@ describe("extendBus", () => {
 			expect(first.bus).toBe(Service.bus);
 		});
 
+		it("is the one that is passed, when no class is passed", () => {
+			const bus = makeBus();
+			class Service extends extendBus(bus) {}
+			const first = new Service();
+			const second = new Service();
+			const onBus = vi.fn();
+			const handler = vi.fn();
+			bus.on("ping", onBus);
+			second.on("ping", handler);
+			first.emit("ping", 1);
+
+			expect(Service.bus).toBe(bus);
+			expect(first.bus).toBe(bus);
+			expect(handler).toHaveBeenCalledTimes(1);
+			expect(onBus).toHaveBeenCalledTimes(1);
+		});
+
+		it("has the methods of the plugins used before, when no class is passed", () => {
+			const bus = makeBus().use(emitterPlugin());
+			class Service extends extendBus(bus) {}
+
+			expect(new Service().emitter).toBeTypeOf("function");
+		});
+
+		it("ends the subscriptions with dispose, when no class is passed", () => {
+			const bus = makeBus();
+			class Service extends extendBus(bus) {}
+			const service = new Service();
+			const handler = vi.fn();
+			service.on("ping", handler);
+			service.dispose();
+			bus.emit("ping", 1);
+
+			expect(handler).not.toHaveBeenCalled();
+		});
+
 		it("is one for each class", () => {
 			const One = extendBus(class {});
 			const Two = extendBus(class {});
