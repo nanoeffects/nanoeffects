@@ -53,6 +53,9 @@ importers:
       mobx:
         specifier: ^7.0.6
         version: 7.0.6
+      playwright-core:
+        specifier: 1.64.1
+        version: 1.64.1
       publint:
         specifier: ^0.3.25
         version: 0.3.25
@@ -1670,6 +1673,11 @@ packages:
 
   plantuml-parser@0.4.0:
     resolution: {integrity: sha512-IwbkQNgQK/kvXbSYxZWZpcAItk46ECZm6QFA66+smFZqSIjdglXGNTFniO2VLPpgt8uY8EE0uLOsGgvBrerU5Q==}
+    hasBin: true
+
+  playwright-core@1.64.1:
+    resolution: {integrity: sha512-BC4s8y6SEVA6Q1rSxZTto8hI1KUI3xXlHGZgvGqP4IqPdI/a6FX9H29IDNz7vKo9l21b6LfYosScPL6M3xxyDQ==}
+    engines: {node: '>=20'}
     hasBin: true
 
   postcss@8.5.30:
@@ -3474,6 +3482,8 @@ snapshots:
       require-dir: 1.2.0
       serialize-error: 7.0.1
       yargs: 16.2.2
+
+  playwright-core@1.64.1: {}
 
   postcss@8.5.30:
     dependencies:

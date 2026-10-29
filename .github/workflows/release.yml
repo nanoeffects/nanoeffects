@@ -34,6 +34,8 @@ jobs:
       - name: The changelog has notes for this version
         run: grep -q "^## ${GITHUB_REF_NAME#v}$" CHANGELOG.md
 
+      # verify runs the DevTools playground in a real Chromium
+      - run: pnpm exec playwright-core install --with-deps chromium
       - run: pnpm verify
       - run: pnpm smoke
 

@@ -30,6 +30,8 @@ jobs:
       - run: pnpm llms:check
       - run: pnpm test
       - run: pnpm build
+      # the integration tests include the DevTools playground in a real Chromium
+      - run: pnpm exec playwright-core install --with-deps chromium
       - run: pnpm test:integration
       - run: pnpm lint:package
       - run: pnpm size
