@@ -24,7 +24,7 @@
 	},
 	"type": "module",
 	"bin": {
-		"create-nanoeffects": "./index.js"
+		"create-nanoeffects": "index.js"
 	},
 	"files": [
 		"index.js",
