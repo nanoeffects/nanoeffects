@@ -2,7 +2,7 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
-## Unreleased
+## 0.15.0
 
 ### Added
 - `Emitter` in `nanoeffects/oop`: a base class to extend, `class VideoService extends Emitter<VideoEvents> {}`. Every instance is an independent emitter with `on`, `once`, `off`, `emit`, `dispose` and a bus of its own. [Docs](docs/oop.md#make-an-independent-emitter-with-emitter)
