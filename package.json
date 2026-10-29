@@ -1,6 +1,6 @@
 {
 	"name": "nanoeffects",
-	"version": "0.18.0",
+	"version": "0.18.1",
 	"description": "Cancel stale async work and fix race conditions in event handlers: a typed event bus where every handler is a task with an AbortSignal, plus latest, debounce, throttle, queue, retry, timeout and poll. About 1.4 kB gzip.",
 	"keywords": [
 		"event-bus",

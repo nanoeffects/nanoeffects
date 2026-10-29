@@ -2,6 +2,11 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
+## 0.18.1
+
+### Fixed
+- `create-nanoeffects` writes `bin` without a leading `./`, so npm 11 keeps it in the published manifest and `npm create nanoeffects` finds the command.
+
 ## 0.18.0
 
 ### Added
