@@ -365,23 +365,23 @@ A value of your UI (a query, a filter, a name) often has two jobs. Several compo
 
 | The value lives in | Use when |
 | --- | --- |
-| A Context provider with `useState` | Only components read it. Plain React, one `useEmitter` call. |
+| A Context provider with `useState` and `useEventState` | Only components read it. Plain React, one `useEmitter` and one `useEventState` call. |
 | A small store on `useSyncExternalStore` | A bus handler, a test or a timer must read it too. |
 | An atom of a store library | You already use Nanostores, Jotai and the like. |
 
-#### Plain React: Context and `useEmitter`
+#### Plain React: Context, `useEmitter` and `useEventState`
 
 Writing `useEffect(() => bus.emit(...), [value])` looks enough, but it emits on mount, emits twice on mount under StrictMode, and re-runs when the emit function is new on every render. `useEmitter` from `nanoeffects/react` avoids all three. It emits after a render commits with a changed value, never on mount, and compares with `Object.is`. You need React 18 or newer; no other entry of the package uses React.
 
-First the bus, the events and the handlers, each in its own file. `reactPlugin()` adds `bus.useEmitter`, and destructuring it gives a plain hook that you export from the bus file:
+First the bus, the events and the handlers, each in its own file. `reactPlugin()` adds `bus.useEmitter` and `bus.useEventState`, and destructuring them gives plain hooks that you export from the bus file:
 
 ```js
 // bus.js
 import { createBus } from "nanoeffects";
 import { reactPlugin } from "nanoeffects/react";
 
-export const bus = createBus().use(reactPlugin()); // the bus; reactPlugin adds bus.useEmitter
-export const { useEmitter } = bus; // a free hook: it does not read `this`
+export const bus = createBus().use(reactPlugin()); // the bus; reactPlugin adds the React hooks
+export const { useEmitter, useEventState } = bus; // free hooks: they do not read `this`
 ```
 
 ```js
@@ -411,25 +411,24 @@ bus.on(
 );
 ```
 
-Then the provider. It holds the state, calls `useEmitter` once, and listens for the result. Every component below it only reads the context:
+Then the provider. It holds the state, calls `useEmitter` once to send the query to the bus, and `useEventState` once to receive the result. Every component below it only reads the context:
 
 ```jsx
 // SearchProvider.jsx
-import { createContext, useContext, useEffect, useState } from "react";
-import { bus, useEmitter } from "./bus";
+import { createContext, useContext, useState } from "react";
+import { useEmitter, useEventState } from "./bus";
 import { queryChanged, searchLoaded } from "./search";
 
 const SearchContext = createContext(null);
 
 export function SearchProvider({ children }) {
   const [query, setQuery] = useState("");
-  const [items, setItems] = useState([]);
 
   // React → bus: emits queryChanged(query) after every change of query, not on mount
   useEmitter(queryChanged, query);
 
-  // bus → React: bus.on returns the unsubscribe function, which the effect returns
-  useEffect(() => bus.on(searchLoaded, setItems), []);
+  // bus → React: like useState([]), but searchLoaded sets the value; one subscription for the whole app
+  const [items] = useEventState(searchLoaded, []);
 
   return (
     <SearchContext.Provider value={{ query, setQuery, items }}>
@@ -463,8 +462,9 @@ export function Results() {
 }
 ```
 
-Two limits to know:
+Three limits to know:
 
+- **The provider must be mounted first.** `useEventState` is not a store: the bus keeps no values, so a result that arrives before the provider mounts, or after it unmounts, is lost. Put the provider at the root. If a value must survive that, keep it in a store below and write to it from a handler.
 - **All consumers re-render** on any change of the context value. Split it into two contexts (`query` and `items`) if that is slow.
 - **A new object counts as a change.** For a value that is rebuilt with the same content, pass `equals` in the options, the third argument, to say when two values are the same: `useEmitter(profileChanged, profile, { equals: (previous, next) => previous.id === next.id })`. The same object takes `traceId` and `traceGroupId`, which name the subscription and the flow in the [trace](tracing.md#show-which-subscription-began-a-chain).
 

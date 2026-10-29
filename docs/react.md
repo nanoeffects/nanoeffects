@@ -220,6 +220,8 @@ export function Found() {
 
 `setFound` is the setter of React. It changes the state of this component only and emits nothing.
 
+`useEventState` is not a store. Each component that calls it keeps its own copy of the last payload, and a component that mounts later does not see earlier events. To share a value between components, or to keep it for components that mount later, keep it in a state manager (Redux, Zustand, Jotai or another) and write to it from a handler of the event. See [Stores](stores.md). Without a state manager, one `useEventState` in a Context provider at the root shares the value with every component below it: [Plain React: Context, `useEmitter` and `useEventState`](stores.md#plain-react-context-useemitter-and-useeventstate).
+
 In TypeScript, the state type comes from the event: from `createAction<string[]>("search/loaded")` or from the event map of the bus. When the event has no payload type, as in the example above, it comes from `initial`: `["a"]` is `string[]`, and an empty `[]` is `unknown[]`. Give the event a type, or pass a typed `initial`, when you need more.
 
 The bus keeps no values, so the hook cannot replay an event. An event emitted before the component mounts is not seen: if that matters, read the current value into `initial`.
