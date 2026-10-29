@@ -2,6 +2,11 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
+## 0.19.1
+
+### Changed
+- The starter templates take `signal` and `emit` from the context of the handler (`async (query, { signal, emit }) => ...`) instead of using `ctx.signal` and `ctx.emit`. [Docs](docs/starter.md)
+
 ## 0.19.0
 
 ### Added
