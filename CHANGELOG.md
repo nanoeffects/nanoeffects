@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.0
 
 - `nanoeffects/trace`: `bus.use(tracePlugin())` reports each emit as one trace event, `{ type: <event name>, effect: "emit", phase: "done", payload }`, before its handlers run. It is there when nothing listens, when the listeners report nothing, for a command, and for a `ctx.emit` (the task that emits is its `parentId`). It is a leaf: the parent, root and group of every other task are as before. `"emit"` is a new `EffectName`. `consoleLogger` and `performanceLogger` show it too (a line, a mark) when the plugin is used; without the plugin nothing changes. `createBus` is not changed.
 - **Behavior change:** `reduxDevtools` is quiet in the other direction. By default it sends one action per emit (`type` is the event name; it needs `bus.use(tracePlugin())`) and the failure of a handler, and no longer the tasks of handlers and policies. The new `policies` option adds their stages as `event/policy/phase`: `true` for every phase, a list (`policies: ["cancel", "drop"]`), or a function of `{ effect, phase }`. The default `depth` is `0`: the effects below a handler (`retry`, `timeout`) need `depth: 1`. To get the old lines: `reduxDevtools({ policies: true, depth: 1 })`. Without `tracePlugin` the default log has no emits, and the logger prints one `console.warn` when the first handler task ends with no emit before it.
