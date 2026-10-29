@@ -36,7 +36,7 @@ When the directory name or the template is not given and the input is a terminal
 
 #### Scenario: Ask for the template
 - **WHEN** the command is run in a terminal with a name and no `--template`
-- **THEN** it asks which template to use and lists `vanilla` and `react`
+- **THEN** it asks which template to use and lists every known template, `domains-ts` among them
 
 #### Scenario: No terminal and no name
 - **WHEN** the command is run with no terminal and no directory name
@@ -51,7 +51,7 @@ The command SHALL refuse to write into a directory that exists and is not empty,
 
 #### Scenario: Unknown template
 - **WHEN** the command is run with `--template angular`
-- **THEN** it exits with a non-zero code and lists `vanilla` and `react`
+- **THEN** it exits with a non-zero code and lists every known template, `domains-ts` among them
 
 ### Requirement: The command tells the next steps
 After a successful run the command SHALL print the commands to enter the directory, install, and start the dev server, written for the package manager that ran it.
