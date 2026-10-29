@@ -126,8 +126,9 @@ const listenWith = <E extends EventMap>(
 	const taskOn = task.on;
 
 	return (...args: unknown[]) => {
-		const [event, fn] = args;
-		return Reflect.apply(taskOn, null, [event, within(fn)]);
+		// the options (`{ traceId }` of `tracePlugin`) go on to `on`
+		const [event, fn, ...rest] = args;
+		return Reflect.apply(taskOn, null, [event, within(fn), ...rest]);
 	};
 };
 

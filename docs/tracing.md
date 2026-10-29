@@ -129,7 +129,7 @@ The emitters take it too: `useEmitter(cartChanged, cart, { traceId: "Cart", trac
 
 **When.** An event has more than one listener and you read the trace to see which one did the work.
 
-Give the listener a `traceId` when you register it. The plugin makes each call of it a task with that name, and what it emits with `ctx.emit` is below it. `off` works as before.
+Give the listener a `traceId` when you register it. The plugin makes each call of it a task with that name, and what it emits with `ctx.emit` is below it. `off` works as before. It also works in a module (`m.on(event, handler, { traceId })`) and on an instance made by `extendBus`.
 
 ```js
 import { createBus } from "nanoeffects";

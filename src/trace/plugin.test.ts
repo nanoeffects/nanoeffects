@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { createCommand } from "../actions";
+import { createCommand, createModule, modulePlugin } from "../actions";
 import { createBus } from "../core/bus";
+import { extendBus } from "../oop";
 import { noPayload } from "../tests/test-helpers";
 import { tracePlugin } from "./plugin";
 import { createTraceRecorder } from "./recorder";
@@ -252,5 +253,48 @@ describe("tracePlugin", () => {
 
 			expect(handler).toHaveBeenCalledTimes(1);
 		});
+	});
+});
+
+describe("tracePlugin where listeners are made for you", () => {
+	it("names a listener of a module", async () => {
+		const recorder = createTraceRecorder();
+		const bus = createBus<Events>({ trace: createTracer(recorder) });
+		bus.use(tracePlugin());
+		const handler = vi.fn();
+		bus.use(
+			modulePlugin<Events>([
+				createModule<Events>("probe", (moduleContext) => {
+					moduleContext.on("name/changed", handler, {
+						traceId: "moduleListener",
+					});
+				}),
+			]),
+		);
+
+		bus.emit("name/changed", "Eva");
+		await settle();
+
+		expect(handler).toHaveBeenCalledTimes(1);
+		expect(
+			recorder.events.some((event) => event.type === "moduleListener"),
+		).toBe(true);
+	});
+
+	it("names a listener of an instance made by extendBus", () => {
+		const recorder = createTraceRecorder();
+		const bus = createBus<Events>({ trace: createTracer(recorder) });
+		bus.use(tracePlugin());
+		const handler = vi.fn();
+		const Service = extendBus(bus, class {});
+		const service = new Service();
+		service.on("name/changed", handler, { traceId: "instanceListener" });
+
+		bus.emit("name/changed", "Eva");
+
+		expect(handler).toHaveBeenCalledTimes(1);
+		expect(
+			recorder.events.some((event) => event.type === "instanceListener"),
+		).toBe(true);
 	});
 });
