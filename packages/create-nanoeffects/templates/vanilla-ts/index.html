@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>nanoeffects: search with debounce and latest</title>
+  </head>
+  <body>
+    <h1>Search with debounce and latest</h1>
+    <p>
+      Type fast: one request starts after 300 ms of quiet. Type again while it
+      runs (each takes 800 ms): the older request is aborted.
+    </p>
+    <input id="query" placeholder="Type a query" autocomplete="off" />
+    <p id="status"></p>
+    <ul id="results"></ul>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

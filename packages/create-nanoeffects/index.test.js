@@ -2,6 +2,7 @@ import {
 	existsSync,
 	mkdirSync,
 	mkdtempSync,
+	readdirSync,
 	readFileSync,
 	writeFileSync,
 } from "node:fs";
@@ -104,7 +105,9 @@ describe("run without arguments", () => {
 		});
 		expect(questions).toHaveLength(1);
 		expect(questions[0]).toContain("vanilla");
-		expect(questions[0]).toContain("react");
+		for (const template of templates) {
+			expect(questions[0]).toContain(template);
+		}
 		expect(read("my-app", "src", "App.jsx")).toContain("useEmitter");
 	});
 
@@ -180,7 +183,7 @@ describe("refusals", () => {
 				print,
 				version: "0.17.0",
 			}),
-		).rejects.toThrow(/vanilla, react/);
+		).rejects.toThrow(/vanilla, react, vanilla-ts, react-ts/);
 		expect(existsSync(join(workdir, "app"))).toBe(false);
 	});
 });
@@ -218,15 +221,62 @@ describe("toPackageName", () => {
 });
 
 describe("templates", () => {
+	const sourceExtension = (template) =>
+		template.endsWith("-ts") ? "ts" : "js";
+
+	it("are the four known names, with vanilla as the default", () => {
+		expect(templates).toEqual(["vanilla", "react", "vanilla-ts", "react-ts"]);
+	});
+
 	it("keep the bus, the events and the handlers apart", () => {
 		for (const template of templates) {
 			const target = join(workdir, `layout-${template}`);
 			createProject({ target, template, version: "0.17.0" });
-			const source = (file) => readFileSync(join(target, "src", file), "utf8");
-			expect(source("bus.js")).not.toMatch(/from "\.\/search/);
-			expect(source("search.js")).not.toMatch(/from "\.\/bus/);
-			expect(source("search-handlers.js")).toMatch(/from "\.\/bus"/);
-			expect(source("search-handlers.js")).toMatch(/from "\.\/search"/);
+			const source = (name) =>
+				readFileSync(
+					join(target, "src", `${name}.${sourceExtension(template)}`),
+					"utf8",
+				);
+			expect(source("bus")).not.toMatch(/from "\.\/search/);
+			expect(source("search")).not.toMatch(/from "\.\/bus/);
+			expect(source("search-handlers")).toMatch(/from "\.\/bus"/);
+			expect(source("search-handlers")).toMatch(/from "\.\/search"/);
 		}
+	});
+
+	it("make a TypeScript project from react-ts", async () => {
+		await run({
+			argv: ["my-app", "--template", "react-ts"],
+			cwd: workdir,
+			interactive: false,
+			print,
+			version: "0.17.0",
+		});
+		expect(existsSync(join(workdir, "my-app", ".gitignore"))).toBe(true);
+		expect(read("my-app", "tsconfig.json")).toContain("react-jsx");
+		expect(manifestOf("my-app").scripts.build).toBe(
+			"tsc --noEmit && vite build",
+		);
+		expect(read("my-app", "src", "search.ts")).toContain(
+			"createAction<string[]>",
+		);
+		expect(manifestOf("my-app").name).toBe("my-app");
+	});
+
+	it("give each TypeScript template the files of its JavaScript twin", () => {
+		const names = (template) => {
+			const target = join(workdir, `files-${template}`);
+			createProject({ target, template, version: "0.17.0" });
+			const files = [
+				...readdirSync(target),
+				...readdirSync(join(target, "src")).map((file) => `src/${file}`),
+			];
+			return files
+				.map((file) => file.replace(/\.(jsx?|tsx?)$/, ""))
+				.filter((file) => file !== "tsconfig.json")
+				.sort();
+		};
+		expect(names("vanilla-ts")).toEqual(names("vanilla"));
+		expect(names("react-ts")).toEqual(names("react"));
 	});
 });

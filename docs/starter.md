@@ -44,14 +44,22 @@ Pass `--template` to skip the question. With npm, put `--` before the option.
 | -------- | ------------- | ----------- |
 | `vanilla` | A bus, one event and a `debounce` plus `latest` handler, with plain DOM code | You use no framework, or want to see the bus alone |
 | `react` | The same handler with `useEmitter` and `useEventState`, and `usePolicy` for a debounced save in a component | You build a React app |
+| `vanilla-ts` | The `vanilla` app in TypeScript | You want the compiler to check events and handlers |
+| `react-ts` | The `react` app in TypeScript | You build a React app in TypeScript |
 
 ```bash
 npm create nanoeffects@latest my-app -- --template react
 ```
 
+The TypeScript templates are the same apps with the same files, written in `.ts` and `.tsx`. Events are made with `createAction<Payload>`, so handlers and `useEventState` get their types from the events, with no annotation in the component. `npm run build` type-checks the project (`tsc --noEmit`) before bundling it.
+
+```bash
+npm create nanoeffects@latest my-app -- --template react-ts
+```
+
 ## Read the files
 
-Both templates split the code the way [the guide](guide.md) does: one job per file.
+Every template splits the code the way [the guide](guide.md) does: one job per file. In the TypeScript templates the files end in `.ts` (and `.tsx` for components).
 
 | File | Job |
 | ---- | --- |

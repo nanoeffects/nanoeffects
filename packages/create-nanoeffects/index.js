@@ -17,7 +17,7 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-export const templates = ["vanilla", "react"];
+export const templates = ["vanilla", "react", "vanilla-ts", "react-ts"];
 const defaultTemplate = "vanilla";
 const defaultName = "nanoeffects-app";
 
