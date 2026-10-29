@@ -1,0 +1,21 @@
+{
+	"name": "nanoeffects-chat",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "node server/dev.js"
+	},
+	"dependencies": {
+		"fastify": "^5.0.0",
+		"nanoeffects": "^0.19.1",
+		"react": "^19.0.0",
+		"react-dom": "^19.0.0",
+		"zustand": "^5.0.0"
+	},
+	"devDependencies": {
+		"@types/react": "^19.0.0",
+		"@types/react-dom": "^19.0.0",
+		"typescript": "^5.9.0",
+		"vite": "^7.0.0"
+	}
+}

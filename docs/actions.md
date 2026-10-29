@@ -6,6 +6,8 @@ If you only need `on` / `emit` or policies, stay in the [Guide](guide.md) until 
 
 Recipe without a UI framework: [`examples/modules.ts`](../examples/modules.ts).
 
+A chat with four domains, jobs under policies and effects, and a stream tied to a module: [Build a chat with domains, modules and a small server](chat-example.md).
+
 A whole project with two domains, a job and React as a thin layer: `npm create nanoeffects@latest my-app -- --template domains-ts` (see [Start a project from a template](starter.md#start-with-domains)).
 
 ## Return a value from `emit` with a command

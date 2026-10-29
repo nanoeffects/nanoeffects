@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>nanoeffects: a chat with domains and modules</title>
+		<style>
+			body { font-family: system-ui, sans-serif; max-width: 48rem; margin: 1rem auto; padding: 0 1rem; }
+			.layout { display: grid; grid-template-columns: 10rem 1fr; gap: 1rem; }
+			.rooms button { display: block; width: 100%; text-align: left; margin-bottom: 0.25rem; }
+			.rooms .selected { font-weight: bold; }
+			ul.messages { list-style: none; padding: 0; min-height: 10rem; }
+			li.sending { opacity: 0.5; }
+			li.failed { color: crimson; }
+			li.marked { background: #fff3b0; }
+			input { padding: 0.4rem; box-sizing: border-box; }
+			.composer input, .search input { width: 100%; }
+			.hint { color: #666; font-size: 0.9rem; }
+		</style>
+	</head>
+	<body>
+		<div id="root"></div>
+		<script type="module" src="/src/main.tsx"></script>
+	</body>
+</html>

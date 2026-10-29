@@ -76,6 +76,8 @@ npm create nanoeffects@latest my-app -- --template domains-ts
 | `src/domains/checkout/` | Placing an order: `checkout.ts` (a job), `checkout-handlers.ts` (`leading` and `retry`), `checkout-store.ts` (state written from the job's outcomes), `checkout-module.ts`. |
 | `src/ui/` | The components. None of them calls the fake server in `src/api.ts`. |
 
+For a bigger example with the same layout, a chat with four domains and mocks, see [Build a chat with domains, modules and a small server](chat-example.md).
+
 The commands, jobs and modules themselves are explained in [Actions, commands, jobs and modules](actions.md). The template keeps found products in a Context provider with one `useEventState`, and the order state in a store of its own: `useEventState` is [not a store](react.md#show-the-last-value-of-an-event-as-state).
 
 ## Read the files

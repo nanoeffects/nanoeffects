@@ -20,6 +20,14 @@ npm install
 npm run dev
 ```
 
+## A bigger project
+
+A React and TypeScript chat with domains, modules and a small server that fails on a known schedule, written to show where logic goes when an app has several features. It is type-checked with the rest of the repository.
+
+| Folder | What is in it | Open |
+| --- | --- | --- |
+| [`chat`](chat) | Rooms, a history under `latest`, a send under `queue` and `retry`, a search across rooms with `allSettled` and `timeout`, and new messages polled with `poll`. One command starts the server and the page. Explained in [Build a chat with domains, modules and a small server](../docs/chat-example.md). | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/chat) |
+
 ## Recipes
 
 Each file is one job, written as a short program with comments on every nanoeffects call. The docs page explains the idea; the file is the code that the project type-checks.
