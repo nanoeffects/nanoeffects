@@ -2,7 +2,7 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
-## Unreleased
+## 0.20.0
 
 ### Changed
 - The modules given to `modulePlugin([...])` are mounted at the end of the synchronous block that made the app, not only at the first use of the app or the bus, so an app that uses nothing at start still mounts them. Pass no modules and call `app.mount` to mount when you want. [Docs](docs/actions.md#mount-domains-with-modules)
@@ -10,7 +10,7 @@ How to read an entry: **Breaking** needs a change in your code or setup, **Chang
 ### Added
 - `nanoeffects/vue`: `vuePlugin` adds `watchEmitter` (emit when a ref changes) and `useEventRef` (the last payload of an event as a ref) to a bus. [Docs](docs/vue.md)
 - `WithSignal`, the type of an object that has the `signal` of a task (`{ signal: AbortSignal }`), is exported from `nanoeffects`. [Docs](docs/typescript.md#type-a-function-that-takes-the-signal)
-- `npm create nanoeffects@latest my-app -- --template vue-ts` makes the search app in Vue 3 and TypeScript, with a small composable that keeps an event in a `ref`. [Docs](docs/starter.md#start-with-vue)
+- `npm create nanoeffects@latest my-app -- --template vue-ts` makes the search app in Vue 3 and TypeScript, with `watchEmitter` and `useEventRef` from `nanoeffects/vue`. [Docs](docs/starter.md#start-with-vue)
 - `app.mount(a, b, c)` and `app.unmount(a, b)` take any number of modules. They are mounted in order and undone in reverse order, and a call that fails leaves none of its modules mounted. [Docs](docs/actions.md#mount-domains-with-modules)
 - A chat example with domains, modules and a small Fastify server that fails on a known schedule, and a page that explains it. [Docs](docs/chat-example.md)
 
