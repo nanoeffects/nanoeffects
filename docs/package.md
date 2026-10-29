@@ -11,10 +11,10 @@ Imports are split so you only load what you use. `createBus` stays small; the re
 | `nanoeffects/match` | `matchPlugin`: `on`, `once` and `off` that take a function which picks the events |
 | `nanoeffects/context` | `contextPlugin`: your own fields (a store, a client) on `ctx` of every task, typed from the value |
 | `nanoeffects/signal` | `signalPlugin`: `emit(call, { signal })` ties the tasks of an emit to an outside `AbortSignal` |
-| `nanoeffects/oop` | `extendBus`, `WithBus`, `On`, `Once`, `disposeBus`: the methods of a bus on a class, with the subscriptions of each instance ended by `dispose()` |
+| `nanoeffects/oop` | `Emitter`, `extendBus`, `WithBus`, `On`, `Once`, `disposeBus`: the methods of a bus on a class, with the subscriptions of each instance ended by `dispose()` |
 | `nanoeffects/scope` | `scopePlugin`, `effect`: fields for one command, action, job, module or `emit` (the types `Scope`, `Effect`) |
 | `nanoeffects/redux` | `createEffectsMiddleware` |
-| `nanoeffects/observable` | `createObserve` |
+| `nanoeffects/observable` | `createObserve`, `Subject` |
 | `nanoeffects/react` | `reactPlugin`: adds the `useEmitter` hook to a bus (needs React 18 or newer) |
 | `nanoeffects/dev` | `devPlugin` (no-op in production) |
 | `nanoeffects/trace` | `createTracer`, the loggers and `tracePlugin` (names for the trace) |
