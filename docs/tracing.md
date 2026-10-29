@@ -314,7 +314,7 @@ With two quick `search` emits and a `latest` handler, the default list is `searc
 ### Write your own logger
 
 ```ts
-import type { TraceLogger } from "nanoeffects";
+import type { TraceLogger } from "nanoeffects/trace";
 
 const errorsOnly = (): TraceLogger => (event) => {
   if (event.phase === "error") {

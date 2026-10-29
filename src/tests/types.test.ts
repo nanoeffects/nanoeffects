@@ -2,6 +2,29 @@
 // without writing generics, and wrong calls are errors. Nothing here runs
 // anything that matters; `pnpm tsgo` is the test.
 import { describe, expectTypeOf, it } from "vitest";
+import type {
+	// the types a bus needs stay in the root
+	Bus,
+	BusOptions,
+	Context as RootContext,
+	// @ts-expect-error ContextTask is exported from nanoeffects/context
+	ContextTask as RootContextTask,
+	// @ts-expect-error EffectName is exported from nanoeffects/trace
+	EffectName as RootEffectName,
+	// @ts-expect-error NoClash is exported from nanoeffects/context
+	NoClash as RootNoClash,
+	// @ts-expect-error Phase is exported from nanoeffects/trace
+	Phase as RootPhase,
+	// @ts-expect-error Trace is exported from nanoeffects/trace
+	Trace as RootTrace,
+	// @ts-expect-error TraceEvent is exported from nanoeffects/trace
+	TraceEvent as RootTraceEvent,
+	// @ts-expect-error TraceLogger is exported from nanoeffects/trace
+	TraceLogger as RootTraceLogger,
+	// @ts-expect-error Tracer is exported from nanoeffects/trace
+	Tracer as RootTracer,
+	WithContext as RootWithContext,
+} from "..";
 import {
 	bindHandler,
 	commandsPlugin,
@@ -48,7 +71,16 @@ import { reactPlugin, usePolicy } from "../react";
 import { effect } from "../scope";
 import { signalPlugin } from "../signal";
 import { createEffectsMiddleware, type ReduxStoreApi } from "../store/redux";
-import { tracePlugin } from "../trace";
+import {
+	createTracer,
+	type EffectName,
+	type Phase,
+	type Trace,
+	type TraceEvent,
+	type TraceLogger,
+	type Tracer,
+	tracePlugin,
+} from "../trace";
 
 type User = { id: string; name: string };
 type Events = {
@@ -1712,5 +1744,52 @@ describe("the class entry: Emitter", () => {
 		const subject = new Subject(video, "video/time");
 
 		expectTypeOf(subject.next).parameter(0).toBeNumber();
+	});
+});
+
+describe("the entries: where the types live", () => {
+	it("exports the types of tracing from nanoeffects/trace", () => {
+		const logger: TraceLogger = (event) => {
+			expectTypeOf(event).toEqualTypeOf<TraceEvent>();
+			expectTypeOf(event.phase).toEqualTypeOf<Phase>();
+			expectTypeOf(event.effect).toEqualTypeOf<EffectName>();
+		};
+		const tracer: Tracer = createTracer(logger);
+		const bus = createBus({ trace: tracer });
+		const loggers: Trace = [logger];
+
+		expectTypeOf(bus).toBeObject();
+		expectTypeOf(loggers).toExtend<Trace>();
+	});
+
+	it("keeps the type parameter of the logger", () => {
+		// the parameter is the event map: the event "id" carries a number
+		const logger: TraceLogger<{ id: number }> = (event) => {
+			expectTypeOf(event.type).toEqualTypeOf<"id">();
+			expectTypeOf(event.payload).toEqualTypeOf<number>();
+		};
+
+		expectTypeOf(logger).toBeFunction();
+	});
+
+	it("does not export them from the root", () => {
+		expectTypeOf<RootContextTask>().toBeAny();
+		expectTypeOf<RootNoClash>().toBeAny();
+		expectTypeOf<RootEffectName>().toBeAny();
+		expectTypeOf<RootPhase>().toBeAny();
+		expectTypeOf<RootTrace>().toBeAny();
+		expectTypeOf<RootTraceEvent>().toBeAny();
+		expectTypeOf<RootTraceLogger>().toBeAny();
+		expectTypeOf<RootTracer>().toBeAny();
+	});
+
+	it("keeps the types a bus needs in the root, and only createBus as a value", () => {
+		type RootValues = keyof typeof import("..");
+
+		expectTypeOf<RootValues>().toEqualTypeOf<"createBus">();
+		expectTypeOf<Bus<{ a: number }>>().toBeObject();
+		expectTypeOf<BusOptions<{ a: number }>>().toBeObject();
+		expectTypeOf<RootContext<{ a: number }>>().toBeObject();
+		expectTypeOf<RootWithContext<{ store: number }>>().toBeObject();
 	});
 });

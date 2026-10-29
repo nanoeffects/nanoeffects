@@ -10,11 +10,7 @@ import * as trace from "../trace";
 
 describe("public entries", () => {
 	it("main", () => {
-		expect(Object.keys(main).sort()).toEqual([
-			"anyEventType",
-			"commandCall",
-			"createBus",
-		]);
+		expect(Object.keys(main).sort()).toEqual(["createBus"]);
 	});
 
 	it("context", () => {

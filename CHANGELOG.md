@@ -2,6 +2,14 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
+## Unreleased
+
+### Breaking
+- The root `nanoeffects` entry exports `createBus` and the types a bus needs, and nothing more. Import the tracing types `Tracer`, `Trace`, `TraceEvent`, `TraceLogger`, `Phase` and `EffectName` from `nanoeffects/trace`, and `ContextTask` and `NoClash` from `nanoeffects/context`. `anyEventType` and `commandCall` were internal keys of the plugins and are gone. [Docs](docs/tracing.md#write-your-own-logger)
+
+### Added
+- The tracing types are exported from `nanoeffects/trace`, next to `createTracer` and the loggers. [Docs](docs/tracing.md#write-your-own-logger)
+
 ## 0.15.0
 
 ### Added
