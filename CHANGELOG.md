@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.13.0
 
 - `reduxDevtools({ payload })` chooses which actions carry the payload of their event: `"essential"` (the default), `"all"` or `"none"`. **Behavior change:** the default sends the payload with the emit actions and with the `cancel`, `drop` and `error` of a task, and no longer with `start` and `done`, so a large payload is sent once instead of once for each stage. `payload: "all"` restores the output of 0.12; `payload: "none"` keeps the payloads out of the extension. The other fields of the actions and the state are the same.
 
