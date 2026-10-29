@@ -1,6 +1,6 @@
 # Use nanoeffects next to RxJS
 
-Read this page if your project uses RxJS and you wonder what nanoeffects takes over. It does not replace RxJS. The two split the work: RxJS shapes streams of values, nanoeffects runs the side effects that events start. It maps the operators, shows one search box both ways, and lists what stays in RxJS.
+Read this page if your project uses RxJS and you wonder what nanoeffects takes over. It does not replace RxJS. The two split the work: RxJS shapes streams of values, nanoeffects runs the side effects that events start. It maps the operators, shows a search box and a polling loop both ways, and lists what stays in RxJS.
 
 ## Split the work
 
@@ -81,6 +81,63 @@ input.addEventListener("input", (event) => bus.emit("typed", event.target.value)
 ```
 
 The skip of repeated values is not here. Add `if (query === lastQuery) return;` to the handler, or keep that one step in RxJS (next section).
+
+## Rewrite a polling loop
+
+Check a job status every 5 seconds. Retry a failed check, and stop when the user leaves the screen.
+
+The same job in RxJS: `timer` ticks, `exhaustMap` skips a tick while a check runs, `retry` repeats a failed check, `takeUntil` stops it.
+
+<!-- docs-check: skip - needs rxjs, which the project does not depend on -->
+```js
+// RxJS
+import { timer } from "rxjs";
+import { exhaustMap, retry, takeUntil } from "rxjs/operators";
+
+timer(5000, 5000)
+  .pipe(
+    exhaustMap(() => api.statusStream().pipe(retry({ count: 3, delay: 500 }))),
+    takeUntil(leave$),
+  )
+  .subscribe((status) => render(status));
+```
+
+The same job in nanoeffects. `poll` ticks, `retry` repeats one check, and `race` ends the loop on the first `"leave"` event:
+
+```js
+import { createBus } from "nanoeffects";
+import { poll, race, retry, take } from "nanoeffects/effects";
+
+const bus = createBus(); // the bus: events and handlers
+
+bus.on("watch", async (_, ctx) => {
+  // one check, up to 3 attempts, 500 ms between them
+  const checkStatus = async () => {
+    const status = await retry(ctx, () => api.status({ signal: ctx.signal }), {
+      times: 3,
+      delay: 500,
+    });
+    ctx.emit("status", status);
+  };
+
+  await race(ctx, {
+    // poll: a check every 5 s; waitForFn: the next pause starts after the check ends
+    polling: ({ signal }) => poll({ signal }, checkStatus, 5000, { waitForFn: true }),
+    // take: resolves at the next "leave", and race stops the polling
+    leave: ({ signal }) => take(ctx, "leave", { signal }),
+  });
+});
+
+bus.on("status", (status) => render(status));
+
+bus.emit("watch"); // start
+bus.emit("leave"); // stop
+```
+
+Two things differ from the pipeline:
+
+- `waitForFn: true` plays the role of `exhaustMap`: checks never overlap. Without it `poll` keeps a steady rate, and a slow check can overlap the next one.
+- If all 3 attempts fail, the error stops `poll`, as an error ends an Observable. To keep polling after a failed check, catch it inside `checkStatus` and emit an `"error"` event.
 
 ## Use both in one app
 
