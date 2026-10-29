@@ -118,10 +118,16 @@ export const matchPlugin =
 			return remove;
 		};
 
-		const onWith = (first: unknown, handler: Handler, single: boolean) =>
+		// the options (`{ traceId }` of `tracePlugin`) are passed on to the method that was on the bus before
+		const onWith = (
+			first: unknown,
+			handler: Handler,
+			single: boolean,
+			options: unknown,
+		) =>
 			isPredicate(first)
 				? subscribe(first, handler, single)
-				: Reflect.apply(single ? once : on, bus, [first, handler]);
+				: Reflect.apply(single ? once : on, bus, [first, handler, options]);
 
 		const offWith = (first?: unknown, handler?: unknown) => {
 			if (handler === void 0 && (first === void 0 || first === "*")) {
@@ -142,9 +148,10 @@ export const matchPlugin =
 		return Object.assign(
 			bus,
 			apiOf<E>({
-				on: (first: unknown, handler: Handler) => onWith(first, handler, false),
-				once: (first: unknown, handler: Handler) =>
-					onWith(first, handler, true),
+				on: (first: unknown, handler: Handler, options?: unknown) =>
+					onWith(first, handler, false, options),
+				once: (first: unknown, handler: Handler, options?: unknown) =>
+					onWith(first, handler, true, options),
 				off: offWith,
 			}),
 		);

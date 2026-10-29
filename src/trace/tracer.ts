@@ -1,23 +1,23 @@
 import { combineLoggers } from "../core/logger";
 import { scopeKey } from "../core/scope-key";
+import { callBeingEmitted } from "../core/trace-call";
 import type { Tracer } from "../core/tracer";
 import type { EffectName, Trace, TraceEvent } from "../core/types";
 import { isPromise, onAbort } from "../utils";
 
 const noop = () => {};
 
-// the flow a task declares: on the event itself (an emitter's root), or in the scope a call carries
-const groupOf = (
-	event: { traceGroupId?: string },
-	call: unknown,
-): string | undefined => {
+// the flow a task declares: on the event itself (the root of an emitter), or in the scope of the call
+// that `tracePlugin` says is being emitted
+const groupOf = (event: { traceGroupId?: string }): string | undefined => {
 	if (typeof event.traceGroupId === "string") {
 		return event.traceGroupId;
 	}
-	if (typeof call !== "object" && typeof call !== "function") {
-		return;
-	}
-	if (call === null) {
+	const call = callBeingEmitted();
+	if (
+		(typeof call !== "object" && typeof call !== "function") ||
+		call === null
+	) {
 		return;
 	}
 	const scope: unknown = Reflect.get(call, scopeKey);
@@ -87,15 +87,19 @@ export const createTracer = <E = Record<string, unknown>>(
 			: Math.random() < sample;
 
 	const tracer: Tracer<Ref> = {
-		task: (event, parent, call) => ({
+		task: (event, parent) => ({
 			id: ++lastId,
 			root: parent?.root ?? lastId,
 			parent: parent?.id,
 			type: event.type,
 			payload: event.payload,
 			sampled: parent?.sampled ?? isSampled(event),
-			group: groupOf(event, call) ?? parent?.group,
+			group: groupOf(event) ?? parent?.group,
 		}),
+
+		rename: (ref, type) => {
+			ref.type = type;
+		},
 
 		report: (ref, effect, phase, error) => {
 			if (!ref.sampled) {

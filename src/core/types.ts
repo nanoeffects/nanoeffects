@@ -1,5 +1,11 @@
 import type { Context } from "./bus";
 
+/** The third argument of `on` and `once`: read by `tracePlugin`, ignored without it. */
+export type ListenerOptions = {
+	/** Names the listener in the trace: each call of it is a task with this `type`. */
+	traceId?: string;
+};
+
 export type PayloadOf<P> = undefined extends P ? [payload?: P] : [payload: P];
 
 export type EventMap = Record<string, unknown>;

@@ -1,20 +1,13 @@
-import type { Bus, EventLike } from "./bus";
-import { createTask, traceTask } from "./context";
-import type { EventMap } from "./types";
-
-/** What an emitter tells the trace about itself. */
-export type OriginOptions = {
-	/** Names the subscription that emits; it is the `type` of the root task of the trace. */
-	traceId?: string;
-	/** Names the flow the emit belongs to; every task below it has it too. */
-	traceGroupId?: string;
-};
+import type { Bus, EventLike } from "../core/bus";
+import { createTask, traceTask } from "../core/context";
+import type { OriginOptions } from "../core/origin-key";
+import type { EventMap } from "../core/types";
 
 /**
  * Emits `action` on `bus` for an emitter that is not a task (`useEmitter`,
- * `bus.emitter`). Without a tracer it is `bus.emit(action)`. With one the emit
- * is made from a root task, so what the event starts is its children and the
- * trace says which subscription began the chain.
+ * `bus.emitter`): from a root task, so what the event starts is below it and the
+ * trace says which subscription began the chain. Without a tracer it is
+ * `bus.emit(action)`.
  *
  * @internal
  */

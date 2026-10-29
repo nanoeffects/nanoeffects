@@ -33,7 +33,7 @@ The package SHALL export `nanoeffects/react` with types and an ES module build. 
 
 #### Scenario: A traceId
 - **WHEN** a component calls `useEmitter(nameChanged, name, { traceId: "Profile" })`
-- **THEN** it emits as without `traceId`, and a bus with a tracer shows the `Profile` root
+- **THEN** it emits as without `traceId`, and a bus with a tracer and `tracePlugin` shows the `Profile` root; without the plugin the option is ignored
 
 ### Requirement: useEmitter emits when the value changes
 After a render commits with a value that differs from the previous one (by `Object.is`, or by `equals` when it is given), `useEmitter` SHALL emit the event with that value, once. It SHALL NOT emit on mount, SHALL NOT emit twice under StrictMode, and SHALL NOT emit again for a render with an equal value. Several changes before one commit SHALL emit once with the last value. A new `event` or `equals` identity on a later render SHALL NOT cause an emit by itself.

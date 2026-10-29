@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { createCommand } from "../actions";
+import { createBus } from "../core/bus";
 import { noPayload } from "../tests/test-helpers";
 import { createTraceRecorder } from "../trace/recorder";
 import { createTracer } from "../trace/tracer";
-import { createBus } from "./bus";
 import { emitFrom } from "./origin";
 
 type Events = { "name/changed": string };

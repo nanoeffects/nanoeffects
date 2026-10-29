@@ -12,6 +12,7 @@ import type { Tracer } from "./tracer";
 import type {
 	EventMap,
 	Keys,
+	ListenerOptions,
 	PayloadOf,
 	Task,
 	UnsubscribeCallback,
@@ -148,33 +149,54 @@ export type Emit<E extends EventMap> = {
 };
 
 export type On<E extends EventMap> = {
-	(event: AnyEvent, fn: Task<EventPayload<E>, E>): UnsubscribeCallback;
-	<K extends EventKey<E>>(event: K, fn: Task<E[K], E>): UnsubscribeCallback;
+	(
+		event: AnyEvent,
+		fn: Task<EventPayload<E>, E>,
+		options?: ListenerOptions,
+	): UnsubscribeCallback;
+	<K extends EventKey<E>>(
+		event: K,
+		fn: Task<E[K], E>,
+		options?: ListenerOptions,
+	): UnsubscribeCallback;
 	/** An action creator without a payload type: the payload comes from the event map. */
 	/** The creators and commands that carry a scope come first: the handler sees their fields. */
 	<K extends EventKey<E>, F>(
 		creator: FreeActionCreator<K, F> & WithScope<F>,
 		fn: Task<E[K], WithFields<E, F>>,
+		options?: ListenerOptions,
 	): UnsubscribeCallback;
 	<P, F>(
 		creator: ActionCreator<P, string, PayloadOf<P>, F> & WithScope<F>,
 		fn: Task<P, WithFields<E, F>>,
+		options?: ListenerOptions,
 	): UnsubscribeCallback;
 	<P, F>(
 		command: Command<P, unknown> & WithScope<F>,
 		fn: Task<P, WithFields<E, F>>,
+		options?: ListenerOptions,
 	): UnsubscribeCallback;
 	<K extends EventKey<E>>(
 		creator: FreeActionCreator<K>,
 		fn: Task<E[K], E>,
+		options?: ListenerOptions,
 	): UnsubscribeCallback;
 	/** An action creator: the payload comes from it, so an event map is not needed. */
-	<P>(creator: ActionCreator<P>, fn: Task<P, E>): UnsubscribeCallback;
+	<P>(
+		creator: ActionCreator<P>,
+		fn: Task<P, E>,
+		options?: ListenerOptions,
+	): UnsubscribeCallback;
 	/** A command: the payload comes from it too. */
-	<P>(command: Command<P, unknown>, fn: Task<P, E>): UnsubscribeCallback;
+	<P>(
+		command: Command<P, unknown>,
+		fn: Task<P, E>,
+		options?: ListenerOptions,
+	): UnsubscribeCallback;
 	<K extends EventKey<E>, Event extends { type: K }>(
 		event: Event & { type: K },
 		fn: Task<E[K], E>,
+		options?: ListenerOptions,
 	): UnsubscribeCallback;
 };
 
@@ -350,12 +372,10 @@ export const createBus = <Events extends EventMap>(
 	const callHandler = (
 		fn: Task<EventPayload<Events>, Events>,
 		action: Action<Events>,
-		call: unknown,
 	) => {
 		const { onError } = options;
 		const { ctx } = createTask({
 			event: action,
-			call,
 			bus,
 			tracer: options.trace,
 			parent: { ref: currentEmitter() },
@@ -394,13 +414,12 @@ export const createBus = <Events extends EventMap>(
 			options.onUnhandled?.(action);
 		}
 		for (const fn of handlers) {
-			callHandler(fn, action, event);
+			callHandler(fn, action);
 		}
 
 		if (command) {
 			const { ctx } = createTask({
 				event: action,
-				call: event,
 				bus,
 				tracer: options.trace,
 				parent: { ref: currentEmitter() },

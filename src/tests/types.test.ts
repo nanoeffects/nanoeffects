@@ -47,6 +47,7 @@ import { reactPlugin, usePolicy } from "../react";
 import { effect } from "../scope";
 import { signalPlugin } from "../signal";
 import { createEffectsMiddleware, type ReduxStoreApi } from "../store/redux";
+import { tracePlugin } from "../trace";
 
 type User = { id: string; name: string };
 type Events = {
@@ -1543,5 +1544,45 @@ describe("usePolicy", () => {
 			search(1);
 		};
 		expectTypeOf(wrongCall).toBeFunction();
+	});
+});
+
+describe("tracePlugin", () => {
+	type Named = { "name/changed": string };
+
+	it("gives on and once the same options with and without the plugin", () => {
+		const plain = createBus<Named>();
+		const traced = createBus<Named>().use(tracePlugin());
+		const calls = () => {
+			plain.on("name/changed", () => {}, { traceId: "a" });
+			plain.once("name/changed", () => {}, { traceId: "a" });
+			traced.on("name/changed", () => {}, { traceId: "a" });
+			traced.once("name/changed", () => {}, { traceId: "a" });
+		};
+
+		expectTypeOf(calls).toBeFunction();
+		expectTypeOf(traced).toEqualTypeOf(createBus<Named>());
+	});
+
+	it("keeps the payload type of the handler with an option", () => {
+		const bus = createBus<Named>().use(tracePlugin());
+		bus.on(
+			"name/changed",
+			(name) => {
+				expectTypeOf(name).toEqualTypeOf<string>();
+			},
+			{ traceId: "a" },
+		);
+	});
+
+	it("rejects an option that is not a string, and an unknown one", () => {
+		const bus = createBus<Named>();
+		const wrongCalls = () => {
+			// @ts-expect-error traceId is a string
+			bus.on("name/changed", () => {}, { traceId: 1 });
+			// @ts-expect-error there is no such option
+			bus.on("name/changed", () => {}, { name: "a" });
+		};
+		expectTypeOf(wrongCalls).toBeFunction();
 	});
 });

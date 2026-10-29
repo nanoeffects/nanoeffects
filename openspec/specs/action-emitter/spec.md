@@ -26,7 +26,7 @@ Lets emitterPlugin turn an action creator into a callback that emits its action 
 
 #### Scenario: A traceId
 - **WHEN** `bus.emitter(nameChanged, { traceId: "nameStore" })` is made
-- **THEN** the function emits as without `traceId`, and a bus with a tracer shows the `nameStore` root
+- **THEN** the function emits as without `traceId`, and a bus with a tracer and `tracePlugin` shows the `nameStore` root; without the plugin the option is ignored
 
 ### Requirement: The creator keeps its meaning
 Using `emitterPlugin` SHALL NOT change `createAction`, `bus.emit`, `bus.on` or the core `Bus` type. A creator called as `nameChanged("Eva")` SHALL only build `{ type, payload }`, with or without the plugin.

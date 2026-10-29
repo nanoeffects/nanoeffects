@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createBus } from "../core/bus";
+import { tracePlugin } from "../trace/plugin";
 import { createTraceRecorder } from "../trace/recorder";
 import { createTracer } from "../trace/tracer";
 import { createAction } from "./action";
@@ -105,9 +106,9 @@ describe("emitterPlugin", () => {
 	describe("the trace", () => {
 		it("makes the emit a child of a root task named by traceId", () => {
 			const recorder = createTraceRecorder();
-			const bus = createBus<Events>({ trace: createTracer(recorder) }).use(
-				emitterPlugin(),
-			);
+			const bus = createBus<Events>({ trace: createTracer(recorder) })
+				.use(tracePlugin())
+				.use(emitterPlugin());
 			const nameChanged = createAction("name/changed");
 			bus.on(nameChanged, () => {});
 

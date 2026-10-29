@@ -57,17 +57,19 @@ bus.on("load", async (id, ctx) => {
 
 **Problem.** `useEmitter` and `bus.emitter` put an event on the bus from outside any task, such as a render or the callback of a store. In the trace that event has no sign of where it came from. With many such subscriptions it is hard to tell which one started a chain of commands and retries.
 
-**When.** The bus has a tracer and the project has several `useEmitter` or `bus.emitter` calls.
+**When.** The bus has a tracer and the project has several `useEmitter` or `bus.emitter` calls. The names come from `tracePlugin`: use it on the bus, or the `traceId` is ignored.
 
 Give each one a `traceId`. When the bus has a tracer, the emit is made from a root task with that `traceId` as its `type` and `run` as its effect. What the event starts is below it. Without a tracer nothing changes.
 
 ```js
 import { createBus } from "nanoeffects";
 import { createAction, emitterPlugin } from "nanoeffects/actions";
-import { consoleLogger, createTracer } from "nanoeffects/trace";
+import { consoleLogger, createTracer, tracePlugin } from "nanoeffects/trace";
 
 // createTracer: reports every task phase to the console
-const bus = createBus({ trace: createTracer(consoleLogger()) }).use(emitterPlugin());
+const bus = createBus({ trace: createTracer(consoleLogger()) })
+  .use(tracePlugin()) // tracePlugin: makes the root task that traceId names
+  .use(emitterPlugin());
 
 const cartChanged = createAction("cart/changed");
 
@@ -104,9 +106,10 @@ Give the flow a `traceGroupId` in the scope of the command, the job or the actio
 ```js
 import { createBus } from "nanoeffects";
 import { createCommand } from "nanoeffects/actions";
-import { consoleLogger, createTracer } from "nanoeffects/trace";
+import { consoleLogger, createTracer, tracePlugin } from "nanoeffects/trace";
 
-const bus = createBus({ trace: createTracer(consoleLogger()) });
+// tracePlugin: reads traceGroupId from the scope of a call
+const bus = createBus({ trace: createTracer(consoleLogger()) }).use(tracePlugin());
 
 // the scope names the flow; traceGroupId is for the tracer, not a field of ctx
 const pay = createCommand("checkout/pay", async () => {}, {
@@ -118,7 +121,40 @@ const pay = createCommand("checkout/pay", async () => {}, {
 [nanoeffects] [checkout] checkout/pay · command start
 ```
 
-The emitters take it too: `useEmitter(cartChanged, cart, { traceId: "Cart", traceGroupId: "checkout" })`. `traceGroupId` works without `scopePlugin`.
+The emitters take it too: `useEmitter(cartChanged, cart, { traceId: "Cart", traceGroupId: "checkout" })`. `traceGroupId` works without `scopePlugin`, and needs `tracePlugin`.
+
+## Name a listener
+
+**Problem.** The log shows what started a chain and what it started, but a listener of an event reports nothing, so you cannot tell which of several listeners ran.
+
+**When.** An event has more than one listener and you read the trace to see which one did the work.
+
+Give the listener a `traceId` when you register it. The plugin makes each call of it a task with that name, and what it emits with `ctx.emit` is below it. `off` works as before.
+
+```js
+import { createBus } from "nanoeffects";
+import { consoleLogger, createTracer, tracePlugin } from "nanoeffects/trace";
+
+const bus = createBus({ trace: createTracer(consoleLogger()) }).use(tracePlugin());
+
+// traceId: the name of this listener in the trace
+bus.on("name/changed", saveName, { traceId: "saveNotifier" });
+bus.once("name/changed", (name) => console.log(name), { traceId: "auditLog" });
+```
+
+```
+[nanoeffects] saveNotifier · run start
+[nanoeffects]   user/save · command start
+[nanoeffects] saveNotifier · run done
+```
+
+## Turn the names off
+
+`tracePlugin` is optional, and none of it changes how your code runs:
+
+- **Without the plugin**, or on a bus without a tracer, `traceId` and `traceGroupId` are ignored. Handlers run as they are, with the same results, errors and rejections, and `onError` sees the same errors.
+- **The types are the same** with and without the plugin, so you can use it only in development: `if (isDev) bus.use(tracePlugin())` compiles in both builds.
+- **A `traceGroupId` in a scope** is never put on `ctx`.
 
 ## Use built-in loggers
 

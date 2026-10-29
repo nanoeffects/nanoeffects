@@ -3,6 +3,7 @@ export {
 	type PerformanceLoggerOptions,
 	performanceLogger,
 } from "./performance";
+export { tracePlugin } from "./plugin";
 export { createTraceRecorder, type Recorder } from "./recorder";
 export {
 	type ReduxDevtoolsOptions,

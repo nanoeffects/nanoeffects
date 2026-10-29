@@ -17,6 +17,12 @@ import { extendBus } from "../oop";
 import { reactPlugin } from "../react";
 import { scopePlugin } from "../scope";
 import { signalPlugin } from "../signal";
+import {
+	createTraceRecorder,
+	createTracer,
+	type Recorder,
+	tracePlugin,
+} from "../trace";
 import { noPayload } from "./test-helpers";
 
 // Every plugin of the package, in many orders. For each order the bus gets the plugins, and the
@@ -33,6 +39,7 @@ type Name =
 	| "match"
 	| "signal"
 	| "dev"
+	| "trace"
 	| "react";
 
 const names: Name[] = [
@@ -45,6 +52,7 @@ const names: Name[] = [
 	"match",
 	"signal",
 	"dev",
+	"trace",
 	"react",
 ];
 
@@ -54,6 +62,8 @@ type App = ReturnType<ReturnType<typeof modulePlugin>>;
 // what the module of the probes saw, and the parts the plugins returned
 type Build = {
 	order: Name[];
+	// what the tracer of the bus saw
+	recorder: Recorder;
 	bus: Bus<EventMap>;
 	messages: string[];
 	seen: {
@@ -91,9 +101,11 @@ const emitWith = (bus: Bus<EventMap>, call: unknown, options: unknown) =>
 const getValue = createCommand<void, number>("probe/value");
 
 const make = (order: Name[]): Build => {
+	const recorder = createTraceRecorder();
 	const build: Build = {
+		recorder,
 		order,
-		bus: createBus<EventMap>(),
+		bus: createBus<EventMap>({ trace: createTracer(recorder) }),
 		messages: [],
 		seen: { handler: [], spawn: [], setup: [], predicate: [] },
 	};
@@ -153,6 +165,8 @@ const make = (order: Name[]): Build => {
 					log: (message: string) => build.messages.push(message),
 				}),
 			);
+		} else if (name === "trace") {
+			build.bus.use(tracePlugin());
 		} else {
 			build.bus.use(reactPlugin());
 		}
@@ -289,6 +303,68 @@ const probes: Probe[] = [
 			emitter(note, { traceId: "store", traceGroupId: "flow" })(6);
 
 			return seen[0] === 6;
+		},
+	},
+	{
+		id: "a named listener is reported, and off removes it",
+		needs: ["trace"],
+		run: ({ bus, recorder }) => {
+			const seen: unknown[] = [];
+			const handler = (value: unknown) => {
+				seen.push(value);
+			};
+			const named = bus.on as unknown as (
+				event: string,
+				fn: typeof handler,
+				options: { traceId: string },
+			) => () => void;
+			named("p/named", handler, { traceId: "probe-listener" });
+			bus.emit("p/named", 1);
+			bus.off("p/named", handler);
+			bus.emit("p/named", 2);
+
+			return (
+				seen.length === 1 &&
+				recorder.events.some((event) => event.type === "probe-listener")
+			);
+		},
+	},
+	{
+		id: "the root of an emitter is reported, and its event is heard",
+		needs: ["trace", "emitter"],
+		run: ({ bus, recorder }) => {
+			const seen: unknown[] = [];
+			const note = createAction<number>("p/emitter-root");
+			bus.on(note, (value) => {
+				seen.push(value);
+			});
+			const emitter = field(bus, "emitter") as (
+				c: typeof note,
+				options: { traceId: string },
+			) => (n: number) => void;
+			emitter(note, { traceId: "probe-root" })(8);
+
+			return (
+				seen[0] === 8 &&
+				recorder.events.some((event) => event.type === "probe-root")
+			);
+		},
+	},
+	{
+		id: "the group of a scope is on the events of a command",
+		needs: ["trace", "commands"],
+		run: async ({ bus, recorder }) => {
+			const grouped = createCommand(
+				"p/grouped",
+				async (_payload: undefined) => 1,
+				{ traceGroupId: "probe-group" },
+			);
+			await bus.emit(grouped(noPayload));
+
+			return recorder.events.some(
+				(event) =>
+					event.type === "p/grouped" && event.traceGroupId === "probe-group",
+			);
 		},
 	},
 	{

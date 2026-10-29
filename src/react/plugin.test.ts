@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { createAction } from "../actions/action";
 import { createBus } from "../core/bus";
+import { tracePlugin } from "../trace/plugin";
 import { createTraceRecorder } from "../trace/recorder";
 import { createTracer } from "../trace/tracer";
 import { reactPlugin } from "./plugin";
@@ -216,9 +217,9 @@ describe("reactPlugin: useEmitter", () => {
 
 	it("shows the traceId as the root of the chain in the trace", () => {
 		const recorder = createTraceRecorder();
-		const traced = createBus<Events>({ trace: createTracer(recorder) }).use(
-			reactPlugin(),
-		);
+		const traced = createBus<Events>({ trace: createTracer(recorder) })
+			.use(tracePlugin())
+			.use(reactPlugin());
 		traced.on("name/changed", () => {});
 		const { control } = track(
 			mount("Adam", (name) =>
@@ -235,5 +236,28 @@ describe("reactPlugin: useEmitter", () => {
 		expect(root?.effect).toBe("run");
 		expect(root?.traceGroupId).toBe("checkout");
 		expect(root?.payload).toEqual({ type: "name/changed", payload: "Eve" });
+	});
+	it("ignores the trace options without tracePlugin, also with a tracer", () => {
+		const recorder = createTraceRecorder();
+		const traced = createBus<Events>({ trace: createTracer(recorder) }).use(
+			reactPlugin(),
+		);
+		const heard = vi.fn();
+		traced.on("name/changed", heard);
+		const { control } = track(
+			mount("Adam", (name) =>
+				traced.useEmitter("name/changed", name, {
+					traceId: "Profile",
+					traceGroupId: "checkout",
+				}),
+			),
+		);
+
+		act(() => control.set("Eve"));
+
+		expect(heard).toHaveBeenCalledTimes(1);
+		expect(recorder.events.some((event) => event.type === "Profile")).toBe(
+			false,
+		);
 	});
 });

@@ -52,6 +52,7 @@ describe("public entries", () => {
 			"createTracer",
 			"performanceLogger",
 			"reduxDevtools",
+			"tracePlugin",
 		]);
 	});
 

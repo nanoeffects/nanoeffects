@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { ActionCreator, FreeActionCreator } from "../core/action-creator";
 import type { Bus, EventKey, EventLike } from "../core/bus";
-import { emitFrom, type OriginOptions } from "../core/origin";
+import { type Origin, type OriginOptions, originKey } from "../core/origin-key";
 import type { EventMap } from "../core/types";
 
 /** Tells whether two values are the same: `Object.is` unless the caller gives another. */
@@ -124,7 +124,13 @@ export const reactPlugin =
 						? target(passed)
 						: { type: target, payload: value };
 				const action = made as EventLike<E>;
-				emitFrom(bus, action, given ?? {});
+				// `tracePlugin` puts the root of the trace on the bus; without it the event is emitted as it is
+				const origin: Origin | undefined = Reflect.get(bus, originKey);
+				if (origin) {
+					origin(action, given ?? {});
+				} else {
+					bus.emit(action);
+				}
 			}, [value]);
 		}
 

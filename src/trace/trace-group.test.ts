@@ -1,16 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 import { createAction, createCommand, createJob } from "../actions";
 import { createBus } from "../core/bus";
-import { emitFrom } from "../core/origin";
 import { scopePlugin } from "../scope";
 import { noPayload } from "../tests/test-helpers";
 import { consoleLogger } from "./console";
+import { emitFrom } from "./origin";
+import { tracePlugin } from "./plugin";
 import { createTraceRecorder } from "./recorder";
 import { createTracer } from "./tracer";
 
 const setup = () => {
 	const recorder = createTraceRecorder();
-	const bus = createBus({ trace: createTracer(recorder) });
+	const bus = createBus({ trace: createTracer(recorder) }).use(tracePlugin());
 	// the groups of the events of one task type, in order
 	const groupsOf = (type: string) =>
 		recorder.events
@@ -195,7 +196,9 @@ describe("consoleLogger with a group", () => {
 describe("traceGroupId in a scope", () => {
 	it("works without scopePlugin and is not put on the context with it", async () => {
 		const recorder = createTraceRecorder();
-		const bus = createBus({ trace: createTracer(recorder) }).use(scopePlugin());
+		const bus = createBus({ trace: createTracer(recorder) })
+			.use(tracePlugin())
+			.use(scopePlugin());
 		let seen: unknown = "unset";
 		let cache: unknown;
 		const pay = createCommand(
@@ -231,7 +234,7 @@ describe("traceGroupId in a scope", () => {
 describe("rootId", () => {
 	it("links a command below a listener to the root, though its parentId is the listener", async () => {
 		const recorder = createTraceRecorder();
-		const bus = createBus({ trace: createTracer(recorder) });
+		const bus = createBus({ trace: createTracer(recorder) }).use(tracePlugin());
 		const save = createCommand("user/save", async (_: undefined) => 1);
 		bus.on("name/changed", async (_name, ctx) => {
 			await ctx.emit(save(noPayload));
@@ -253,7 +256,7 @@ describe("rootId", () => {
 
 	it("is the same for tasks of a policy and its runs", async () => {
 		const recorder = createTraceRecorder();
-		const bus = createBus({ trace: createTracer(recorder) });
+		const bus = createBus({ trace: createTracer(recorder) }).use(tracePlugin());
 		const load = createCommand("load", async (_: undefined, ctx) => {
 			await ctx.run(async () => 1);
 		});
@@ -270,7 +273,7 @@ describe("rootId", () => {
 
 	it("is absent from the events of every root task", async () => {
 		const recorder = createTraceRecorder();
-		const bus = createBus({ trace: createTracer(recorder) });
+		const bus = createBus({ trace: createTracer(recorder) }).use(tracePlugin());
 		const plain = createCommand("plain", async (_: undefined) => 1);
 
 		await bus.emit(plain(noPayload));

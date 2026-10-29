@@ -1,6 +1,6 @@
 import type { ActionCreator, FreeActionCreator } from "../core/action-creator";
 import type { Bus, EventKey, EventLike } from "../core/bus";
-import { emitFrom, type OriginOptions } from "../core/origin";
+import { type Origin, type OriginOptions, originKey } from "../core/origin-key";
 import type { EventMap, PayloadOf } from "../core/types";
 
 /** What `emitterPlugin` adds to the bus. */
@@ -66,7 +66,13 @@ export const emitterPlugin =
 				// the overloads above check the arguments; here they are only passed on
 				const given = args as never[];
 				const action = creator(...given) as EventLike<E>;
-				emitFrom(bus, action, options);
+				// `tracePlugin` puts the root of the trace on the bus; without it the event is emitted as it is
+				const origin: Origin | undefined = Reflect.get(bus, originKey);
+				if (origin) {
+					origin(action, options);
+				} else {
+					bus.emit(action);
+				}
 			};
 		}
 

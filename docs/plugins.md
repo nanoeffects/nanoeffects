@@ -95,6 +95,7 @@ Add one of these when you meet its need. None of them is required.
 | [`signalPlugin`](#tie-an-emit-to-an-outside-signal-signalplugin) | `emit(call, { signal })` that aborts its tasks when an outside signal aborts. | `nanoeffects/signal` | The same bus, typed with the new `emit` |
 | [`matchPlugin`](#listen-to-a-group-of-events-matchplugin) | `on` that listens to a group of events which a function picks. | `nanoeffects/match` | The same bus, typed with the new overloads |
 | [`emitterPlugin`](#hand-the-bus-to-a-state-manager-emitterplugin) | A callback that emits an action, to give to a state manager. | `nanoeffects/actions` | The same bus, with `emitter` |
+| [`tracePlugin`](#name-the-origin-and-the-flow-of-a-trace-traceplugin) | `traceId` and `traceGroupId` for a trace: the root of an emitter, a flow, a named listener. | `nanoeffects/trace` | The same bus |
 | [`reactPlugin`](#tell-the-bus-when-a-react-value-changes-reactplugin) | A React hook that emits when a value of a component changes. | `nanoeffects/react` | The same bus, with `useEmitter` |
 | [`devPlugin`](#find-leaks-while-you-develop-devplugin) | Warnings about listeners that pile up, and messages about modules, while you develop. | `nanoeffects/dev` | A function that disconnects it |
 
@@ -136,6 +137,20 @@ const getUser = createCommand("user/get", (id, { signal }) => api.getUser(id, { 
 const controller = new AbortController();
 bus.emit(getUser("1"), { signal: controller.signal }); // runs the command
 controller.abort(); // ctx.signal of the handler aborts with it
+```
+
+### Name the origin and the flow of a trace: `tracePlugin`
+
+With a tracer on the bus, the plugin lets a trace say which subscription began a chain (`traceId` of `useEmitter` and `bus.emitter`), follow one flow by a `traceGroupId`, and show which listener ran (`bus.on(event, handler, { traceId })`). Without the plugin the options are ignored. More in [Tracing](tracing.md#show-which-subscription-began-a-chain).
+
+```js
+import { createBus } from "nanoeffects";
+import { consoleLogger, createTracer, tracePlugin } from "nanoeffects/trace";
+
+// tracePlugin — names the roots, groups and listeners of the trace
+const bus = createBus({ trace: createTracer(consoleLogger()) }).use(tracePlugin());
+
+bus.on("name/changed", saveName, { traceId: "saveNotifier" }); // a listener you can find in the log
 ```
 
 ### Listen to a group of events: `matchPlugin`

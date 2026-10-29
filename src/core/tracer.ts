@@ -17,8 +17,9 @@ export interface Tracer<Ref extends object = object> {
 	task(
 		event: { type: string; payload?: unknown; traceGroupId?: string },
 		parent?: Ref,
-		call?: unknown,
 	): Ref;
+	/** Gives the task another `type`, for a task that is named after it was made (a named listener). A tracer may leave it out. */
+	rename?(ref: Ref, type: string): void;
 	/** Reports a phase of a task. */
 	report(ref: Ref, effect: EffectName, phase: Phase, error?: unknown): void;
 	/** Returns `settle(phase, error?)` that reports only the first phase it gets. */
