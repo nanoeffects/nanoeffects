@@ -7,7 +7,8 @@ export function App() {
   const [query, setQuery] = useState("");
 
   // useEventState — like useState, but searchLoaded sets the value; it unsubscribes on unmount
-  const [found] = useEventState(searchLoaded, []);
+  // the JSDoc gives the state its type: the event has none, so it comes from the initial value
+  const [found] = useEventState(searchLoaded, /** @type {string[]} */ ([]));
 
   // useEmitter — emits queryChanged after each change of query, never on mount
   useEmitter(queryChanged, query);

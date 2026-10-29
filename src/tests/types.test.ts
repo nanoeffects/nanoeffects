@@ -1197,6 +1197,40 @@ describe("reactPlugin", () => {
 		expectTypeOf(calls).toBeFunction();
 	});
 
+	it("takes the state type of useEventState from initial when the payload is unknown", () => {
+		const bus = createBus().use(reactPlugin());
+		const searchLoaded = createAction("search/loaded");
+		const calls = () => {
+			const [titles] = bus.useEventState(searchLoaded, ["a"]);
+			expectTypeOf(titles).toEqualTypeOf<string[]>();
+
+			const [empty] = bus.useEventState(searchLoaded, []);
+			expectTypeOf(empty).toEqualTypeOf<unknown[]>();
+
+			const [lazy] = bus.useEventState(searchLoaded, () => ({ count: 1 }));
+			expectTypeOf(lazy).toEqualTypeOf<{ count: number }>();
+
+			const [name] = bus.useEventState("name/changed", "Adam");
+			expectTypeOf(name).toEqualTypeOf<string>();
+		};
+		expectTypeOf(calls).toBeFunction();
+	});
+
+	it("keeps the payload type of useEventState when it is known", () => {
+		const bus = createBus<ProfileEvents>().use(reactPlugin());
+		const calls = () => {
+			// a literal in initial does not narrow the payload type
+			const [name] = bus.useEventState("name/changed", "Adam");
+			expectTypeOf(name).toEqualTypeOf<string>();
+		};
+		const wrongCalls = () => {
+			// @ts-expect-error initial is checked against the known payload type
+			bus.useEventState("name/changed", 1);
+		};
+		expectTypeOf(calls).toBeFunction();
+		expectTypeOf(wrongCalls).toBeFunction();
+	});
+
 	it("rejects an initial of another type and an unknown event in useEventState", () => {
 		const bus = createBus<ProfileEvents>().use(reactPlugin());
 		const nameChanged = createAction<string>("name/changed");

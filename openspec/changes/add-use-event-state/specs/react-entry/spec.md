@@ -11,6 +11,21 @@
 - **WHEN** a TypeScript caller passes an `initial` whose type is not the payload of the event
 - **THEN** TypeScript rejects the call, and `state` has the payload type otherwise
 
+### Requirement: useEventState takes the state type from initial when the payload is unknown
+When the payload type of `event` is `unknown` (the bus has no event map entry for it, or the creator carries no payload type), the state type SHALL be the type of `initial`, widened as `useState` widens it, so a literal `"Adam"` is `string`. An `initial` of `[]` SHALL give `unknown[]`. When the payload type is known, the state type SHALL be that payload type and `initial` of another type SHALL be rejected, as before.
+
+#### Scenario: Unknown payload, typed initial
+- **WHEN** a caller uses a creator without a payload type on a bus without an event map and passes `["a"]` as `initial`, or a function that returns it
+- **THEN** `state` has the type `string[]`
+
+#### Scenario: Unknown payload, empty array
+- **WHEN** the payload type is unknown and `initial` is `[]`
+- **THEN** `state` has the type `unknown[]`, not `never[]`
+
+#### Scenario: Known payload
+- **WHEN** the payload type is `string` and `initial` is `"Adam"`
+- **THEN** `state` has the type `string`, not `"Adam"`, and `initial` of type `number` is rejected
+
 ### Requirement: useEventState keeps the last payload as state
 The first render SHALL return `initial` (a function is called once, as `useState` does). While the component is mounted, every emit of `event` SHALL set the state to its payload and re-render, also when the payload is a function, which SHALL be stored and not called. An equal payload (`Object.is`) SHALL NOT re-render. `setState` SHALL be the stable function of React: it sets the state without touching the bus.
 

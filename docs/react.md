@@ -220,6 +220,8 @@ export function Found() {
 
 `setFound` is the setter of React. It changes the state of this component only and emits nothing.
 
+In TypeScript, the state type comes from the event: from `createAction<string[]>("search/loaded")` or from the event map of the bus. When the event has no payload type, as in the example above, it comes from `initial`: `["a"]` is `string[]`, and an empty `[]` is `unknown[]`. Give the event a type, or pass a typed `initial`, when you need more.
+
 The bus keeps no values, so the hook cannot replay an event. An event emitted before the component mounts is not seen: if that matters, read the current value into `initial`.
 
 ## Keep a debounced handler between renders

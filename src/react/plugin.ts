@@ -55,15 +55,15 @@ export type ReactApi<E extends EventMap> = {
 	 * ```
 	 */
 	useEventState: {
-		<K extends EventKey<E>>(
+		<K extends EventKey<E>, S>(
 			event: K,
-			initial: E[K] | (() => E[K]),
-		): EventState<E[K]>;
+			initial: StateOf<E[K], S> | (() => StateOf<E[K], S>),
+		): EventState<StateOf<E[K], S>>;
 		/** A creator without a payload type: the payload comes from the event map. */
-		<K extends EventKey<E>>(
+		<K extends EventKey<E>, S>(
 			creator: FreeActionCreator<K>,
-			initial: E[K] | (() => E[K]),
-		): EventState<E[K]>;
+			initial: StateOf<E[K], S> | (() => StateOf<E[K], S>),
+		): EventState<StateOf<E[K], S>>;
 		<P, T extends string>(
 			creator: ActionCreator<P, T>,
 			initial: P | (() => P),
@@ -73,6 +73,12 @@ export type ReactApi<E extends EventMap> = {
 
 /** What `useEventState` returns: the pair of `useState`, with the payload of the event as state. */
 export type EventState<P> = [P, (next: P | ((previous: P) => P)) => void];
+
+// `[]` is `never[]` to TypeScript, which nothing can be read from
+type Widen<S> = [S] extends [never[]] ? unknown[] : S;
+
+// the payload type when the event has one; otherwise the type of `initial`
+type StateOf<P, S> = unknown extends P ? Widen<S> : P;
 
 type Creator = (...args: never[]) => { type: string; payload?: unknown };
 
@@ -166,14 +172,14 @@ export const reactPlugin =
 			}, [value]);
 		}
 
-		function useEventState<K extends EventKey<E>>(
+		function useEventState<K extends EventKey<E>, S>(
 			event: K,
-			initial: E[K] | (() => E[K]),
-		): EventState<E[K]>;
-		function useEventState<K extends EventKey<E>>(
+			initial: StateOf<E[K], S> | (() => StateOf<E[K], S>),
+		): EventState<StateOf<E[K], S>>;
+		function useEventState<K extends EventKey<E>, S>(
 			creator: FreeActionCreator<K>,
-			initial: E[K] | (() => E[K]),
-		): EventState<E[K]>;
+			initial: StateOf<E[K], S> | (() => StateOf<E[K], S>),
+		): EventState<StateOf<E[K], S>>;
 		function useEventState<P, T extends string>(
 			creator: ActionCreator<P, T>,
 			initial: P | (() => P),
