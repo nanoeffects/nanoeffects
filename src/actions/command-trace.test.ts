@@ -118,7 +118,7 @@ describe("tracing of commands", () => {
 			);
 			app.bus.emit(outer, 1);
 
-			expect(startOf("inner")?.parent).toBe(startOf("outer")?.id);
+			expect(startOf("inner")?.parentId).toBe(startOf("outer")?.id);
 		});
 
 		it("a root command has no parent", () => {
@@ -128,7 +128,7 @@ describe("tracing of commands", () => {
 				1,
 			);
 
-			expect(startOf("outer")).not.toHaveProperty("parent");
+			expect(startOf("outer")).not.toHaveProperty("parentId");
 		});
 
 		it("links a chain of three", () => {
@@ -142,8 +142,8 @@ describe("tracing of commands", () => {
 			);
 			app.bus.emit(first, 1);
 
-			expect(startOf("c")?.parent).toBe(startOf("b")?.id);
-			expect(startOf("b")?.parent).toBe(startOf("a")?.id);
+			expect(startOf("c")?.parentId).toBe(startOf("b")?.id);
+			expect(startOf("b")?.parentId).toBe(startOf("a")?.id);
 		});
 
 		it("a command emitted with a plain bus.emit is not linked", () => {
@@ -154,7 +154,7 @@ describe("tracing of commands", () => {
 			);
 			app.bus.emit(outer, 1);
 
-			expect(startOf("inner")).not.toHaveProperty("parent");
+			expect(startOf("inner")).not.toHaveProperty("parentId");
 		});
 
 		it("the link is gone once ctx.emit has returned", () => {
@@ -166,7 +166,7 @@ describe("tracing of commands", () => {
 			app.bus.emit(noise, 1);
 			app.bus.emit(inner, 1);
 
-			expect(startOf("inner")).not.toHaveProperty("parent");
+			expect(startOf("inner")).not.toHaveProperty("parentId");
 		});
 
 		it("the link is restored even when the emitted handler throws", () => {
@@ -183,7 +183,7 @@ describe("tracing of commands", () => {
 			app.bus.emit(outer, 1);
 			app.bus.emit(inner, 1);
 
-			expect(startOf("inner")).not.toHaveProperty("parent");
+			expect(startOf("inner")).not.toHaveProperty("parentId");
 		});
 
 		it("nested links do not leak into a sibling emitted afterwards", () => {
@@ -196,8 +196,8 @@ describe("tracing of commands", () => {
 			});
 			app.bus.emit(outer, 1);
 
-			expect(startOf("a")?.parent).toBe(startOf("outer")?.id);
-			expect(startOf("b")?.parent).toBe(startOf("outer")?.id);
+			expect(startOf("a")?.parentId).toBe(startOf("outer")?.id);
+			expect(startOf("b")?.parentId).toBe(startOf("outer")?.id);
 		});
 
 		it("a command emitted after the task was aborted is not run", () => {
@@ -240,7 +240,7 @@ describe("tracing of commands", () => {
 			app.bus.on(cancelled, (_reason, ctx) => ctx.emit(inner, 1));
 			await app.bus.emit(job, "1");
 
-			expect(startOf("inner")).toHaveProperty("parent");
+			expect(startOf("inner")).toHaveProperty("parentId");
 			const phases = recorder.events
 				.filter((event) => event.effect === "command")
 				.filter((event) => String(event.type) === "user/load")
@@ -258,7 +258,7 @@ describe("tracing of commands", () => {
 			app.bus.on(loading, (_id, ctx) => ctx.emit(inner, 1));
 			await app.bus.emit(job, "1");
 
-			expect(startOf("inner")).toHaveProperty("parent");
+			expect(startOf("inner")).toHaveProperty("parentId");
 		});
 	});
 
@@ -311,7 +311,7 @@ describe("tracing of commands", () => {
 				),
 			);
 
-			expect(startOf("a/b")?.parent).toBeTypeOf("number");
+			expect(startOf("a/b")?.parentId).toBeTypeOf("number");
 		});
 	});
 });

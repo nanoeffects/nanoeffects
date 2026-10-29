@@ -224,7 +224,7 @@ describe("timeout", () => {
 				(event) => event.effect === "run",
 			);
 
-			expect(run?.parent).toBe(group?.id);
+			expect(run?.parentId).toBe(group?.id);
 		});
 	});
 });

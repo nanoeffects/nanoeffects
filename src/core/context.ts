@@ -5,7 +5,7 @@ import { TRACE } from "./flag";
 import type { TaskRef, Tracer } from "./tracer";
 import type { EffectName, EventMap, PayloadOf, Phase, Task } from "./types";
 
-type Event = { type: string; payload?: unknown };
+type Event = { type: string; payload?: unknown; traceGroupId?: string };
 
 type TaskMeta = { tracer: Tracer; ref: TaskRef };
 
@@ -81,6 +81,8 @@ const fieldsOf = (context: unknown, event: Event): object | undefined => {
 type TaskInit<E extends EventMap> = {
 	/** The event the task works on. */
 	event: Event;
+	/** What was emitted (an action, a command call), which can carry what the tracer reads. */
+	call?: unknown;
 	/** What the context forwards to; absent for a task that is made without a bus. */
 	bus?: TaskBus<E> | undefined;
 	tracer?: Tracer | undefined;
@@ -94,6 +96,7 @@ type TaskInit<E extends EventMap> = {
  */
 export const createTask = <E extends EventMap>({
 	event,
+	call,
 	bus,
 	tracer,
 	parent,
@@ -102,7 +105,9 @@ export const createTask = <E extends EventMap>({
 	const { signal } = controller;
 
 	const meta =
-		TRACE && tracer ? { tracer, ref: tracer.task(event, parent?.ref) } : void 0;
+		TRACE && tracer
+			? { tracer, ref: tracer.task(event, parent?.ref, call) }
+			: void 0;
 
 	const taskEmit = (...args: unknown[]) => {
 		// `createJob` opens the key for the time of its own emit of `cancel`

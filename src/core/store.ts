@@ -26,10 +26,10 @@ export type Store<E extends EventMap> = {
 export const createStore = <E extends EventMap>(): Store<E> => {
 	// a task and how many times it is registered, in the order it was first added:
 	// adding and removing cost the same however many listeners there are
-	const events: Record<PropertyKey, Map<unknown, number>> = {};
+	let events: Record<PropertyKey, Map<unknown, number>> = {};
 	// the array handed out by `get`, built on demand and never changed afterwards:
 	// an emit may still walk it, so a change drops it and the next `get` builds a new one
-	const lists: Record<PropertyKey, unknown[] | undefined> = {};
+	let lists: Record<PropertyKey, unknown[] | undefined> = {};
 
 	const change = (key: PropertyKey) => {
 		lists[key] = void 0;
@@ -53,12 +53,8 @@ export const createStore = <E extends EventMap>(): Store<E> => {
 	};
 
 	const clear = () => {
-		for (const key of Reflect.ownKeys(events)) {
-			delete events[key];
-		}
-		for (const key of Reflect.ownKeys(lists)) {
-			delete lists[key];
-		}
+		events = {};
+		lists = {};
 	};
 
 	return {

@@ -32,12 +32,17 @@ export type Phase = "start" | "done" | "error" | "cancel" | "drop";
 export type TraceEvent<E = Record<string, unknown>> = {
 	[K in Keys<E>]: {
 		id: number;
-		parent?: number;
+		/** Id of the task that started this one, if it has one. */
+		parentId?: number;
 		type: K;
 		effect: EffectName;
 		phase: Phase;
 		payload: E[K];
 		error?: unknown;
+		/** The flow the task belongs to: its own, or the nearest ancestor’s; absent without one. */
+		traceGroupId?: string;
+		/** The id of the root task of the chain; absent on the root itself. */
+		rootId?: number;
 	};
 }[Keys<E>];
 

@@ -46,7 +46,7 @@ describe("emit after an abort", () => {
 			(event) => event.type === "b" && event.phase === "start",
 		);
 
-		expect(started?.parent).toBe(root?.id);
+		expect(started?.parentId).toBe(root?.id);
 	});
 
 	it("is not a field of the public context type", () => {

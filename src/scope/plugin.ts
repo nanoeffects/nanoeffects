@@ -16,6 +16,8 @@ const reserved = new Set([
 	"run",
 	"type",
 	"payload",
+	// read by the tracer, not a field of the context
+	"traceGroupId",
 ]);
 
 type Layers = readonly Scope[];

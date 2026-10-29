@@ -1115,8 +1115,12 @@ describe("reactPlugin", () => {
 			bus.useEmitter(
 				"profile/changed",
 				{ name: "Adam" },
-				(previous, next) => previous.name === next.name,
+				{ equals: (previous, next) => previous.name === next.name },
 			);
+			bus.useEmitter("name/changed", "Adam", {
+				traceId: "Profile",
+				traceGroupId: "checkout",
+			});
 		};
 		expectTypeOf(calls).toBeFunction();
 	});
@@ -1129,12 +1133,12 @@ describe("reactPlugin", () => {
 			bus.useEmitter("name/changed", 1);
 			// @ts-expect-error the creator takes a string
 			bus.useEmitter(nameChanged, 1);
-			bus.useEmitter(
-				// @ts-expect-error the comparison gets values of the payload type
-				"name/changed",
-				"Adam",
-				(previous: number) => previous > 0,
-			);
+			// @ts-expect-error the comparison gets values of the payload type
+			bus.useEmitter("name/changed", "Adam", {
+				equals: (previous: number) => previous > 0,
+			});
+			// @ts-expect-error the third argument is an options object, not a function
+			bus.useEmitter("name/changed", "Adam", (a: string, b: string) => a === b);
 		};
 		expectTypeOf(wrongCalls).toBeFunction();
 	});

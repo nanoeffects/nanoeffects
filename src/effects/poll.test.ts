@@ -316,7 +316,7 @@ describe("poll", () => {
 				(event) => event.effect === "run",
 			);
 
-			expect(run?.parent).toBe(group?.id);
+			expect(run?.parentId).toBe(group?.id);
 		});
 
 		it("traces an unfinished call as cancelled after its group when the task aborts", async () => {

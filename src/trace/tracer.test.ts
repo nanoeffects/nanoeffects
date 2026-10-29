@@ -53,7 +53,7 @@ describe("createTracer", () => {
 			const child = tracer.task({ type: "a" }, parent);
 			tracer.report(child, "run", "start");
 
-			expect(recorder.events[0]?.parent).toBe(1);
+			expect(recorder.events[0]?.parentId).toBe(1);
 		});
 
 		it("sets error only for the error phase", () => {

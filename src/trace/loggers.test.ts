@@ -84,8 +84,8 @@ describe("consoleLogger", () => {
 	it("indents children under their parent", () => {
 		const { out, log } = setup();
 		log(event({ id: 1 }));
-		log(event({ id: 2, parent: 1 }));
-		log(event({ id: 3, parent: 2 }));
+		log(event({ id: 2, parentId: 1 }));
+		log(event({ id: 3, parentId: 2 }));
 		const lines = out.debug.mock.calls.map((call) => call[0]);
 
 		expect(lines).toEqual([
@@ -98,15 +98,15 @@ describe("consoleLogger", () => {
 	it("keeps the indent for the end of a task", () => {
 		const { out, log } = setup();
 		log(event({ id: 1 }));
-		log(event({ id: 2, parent: 1 }));
-		log(event({ id: 2, parent: 1, phase: "done" }));
+		log(event({ id: 2, parentId: 1 }));
+		log(event({ id: 2, parentId: 1, phase: "done" }));
 
 		expect(out.debug.mock.calls[2]?.[0]).toBe(">   search · latest done");
 	});
 
 	it("treats an unknown parent as the root", () => {
 		const { out, log } = setup();
-		log(event({ id: 5, parent: 99 }));
+		log(event({ id: 5, parentId: 99 }));
 
 		expect(out.debug.mock.calls[0]?.[0]).toBe(">   search · latest start");
 	});
@@ -170,12 +170,14 @@ describe("performanceLogger", () => {
 
 	it("includes the parent and the error in the detail", () => {
 		const { perf, log } = setup();
-		log(event({ id: 2, parent: 1 }));
-		log(event({ id: 2, parent: 1, phase: "error", error: new Error("boom") }));
+		log(event({ id: 2, parentId: 1 }));
+		log(
+			event({ id: 2, parentId: 1, phase: "error", error: new Error("boom") }),
+		);
 
 		expect(perf.measure.mock.calls[0]?.[1].detail).toEqual({
 			id: 2,
-			parent: 1,
+			parentId: 1,
 			phase: "error",
 			error: "Error: boom",
 		});
@@ -283,7 +285,7 @@ describe("reduxDevtools", () => {
 
 	it("names the action type/effect/phase and keeps the event type", () => {
 		const { connection, log } = setup();
-		log(event({ id: 3, parent: 1 }));
+		log(event({ id: 3, parentId: 1 }));
 		const [action] = connection.send.mock.calls[0] ?? [];
 
 		expect(action).toMatchObject({
@@ -292,7 +294,7 @@ describe("reduxDevtools", () => {
 			effect: "latest",
 			phase: "start",
 			id: 3,
-			parent: 1,
+			parentId: 1,
 			payload: "q",
 		});
 	});
@@ -431,10 +433,10 @@ describe("reduxDevtools, quiet by default", () => {
 	it("shows the handler tasks and the effects they start, not the attempts under them", () => {
 		const { log, types } = setup();
 		log(event({ id: 1, phase: "start" }));
-		log(event({ id: 2, parent: 1, effect: "retry", phase: "start" }));
-		log(event({ id: 3, parent: 2, effect: "run", phase: "start" }));
-		log(event({ id: 3, parent: 2, effect: "run", phase: "error" }));
-		log(event({ id: 2, parent: 1, effect: "retry", phase: "done" }));
+		log(event({ id: 2, parentId: 1, effect: "retry", phase: "start" }));
+		log(event({ id: 3, parentId: 2, effect: "run", phase: "start" }));
+		log(event({ id: 3, parentId: 2, effect: "run", phase: "error" }));
+		log(event({ id: 2, parentId: 1, effect: "retry", phase: "done" }));
 		log(event({ id: 1, phase: "done" }));
 
 		expect(types()).toEqual(["search/retry/done", "search/latest/done"]);
@@ -445,10 +447,10 @@ describe("reduxDevtools, quiet by default", () => {
 		const deep = setup({ depth: 2 });
 		for (const { log } of [roots, deep]) {
 			log(event({ id: 1 }));
-			log(event({ id: 2, parent: 1, effect: "retry" }));
-			log(event({ id: 3, parent: 2, effect: "run" }));
-			log(event({ id: 3, parent: 2, effect: "run", phase: "done" }));
-			log(event({ id: 2, parent: 1, effect: "retry", phase: "done" }));
+			log(event({ id: 2, parentId: 1, effect: "retry" }));
+			log(event({ id: 3, parentId: 2, effect: "run" }));
+			log(event({ id: 3, parentId: 2, effect: "run", phase: "done" }));
+			log(event({ id: 2, parentId: 1, effect: "retry", phase: "done" }));
 			log(event({ id: 1, phase: "done" }));
 		}
 
@@ -463,7 +465,7 @@ describe("reduxDevtools, quiet by default", () => {
 	it("a dropped task that never started is shown by the depth of its parent", () => {
 		const { log, types } = setup();
 		log(event({ id: 1 }));
-		log(event({ id: 5, parent: 1, effect: "throttle", phase: "drop" }));
+		log(event({ id: 5, parentId: 1, effect: "throttle", phase: "drop" }));
 
 		expect(types()).toEqual(["search/throttle/drop"]);
 	});
@@ -495,5 +497,44 @@ describe("reduxDevtools, quiet by default", () => {
 		}
 
 		expect(connection.send.mock.calls.at(-1)?.[1]).toEqual({ running: {} });
+	});
+});
+
+describe("the group and the root in the loggers", () => {
+	it("performanceLogger puts them in the detail, and only when they are set", () => {
+		const perf = { now: vi.fn(() => 0), measure: vi.fn(), mark: vi.fn() };
+		const log = performanceLogger({ performance: perf });
+		log(event({ id: 3 }));
+		log(event({ id: 3, rootId: 1, traceGroupId: "checkout", phase: "done" }));
+		log(event({ id: 4 }));
+		log(event({ id: 4, phase: "done" }));
+
+		expect(perf.measure.mock.calls[0]?.[1].detail).toEqual({
+			id: 3,
+			parentId: void 0,
+			rootId: 1,
+			traceGroupId: "checkout",
+			phase: "done",
+		});
+		expect(perf.measure.mock.calls[1]?.[1].detail).toEqual({
+			id: 4,
+			parentId: void 0,
+			phase: "done",
+		});
+	});
+
+	it("reduxDevtools keeps them in the action, and the group in the running tasks", () => {
+		const connection = { init: vi.fn(), send: vi.fn() };
+		const extension: ReduxExtension = { connect: vi.fn(() => connection) };
+		const log = reduxDevtools({ extension, starts: true, depth: 9 });
+		log(event({ id: 3, rootId: 1, traceGroupId: "checkout" }));
+
+		const [action, state] = connection.send.mock.calls[0] ?? [];
+		expect(action).toMatchObject({ rootId: 1, traceGroupId: "checkout" });
+		expect(state.running[3]).toEqual({
+			type: "search",
+			effect: "latest",
+			traceGroupId: "checkout",
+		});
 	});
 });

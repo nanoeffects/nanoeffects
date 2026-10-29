@@ -79,7 +79,7 @@ export function createCommand<
 	S extends Scope = Record<never, never>,
 >(
 	type: T,
-	handler: Task<P, Scoped<EventMap, S>, R>,
+	handler: Task<P, Scoped<EventMap, S>, R> | undefined,
 	scope: S,
 ): ScopedCommand<P, R, T, FieldsOfScope<EventMap, S>>;
 export function createCommand(

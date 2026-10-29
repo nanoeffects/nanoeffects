@@ -21,12 +21,14 @@ Each `TraceEvent` has:
 | Field | Meaning |
 | ----- | ------- |
 | `id` | Unique task id within the bus |
-| `parent` | Id of the task that started this one (absent for handler tasks) |
+| `parentId` | Id of the task that started this one (absent for handler tasks) |
+| `rootId` | Id of the root task of the chain; absent on the root itself, and it is the same through a listener that reports nothing |
 | `type` | Event type the task works on |
 | `effect` | `latest`, `debounce`, `throttle`, `leading`, `run`, `all`, `race`, … |
 | `phase` | `start`, `done`, `error`, `cancel`, or `drop` |
 | `payload` | Event payload |
 | `error` | Thrown value, only for `error` |
+| `traceGroupId` | The flow of the task, when it or a task above has one |
 
 Phases:
 
@@ -50,6 +52,73 @@ bus.on("load", async (id, ctx) => {
   });
 });
 ```
+
+## Show which subscription began a chain
+
+**Problem.** `useEmitter` and `bus.emitter` put an event on the bus from outside any task, such as a render or the callback of a store. In the trace that event has no sign of where it came from. With many such subscriptions it is hard to tell which one started a chain of commands and retries.
+
+**When.** The bus has a tracer and the project has several `useEmitter` or `bus.emitter` calls.
+
+Give each one a `traceId`. When the bus has a tracer, the emit is made from a root task with that `traceId` as its `type` and `run` as its effect. What the event starts is below it. Without a tracer nothing changes.
+
+```js
+import { createBus } from "nanoeffects";
+import { createAction, emitterPlugin } from "nanoeffects/actions";
+import { consoleLogger, createTracer } from "nanoeffects/trace";
+
+// createTracer: reports every task phase to the console
+const bus = createBus({ trace: createTracer(consoleLogger()) }).use(emitterPlugin());
+
+const cartChanged = createAction("cart/changed");
+
+// emitter: a callback for a store; traceId names it in the trace
+const emitCartChanged = bus.emitter(cartChanged, { traceId: "cartStore" });
+```
+
+In a component, the same option goes in the options of the hook: `useEmitter(nameChanged, name, { traceId: "Profile" })`. In the console:
+
+```
+[nanoeffects] Profile · run start
+[nanoeffects]   user/save · command start
+[nanoeffects]   user/save · command done
+[nanoeffects] Profile · run done
+```
+
+A `traceId` is a string you choose and keep stable: the name of the component or of the store. Without one the root has the type of the event.
+
+Two things to know:
+
+- **`sample` sees the `traceId`.** The root of an emitter is a task like any other, so a `sample` function gets `{ type, payload }` with the `traceId` as the `type` and the emitted action as the `payload`. A function that matches on the type of the event, such as `event.type === "search"`, does not pick a root that has another `traceId`; match the `traceId`, or the `payload.type`.
+- **Inside a handler, emit with `ctx.emit`.** `ctx.emit` keeps the chain: what it starts is below the handler. A plain `bus.emit` inside a handler starts a new root with no parent and no `rootId`, so the trace loses the link.
+
+Every event of a task below another one has `rootId`, the id of the root of the chain, also when a listener, which reports nothing, stands in between. `parentId` is the task directly above, which can be such a listener.
+
+## Follow one flow with a traceGroupId
+
+**Problem.** A flow such as a checkout has several roots (a click, a timer, a store) and many branches. Parent ids give a tree, but you want to filter the log by the flow.
+
+**When.** One business flow runs through several commands, and you read the log by flow.
+
+Give the flow a `traceGroupId` in the scope of the command, the job or the action that starts it. Every task that it starts through `ctx.emit` or `ctx.run` has the same `traceGroupId`, and so does every trace event of those tasks. A task that declares its own `traceGroupId` uses it for itself and for what it starts.
+
+```js
+import { createBus } from "nanoeffects";
+import { createCommand } from "nanoeffects/actions";
+import { consoleLogger, createTracer } from "nanoeffects/trace";
+
+const bus = createBus({ trace: createTracer(consoleLogger()) });
+
+// the scope names the flow; traceGroupId is for the tracer, not a field of ctx
+const pay = createCommand("checkout/pay", async () => {}, {
+  traceGroupId: "checkout",
+});
+```
+
+```
+[nanoeffects] [checkout] checkout/pay · command start
+```
+
+The emitters take it too: `useEmitter(cartChanged, cart, { traceId: "Cart", traceGroupId: "checkout" })`. `traceGroupId` works without `scopePlugin`.
 
 ## Use built-in loggers
 

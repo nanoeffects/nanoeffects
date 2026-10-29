@@ -131,8 +131,8 @@ describe("policy composition", () => {
 			(event) => event.effect === "latest",
 		);
 
-		expect(inner?.parent).toBe(outer?.id);
-		expect(outer?.parent).not.toBe(inner?.parent);
+		expect(inner?.parentId).toBe(outer?.id);
+		expect(outer?.parentId).not.toBe(inner?.parentId);
 	});
 
 	it("an abort of the handler task reaches the deepest run", async () => {

@@ -174,7 +174,7 @@ $name.listen(bus.emitter(nameChanged)); // every change of $name emits nameChang
 
 ### Tell the bus when a React value changes: `reactPlugin`
 
-`useEmitter(event, value)` emits after a render commits with a new value. It does not emit on mount, and not twice under StrictMode. It needs React 18 or newer. More in [Stores](stores.md#react-sharing-a-value-across-components).
+`useEmitter(event, value, options?)` emits after a render commits with a new value. It does not emit on mount, and not twice under StrictMode. The options are `{ equals, traceId, traceGroupId }`; the last two name the emit in the [trace](tracing.md#show-which-subscription-began-a-chain). It needs React 18 or newer. More in [Stores](stores.md#react-sharing-a-value-across-components).
 
 ```jsx
 import { useState } from "react";

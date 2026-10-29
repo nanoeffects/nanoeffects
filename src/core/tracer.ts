@@ -10,8 +10,15 @@ export type TaskRef = object;
  * `task` makes for each task.
  */
 export interface Tracer<Ref extends object = object> {
-	/** Registers a task and returns its handle; `parent` is the handle of its parent task. */
-	task(event: { type: string; payload?: unknown }, parent?: Ref): Ref;
+	/**
+	 * Registers a task and returns its handle; `parent` is the handle of its parent task.
+	 * `traceGroupId` names the flow the task belongs to; a task without one has its parent’s.
+	 */
+	task(
+		event: { type: string; payload?: unknown; traceGroupId?: string },
+		parent?: Ref,
+		call?: unknown,
+	): Ref;
 	/** Reports a phase of a task. */
 	report(ref: Ref, effect: EffectName, phase: Phase, error?: unknown): void;
 	/** Returns `settle(phase, error?)` that reports only the first phase it gets. */

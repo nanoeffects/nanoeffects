@@ -512,7 +512,7 @@ describe("latest", () => {
 			const harness = createHarness();
 			latestTask(() => 1)(1, harness.ctx());
 
-			expect(harness.recorder.events[0]?.parent).toBeTypeOf("number");
+			expect(harness.recorder.events[0]?.parentId).toBeTypeOf("number");
 		});
 	});
 });

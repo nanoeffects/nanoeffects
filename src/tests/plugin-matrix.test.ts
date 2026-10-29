@@ -274,6 +274,24 @@ const probes: Probe[] = [
 		},
 	},
 	{
+		id: "the emitter takes the options of the trace",
+		needs: ["emitter"],
+		run: ({ bus }) => {
+			const seen: unknown[] = [];
+			const note = createAction<number>("p/emitter-source");
+			bus.on(note, (value) => {
+				seen.push(value);
+			});
+			const emitter = field(bus, "emitter") as (
+				c: typeof note,
+				options: { traceId: string; traceGroupId: string },
+			) => (n: number) => void;
+			emitter(note, { traceId: "store", traceGroupId: "flow" })(6);
+
+			return seen[0] === 6;
+		},
+	},
+	{
 		id: "a predicate, once and off work",
 		needs: ["match"],
 		run: ({ bus }) => {

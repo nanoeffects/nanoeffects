@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createBus } from "../core/bus";
+import { createTraceRecorder } from "../trace/recorder";
+import { createTracer } from "../trace/tracer";
 import { createAction } from "./action";
 import { emitterPlugin } from "./emitter";
 
@@ -99,5 +101,36 @@ describe("emitterPlugin", () => {
 		bus.emit(nameChanged, "Eva");
 
 		expect(handler.mock.calls[0]?.[0]).toBe("Eva");
+	});
+	describe("the trace", () => {
+		it("makes the emit a child of a root task named by traceId", () => {
+			const recorder = createTraceRecorder();
+			const bus = createBus<Events>({ trace: createTracer(recorder) }).use(
+				emitterPlugin(),
+			);
+			const nameChanged = createAction("name/changed");
+			bus.on(nameChanged, () => {});
+
+			bus.emitter(nameChanged, { traceId: "nameStore", traceGroupId: "flow" })(
+				"Eva",
+			);
+
+			const root = recorder.events.find((event) => event.type === "nameStore");
+			expect(root?.effect).toBe("run");
+			expect(root?.traceGroupId).toBe("flow");
+			expect(root?.payload).toEqual({ type: "name/changed", payload: "Eva" });
+		});
+
+		it("emits as before when the bus has no tracer", () => {
+			const bus = createBus<Events>().use(emitterPlugin());
+			const nameChanged = createAction("name/changed");
+			const heard = vi.fn();
+			bus.on(nameChanged, heard);
+
+			bus.emitter(nameChanged, { traceId: "nameStore" })("Eva");
+
+			expect(heard).toHaveBeenCalledTimes(1);
+			expect(heard.mock.calls[0]?.[0]).toBe("Eva");
+		});
 	});
 });

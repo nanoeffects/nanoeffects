@@ -4,6 +4,8 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { createAction } from "../actions/action";
 import { createBus } from "../core/bus";
+import { createTraceRecorder } from "../trace/recorder";
+import { createTracer } from "../trace/tracer";
 import { reactPlugin } from "./plugin";
 
 type Events = {
@@ -157,7 +159,7 @@ describe("reactPlugin: useEmitter", () => {
 		expect(heard).not.toHaveBeenCalled();
 	});
 
-	it("compares with the equals function that is given", () => {
+	it("compares with the equals function that is given in the options", () => {
 		const app = createApp();
 		const heard = vi.fn();
 		app.on("profile/changed", heard);
@@ -165,7 +167,7 @@ describe("reactPlugin: useEmitter", () => {
 			previous.name === next.name;
 		const { control } = track(
 			mount({ name: "Adam" }, (profile) =>
-				app.useEmitter("profile/changed", profile, sameName),
+				app.useEmitter("profile/changed", profile, { equals: sameName }),
 			),
 		);
 
@@ -190,5 +192,48 @@ describe("reactPlugin: useEmitter", () => {
 		act(() => control.set({ name: "Adam" }));
 
 		expect(heard).toHaveBeenCalledTimes(1);
+	});
+	it("ignores a function in the place of the options, and compares with Object.is", () => {
+		const app = createApp();
+		const heard = vi.fn();
+		app.on("profile/changed", heard);
+		const sameName = (previous: { name: string }, next: { name: string }) =>
+			previous.name === next.name;
+		const { control } = track(
+			mount({ name: "Adam" }, (profile) =>
+				Reflect.apply(app.useEmitter, app, [
+					"profile/changed",
+					profile,
+					sameName,
+				]),
+			),
+		);
+
+		act(() => control.set({ name: "Adam" }));
+
+		expect(heard).toHaveBeenCalledTimes(1);
+	});
+
+	it("shows the traceId as the root of the chain in the trace", () => {
+		const recorder = createTraceRecorder();
+		const traced = createBus<Events>({ trace: createTracer(recorder) }).use(
+			reactPlugin(),
+		);
+		traced.on("name/changed", () => {});
+		const { control } = track(
+			mount("Adam", (name) =>
+				traced.useEmitter("name/changed", name, {
+					traceId: "Profile",
+					traceGroupId: "checkout",
+				}),
+			),
+		);
+
+		act(() => control.set("Eve"));
+
+		const root = recorder.events.find((event) => event.type === "Profile");
+		expect(root?.effect).toBe("run");
+		expect(root?.traceGroupId).toBe("checkout");
+		expect(root?.payload).toEqual({ type: "name/changed", payload: "Eve" });
 	});
 });

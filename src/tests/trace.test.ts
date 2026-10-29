@@ -109,8 +109,8 @@ describe("bus trace", () => {
 			(event) => event.phase === "start",
 		);
 
-		expect(outer?.parent).toBeTypeOf("number");
-		expect(inner?.parent).toBe(outer?.id);
+		expect(outer?.parentId).toBeTypeOf("number");
+		expect(inner?.parentId).toBe(outer?.id);
 	});
 
 	it("reports an error with its cause", async () => {

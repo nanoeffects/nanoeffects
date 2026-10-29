@@ -1,9 +1,33 @@
 import { combineLoggers } from "../core/logger";
+import { scopeKey } from "../core/scope-key";
 import type { Tracer } from "../core/tracer";
 import type { EffectName, Trace, TraceEvent } from "../core/types";
 import { isPromise, onAbort } from "../utils";
 
 const noop = () => {};
+
+// the flow a task declares: on the event itself (an emitter's root), or in the scope a call carries
+const groupOf = (
+	event: { traceGroupId?: string },
+	call: unknown,
+): string | undefined => {
+	if (typeof event.traceGroupId === "string") {
+		return event.traceGroupId;
+	}
+	if (typeof call !== "object" && typeof call !== "function") {
+		return;
+	}
+	if (call === null) {
+		return;
+	}
+	const scope: unknown = Reflect.get(call, scopeKey);
+	const own: unknown =
+		typeof scope === "object" && scope !== null
+			? Reflect.get(scope, "traceGroupId")
+			: void 0;
+
+	return typeof own === "string" ? own : void 0;
+};
 
 type Ref = {
 	id: number;
@@ -11,6 +35,9 @@ type Ref = {
 	type: string;
 	payload: unknown;
 	sampled: boolean;
+	group?: string | undefined;
+	// the id of the root task of the chain: its own, or its parent’s
+	root: number;
 };
 
 export type TracerOptions = {
@@ -60,12 +87,14 @@ export const createTracer = <E = Record<string, unknown>>(
 			: Math.random() < sample;
 
 	const tracer: Tracer<Ref> = {
-		task: (event, parent) => ({
+		task: (event, parent, call) => ({
 			id: ++lastId,
+			root: parent?.root ?? lastId,
 			parent: parent?.id,
 			type: event.type,
 			payload: event.payload,
 			sampled: parent?.sampled ?? isSampled(event),
+			group: groupOf(event, call) ?? parent?.group,
 		}),
 
 		report: (ref, effect, phase, error) => {
@@ -81,7 +110,13 @@ export const createTracer = <E = Record<string, unknown>>(
 				payload: ref.payload,
 			};
 			if (typeof ref.parent === "number") {
-				event.parent = ref.parent;
+				event.parentId = ref.parent;
+			}
+			if (ref.root !== ref.id) {
+				event.rootId = ref.root;
+			}
+			if (ref.group !== void 0) {
+				event.traceGroupId = ref.group;
 			}
 			if (phase === "error") {
 				event.error = error;

@@ -31,7 +31,16 @@ export const performanceLogger = (
 	const perf = options.performance ?? globalThis.performance;
 	const startedAt = new Map<number, number>();
 
-	return ({ id, parent, type, effect, phase, error }) => {
+	return ({
+		id,
+		parentId,
+		rootId,
+		traceGroupId,
+		type,
+		effect,
+		phase,
+		error,
+	}) => {
 		if (!perf) {
 			return;
 		}
@@ -44,7 +53,9 @@ export const performanceLogger = (
 		const name = `${type} · ${effect} (${phase})`;
 		const detail = {
 			id,
-			parent,
+			parentId,
+			...(rootId !== void 0 && { rootId }),
+			...(traceGroupId !== void 0 && { traceGroupId }),
 			phase,
 			...(phase === "error" && { error: String(error) }),
 		};

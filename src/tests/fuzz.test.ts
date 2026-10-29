@@ -254,7 +254,7 @@ const check = (events: TraceEvent<Events>[]) => {
 		const own0 = firstAt.get(id) ?? 0;
 		for (const event of own) {
 			const parentAt =
-				typeof event.parent === "number" ? firstAt.get(event.parent) : null;
+				typeof event.parentId === "number" ? firstAt.get(event.parentId) : null;
 			if (typeof parentAt === "number") {
 				expect(parentAt, `task ${id} before its parent`).toBeLessThan(own0);
 			}

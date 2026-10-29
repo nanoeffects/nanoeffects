@@ -350,10 +350,12 @@ export const createBus = <Events extends EventMap>(
 	const callHandler = (
 		fn: Task<EventPayload<Events>, Events>,
 		action: Action<Events>,
+		call: unknown,
 	) => {
 		const { onError } = options;
 		const { ctx } = createTask({
 			event: action,
+			call,
 			bus,
 			tracer: options.trace,
 			parent: { ref: currentEmitter() },
@@ -392,12 +394,13 @@ export const createBus = <Events extends EventMap>(
 			options.onUnhandled?.(action);
 		}
 		for (const fn of handlers) {
-			callHandler(fn, action);
+			callHandler(fn, action, event);
 		}
 
 		if (command) {
 			const { ctx } = createTask({
 				event: action,
+				call: event,
 				bus,
 				tracer: options.trace,
 				parent: { ref: currentEmitter() },

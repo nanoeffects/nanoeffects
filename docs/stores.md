@@ -461,7 +461,7 @@ export function Results() {
 Two limits to know:
 
 - **All consumers re-render** on any change of the context value. Split it into two contexts (`query` and `items`) if that is slow.
-- **A new object counts as a change.** For a value that is rebuilt with the same content, pass a third argument that says when two values are the same: `useEmitter(profileChanged, profile, (previous, next) => previous.id === next.id)`.
+- **A new object counts as a change.** For a value that is rebuilt with the same content, pass `equals` in the options, the third argument, to say when two values are the same: `useEmitter(profileChanged, profile, { equals: (previous, next) => previous.id === next.id })`. The same object takes `traceId` and `traceGroupId`, which name the subscription and the flow in the [trace](tracing.md#show-which-subscription-began-a-chain).
 
 `useEmitter` emits after the render, not at the moment of `setQuery`. To emit on every call, even with the same value, call an emitter from the event handler (`bus.emitter(action)`, see [Zustand](#zustand)) instead.
 

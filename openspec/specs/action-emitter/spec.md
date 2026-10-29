@@ -6,7 +6,7 @@ Lets emitterPlugin turn an action creator into a callback that emits its action 
 ## Requirements
 
 ### Requirement: The bus gets an emitter for action creators
-`emitterPlugin()` from `nanoeffects/actions` SHALL, when used as `bus.use(emitterPlugin())`, add `bus.emitter` to that bus and SHALL return the same bus. `bus.emitter(creator)` SHALL return a function that, when called with arguments, emits `creator(...args)` on that bus with `bus.emit`.
+`emitterPlugin()` from `nanoeffects/actions` SHALL, when used as `bus.use(emitterPlugin())`, add `bus.emitter` to that bus and SHALL return the same bus. `bus.emitter(creator, options?)` SHALL return a function that, when called with arguments, emits `creator(...args)` on that bus with `bus.emit`. The optional `options` SHALL be an object with optional `traceId` and `traceGroupId` strings for the trace (see `emit-origin` and `trace-group`); without a tracer they SHALL have no effect.
 
 #### Scenario: The returned function emits the action
 - **WHEN** `const emitNameChanged = bus.emitter(nameChanged)` and a handler listens with `bus.on(nameChanged, fn)`, then `emitNameChanged("Eva")` is called
@@ -23,6 +23,10 @@ Lets emitterPlugin turn an action creator into a callback that emits its action 
 #### Scenario: Plugin returns the same bus
 - **WHEN** `const result = bus.use(emitterPlugin())`
 - **THEN** `result === bus`
+
+#### Scenario: A traceId
+- **WHEN** `bus.emitter(nameChanged, { traceId: "nameStore" })` is made
+- **THEN** the function emits as without `traceId`, and a bus with a tracer shows the `nameStore` root
 
 ### Requirement: The creator keeps its meaning
 Using `emitterPlugin` SHALL NOT change `createAction`, `bus.emit`, `bus.on` or the core `Bus` type. A creator called as `nameChanged("Eva")` SHALL only build `{ type, payload }`, with or without the plugin.

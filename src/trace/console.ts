@@ -25,11 +25,20 @@ export const consoleLogger = (
 	const prefix = options.prefix ?? "[nanoeffects]";
 	const depths = new Map<number, number>();
 
-	return ({ id, parent, type, effect, phase, payload, error }) => {
+	return ({
+		id,
+		parentId,
+		type,
+		effect,
+		phase,
+		payload,
+		error,
+		traceGroupId,
+	}) => {
 		if (!depths.has(id)) {
 			depths.set(
 				id,
-				typeof parent === "number" ? (depths.get(parent) ?? 0) + 1 : 0,
+				typeof parentId === "number" ? (depths.get(parentId) ?? 0) + 1 : 0,
 			);
 		}
 		const indent = "  ".repeat(depths.get(id) ?? 0);
@@ -38,7 +47,8 @@ export const consoleLogger = (
 			depths.delete(id);
 		}
 
-		const line = `${prefix} ${indent}${type} · ${effect} ${phase}`;
+		const group = traceGroupId === void 0 ? "" : ` [${traceGroupId}]`;
+		const line = `${prefix}${group} ${indent}${type} · ${effect} ${phase}`;
 		if (phase === "error") {
 			out?.error(line, error);
 		} else {

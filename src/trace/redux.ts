@@ -32,7 +32,10 @@ export type ReduxDevtoolsOptions = {
 
 export type ReduxDevtoolsState = {
 	/** Tasks that started and have not settled yet, by trace id. */
-	running: Record<number, { type: string; effect: string }>;
+	running: Record<
+		number,
+		{ type: string; effect: string; traceGroupId?: string }
+	>;
 };
 
 const noop = () => {};
@@ -69,7 +72,10 @@ export const reduxDevtools = (
 		name: options.name ?? "nanoeffects",
 		...(maxAge !== void 0 && { maxAge }),
 	});
-	const running = new Map<number, { type: string; effect: string }>();
+	const running = new Map<
+		number,
+		{ type: string; effect: string; traceGroupId?: string }
+	>();
 	// how deep each task that has not ended is: its parent is one level up
 	const depths = new Map<number, number>();
 	const snapshot = (): ReduxDevtoolsState => ({
@@ -80,14 +86,20 @@ export const reduxDevtools = (
 
 	return ({ error, ...event }) => {
 		const parentDepth =
-			event.parent === void 0 ? -1 : (depths.get(event.parent) ?? -1);
+			event.parentId === void 0 ? -1 : (depths.get(event.parentId) ?? -1);
 		const depth = parentDepth + 1;
 		const shown = depth <= shownDepth;
 
 		if (event.phase === "start") {
 			depths.set(event.id, depth);
 			if (shown) {
-				running.set(event.id, { type: event.type, effect: event.effect });
+				running.set(event.id, {
+					type: event.type,
+					effect: event.effect,
+					...(event.traceGroupId !== void 0 && {
+						traceGroupId: event.traceGroupId,
+					}),
+				});
 			}
 		} else {
 			depths.delete(event.id);

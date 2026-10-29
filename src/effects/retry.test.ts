@@ -309,7 +309,7 @@ describe("retry", () => {
 				(event) => event.effect === "run",
 			);
 
-			expect(run?.parent).toBe(group?.id);
+			expect(run?.parentId).toBe(group?.id);
 		});
 
 		it("ends with cancel when the task aborts", async () => {

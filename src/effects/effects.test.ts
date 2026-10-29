@@ -261,7 +261,7 @@ describe("all", () => {
 				(event) => event.effect === "run",
 			);
 
-			expect(run?.parent).toBe(group?.id);
+			expect(run?.parentId).toBe(group?.id);
 		});
 
 		it("reports error for the group and cancel for the sibling", async () => {

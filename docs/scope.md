@@ -189,7 +189,7 @@ When several places set the same field, the strongest one wins:
 | 3 | the scope of the module that owns the handler |
 | 4 (weakest) | the bus: `createBus({ context })`, `contextPlugin`, `effectsPlugin` |
 
-The fields of the library (`signal`, `abort`, `emit`, `on`, `off`, `run`, `type`, `payload`) are never replaced. A child task (`ctx.run`, an attempt of `retry`) has the fields of its parent.
+The fields of the library (`signal`, `abort`, `emit`, `on`, `off`, `run`, `type`, `payload`) are never replaced. The name `traceGroupId` is reserved: the tracer reads it, and it is not put on `ctx` ([Follow one flow](tracing.md#follow-one-flow-with-a-tracegroupid)). A child task (`ctx.run`, an attempt of `retry`) has the fields of its parent.
 
 ## Keep a generic effect generic
 
