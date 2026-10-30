@@ -17,6 +17,7 @@ Code for every guide step: [`examples/guide.ts`](../examples/guide.ts) (type-che
 | Unreliable network / long flows | [Effects](effects.md) — one helper per job, then the rest as reference |
 | Domain logic off the UI | [Actions, commands, modules](actions.md) |
 | Already on Redux / Zustand / MobX / Pinia | [Stores](stores.md) |
+| A Node server (Fastify) whose work must stop when the client leaves | [Stop work on a server](server.md) |
 | A React form with async checks | [Build a sign-up form in React](react.md) |
 | A Vue app | [Use nanoeffects in a Vue app](vue.md) |
 | A Svelte app | [Use nanoeffects in a Svelte app](svelte.md) |
