@@ -1,5 +1,5 @@
 import type { ChildOf, Starter, Starters } from "./run";
-import { emptyResult, runGroup } from "./run";
+import { emptyResult, groupOrStarter, runGroup } from "./run";
 
 const settled = (
 	task: Promise<unknown>,
@@ -45,11 +45,34 @@ export function allSettled<
 ): Promise<{
 	-readonly [K in keyof T]: PromiseSettledResult<Awaited<ReturnType<T[K]>>>;
 }>;
+// Without a context the call is a starter. The child type comes from the group that calls it.
+export function allSettled<
+	Child,
+	T extends Record<string, Starter<unknown, Child>>,
+>(
+	effects: T,
+): (child: Child) => Promise<{
+	[K in keyof T]: PromiseSettledResult<Awaited<ReturnType<T[K]>>>;
+}>;
+export function allSettled<
+	Child,
+	const T extends readonly Starter<unknown, Child>[],
+>(
+	effects: T,
+): (child: Child) => Promise<{
+	-readonly [K in keyof T]: PromiseSettledResult<Awaited<ReturnType<T[K]>>>;
+}>;
 export function allSettled(
+	...args: [{ signal?: AbortSignal }, Starters] | [Starters]
+) {
+	return groupOrStarter(args, allSettledOf);
+}
+
+const allSettledOf = (
 	ctx: { signal?: AbortSignal },
 	effects: Starters,
-): Promise<unknown> {
-	return runGroup(
+): Promise<unknown> =>
+	runGroup(
 		"allSettled",
 		ctx,
 		effects,
@@ -66,4 +89,3 @@ export function allSettled(
 		},
 		"failure",
 	);
-}

@@ -349,6 +349,33 @@ bus.on("open", async (id, ctx) => {
 
 The same call with a payload and a context, `(payload, ctx)`, is the Task that `bus.on` and `ctx.run` use, and it does not change.
 
+**`all`, `allSettled` and `race` without `ctx` are starters too**, so a group nests in another group with no wrapper. Load two things, but give up after five seconds:
+
+```js
+import { createBus } from "nanoeffects";
+import { all, delay, race, retry } from "nanoeffects/effects";
+
+const bus = createBus();
+
+bus.on("open", async (id, ctx) => {
+  const result = await race(ctx, {
+    // all without ctx — a starter: loads both, each with up to 3 attempts
+    loaded: all({
+      user: retry((_, { signal }) => fetchUser(id, { signal }), { times: 3 }),
+      posts: retry((_, { signal }) => fetchPosts(id, { signal }), { times: 3 }),
+    }),
+    // delay without ctx — when it wins, the whole `all` above is cancelled
+    waited: delay(5000),
+  });
+
+  if ("loaded" in result) {
+    render(result.loaded.user, result.loaded.posts);
+  }
+});
+```
+
+One argument is the short form and two arguments are the form with `ctx`: `all(effects)` returns a starter, `all(ctx, effects)` runs the group. The inner group stops with the outer one and cancels its own starters. Passing only a context, `all(ctx)`, is a mistake and throws a `TypeError` at once. As with `take`, a group starter kept in a variable outside a group does not know its child type: write it in the group, or annotate the variable in TypeScript.
+
 **A starter gets the context of its own child task.** Pass `child` as the first argument to any effect, as a handler passes `ctx`: when the race ends, `child` is aborted and stops exactly this effect. The outer `ctx` is only for `race` itself. Your own API takes the signal in its options: `({ signal }) => fetchUser(id, { signal })`. The same holds for `all`, `allSettled` and `timeout`.
 
 If `ctx` is `{}` or a bare `{ signal }` (outside a task), `child` has only `signal` and `abort`, so it fits `delay` and `poll` but not `take`, which needs a bus.

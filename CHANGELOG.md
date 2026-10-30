@@ -7,6 +7,7 @@ How to read an entry: **Breaking** needs a change in your code or setup, **Chang
 ### Added
 - `delay(ms)` and `take(event, options)` without `ctx` are starters: `race(ctx, { waited: delay(1000), cancelled: take("cancel") })` replaces `(child) => delay(child, 1000)`. The forms with `ctx` are unchanged. [Docs](docs/effects.md#run-several-starters-together)
 - The wrapper form of `retry`, `timeout` and `poll` (`retry(fn, options)`) also works as a starter of `race`, `all` and `allSettled`: `race(ctx, { user: retry((_, { signal }) => load({ signal })), waited: delay(5000) })`. Used with a payload and a context it is unchanged. [Docs](docs/effects.md#run-several-starters-together)
+- `all(effects)`, `allSettled(effects)` and `race(effects)` without `ctx` are starters, so a group nests without a wrapper: `race(ctx, { loaded: all({ user: retry(loadUser), posts: retry(loadPosts) }), waited: delay(5000) })`. `all(ctx, effects)` is unchanged. [Docs](docs/effects.md#run-several-starters-together)
 
 ## 0.23.1
 

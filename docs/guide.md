@@ -267,7 +267,7 @@ For one call in the middle of a body: `await retry(ctx, () => api.search(q, { si
 
 ```js
 import { createBus } from "nanoeffects";
-import { all, take } from "nanoeffects/effects";
+import { all, delay, race, take } from "nanoeffects/effects";
 
 const bus = createBus();
 
@@ -284,6 +284,18 @@ bus.on("search", async (id, ctx) => {
 bus.on("typed", async (query, ctx) => {
   const position = await take(ctx, "scroll");
   ctx.emit("scrolled", { query, position });
+});
+
+// race — the first to finish wins, the other is cancelled
+bus.on("save", async (draft, ctx) => {
+  const result = await race(ctx, {
+    cancelled: take("cancel"), // take without ctx — waits for the next "cancel"
+    waited: delay(1000), // delay without ctx — waits one second
+  });
+
+  if ("waited" in result) {
+    ctx.emit("saved", draft);
+  }
 });
 ```
 

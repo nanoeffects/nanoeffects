@@ -1,5 +1,5 @@
 import type { ChildOf, EffectContext, Starter, Starters } from "./run";
-import { emptyResult, runGroup } from "./run";
+import { emptyResult, groupOrStarter, runGroup } from "./run";
 
 export type RaceStarter<T, Child = EffectContext> = Starter<T, Child>;
 
@@ -31,10 +31,31 @@ export function race<
 	ctx: C,
 	effects: T,
 ): Promise<{ -readonly [K in keyof T]?: Awaited<ReturnType<T[K]>> }>;
+// Without a context the call is a starter. The child type comes from the group that calls it.
+export function race<
+	Child,
+	T extends Record<string, RaceStarter<unknown, Child>>,
+>(
+	effects: T,
+): (child: Child) => Promise<{ [K in keyof T]?: Awaited<ReturnType<T[K]>> }>;
+export function race<
+	Child,
+	const T extends readonly RaceStarter<unknown, Child>[],
+>(
+	effects: T,
+): (
+	child: Child,
+) => Promise<{ -readonly [K in keyof T]?: Awaited<ReturnType<T[K]>> }>;
 export function race(
+	...args: [{ signal?: AbortSignal }, Starters] | [Starters]
+) {
+	return groupOrStarter(args, raceOf);
+}
+
+const raceOf = (
 	ctx: { signal?: AbortSignal },
 	effects: Starters,
-): Promise<unknown> {
+): Promise<unknown> => {
 	const result = emptyResult(effects);
 	if (Object.keys(effects).length === 0) {
 		return Promise.resolve(result);
@@ -54,4 +75,4 @@ export function race(
 		},
 		"end",
 	);
-}
+};

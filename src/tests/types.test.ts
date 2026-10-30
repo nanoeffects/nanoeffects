@@ -335,6 +335,36 @@ describe("results of effects", () => {
 		});
 	});
 
+	it("all, allSettled and race without a context are starters that nest", () => {
+		bus.on("search", async (id, ctx) => {
+			const fetchUser = (_id: string) => Promise.resolve({ name: "a" });
+			const nested = await race(ctx, {
+				loaded: all({
+					user: retry(() => fetchUser(id)),
+					count: take("count"),
+				}),
+				settled: allSettled([retry(() => fetchUser(id))]),
+				waited: delay(1000),
+			});
+			expectTypeOf(nested.loaded).toEqualTypeOf<
+				{ user: { name: string }; count: number } | undefined
+			>();
+			expectTypeOf(nested.settled).toEqualTypeOf<
+				[PromiseSettledResult<{ name: string }>] | undefined
+			>();
+
+			const inside = await all(ctx, [
+				race({ fast: take("count"), slow: delay(1) }),
+			]);
+			expectTypeOf(inside[0].fast).toEqualTypeOf<number | undefined>();
+
+			await all(ctx, {
+				// @ts-expect-error a starter is a function, not a number
+				broken: all({ a: 1 }),
+			});
+		});
+	});
+
 	it("a starter of delay or take is not a promise, and a wrong event is an error", () => {
 		bus.on("search", async (_, ctx) => {
 			const starter = delay(10);

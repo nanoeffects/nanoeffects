@@ -1,6 +1,7 @@
 import type { Context } from "../core/bus";
 import { forkTask, traceRun } from "../core/context";
 import type { EffectName, EventMap } from "../core/types";
+import { isContext } from "../utils";
 import { withGroup } from "./group";
 
 /** What a starter gets when the effect was called with `{}` or a bare `{ signal }`. */
@@ -55,6 +56,28 @@ export const startStarters = (group: Context<EventMap>, effects: Starters) => {
 			}
 		},
 	};
+};
+
+/**
+ * One argument is a group without a context, which is a starter; two are the `ctx` form. The count
+ * tells them apart because effects and a context are both objects. A lone context is a mistake:
+ * its `signal` is an object, and the value of an effects key is a starter, a function.
+ */
+export const groupOrStarter = <R>(
+	args: [{ signal?: AbortSignal }, Starters] | [Starters],
+	group: (ctx: { signal?: AbortSignal }, effects: Starters) => R,
+): R | ((child: Context<EventMap>) => R) => {
+	if (args.length === 2) {
+		return group(...args);
+	}
+	const [effects] = args;
+	if (isContext(Reflect.get(effects, "signal"))) {
+		throw new TypeError(
+			"A group takes effects: call it as (effects), or as (ctx, effects); a context alone has none",
+		);
+	}
+
+	return (child) => group(child, effects);
 };
 
 /**
