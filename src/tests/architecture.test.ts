@@ -13,6 +13,7 @@ const aboveCore = [
 	"src/policies/**",
 	"src/react/**",
 	"src/store/**",
+	"src/svelte/**",
 	"src/trace/**",
 	"src/vue/**",
 ];
@@ -46,9 +47,10 @@ describe("architecture", () => {
 		});
 	}
 
-	// `react` and `vue` are optional peer dependencies: only their own entries may import them
+	// `react`, `svelte` and `vue` are optional peer dependencies: only their own entries may import them
 	for (const [folder, pattern] of [
 		["react", /from "react(-dom)?(\/|")/],
+		["svelte", /from "svelte(\/|")/],
 		["vue", /from "vue(\/|")/],
 	] as const) {
 		it(`only src/${folder} imports ${folder}`, () => {

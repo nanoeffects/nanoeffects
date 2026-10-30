@@ -2,6 +2,7 @@
 // without writing generics, and wrong calls are errors. Nothing here runs
 // anything that matters; `pnpm tsgo` is the test.
 
+import type { Readable } from "svelte/store";
 import { describe, expectTypeOf, it } from "vitest";
 import { ref, type ShallowRef } from "vue";
 import type {
@@ -75,6 +76,7 @@ import { reactPlugin, usePolicy } from "../react";
 import { effect, type Signaled } from "../scope";
 import { signalPlugin } from "../signal";
 import { createEffectsMiddleware, type ReduxStoreApi } from "../store/redux";
+import { sveltePlugin } from "../svelte";
 import {
 	createTracer,
 	type EffectName,
@@ -1184,6 +1186,42 @@ describe("vuePlugin", () => {
 		};
 		expectTypeOf(wrongCalls).toBeFunction();
 		expectTypeOf(rightCalls).toBeFunction();
+	});
+});
+
+describe("sveltePlugin", () => {
+	type SvelteEvents = {
+		"name/changed": string;
+		"names/saved": string[];
+	};
+
+	it("types the store of eventStore from the event, and from initial when the event has none", () => {
+		const bus = createBus<SvelteEvents>().use(sveltePlugin());
+		const untyped = createBus().use(sveltePlugin());
+		const nameSaved = createAction("name/saved");
+		const calls = () => {
+			expectTypeOf(bus.eventStore("names/saved", [])).toEqualTypeOf<
+				Readable<string[]>
+			>();
+			expectTypeOf(untyped.eventStore(nameSaved, ["a"])).toEqualTypeOf<
+				Readable<string[]>
+			>();
+			expectTypeOf(untyped.eventStore(nameSaved, [])).toEqualTypeOf<
+				Readable<unknown[]>
+			>();
+		};
+		expectTypeOf(calls).toBeFunction();
+	});
+
+	it("rejects a wrong initial and an unknown event", () => {
+		const bus = createBus<SvelteEvents>().use(sveltePlugin());
+		const wrongCalls = () => {
+			// @ts-expect-error the payload of name/changed is a string
+			bus.eventStore("name/changed", 1);
+			// @ts-expect-error the bus has no such event
+			bus.eventStore("missing", "a");
+		};
+		expectTypeOf(wrongCalls).toBeFunction();
 	});
 });
 

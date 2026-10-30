@@ -16,6 +16,7 @@ Imports are split so you only load what you use. `createBus` stays small; the re
 | `nanoeffects/redux` | `createEffectsMiddleware` |
 | `nanoeffects/observable` | `createObserve`, `Subject` |
 | `nanoeffects/react` | `reactPlugin`: adds the `useEmitter` hook to a bus (needs React 18 or newer) |
+| `nanoeffects/svelte` | `sveltePlugin`: adds `eventStore` to a bus (needs Svelte 5 or newer) |
 | `nanoeffects/vue` | `vuePlugin`: adds `watchEmitter` and `useEventRef` to a bus (needs Vue 3.3 or newer) |
 | `nanoeffects/dev` | `devPlugin` (no-op in production) |
 | `nanoeffects/trace` | `createTracer`, the loggers and `tracePlugin` (names for the trace) |

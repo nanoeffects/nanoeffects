@@ -48,7 +48,7 @@ Pass `--template` to skip the question. With npm, put `--` before the option.
 | `react-ts` | The `react` app in TypeScript | You build a React app in TypeScript |
 | `domains-ts` | Commands, a job and modules, with the logic split into domain folders and React as a thin layer | You build an app with more than one feature and want the logic off the UI |
 | `vue-ts` | The `react-ts` app in Vue 3, with `watchEmitter` and `useEventRef` from `nanoeffects/vue` | You build a Vue 3 app |
-| `svelte-ts` | The `react-ts` app in Svelte 5, with a Svelte store made from an event | You build a Svelte app |
+| `svelte-ts` | The `react-ts` app in Svelte 5, with `eventStore` from `nanoeffects/svelte` | You build a Svelte app |
 
 ```bash
 npm create nanoeffects@latest my-app -- --template react
@@ -74,7 +74,7 @@ npm create nanoeffects@latest my-app -- --template vue-ts
 
 ### Start with Svelte
 
-`svelte-ts` is the search app of `react-ts` in Svelte 5. It needs no part of nanoeffects for Svelte: a Svelte store is any object with `subscribe`, so a small helper of the project, `src/event-store.ts`, makes a store from an event with `readable` and `bus.on`. In a component, `$found` reads it, and Svelte subscribes and unsubscribes for you. The query goes to the bus from the `oninput` handler, so nothing is emitted when the component mounts. The store listens only while something reads it, and is [not a store of the app](react.md#show-the-last-value-of-an-event-as-state): a value that several components share belongs in a store of your own.
+`svelte-ts` is the search app of `react-ts` in Svelte 5. Its bus uses `sveltePlugin` from `nanoeffects/svelte`: `eventStore` makes a Svelte store from an event. In a component, `$found` reads it, and Svelte subscribes and unsubscribes for you. The query goes to the bus from the `oninput` handler, so nothing is emitted when the component mounts. The store listens only while something reads it, and is [not a store of the app](svelte.md#it-is-not-a-store-of-the-app): a value that several components share belongs in a store of your own.
 
 ```bash
 npm create nanoeffects@latest my-app -- --template svelte-ts

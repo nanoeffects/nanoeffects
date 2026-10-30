@@ -1,12 +1,16 @@
 <script lang="ts">
-  import { bus } from "./bus";
-  import { eventStore } from "./event-store";
+  import { bus, eventStore } from "./bus";
   import Notes from "./Notes.svelte";
   import { queryChanged, searchLoaded } from "./search";
 
   // eventStore — like a store of [], but searchLoaded sets the value; Svelte stops listening
   // when this component is destroyed. found is a store of string[]: the type comes from
-  // createAction<string[]> in search.ts. It is not a store of the app: see event-store.ts.
+  // createAction<string[]> in search.ts.
+  //
+  // WARNING: this is not a store of the app. It listens to the bus only while something reads it
+  // (the first $found starts it, the last one stops it), and the bus keeps no values, so an event
+  // that came while nothing read the store is lost. To keep a value for components that come
+  // later, keep it in a store of your own and write to it from a handler of the event.
   const found = eventStore(searchLoaded, []);
 </script>
 

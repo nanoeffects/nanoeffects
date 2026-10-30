@@ -319,7 +319,7 @@ describe("templates", () => {
 		);
 	});
 
-	it("make a Svelte project from svelte-ts, with a store of the project for the event", async () => {
+	it("make a Svelte project from svelte-ts, with eventStore of nanoeffects/svelte", async () => {
 		await run({
 			argv: ["my-app", "--template", "svelte-ts"],
 			cwd: workdir,
@@ -331,13 +331,14 @@ describe("templates", () => {
 		expect(manifestOf("my-app").scripts.build).toBe(
 			"svelte-check --tsconfig ./tsconfig.json && vite build",
 		);
-		expect(read("my-app", "src", "event-store.ts")).toMatch(
+		expect(read("my-app", "src", "bus.ts")).toContain("sveltePlugin");
+		expect(read("my-app", "src", "App.svelte")).toMatch(
 			/not a store of the app/,
 		);
 		expect(read("my-app", "src", "App.svelte")).toContain("oninput");
 	});
 
-	it("give svelte-ts the files of react-ts, with .svelte for the components and three more", () => {
+	it("give svelte-ts the files of react-ts, with .svelte for the components and two more", () => {
 		const names = (template) => {
 			const target = join(workdir, `svelte-files-${template}`);
 			createProject({ target, template, version: "0.17.0" });
@@ -355,7 +356,6 @@ describe("templates", () => {
 		}
 		expect(svelteFiles.filter((file) => !reactFiles.includes(file))).toEqual([
 			"src/env.d",
-			"src/event-store",
 			"svelte.config.js",
 		]);
 	});

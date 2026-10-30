@@ -7,8 +7,11 @@ const shared = {
 	minify: true,
 	treeshake: true,
 	sourcemap: false,
-	// react and vue are optional peer dependencies of their own entries only; the other builds do not import them
-	unused: { level: "error", ignore: { peerDependencies: ["react", "vue"] } },
+	// react, svelte and vue are optional peer dependencies of their own entries only; the other builds do not import them
+	unused: {
+		level: "error",
+		ignore: { peerDependencies: ["react", "svelte", "vue"] },
+	},
 } as const;
 
 export default defineConfig([
@@ -20,6 +23,7 @@ export default defineConfig([
 			policies: "src/policies/index.ts",
 			observable: "src/observable.ts",
 			react: "src/react/index.ts",
+			svelte: "src/svelte/index.ts",
 			vue: "src/vue/index.ts",
 			trace: "src/trace/index.ts",
 			actions: "src/actions/index.ts",

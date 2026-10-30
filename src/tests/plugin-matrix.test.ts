@@ -1,3 +1,4 @@
+import type { Readable } from "svelte/store";
 import { describe, expect, it } from "vitest";
 import {
 	commandsPlugin,
@@ -17,6 +18,7 @@ import { extendBus } from "../oop";
 import { reactPlugin } from "../react";
 import { scopePlugin } from "../scope";
 import { signalPlugin } from "../signal";
+import { sveltePlugin } from "../svelte";
 import {
 	createTraceRecorder,
 	createTracer,
@@ -42,6 +44,7 @@ type Name =
 	| "dev"
 	| "trace"
 	| "react"
+	| "svelte"
 	| "vue";
 
 const names: Name[] = [
@@ -56,6 +59,7 @@ const names: Name[] = [
 	"dev",
 	"trace",
 	"react",
+	"svelte",
 	"vue",
 ];
 
@@ -172,6 +176,8 @@ const make = (order: Name[]): Build => {
 			build.bus.use(tracePlugin());
 		} else if (name === "react") {
 			build.bus.use(reactPlugin());
+		} else if (name === "svelte") {
+			build.bus.use(sveltePlugin());
 		} else {
 			build.bus.use(vuePlugin());
 		}
@@ -536,6 +542,27 @@ const probes: Probe[] = [
 		run: ({ bus }) =>
 			isFunction(field(bus, "watchEmitter")) &&
 			isFunction(field(bus, "useEventRef")),
+	},
+	{
+		id: "bus.eventStore is there and follows an event",
+		needs: ["svelte"],
+		run: ({ bus }) => {
+			const eventStore = field(bus, "eventStore");
+			if (!isFunction(eventStore)) {
+				return false;
+			}
+
+			const store: Readable<unknown> = Reflect.apply(eventStore, bus, [
+				"p/store",
+				"start",
+			]);
+			const seen: unknown[] = [];
+			const stop = store.subscribe((value: unknown) => seen.push(value));
+			bus.emit("p/store", "next");
+			stop();
+
+			return seen.join() === "start,next";
+		},
 	},
 	{
 		id: "bus.useEventState is there",
