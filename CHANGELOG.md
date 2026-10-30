@@ -2,7 +2,7 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
-## Unreleased
+## 0.26.0
 
 ### Changed
 - `RaceStarter` is deprecated: use `StarterOf<Events, Result>`. It keeps working and goes in 1.0.0. [Docs](docs/stability.md)
