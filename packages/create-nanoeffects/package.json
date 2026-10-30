@@ -1,6 +1,6 @@
 {
 	"name": "create-nanoeffects",
-	"version": "0.24.0",
+	"version": "0.25.0",
 	"description": "Start a project with nanoeffects: npm create nanoeffects@latest my-app",
 	"keywords": [
 		"create",
