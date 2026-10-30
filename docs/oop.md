@@ -261,6 +261,8 @@ export const Cache = extendBus(bus, CacheBase);
 
 ## Subscribe a method with `@On` and `@Once`
 
+`On` here is a decorator. The main entry also exports a type named `On`, the type of `bus.on`; they are different things in different imports, and a file that needs both can rename one: `import { On as OnDecorator } from "nanoeffects/oop"`.
+
 A decorator turns a method into a handler of an event for each instance, with `this` bound. You write no `this.on` in the constructor, and `dispose()` ends the subscription too.
 
 The bus and the events are the same as above, in TypeScript:

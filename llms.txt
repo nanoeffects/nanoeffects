@@ -18,6 +18,7 @@ Rules that generated code often gets wrong:
 - [Start a project from a template](docs/starter.md): `npm create nanoeffects` makes a Vite project (`vanilla`, `react`, `vue-ts`, `svelte-ts` and others, in JavaScript or TypeScript) with a bus, `debounce` and `latest`
 - [Why nanoeffects exists](docs/motivation.md): no dependencies and no global state for SDKs and Module Federation, and why not Redux, Effector or RxJS
 - [Package entries](docs/package.md): which import holds what
+- [Stability](docs/stability.md): which entries are stable or unstable, what a breaking change is, the supported Node, TypeScript and framework versions, the call forms that stay
 - [Plugins](docs/plugins.md): every plugin of a bus, what `bus.use` returns, and the order to use them in
 
 ## Async UI and unreliable networks

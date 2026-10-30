@@ -347,7 +347,7 @@ bus.on("open", async (id, ctx) => {
 });
 ```
 
-The same call with a payload and a context, `(payload, ctx)`, is the Task that `bus.on` and `ctx.run` use, and it does not change.
+The same call with a payload and a context, `(payload, ctx)`, is the Task that `bus.on` and `ctx.run` use, and it does not change. `retry`, `timeout` and `poll` therefore have three call forms: with `ctx`, as a Task, and as a starter. All three stay; [Stability](stability.md#rely-on-these-call-forms) says how they are told apart.
 
 **`all`, `allSettled` and `race` without `ctx` are starters too**, so a group nests in another group with no wrapper. Load two things, but give up after five seconds:
 
@@ -396,7 +396,7 @@ bus.on("sync", async (ids, ctx) => {
 });
 ```
 
-The result has the same order and shape as without the option. If one starter of `all` fails, the running ones are cancelled and the waiting ones are never called. `allSettled` goes on after a failure. When `ctx` aborts, both stop and start nothing more. A value that is not a positive integer (`0`, `-1`, `NaN`, `1.5`) throws a `RangeError` before anything starts; `Infinity` means no limit. `race` has no `concurrency`: it ends at the first result, so a starter that waited for a free slot would never run. A group starter inside another group takes no options; write `(child) => all(child, effects, { concurrency: 5 })` there.
+The result has the same order and shape as without the option. If one starter of `all` fails, the running ones are cancelled and the waiting ones are never called. `allSettled` goes on after a failure. When `ctx` aborts, both stop and start nothing more. A value that is not a positive integer (`0`, `-1`, `NaN`, `1.5`) throws a `RangeError` before anything starts; `Infinity` means no limit. `race` has no `concurrency`: it ends at the first result, so a starter that waited for a free slot would never run. The form without `ctx` takes no options, because a second argument would look like the form with `ctx`, so a group starter inside another group takes none; write `(child) => all(child, effects, { concurrency: 5 })` there.
 
 
 **A starter gets the context of its own child task.** Pass `child` as the first argument to any effect, as a handler passes `ctx`: when the race ends, `child` is aborted and stops exactly this effect. The outer `ctx` is only for `race` itself. Your own API takes the signal in its options: `({ signal }) => fetchUser(id, { signal })`. The same holds for `all`, `allSettled` and `timeout`.

@@ -73,15 +73,15 @@ type Helpers = Effects;
  * types, any other loses its first parameter, or has the type `Effect<F>` says.
  */
 export type BoundOf<H extends Helpers, E extends EventMap> = {
-	[K in keyof H]: K extends keyof Bound<E, StarterOf<H, E>>
+	[K in keyof H]: K extends keyof Bound<E, BoundStarter<H, E>>
 		? H[K] extends Supported[K]
-			? Bound<E, StarterOf<H, E>>[K]
+			? Bound<E, BoundStarter<H, E>>[K]
 			: BoundForm<H[K]>
 		: BoundForm<H[K]>;
 };
 
 /** What a starter of a bound `race` / `all` / `allSettled` gets: the context of its child, with the same bound effects. */
-type StarterOf<H extends Helpers, E extends EventMap> = Context<E> &
+type BoundStarter<H extends Helpers, E extends EventMap> = Context<E> &
 	BoundOf<H, E>;
 
 type Run = (ctx: object, ...args: unknown[]) => unknown;
