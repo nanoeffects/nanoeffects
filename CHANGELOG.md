@@ -4,13 +4,11 @@ How to read an entry: **Breaking** needs a change in your code or setup, **Chang
 
 ## Unreleased
 
-### Added
-- `take(ctx, event)` accepts an action creator as well as an event name, as `bus.on` does, and the result has its payload type: `await take(ctx, incrementCancelled)`. [Docs](docs/effects.md#wait-for-the-next-event-with-take)
-- A counter example in the style of the redux-saga tutorial, in two pages: without a store, and with Redux Toolkit and `createEffectsMiddleware`. It shows a delayed increment under `latest`, a cancel with `race` and `take`, and a failing call under `retry`. [Example](examples/counter)
-
 ## 0.22.0
 
 ### Added
+- `take(ctx, event)` accepts an action creator as well as an event name, as `bus.on` does, and the result has its payload type: `await take(ctx, incrementCancelled)`. [Docs](docs/effects.md#wait-for-the-next-event-with-take)
+- A counter example in the style of the redux-saga tutorial, in two pages: without a store, and with Redux Toolkit and `createEffectsMiddleware`. It shows a delayed increment under `latest`, a cancel with `race` and `take`, and a failing call under `retry`. [Example](examples/counter)
 - `nanoeffects/svelte`: `sveltePlugin` adds `eventStore` (an event of the bus as a readable Svelte store) to a bus. The `svelte-ts` template uses it instead of its own helper file. [Docs](docs/svelte.md)
 
 ## 0.21.0
