@@ -1,8 +1,8 @@
 import { useStore } from "zustand";
-import { messagesStore } from "../domains/messages/messages-store";
+import { messageStore } from "../entities/message/message-store";
 
 export function MessageList() {
-	const { loading, messages, marked } = useStore(messagesStore);
+	const { loading, messages, marked } = useStore(messageStore);
 
 	if (loading) {
 		return <p>Loading the history…</p>;

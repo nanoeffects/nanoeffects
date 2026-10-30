@@ -1,4 +1,4 @@
-# Build a chat with domains, modules and a small server
+# Build a chat with entities, features, modules and a small server
 
 Use this page when your app has several features that react to each other and you want to see where each piece of logic goes. The example is a chat with rooms, a history that loads, messages that can fail to send, a search across all rooms, and new messages that arrive on their own. A small Fastify server in the example answers every request, and it misbehaves on a known schedule, so each problem on this page really happens.
 
@@ -30,21 +30,27 @@ Open the Network panel of the browser while you do this. A request that the page
 
 ## See how the files are split
 
-Each domain is a folder. The components only emit events and read values; they never call the server.
+The code is in layers, and a file imports only from the layers below it. The components only emit events and read values; they never call the server.
 
-| Path | Job |
-| ---- | --- |
-| `src/bus.ts` | Creates the bus. It imports no events and no domain. |
-| `src/app.ts` | Mounts the four domains. |
-| `src/api.ts` | The client of the server: one function per request. |
-| `server/` | The Fastify server and the script that starts it with Vite. |
-| `src/domains/rooms/` | The list of rooms and the selected room. |
-| `src/domains/messages/` | The history of the open room and sending a message. |
-| `src/domains/search/` | Searching every room and opening a result. |
-| `src/domains/incoming/` | New messages, asked for at an interval. |
-| `src/ui/` | The components. |
+| Path | Layer | Job |
+| ---- | ----- | --- |
+| `src/shared/bus.ts` | shared | Creates the bus. It imports no events, no entity and no feature. |
+| `src/shared/api.ts` | shared | The client of the server: one function per request. |
+| `src/entities/room/` | entity | The list of rooms and the selected room. |
+| `src/entities/message/` | entity | The history of the open room, sending a message, and a message that arrives. |
+| `src/features/show-history/` | feature | A selected room loads its history. |
+| `src/features/search-messages/` | feature | Searching every room and opening a result. |
+| `src/features/receive-messages/` | feature | New messages, asked for at an interval. |
+| `src/ui/`, `src/app.ts` | top | The components, and the file that mounts the modules. |
+| `server/` | | The Fastify server and the script that starts it with Vite. |
 
-A domain folder has its events (`rooms.ts`, which imports no bus), its work (`rooms-handlers.ts`), the state it keeps (`rooms-store.ts`) and a module (`rooms-module.ts`) that wires them. A domain reacts to another domain by listening to its events, never by importing its handlers or its store. Events and commands both live in the events file. An event (`createAction`) says that something happened, and any domain may listen: `rooms/selected` is heard by three. A command (`createCommand`) is an order with exactly one handler, as `search/openResult` and `messages/mark` are. The handler is given to `createCommand`, so the command works wherever it is called and can return a result, and the module binds it with `module.use` for as long as it is mounted. A job is a command that also sends its outcomes, but its handler is bound in the module (`module.handle`): a job usually runs under a policy, and the type of its outcomes is exact only when the handler is not part of the type.
+**The rule.** An entity is a thing with its own state and orders (a room, a message). It imports `shared` and nothing else. A feature is a scenario that connects things: it imports `shared` and entities, and never another feature. The top imports anything below. No two entities import each other and no two features import each other, and a test in the repository (`src/tests/architecture.test.ts`) fails when one does.
+
+That rule is why `show-history` exists. Selecting a room must load its history, but `room` does not know `message` and `message` does not know `room`. The feature `show-history` is the one place that knows both: it listens to `rooms/selected` and starts the job `messages/loadHistory`. The same goes for a message that arrives: `receive-messages` emits `incoming/received`, an event that the `message` entity owns and listens to.
+
+A folder has its events (`room.ts`, which imports no bus), its work (`room-handlers.ts`), the state it keeps (`room-store.ts`) and a module (`room-module.ts`) that wires them. Another layer reaches an entity through its events and commands, never through its handlers or its store. Events and commands both live in the events file. An event (`createAction`) says that something happened, and any feature may listen: `rooms/selected` is heard by two. A command (`createCommand`) is an order with exactly one handler, as `search/openResult` and `messages/mark` are. The handler is given to `createCommand`, so the command works wherever it is called and can return a result, and the module binds it with `module.use` for as long as it is mounted. A job is a command that also sends its outcomes, but its handler is bound in the module (`module.handle`): a job usually runs under a policy, and the type of its outcomes is exact only when the handler is not part of the type.
+
+The layers come from [Feature-Sliced Design](https://feature-sliced.design/), reduced to the three that an app of this size needs.
 
 ## Load a history that must not race
 
@@ -55,7 +61,7 @@ A domain folder has its events (`rooms.ts`, which imports no bus), its work (`ro
 A job sends `pending` when its handler starts and exactly one of `success`, `fail` and `cancel` when it ends. `latest` around the handler aborts the older load when a newer one starts, so only the newer result is delivered, and the older one sends `cancel`:
 
 ```js
-// messages.js
+// message.js
 import { createJob } from "nanoeffects/actions";
 
 // createJob — a command that also sends pending, success, fail and cancel
@@ -63,7 +69,7 @@ export const loadHistory = createJob("messages/loadHistory");
 ```
 
 ```js
-// messages-handlers.js
+// message-handlers.js
 import { latest } from "nanoeffects/policies";
 
 // latest — a load for a newer room aborts the older one, and its result is never delivered
@@ -73,12 +79,12 @@ export const fetchHistory = latest((roomId, { signal }) => api.loadHistory(roomI
 The module gives the job its work and keeps the state from the outcomes, so an aborted load clears the flag too (see [Show a loading state with a job](actions.md#show-a-loading-state-with-a-job)):
 
 ```js
-// messages-module.js
+// message-module.js
 import { createModule } from "nanoeffects/actions";
-import { loadHistory } from "./messages";
-import { fetchHistory } from "./messages-handlers";
+import { loadHistory } from "./message";
+import { fetchHistory } from "./message-handlers";
 
-export const messagesModule = createModule("messages", (module) => {
+export const messageModule = createModule("message", (module) => {
   // handle — this module does the work of loadHistory while it is mounted
   module.handle(loadHistory, fetchHistory);
   module.on(loadHistory.pending, () => console.log("show the spinner"));
@@ -168,7 +174,7 @@ export const runSearch = debounce(
 
 **Problem.** The reader opens a search result from another room. The message cannot be marked until that room's history has loaded, and the handler must not guess how long that takes.
 
-**When.** A handler starts work in another domain and needs to continue after its outcome.
+**When.** A feature starts work in an entity and needs to continue after its outcome.
 
 `take` waits for the next event of a name. Start it before the emit that causes the event, so nothing is missed:
 
@@ -176,7 +182,7 @@ export const runSearch = debounce(
 import { createCommand } from "nanoeffects/actions";
 import { take } from "nanoeffects/effects";
 
-// createCommand — an order for the messages domain, with the handler that does it
+// createCommand — an order for the message entity, with the handler that does it
 const markMessage = createCommand("messages/mark", (messageId) => console.log("mark", messageId));
 
 // the room that is open, kept from the rooms/selected event
@@ -189,7 +195,7 @@ export const goToResult = async (hit, ctx) => {
     ctx.emit("rooms/selected", hit.roomId);
     await loaded;
   }
-  // ctx.emit with a command — the messages domain marks the message
+  // ctx.emit with a command — the message entity marks the message
   ctx.emit(markMessage(hit.id));
 };
 ```
@@ -227,20 +233,20 @@ const watchUpdates = async (_, ctx) => {
   await poll(ctx, check, 3000, { leading: true });
 };
 
-export const incomingModule = createModule("incoming", (module) => {
+export const receiveMessagesModule = createModule("receive-messages", (module) => {
   // spawn — a background task that lives as long as this module
   module.spawn(watchUpdates);
 });
 ```
 
-In the example a button calls `app.unmount(incomingModule)` and `app.mount(incomingModule)`, so you can watch the polling stop (the Network panel shows no more `updates` requests) and start.
+In the example a button calls `app.unmount(receiveMessagesModule)` and `app.mount(receiveMessagesModule)`, so you can watch the polling stop (the Network panel shows no more `updates` requests) and start.
 
 ## Know where each value lives
 
-Each domain keeps its state in a [Zustand](https://zustand.docs.pmnd.rs/) store that the module writes and a component reads with `useStore`. Each store lists its mutations, such as `startLoading(roomId)` and `markFailed(localId)`, and a module calls them with the data of an event: `module.on(loadHistory.pending, startLoading)`. A mutation that sets plain values gives `set` an object, as in `set({ searching: true })`. The store of the messages uses the `immer` middleware, so a mutation that changes a list can change it in place, as in `state.messages.push(message)`, and the store still gives React a new object. Nothing else writes the state. The list of rooms is the exception: it is read with one `useEventState` in a provider at the root. `useEventState` is not a store: an event that came before the provider mounted is lost, and a second component gets its own copy. See [Show the last value of an event as state](react.md#show-the-last-value-of-an-event-as-state).
+Each entity and each feature that has state keeps it in a [Zustand](https://zustand.docs.pmnd.rs/) store that the module writes and a component reads with `useStore`. Each store lists its mutations, such as `startLoading(roomId)` and `markFailed(localId)`, and a module calls them with the data of an event: `module.on(loadHistory.pending, startLoading)`. A mutation that sets plain values gives `set` an object, as in `set({ searching: true })`. The store of the message entity uses the `immer` middleware, so a mutation that changes a list can change it in place, as in `state.messages.push(message)`, and the store still gives React a new object. Nothing else writes the state. The list of rooms is the exception: it is read with one `useEventState` in a provider at the root. `useEventState` is not a store: an event that came before the provider mounted is lost, and a second component gets its own copy. See [Show the last value of an event as state](react.md#show-the-last-value-of-an-event-as-state).
 
 ## Where to go next
 
 - The API of commands, jobs and modules: [Actions, commands, jobs and modules](actions.md).
 - Policies such as `latest` and `queue`: [Policies](policies.md). Effects such as `allSettled`, `take` and `poll`: [Effects](effects.md).
-- A smaller project with two domains: [Start with domains](starter.md#start-with-domains).
+- A smaller project with two domains: [Start with domains](starter.md#start-with-domains). Its two domains do not talk to each other, so it needs no layers.

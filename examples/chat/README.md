@@ -1,9 +1,11 @@
 # Chat example
 
 A React and TypeScript chat that shows where logic goes when an app has several features:
-domains (rooms, messages, search, incoming) with their events, handlers and modules, and a thin
-UI. It is explained in [Build a chat with domains, modules and a
-small server](../../docs/chat-example.md).
+entities (`room`, `message`) and features (`show-history`, `receive-messages`,
+`search-messages`) with their events, handlers and modules, and a thin UI. An entity imports only
+`src/shared`, a feature imports `shared` and entities, and no two entities or features import each
+other: a test in the repository checks it. It is explained in [Build a chat with entities,
+features, modules and a small server](../../docs/chat-example.md).
 
 ```bash
 npm install

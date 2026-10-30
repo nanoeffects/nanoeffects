@@ -1,5 +1,5 @@
 import { useStore } from "zustand";
-import { pokemonStore } from "../domains/pokemon/pokemon-store";
+import { pokemonStore } from "../entities/pokemon/pokemon-store";
 
 export function PokemonCard() {
 	// useStore — read a Zustand store; the component renders again when the store changes

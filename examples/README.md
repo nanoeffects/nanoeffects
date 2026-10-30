@@ -22,11 +22,11 @@ npm run dev
 
 ## Bigger projects
 
-React and TypeScript projects with domains and modules, written to show where logic goes when an app has several features. The chat runs against a small server that fails on a known schedule, the pokédex against a real public API. They are type-checked with the rest of the repository.
+React and TypeScript projects with entities, features and modules, written to show where logic goes when an app has several features and the parts must not import each other. The chat runs against a small server that fails on a known schedule, the pokédex against a real public API. They are type-checked with the rest of the repository.
 
 | Folder | What is in it | Open |
 | --- | --- | --- |
-| [`chat`](chat) | Rooms, a history under `latest`, a send under `queue` and `retry`, a search across rooms with `allSettled` and `timeout`, and new messages polled with `poll`. One command starts the server and the page. Explained in [Build a chat with domains, modules and a small server](../docs/chat-example.md). | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/chat) |
+| [`chat`](chat) | Rooms, a history under `latest`, a send under `queue` and `retry`, a search across rooms with `allSettled` and `timeout`, and new messages polled with `poll`. One command starts the server and the page. Explained in [Build a chat with entities, features, modules and a small server](../docs/chat-example.md). | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/chat) |
 | [`pokedex`](pokedex) | Real requests to PokeAPI from the browser: a search with `debounce`, `latest`, `timeout` and a `retry` that does not repeat a 404, abilities loaded together with `allSettled`, and a Random button under `leading`. No server. | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/pokedex) |
 | [`spells`](spells) | The smallest example: a search for spells against PotterAPI in one file, with no domains and no store. One command that carries its handler (`debounce`, `latest`, `timeout`, `retry`) and a counter of calls in flight for "loading". | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/spells) |
 | [`counter`](counter) | The counter of the redux-saga tutorial in two pages with the same buttons: without a store, and with Redux Toolkit and `createEffectsMiddleware`. A delayed increment under `latest`, a cancel with `race` and `take`, and a call that fails under `retry` and shows its error. No network. | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/counter) |

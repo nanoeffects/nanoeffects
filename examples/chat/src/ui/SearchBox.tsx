@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useStore } from "zustand";
-import { bus, useEmitter } from "../bus";
-import { openResult, searchMessages } from "../domains/search/search";
-import { searchStore } from "../domains/search/search-store";
+import { openResult, searchMessages } from "../features/search-messages/search";
+import { searchStore } from "../features/search-messages/search-store";
+import { bus, useEmitter } from "../shared/bus";
 
 export function SearchBox() {
 	const [query, setQuery] = useState("");

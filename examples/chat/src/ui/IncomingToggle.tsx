@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { app } from "../app";
-import { incomingModule } from "../domains/incoming/incoming-module";
+import { receiveMessagesModule } from "../features/receive-messages/receive-messages-module";
 
 export function IncomingToggle() {
 	const [running, setRunning] = useState(true);
@@ -8,9 +8,9 @@ export function IncomingToggle() {
 	function toggle() {
 		if (running) {
 			// unmount — the module's background task is aborted, so no more messages arrive
-			app.unmount(incomingModule);
+			app.unmount(receiveMessagesModule);
 		} else {
-			app.mount(incomingModule);
+			app.mount(receiveMessagesModule);
 		}
 		setRunning(!running);
 	}

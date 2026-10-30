@@ -1,12 +1,12 @@
 import { useStore } from "zustand";
-import { bus } from "../bus";
-import { roomSelected } from "../domains/rooms/rooms";
-import { roomsStore } from "../domains/rooms/rooms-store";
+import { roomSelected } from "../entities/room/room";
+import { roomStore } from "../entities/room/room-store";
+import { bus } from "../shared/bus";
 import { useRooms } from "./RoomsProvider";
 
 export function RoomList() {
 	const rooms = useRooms();
-	const { selected } = useStore(roomsStore);
+	const { selected } = useStore(roomStore);
 
 	return (
 		<nav className="rooms">
@@ -15,7 +15,7 @@ export function RoomList() {
 					key={room.id}
 					type="button"
 					className={room.id === selected ? "selected" : ""}
-					// bus.emit — say which room was selected; the domains decide what that means
+					// bus.emit — say which room was selected; the entities and features decide what that means
 					onClick={() => bus.emit(roomSelected(room.id))}
 				>
 					{room.name}

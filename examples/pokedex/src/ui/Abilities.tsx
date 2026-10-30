@@ -1,8 +1,8 @@
 import { useStore } from "zustand";
-import { abilitiesStore } from "../domains/abilities/abilities-store";
+import { abilityStore } from "../entities/ability/ability-store";
 
 export function Abilities() {
-	const { loading, items } = useStore(abilitiesStore);
+	const { loading, items } = useStore(abilityStore);
 
 	if (loading) {
 		return <p className="hint">Loading the abilities…</p>;

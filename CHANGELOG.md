@@ -4,6 +4,9 @@ How to read an entry: **Breaking** needs a change in your code or setup, **Chang
 
 ## Unreleased
 
+### Changed
+- The chat and the pokédex examples are split into layers (`shared`, `entities`, `features`) that import downwards only, so no part imports a neighbour. The chat's `show-history` feature connects rooms to messages, and the pokédex's `show-abilities` connects a pokémon to its abilities. [Docs](docs/chat-example.md#see-how-the-files-are-split)
+
 ## 0.22.0
 
 ### Added

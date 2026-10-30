@@ -35,7 +35,7 @@ Rules that generated code often gets wrong:
 - [Connect Redux, Zustand, MobX, or Pinia](docs/stores.md): the Redux middleware and callbacks of other stores
 - [Use nanoeffects with React Query and SWR](docs/query-libraries.md): call a command from `queryFn` or the SWR fetcher; `signalPlugin` passes the abort of the library to the task
 - [Build a sign-up form in React](docs/react.md): a form with a username check, a submit that cannot fire twice, and retry; `useEventState` shows an event as state, `usePolicy` keeps a debounced handler between renders
-- [Build a chat with domains, modules and a small server](docs/chat-example.md): rooms, a history under `latest`, a send under `queue` and `retry`, a search with `allSettled` and `timeout`, new messages polled with `poll`
+- [Build a chat with entities, features, modules and a small server](docs/chat-example.md): rooms, a history under `latest`, a send under `queue` and `retry`, a search with `allSettled` and `timeout`, new messages polled with `poll`
 - [Use nanoeffects in a Vue app](docs/vue.md): `vuePlugin` adds `watchEmitter` (a value of a component to the bus) and `useEventRef` (an event as a ref)
 - [Use nanoeffects in a Svelte app](docs/svelte.md): `sveltePlugin` adds `eventStore` (an event as a Svelte store)
 - [Context fields](docs/context.md): put a store or client on every task

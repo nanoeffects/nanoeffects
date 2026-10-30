@@ -1,10 +1,10 @@
-import { bus } from "../bus";
-import { findPokemon, pickRandom } from "../domains/pokemon/pokemon";
+import { findPokemon, pickRandom } from "../entities/pokemon/pokemon";
+import { bus } from "../shared/bus";
 
 export function SearchBox() {
 	function handleInput(value: string) {
 		if (value.trim() !== "") {
-			// bus.emit — start the search job; the pokemon domain waits for quiet and aborts the older one
+			// bus.emit — start the search job; the pokemon entity waits for quiet and aborts the older one
 			bus.emit(findPokemon(value));
 		}
 	}
@@ -16,7 +16,7 @@ export function SearchBox() {
 				autoComplete="off"
 				onChange={(event) => handleInput(event.target.value)}
 			/>{" "}
-			{/* bus.emit — the domain drops a second click while the first search runs */}
+			{/* bus.emit — the pokemon entity drops a second click while the first search runs */}
 			<button type="button" onClick={() => bus.emit(pickRandom())}>
 				Random
 			</button>

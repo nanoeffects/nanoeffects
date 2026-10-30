@@ -17,8 +17,10 @@ npm run dev
 | Find a pokémon | Its abilities load together; one that fails or is slow is named, the others are shown | `allSettled`, `timeout` |
 | Click Random twice | One pokémon is searched for | `leading` |
 
-The work is in `src/domains/`: `pokemon` (the search and the card) and `abilities` (the texts of its
-abilities). The components only emit events and read the Zustand stores. Open the Network panel
+The work is in `src/entities/` and `src/features/`: the entities `pokemon` (the search and the
+card) and `ability` (the texts of its abilities), and the feature `show-abilities`, which connects
+them: a new search empties the abilities, and a found pokémon loads its own. The two entities do not
+import each other. The components only emit events and read the Zustand stores. Open the Network panel
 to see an aborted request as cancelled.
 
 PokeAPI is a free service: please keep the requests few, as they are here.
