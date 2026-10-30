@@ -19,6 +19,7 @@ Code for every guide step: [`examples/guide.ts`](../examples/guide.ts) (type-che
 | Already on Redux / Zustand / MobX / Pinia | [Stores](stores.md) |
 | A React form with async checks | [Build a sign-up form in React](react.md) |
 | A Vue app | [Use nanoeffects in a Vue app](vue.md) |
+| A Svelte app | [Use nanoeffects in a Svelte app](svelte.md) |
 | Old responses overwrite new ones | [Cancel stale requests](cancel-stale-requests.md) |
 | Debounced input that must also cancel the old request | [Debounce and abort](debounce-and-abort.md) |
 | A second click sends a second request | [Prevent a double submit](prevent-double-submit.md) |
@@ -34,6 +35,7 @@ Code for every guide step: [`examples/guide.ts`](../examples/guide.ts) (type-che
 - [Actions, commands, jobs and modules](actions.md)
 - [Sign-up form in React](react.md) — one form: races, double submit, retry
 - [nanoeffects in a Vue app](vue.md) — `watchEmitter` and `useEventRef`
+- [nanoeffects in a Svelte app](svelte.md) — `eventStore`
 - [Context fields](context.md) — store or client on every task
 - [Use the bus from a class](oop.md) — `extendBus`, `@WithBus`, `@On`, and `dispose()` for the subscriptions of an instance
 - [TypeScript in many files](typescript.md) — keep the types of the bus in commands and modules

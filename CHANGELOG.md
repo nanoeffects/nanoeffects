@@ -4,6 +4,8 @@ How to read an entry: **Breaking** needs a change in your code or setup, **Chang
 
 ## Unreleased
 
+## 0.22.0
+
 ### Added
 - `nanoeffects/svelte`: `sveltePlugin` adds `eventStore` (an event of the bus as a readable Svelte store) to a bus. The `svelte-ts` template uses it instead of its own helper file. [Docs](docs/svelte.md)
 
