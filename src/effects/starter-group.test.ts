@@ -1,11 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Context } from "../core/bus";
 import type { TraceEvent } from "../core/types";
 import { createHarness, type TestEvents } from "../tests/test-helpers";
-import { all, allSettled, delay, race, retry, take } from ".";
-
-// a starter kept in a variable has no group to take the child type from, so the variable names it
-type Child = Context<TestEvents>;
+import { all, allSettled, delay, race, retry, type StarterOf, take } from ".";
 
 describe("all, allSettled and race without a context as starters", () => {
 	beforeEach(() => {
@@ -126,12 +122,12 @@ describe("all, allSettled and race without a context as starters", () => {
 	describe("the form is told by the number of arguments", () => {
 		it("starts nothing until the group calls it", () => {
 			const starter = vi.fn(() => "value");
-			const grouped: (child: Child) => unknown = all({
+			const grouped: StarterOf<TestEvents> = all({
 				pause: delay(10),
 				starter,
 			});
-			const settled: (child: Child) => unknown = allSettled([starter]);
-			const raced: (child: Child) => unknown = race({ starter });
+			const settled: StarterOf<TestEvents> = allSettled([starter]);
+			const raced: StarterOf<TestEvents> = race({ starter });
 
 			expect([grouped, settled, raced]).toHaveLength(3);
 			expect(starter).not.toHaveBeenCalled();
@@ -151,7 +147,7 @@ describe("all, allSettled and race without a context as starters", () => {
 
 		it("treats an effects object with a key named signal as effects", async () => {
 			const harness = createHarness();
-			const starter: (child: Child) => Promise<unknown> = all({
+			const starter: StarterOf<TestEvents> = all({
 				signal: () => "value",
 			});
 			const result = await starter(harness.ctx());
@@ -171,7 +167,7 @@ describe("all, allSettled and race without a context as starters", () => {
 	describe("a stored group starter", () => {
 		it("serves two outer groups", async () => {
 			const harness = createHarness();
-			const load: (child: Child) => Promise<unknown> = all({
+			const load: StarterOf<TestEvents> = all({
 				user: retry(() => "user"),
 			});
 			const first = await all(harness.ctx(), { load });
@@ -184,7 +180,7 @@ describe("all, allSettled and race without a context as starters", () => {
 		it("reads the effects when it is called", async () => {
 			const harness = createHarness();
 			const effects = { value: () => 1 };
-			const starter: (child: Child) => Promise<unknown> = all(effects);
+			const starter: StarterOf<TestEvents> = all(effects);
 			effects.value = () => 2;
 
 			await expect(starter(harness.ctx())).resolves.toEqual({ value: 2 });

@@ -22,6 +22,21 @@ export type Starter<T, Child = EffectContext> = (
 	child: Child,
 ) => T | PromiseLike<T>;
 
+/**
+ * A starter of a group on a bus with the events `E`, with the result `R`. A starter written in a
+ * group needs no type: the group gives it. Use this for one kept in a variable, where nothing
+ * tells the checker which bus it is for.
+ *
+ * @example
+ * ```ts
+ * const load: StarterOf<Events> = all({ user: retry(() => loadUser(1)) });
+ * const user: StarterOf<Events, User> = retry(() => loadUser(1));
+ *
+ * bus.on("open", async (_, ctx) => race(ctx, { load, user }));
+ * ```
+ */
+export type StarterOf<E extends EventMap, R = unknown> = Starter<R, Context<E>>;
+
 export type Starters =
 	| Record<string, Starter<unknown, Context<EventMap>>>
 	| readonly Starter<unknown, Context<EventMap>>[];

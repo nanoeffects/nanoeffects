@@ -59,6 +59,7 @@ import {
 	poll,
 	race,
 	retry,
+	type StarterOf,
 	take,
 	timeout,
 } from "../effects";
@@ -362,6 +363,26 @@ describe("results of effects", () => {
 				// @ts-expect-error a starter is a function, not a number
 				broken: all({ a: 1 }),
 			});
+		});
+	});
+
+	it("StarterOf types a starter kept in a variable", () => {
+		type Loaded = { name: string };
+		const loadUser = () => Promise.resolve<Loaded>({ name: "a" });
+		const load: StarterOf<Events> = all({ user: retry(loadUser) });
+		const user: StarterOf<Events, Loaded> = retry(loadUser);
+		// @ts-expect-error the starter resolves with a user, not a string
+		const wrong: StarterOf<Events, string> = retry(loadUser);
+
+		bus.on("search", async (_, ctx) => {
+			const winner = await race(ctx, { load, user, wrong });
+			expectTypeOf(winner.user).toEqualTypeOf<Loaded | undefined>();
+			expectTypeOf(winner.load).toEqualTypeOf<unknown>();
+
+			const inline = await race(ctx, {
+				loaded: all({ user: retry(loadUser) }),
+			});
+			expectTypeOf(inline.loaded).toEqualTypeOf<{ user: Loaded } | undefined>();
 		});
 	});
 

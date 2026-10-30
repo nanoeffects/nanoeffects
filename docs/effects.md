@@ -323,7 +323,7 @@ bus.on("save", async (draft, ctx) => {
 });
 ```
 
-**`delay` and `take` without `ctx` are ready-made starters.** In a group, `delay(1000)` and `take("cancel")` do what `(child) => delay(child, 1000)` and `(child) => take(child, "cancel")` do. The group calls them with the child, so the wait stops with the group. Use this form inside `race`, `all`, `allSettled` and `timeout`; use `delay(ctx, 1000)` in plain handler code. A starter waits only when a group calls it: do not `await delay(1000)` on its own, it is a function, not a promise. Write `take("cancel")` in the group, as above; a starter stored in a variable outside it does not know the events of your bus, and you pin them yourself in TypeScript (`take<Events, "cancel">("cancel")`).
+**`delay` and `take` without `ctx` are ready-made starters.** In a group, `delay(1000)` and `take("cancel")` do what `(child) => delay(child, 1000)` and `(child) => take(child, "cancel")` do. The group calls them with the child, so the wait stops with the group. Use this form inside `race`, `all`, `allSettled` and `timeout`; use `delay(ctx, 1000)` in plain handler code. A starter waits only when a group calls it: do not `await delay(1000)` on its own, it is a function, not a promise. Write `take("cancel")` in the group, as above; a starter stored in a variable outside it does not know the events of your bus, and you name them yourself in TypeScript (`const cancelled: StarterOf<Events> = take("cancel")`; `StarterOf` is exported by `nanoeffects/effects`).
 
 The wrapper form of `retry`, `timeout` and `poll` is a starter too: a group calls it with the child, and the function you wrap gets `undefined` as its payload and the child as its context. Write the data it needs into a closure:
 
@@ -374,7 +374,7 @@ bus.on("open", async (id, ctx) => {
 });
 ```
 
-One argument is the short form and two arguments are the form with `ctx`: `all(effects)` returns a starter, `all(ctx, effects)` runs the group. The inner group stops with the outer one and cancels its own starters. Passing only a context, `all(ctx)`, is a mistake and throws a `TypeError` at once. As with `take`, a group starter kept in a variable outside a group does not know its child type: write it in the group, or annotate the variable in TypeScript.
+One argument is the short form and two arguments are the form with `ctx`: `all(effects)` returns a starter, `all(ctx, effects)` runs the group. The inner group stops with the outer one and cancels its own starters. Passing only a context, `all(ctx)`, is a mistake and throws a `TypeError` at once. A group starter written in a group needs no type. One kept in a variable outside a group does not know its bus: in TypeScript, annotate it with `StarterOf<Events>`, or `StarterOf<Events, Result>` when you need its value.
 
 **A starter gets the context of its own child task.** Pass `child` as the first argument to any effect, as a handler passes `ctx`: when the race ends, `child` is aborted and stops exactly this effect. The outer `ctx` is only for `race` itself. Your own API takes the signal in its options: `({ signal }) => fetchUser(id, { signal })`. The same holds for `all`, `allSettled` and `timeout`.
 
