@@ -3,17 +3,27 @@ import { forkTask, traceRun } from "../core/context";
 import type { EffectName, EventMap } from "../core/types";
 import { withGroup } from "./group";
 
-/** Context passed into `race` / `all` effect starters. */
+/** What a starter gets when the effect was called with `{}` or a bare `{ signal }`. */
 export type EffectContext = {
 	signal: AbortSignal;
 	abort: (reason?: unknown) => void;
 };
 
-export type Starter<T> = (ctx: EffectContext) => T | PromiseLike<T>;
+/**
+ * What a starter gets: the context of its own child task when the effect was
+ * called with a task context (so `take(child, event)` works), `{ signal, abort }`
+ * otherwise.
+ */
+export type ChildOf<C> =
+	C extends Context<infer E> ? Context<E> : EffectContext;
+
+export type Starter<T, Child = EffectContext> = (
+	child: Child,
+) => T | PromiseLike<T>;
 
 export type Starters =
-	| Record<string, Starter<unknown>>
-	| readonly Starter<unknown>[];
+	| Record<string, Starter<unknown, Context<EventMap>>>
+	| readonly Starter<unknown, Context<EventMap>>[];
 
 /** Empty result in the shape of `effects`: array of the same length, or object. */
 export const emptyResult = (effects: Starters): Record<string, unknown> =>
@@ -29,11 +39,7 @@ export const emptyResult = (effects: Starters): Record<string, unknown> =>
 export const startStarters = (group: Context<EventMap>, effects: Starters) => {
 	const children = Object.entries(effects).map(([key, starter]) => {
 		const child = forkTask(group);
-		const ctx: EffectContext = {
-			signal: child.ctx.signal,
-			abort: child.ctx.abort,
-		};
-		const start = () => starter(ctx);
+		const start = () => starter(child.ctx);
 		const task = new Promise((resolve) =>
 			resolve(traceRun(child.ctx, "run", start)),
 		).finally(child.unlink);

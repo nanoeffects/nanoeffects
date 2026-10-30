@@ -12,7 +12,7 @@ import { contextPlugin } from "../context";
 import { type Bus, createBus } from "../core/bus";
 import type { EventMap } from "../core/types";
 import { devPlugin } from "../dev";
-import { delay, effectsPlugin, race } from "../effects";
+import { all, delay, effectsPlugin, race } from "../effects";
 import { matchPlugin } from "../match";
 import { extendBus } from "../oop";
 import { reactPlugin } from "../react";
@@ -269,6 +269,47 @@ const probes: Probe[] = [
 			);
 
 			return bus.emit(read(noPayload)).join() === "3,true";
+		},
+	},
+	{
+		id: "a starter gets the effects of the bus bound to its child",
+		needs: ["effects"],
+		run: async ({ bus }) => {
+			const seen: boolean[] = [];
+			bus.on("p/starter", async (_payload, ctx) => {
+				const race = field(ctx, "race") as (
+					starters: object,
+				) => Promise<unknown>;
+				await race({
+					child: (child: unknown) =>
+						seen.push(field(child, "delay") !== field(ctx, "delay")),
+				});
+			});
+			bus.emit("p/starter");
+			await flush();
+
+			return seen[0] === true;
+		},
+	},
+	{
+		id: "a starter gets the scope effects bound to its child",
+		needs: ["scope"],
+		run: async ({ bus }) => {
+			const signals: AbortSignal[] = [];
+			const watch = (ctx: { signal: AbortSignal }) => signals.push(ctx.signal);
+			const read = createCommand(
+				"p/starter-scope",
+				async (_payload: undefined, ctx) => {
+					await all(ctx, {
+						child: (child) =>
+							Reflect.apply(field(child, "watch") as () => number, null, []),
+					});
+					return signals[0] !== ctx.signal && field(ctx, "api") === "own";
+				},
+				{ $effects: { watch }, api: "own" },
+			);
+
+			return (await bus.emit(read(noPayload))) === true;
 		},
 	},
 	{

@@ -1,5 +1,5 @@
 import type { ActionCreator, FreeActionCreator } from "../core/action-creator";
-import type { Bus, WithContext } from "../core/bus";
+import type { Bus, Context, WithContext } from "../core/bus";
 import type { NoClash } from "../core/context-types";
 import type { BoundForm, Effects } from "../core/effect-types";
 import type { EventMap, Keys } from "../core/types";
@@ -19,34 +19,31 @@ type Supported = {
 	delay: typeof delay;
 };
 
-type Results = Record<string, Starter<unknown>>;
-type List = readonly Starter<unknown>[];
-
 /** Each supported effect without its leading `ctx` argument. `take` knows the events of the bus. */
-type Bound<E extends EventMap> = {
+type Bound<E extends EventMap, Child> = {
 	race: {
-		<T extends Results>(
+		<T extends Record<string, Starter<unknown, Child>>>(
 			effects: T,
 		): Promise<{ [K in keyof T]?: Awaited<ReturnType<T[K]>> }>;
-		<const T extends List>(
+		<const T extends readonly Starter<unknown, Child>[]>(
 			effects: T,
 		): Promise<{ -readonly [K in keyof T]?: Awaited<ReturnType<T[K]>> }>;
 	};
 	all: {
-		<T extends Results>(
+		<T extends Record<string, Starter<unknown, Child>>>(
 			effects: T,
 		): Promise<{ [K in keyof T]: Awaited<ReturnType<T[K]>> }>;
-		<const T extends List>(
+		<const T extends readonly Starter<unknown, Child>[]>(
 			effects: T,
 		): Promise<{ -readonly [K in keyof T]: Awaited<ReturnType<T[K]>> }>;
 	};
 	allSettled: {
-		<T extends Results>(
+		<T extends Record<string, Starter<unknown, Child>>>(
 			effects: T,
 		): Promise<{
 			[K in keyof T]: PromiseSettledResult<Awaited<ReturnType<T[K]>>>;
 		}>;
-		<const T extends List>(
+		<const T extends readonly Starter<unknown, Child>[]>(
 			effects: T,
 		): Promise<{
 			-readonly [K in keyof T]: PromiseSettledResult<Awaited<ReturnType<T[K]>>>;
@@ -72,14 +69,24 @@ type Helpers = Effects;
  * types, any other loses its first parameter, or has the type `Effect<F>` says.
  */
 export type BoundOf<H extends Helpers, E extends EventMap> = {
-	[K in keyof H]: K extends keyof Bound<E>
+	[K in keyof H]: K extends keyof Bound<E, StarterOf<H, E>>
 		? H[K] extends Supported[K]
-			? Bound<E>[K]
+			? Bound<E, StarterOf<H, E>>[K]
 			: BoundForm<H[K]>
 		: BoundForm<H[K]>;
 };
 
+/** What a starter of a bound `race` / `all` / `allSettled` gets: the context of its child, with the same bound effects. */
+type StarterOf<H extends Helpers, E extends EventMap> = Context<E> &
+	BoundOf<H, E>;
+
 type Run = (ctx: object, ...args: unknown[]) => unknown;
+
+// A function this plugin bound carries its effect under this key: a child made from a context
+// gets the fields of its parent, and takes back its own functions to bind them to itself.
+// A property of the function, not a WeakMap: this runs for every task and every fork.
+const effectKey = Symbol("nanoeffects.effects.effect");
+type BoundFunction = ((...args: unknown[]) => unknown) & { [effectKey]?: Run };
 
 /**
  * Puts the effects you pass on the context of every task of the bus, bound to
@@ -113,11 +120,13 @@ export const effectsPlugin =
 		bus.addContext = (ctx) => {
 			previous?.(ctx);
 			for (const [key, effect] of entries) {
-				// a field that is there stays (a scope put it), so the order of the plugins does not matter
-				if (!(key in ctx)) {
-					Object.assign(ctx, {
-						[key]: (...args: unknown[]) => effect(ctx, ...args),
-					});
+				// a field that is there stays (a scope put it), so the order of the plugins does not matter;
+				// one of ours that a parent had is bound again, to this context
+				const current: BoundFunction | undefined = Reflect.get(ctx, key);
+				if (current === void 0 || current[effectKey] === effect) {
+					const bound: BoundFunction = (...args) => effect(ctx, ...args);
+					bound[effectKey] = effect;
+					Reflect.set(ctx, key, bound);
 				}
 			}
 		};

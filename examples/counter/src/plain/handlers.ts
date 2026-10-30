@@ -20,9 +20,9 @@ bus.on(
 		// race — the first to finish wins, the other is aborted through its signal
 		const result = await race(ctx, {
 			// delay — wait one second
-			waited: ({ signal }) => delay({ signal }, 1000),
+			waited: (child) => delay(child, 1000),
 			// take — wait for the next incrementCancelled
-			cancelled: ({ signal }) => take(ctx, incrementCancelled, { signal }),
+			cancelled: (child) => take(child, incrementCancelled),
 		});
 
 		if ("waited" in result) {

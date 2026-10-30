@@ -1,4 +1,4 @@
-import type { Starter, Starters } from "./run";
+import type { ChildOf, Starter, Starters } from "./run";
 import { emptyResult, runGroup } from "./run";
 
 /**
@@ -16,12 +16,15 @@ import { emptyResult, runGroup } from "./run";
  * });
  * ```
  */
-export function all<T extends Record<string, Starter<unknown>>>(
-	ctx: { signal?: AbortSignal },
-	effects: T,
-): Promise<{ [K in keyof T]: Awaited<ReturnType<T[K]>> }>;
-export function all<const T extends readonly Starter<unknown>[]>(
-	ctx: { signal?: AbortSignal },
+export function all<
+	C extends { signal?: AbortSignal },
+	T extends Record<string, Starter<unknown, ChildOf<C>>>,
+>(ctx: C, effects: T): Promise<{ [K in keyof T]: Awaited<ReturnType<T[K]>> }>;
+export function all<
+	C extends { signal?: AbortSignal },
+	const T extends readonly Starter<unknown, ChildOf<C>>[],
+>(
+	ctx: C,
 	effects: T,
 ): Promise<{ -readonly [K in keyof T]: Awaited<ReturnType<T[K]>> }>;
 export function all(

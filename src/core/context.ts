@@ -78,6 +78,10 @@ type TaskBus<E extends EventMap> = {
 	addContext?: ((ctx: object) => void) | undefined;
 };
 
+// the `addContext` a context was made with, kept on it, so a child made from it (a group, a starter) goes through it too
+const addContextKey = Symbol("nanoeffects.addContext");
+type Carried = { [addContextKey]?: ((ctx: object) => void) | undefined };
+
 // the fields come from the user's `BusOptions.context`: an object, or a function of the task
 const fieldsOf = (context: unknown, event: Event): object | undefined => {
 	if (typeof context !== "function") {
@@ -178,7 +182,8 @@ export const createTask = <E extends EventMap>({
 		on: taskOn,
 		off: bus?.off ?? noop,
 		run,
-	} as Context<E>;
+		[addContextKey]: bus?.addContext,
+	} as Context<E> & Carried;
 	bus?.addContext?.(ctx);
 	if (meta) {
 		metaOf.set(ctx, meta);
@@ -214,6 +219,7 @@ export const forkTask = <E extends EventMap>(
 			off: parent.off,
 			// the fields of the parent context that are not the library's are the user's
 			ctx: parent,
+			addContext: Reflect.get(parent, addContextKey),
 		},
 		tracer: meta?.tracer,
 		parent: { signal: parent.signal, ref: meta?.ref },

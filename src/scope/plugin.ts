@@ -212,7 +212,10 @@ export const scopePlugin =
 				ctx.type === pendingType &&
 				Object.is(ctx.payload, pendingPayload)
 			) {
-				adopt(ctx, pendingLayers, void 0);
+				adopt(ctx, pendingLayers, ctx[moduleKey]);
+			} else if (ctx[callKey]) {
+				// made from a parent context (a group or a starter): its fields are bound to the parent
+				adopt(ctx, ctx[callKey], ctx[moduleKey]);
 			}
 		};
 

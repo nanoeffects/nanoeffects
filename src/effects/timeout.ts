@@ -3,7 +3,7 @@ import { forkTask, traceRun } from "../core/context";
 import type { EventMap, Task } from "../core/types";
 import { clearTimer, raceAbort, setTimer } from "../utils";
 import { bodyOf, withGroup } from "./group";
-import type { Starter } from "./run";
+import type { ChildOf, Starter } from "./run";
 
 // What `timeout` does for both of its forms: `run` gets the child that the time limit aborts
 const timeoutBody = <T>(
@@ -42,7 +42,7 @@ const timeoutBody = <T>(
  *   Task. The Task gets a context of its own whose `signal` the time limit
  *   aborts: `bus.on("load", latest(timeout(5000, load)))`.
  * - `timeout(ctx, ms, starter)` is for one call inside a body; `starter` gets
- *   `{ signal, abort }`.
+ *   the context of its own child task, or `{ signal, abort }` when `ctx` is not a task context.
  *
  * @example
  * ```ts
@@ -57,15 +57,15 @@ export function timeout<P, E extends EventMap, R>(
 	ms: number,
 	task: Task<P, E, R>,
 ): Task<P, E, Promise<Awaited<R>>>;
-export function timeout<T>(
-	ctx: { signal?: AbortSignal },
+export function timeout<C extends { signal?: AbortSignal }, T>(
+	ctx: C,
 	ms: number,
-	starter: Starter<T>,
+	starter: Starter<T, ChildOf<C>>,
 ): Promise<T>;
 export function timeout(
 	first: number | { signal?: AbortSignal },
 	second: number | Task<unknown, EventMap, unknown>,
-	third?: Starter<unknown>,
+	third?: Starter<unknown, Context<EventMap>>,
 ): unknown {
 	if (typeof first === "number") {
 		const task = second as Task<unknown, EventMap, unknown>;
@@ -74,9 +74,7 @@ export function timeout(
 			timeoutBody(ctx, first, bodyOf(task, payload));
 	}
 	const ms = second as number;
-	const starter = third as Starter<unknown>;
+	const starter = third as Starter<unknown, Context<EventMap>>;
 
-	return timeoutBody(first, ms, (child) =>
-		starter({ signal: child.signal, abort: child.abort }),
-	);
+	return timeoutBody(first, ms, starter);
 }

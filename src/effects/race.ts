@@ -1,7 +1,7 @@
-import type { Starter, Starters } from "./run";
+import type { ChildOf, EffectContext, Starter, Starters } from "./run";
 import { emptyResult, runGroup } from "./run";
 
-export type RaceStarter<T> = Starter<T>;
+export type RaceStarter<T, Child = EffectContext> = Starter<T, Child>;
 
 /**
  * Runs all starters; first to settle wins, losers are cancelled via `ctx.abort`.
@@ -20,12 +20,15 @@ export type RaceStarter<T> = Starter<T>;
  * });
  * ```
  */
-export function race<T extends Record<string, RaceStarter<unknown>>>(
-	ctx: { signal?: AbortSignal },
-	effects: T,
-): Promise<{ [K in keyof T]?: Awaited<ReturnType<T[K]>> }>;
-export function race<const T extends readonly RaceStarter<unknown>[]>(
-	ctx: { signal?: AbortSignal },
+export function race<
+	C extends { signal?: AbortSignal },
+	T extends Record<string, RaceStarter<unknown, ChildOf<C>>>,
+>(ctx: C, effects: T): Promise<{ [K in keyof T]?: Awaited<ReturnType<T[K]>> }>;
+export function race<
+	C extends { signal?: AbortSignal },
+	const T extends readonly RaceStarter<unknown, ChildOf<C>>[],
+>(
+	ctx: C,
 	effects: T,
 ): Promise<{ -readonly [K in keyof T]?: Awaited<ReturnType<T[K]>> }>;
 export function race(

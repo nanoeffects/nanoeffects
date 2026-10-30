@@ -161,7 +161,8 @@ bus.on("load", async (id, { race, all, delay }) => {
   // race — same as race(ctx, …)
   const result = await race({
     data: ({ signal }) => fetchData(id, { signal }),
-    timeout: () => delay(5000), // delay — same as delay(ctx, 5000)
+    // a starter gets its own child with the same bound effects, so delay(5000) stops with the race
+    timeout: ({ delay }) => delay(5000),
   });
   if ("timeout" in result) throw new Error("timed out");
 
@@ -263,8 +264,8 @@ bus.on("login", async (user, ctx) => {
   console.log(stopped);
 
   // wait for a matching event, but not longer than 5 s
-  const id = await timeout(ctx, 5000, ({ signal }) =>
-    take(ctx, "saved", { signal, predicate: (savedId) => savedId === draft.id }),
+  const id = await timeout(ctx, 5000, (child) =>
+    take(child, "saved", { predicate: (savedId) => savedId === draft.id }),
   );
 });
 ```
@@ -272,7 +273,7 @@ bus.on("login", async (user, ctx) => {
 - Sees only events emitted after the call, takes one, and unsubscribes.
 - With an action creator the result has the payload type of the creator. A creator made without a payload type (`createAction("saved")`) takes it from the event map of the bus.
 - `options.predicate` skips payloads it rejects. In TypeScript, a type guard (`(payload): payload is Admin`) narrows the type of the result.
-- `options.signal` stops the wait (how a `race` or `timeout` starter cancels it).
+- `options.signal` stops the wait. In a starter of `race`, `all` or `timeout` pass `child` as the first argument instead: it already carries the signal.
 - On abort of the task or of `options.signal`, unsubscribes and rejects with the abort reason.
 
 ## Run several starters together
@@ -300,6 +301,29 @@ bus.on("open", async (id, ctx) => {
 ```
 
 `race(ctx, effects)` settles with the first starter that finishes and cancels the others.
+
+```js
+import { createBus } from "nanoeffects";
+import { delay, race, take } from "nanoeffects/effects";
+
+const bus = createBus();
+
+bus.on("save", async (draft, ctx) => {
+  // race — the first starter to finish wins, the other is cancelled
+  const result = await race(ctx, {
+    waited: (child) => delay(child, 1000),
+    cancelled: (child) => take(child, "cancel"),
+  });
+
+  if ("waited" in result) {
+    ctx.emit("saved", draft);
+  }
+});
+```
+
+**A starter gets the context of its own child task.** Pass `child` as the first argument to any effect, as a handler passes `ctx`: when the race ends, `child` is aborted and stops exactly this effect. The outer `ctx` is only for `race` itself. Your own API takes the signal in its options: `({ signal }) => fetchUser(id, { signal })`. The same holds for `all`, `allSettled` and `timeout`.
+
+If `ctx` is `{}` or a bare `{ signal }` (outside a task), `child` has only `signal` and `abort`, so it fits `delay` and `poll` but not `take`, which needs a bus.
 
 ## Pass `ctx` outside a task
 

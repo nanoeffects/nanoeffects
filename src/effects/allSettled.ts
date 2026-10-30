@@ -1,4 +1,4 @@
-import type { Starter, Starters } from "./run";
+import type { ChildOf, Starter, Starters } from "./run";
 import { emptyResult, runGroup } from "./run";
 
 const settled = (
@@ -27,14 +27,20 @@ const settled = (
  * });
  * ```
  */
-export function allSettled<T extends Record<string, Starter<unknown>>>(
-	ctx: { signal?: AbortSignal },
+export function allSettled<
+	C extends { signal?: AbortSignal },
+	T extends Record<string, Starter<unknown, ChildOf<C>>>,
+>(
+	ctx: C,
 	effects: T,
 ): Promise<{
 	[K in keyof T]: PromiseSettledResult<Awaited<ReturnType<T[K]>>>;
 }>;
-export function allSettled<const T extends readonly Starter<unknown>[]>(
-	ctx: { signal?: AbortSignal },
+export function allSettled<
+	C extends { signal?: AbortSignal },
+	const T extends readonly Starter<unknown, ChildOf<C>>[],
+>(
+	ctx: C,
 	effects: T,
 ): Promise<{
 	-readonly [K in keyof T]: PromiseSettledResult<Awaited<ReturnType<T[K]>>>;
