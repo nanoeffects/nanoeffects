@@ -5,6 +5,7 @@ How to read an entry: **Breaking** needs a change in your code or setup, **Chang
 ## Unreleased
 
 ### Added
+- A trades example over a WebSocket: one command keeps the connection, opens it again after a drop and closes it on abort. [Example](examples/trades)
 - A Rick and Morty example with React Query: the cache and the pages stay in React Query, the requests are commands with `timeout` and a `retry` that skips a 404. [Example](examples/rickandmorty)
 - A spells example, the smallest one: a search against PotterAPI with one command that carries its handler and no domains. [Example](examples/spells)
 - A pokédex example that calls PokeAPI from the browser: a search that does not race, a limit of time, a retry that knows an answer from a failure, and abilities that settle together. [Example](examples/pokedex)
