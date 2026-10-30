@@ -12,8 +12,8 @@ export function Notes() {
     async (text) => {
       setMessage(`Saved ${text.length} characters`);
     },
-    // debounce — built once; task runs the callback above
-    (task) => debounce(1000, task),
+    // debounce — built once around the callback above
+    debounce(1000),
     [],
   );
 

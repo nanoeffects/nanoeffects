@@ -4,6 +4,8 @@ How to read an entry: **Breaking** needs a change in your code or setup, **Chang
 
 ## Unreleased
 
+## 0.21.0
+
 ### Added
 - `latest()`, `leading()`, `debounce(ms)`, `throttle(ms)` and `queue()` can be called without the function and return a wrapper, so `usePolicy(callback, debounce(300))` replaces `usePolicy(callback, (task) => debounce(300, task))` and there is no `task` to swap for your own callback. The old forms keep working. [Docs](docs/policies.md#call-a-policy-without-its-function)
 - A trades example over a WebSocket: one command keeps the connection, opens it again after a drop and closes it on abort. [Example](examples/trades)
