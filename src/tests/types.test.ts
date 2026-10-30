@@ -2,6 +2,7 @@
 // without writing generics, and wrong calls are errors. Nothing here runs
 // anything that matters; `pnpm tsgo` is the test.
 
+import { createAction as toolkitCreateAction } from "@reduxjs/toolkit";
 import type { Readable } from "svelte/store";
 import { describe, expectTypeOf, it } from "vitest";
 import { ref, type ShallowRef } from "vue";
@@ -296,6 +297,39 @@ describe("results of effects", () => {
 		bus.on("search", async (_, ctx) => {
 			const user = await take(ctx, "loaded");
 			expectTypeOf(user).toEqualTypeOf<User>();
+		});
+	});
+
+	it("take resolves with the payload of an action creator", () => {
+		const userLoaded = createAction<User, "user/loaded">("user/loaded");
+		const freeLoaded = createAction("loaded");
+		const toolkitCounted = toolkitCreateAction<number>("counted");
+
+		bus.on("search", async (_, ctx) => {
+			const fromCreator = await take(ctx, userLoaded);
+			expectTypeOf(fromCreator).toEqualTypeOf<User>();
+
+			// no payload type on the creator: it comes from the event map
+			const fromMap = await take(ctx, freeLoaded);
+			expectTypeOf(fromMap).toEqualTypeOf<User>();
+
+			// an action creator of Redux Toolkit works the same
+			const fromToolkit = await take(ctx, toolkitCounted);
+			expectTypeOf(fromToolkit).toEqualTypeOf<number>();
+		});
+	});
+
+	it("take narrows the result of a creator with a type guard, and checks the predicate", () => {
+		type Admin = User & { admin: true };
+		const isAdmin = (user: User): user is Admin => "admin" in user;
+		const userLoaded = createAction<User, "user/loaded">("user/loaded");
+
+		bus.on("search", async (_, ctx) => {
+			const admin = await take(ctx, userLoaded, { predicate: isAdmin });
+			expectTypeOf(admin).toEqualTypeOf<Admin>();
+
+			// @ts-expect-error the payload of userLoaded is a User, not a number
+			await take(ctx, userLoaded, { predicate: (value: number) => value > 0 });
 		});
 	});
 

@@ -1,3 +1,4 @@
+import type { ActionCreator, FreeActionCreator } from "../core/action-creator";
 import type { Context } from "../core/bus";
 import type { EventMap, Keys } from "../core/types";
 import { onAbort } from "../utils";
@@ -14,7 +15,8 @@ export type TakeOptions<P> = {
 };
 
 /**
- * Waits for the next `event` on the bus and resolves with its payload. It sees
+ * Waits for the next `event` on the bus and resolves with its payload. `event` is the name
+ * of an event or an action creator, as for `bus.on`. It sees
  * only events emitted after the call, takes only one, and unsubscribes when it
  * is done. If `ctx` (or `options.signal`) aborts first, it unsubscribes and
  * rejects with the abort reason.
@@ -30,6 +32,9 @@ export type TakeOptions<P> = {
  * const done = await timeout(ctx, 5000, ({ signal }) =>
  *   take(ctx, "saved", { signal, predicate: (id) => id === draftId }),
  * );
+ *
+ * // an action creator works as the name does, and gives its payload type
+ * const stopped = await take(ctx, stopRequested);
  *
  * // a type guard narrows the result: `failed` is `{ ok: false }`
  * const failed = await take(ctx, "result", {
@@ -47,16 +52,37 @@ export function take<E extends EventMap, K extends Keys<E>>(
 	event: K,
 	options?: TakeOptions<E[K]>,
 ): Promise<E[K]>;
+// A creator without a payload type comes before the one with a payload type, as in `On<E>`.
+export function take<E extends EventMap, K extends Keys<E>, T extends E[K]>(
+	ctx: Context<E>,
+	creator: FreeActionCreator<K>,
+	options: TakeOptions<E[K]> & { predicate: (payload: E[K]) => payload is T },
+): Promise<T>;
 export function take<E extends EventMap, K extends Keys<E>>(
 	ctx: Context<E>,
-	event: K,
-	options: TakeOptions<E[K]> = {},
-): Promise<E[K]> {
+	creator: FreeActionCreator<K>,
+	options?: TakeOptions<E[K]>,
+): Promise<E[K]>;
+export function take<E extends EventMap, P, T extends P>(
+	ctx: Context<E>,
+	creator: ActionCreator<P>,
+	options: TakeOptions<P> & { predicate: (payload: P) => payload is T },
+): Promise<T>;
+export function take<E extends EventMap, P>(
+	ctx: Context<E>,
+	creator: ActionCreator<P>,
+	options?: TakeOptions<P>,
+): Promise<P>;
+export function take(
+	ctx: Context<EventMap>,
+	event: string | { type: string },
+	options: TakeOptions<unknown> = {},
+): Promise<unknown> {
 	return withGroup(
 		"take",
 		ctx,
 		(group) =>
-			new Promise<E[K]>((resolve, reject) => {
+			new Promise<unknown>((resolve, reject) => {
 				const { predicate } = options;
 				const stops: Array<() => void> = [];
 				const stop = () => {
@@ -69,8 +95,10 @@ export function take<E extends EventMap, K extends Keys<E>>(
 					reject(reason);
 				};
 
+				// the overloads above check the event; `ctx.on` takes a name or a creator
+				const target = event as never;
 				stops.push(
-					ctx.on(event, (payload) => {
+					ctx.on(target, (payload: unknown) => {
 						if (!predicate || predicate(payload)) {
 							stop();
 							resolve(payload);

@@ -21,8 +21,8 @@ bus.on(
 		const result = await race(ctx, {
 			// delay — wait one second
 			waited: ({ signal }) => delay({ signal }, 1000),
-			// take — wait for the next incrementCancelled (take asks for the name of the event)
-			cancelled: ({ signal }) => take(ctx, incrementCancelled.type, { signal }),
+			// take — wait for the next incrementCancelled
+			cancelled: ({ signal }) => take(ctx, incrementCancelled, { signal }),
 		});
 
 		if ("waited" in result) {

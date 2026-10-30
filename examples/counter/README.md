@@ -31,7 +31,7 @@ The handlers are in `src/plain/handlers.ts` and `src/redux/handlers.ts`:
 
 - `latest` keeps only the newest click, as `takeLatest` does.
 - `race(ctx, { waited, cancelled })` ends when the second passes or the cancel event comes; the loser is aborted through its `signal`.
-- "Cancel" is an event because a button is outside the task: `abort` stops a task from inside it. `take` waits for that event by its name.
+- "Cancel" is an event because a button is outside the task: `abort` stops a task from inside it. `take` waits for that event; it takes the action creator, as `bus.on` does.
 - A newer click aborts the one before it, and the `catch` ignores an aborted task: that is not a failure.
 
 ## Where the two versions differ

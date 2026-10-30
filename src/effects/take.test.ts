@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createAction } from "../actions/action";
 import { createHarness } from "../tests/test-helpers";
 import { delay } from "./index";
 import { race } from "./race";
@@ -254,6 +255,87 @@ describe("take", () => {
 			await vi.advanceTimersByTimeAsync(0);
 
 			expect(log).toEqual(["login 1", "logout bye"]);
+		});
+	});
+
+	describe("action creator", () => {
+		const typed = createAction<string, "b">("b");
+		const free = createAction("t");
+
+		it("resolves with the payload of a creator that has a payload type", async () => {
+			const harness = createHarness();
+			const promise = take(harness.ctx(), typed);
+			harness.bus.emit(typed("hi"));
+
+			await expect(promise).resolves.toBe("hi");
+		});
+
+		it("resolves with the payload of a creator that has none, typed by the event map", async () => {
+			const harness = createHarness();
+			const promise = take(harness.ctx(), free);
+			harness.bus.emit("t", 5);
+
+			await expect(promise).resolves.toBe(5);
+		});
+
+		it("ignores events before the call and other events", async () => {
+			const harness = createHarness();
+			harness.bus.emit("b", "old");
+			const promise = take(harness.ctx(), typed);
+			harness.bus.emit("t", 1);
+			harness.bus.emit("b", "new");
+
+			await expect(promise).resolves.toBe("new");
+		});
+
+		it("skips the payloads that the predicate rejects", async () => {
+			const harness = createHarness();
+			const promise = take(harness.ctx(), typed, {
+				predicate: (payload) => payload === "yes",
+			});
+			harness.bus.emit("b", "no");
+			harness.bus.emit("b", "yes");
+
+			await expect(promise).resolves.toBe("yes");
+		});
+
+		it("rejects with the reason of options.signal and unsubscribes", async () => {
+			const harness = createHarness();
+			const controller = new AbortController();
+			const promise = take(harness.ctx(), typed, {
+				signal: controller.signal,
+			});
+			controller.abort("enough");
+
+			await expect(promise).rejects.toBe("enough");
+			expect(harness.bus.emit("b", "late")).toBeUndefined();
+		});
+
+		it("unsubscribes when the task aborts", async () => {
+			const harness = createHarness();
+			const ctx = harness.ctx();
+			const heard = vi.fn();
+			harness.bus.on("b", heard);
+			const promise = take(ctx, typed).catch(() => {});
+			ctx.abort();
+			await promise;
+			harness.bus.emit("b", "late");
+
+			expect(heard).toHaveBeenCalledTimes(1);
+		});
+
+		it("traces the creator form as the name form", async () => {
+			const byName = createHarness();
+			const nameForm = take(byName.ctx(), "b");
+			byName.bus.emit("b", "hi");
+			await nameForm;
+
+			const byCreator = createHarness();
+			const creatorForm = take(byCreator.ctx(), typed);
+			byCreator.bus.emit("b", "hi");
+			await creatorForm;
+
+			expect(byCreator.phases()).toEqual(byName.phases());
 		});
 	});
 

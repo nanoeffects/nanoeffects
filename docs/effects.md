@@ -244,17 +244,23 @@ bus.on("watch", (_, ctx) => {
 - Under `latest`, subscriptions of a superseded run end with that run.
 - `ctx.off(event)` clears every handler of the event on the bus, not only the task’s.
 
-`take(ctx, event, options?)` waits for the next `event` and resolves with its payload:
+`take(ctx, event, options?)` waits for the next `event` and resolves with its payload. `event` is the name of an event or an action creator, as for `bus.on`:
 
 ```js
 import { createBus } from "nanoeffects";
+import { createAction } from "nanoeffects/actions";
 import { take, timeout } from "nanoeffects/effects";
 
 const bus = createBus();
+const stopRequested = createAction("stop"); // an event with a name; calling it builds the action
 
 bus.on("login", async (user, ctx) => {
   const reason = await take(ctx, "logout"); // resolves on the next logout
   cleanup(user, reason);
+
+  // an action creator works the same, and its payload type is the type of the result
+  const stopped = await take(ctx, stopRequested);
+  console.log(stopped);
 
   // wait for a matching event, but not longer than 5 s
   const id = await timeout(ctx, 5000, ({ signal }) =>
@@ -264,6 +270,7 @@ bus.on("login", async (user, ctx) => {
 ```
 
 - Sees only events emitted after the call, takes one, and unsubscribes.
+- With an action creator the result has the payload type of the creator. A creator made without a payload type (`createAction("saved")`) takes it from the event map of the bus.
 - `options.predicate` skips payloads it rejects. In TypeScript, a type guard (`(payload): payload is Admin`) narrows the type of the result.
 - `options.signal` stops the wait (how a `race` or `timeout` starter cancels it).
 - On abort of the task or of `options.signal`, unsubscribes and rejects with the abort reason.

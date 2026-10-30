@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { createAction } from "../actions/action";
 import { createBus } from "../core/bus";
 import { aliveCount, settleGarbage } from "../tests/test-helpers";
 import { all, delay, effectsPlugin, race, take } from ".";
@@ -51,6 +52,23 @@ describe("effectsPlugin", () => {
 		await flush();
 
 		expect(saved).toBe(7);
+	});
+
+	it("take waits for an action creator", async () => {
+		const savedAction = createAction<number, "saved">("saved");
+		const bus = createBus<{ start: undefined; saved: number }>().use(
+			effectsPlugin({ take }),
+		);
+		let saved = 0;
+
+		bus.on("start", async (_, { take }) => {
+			saved = await take(savedAction);
+		});
+		bus.emit("start");
+		bus.emit(savedAction(9));
+		await flush();
+
+		expect(saved).toBe(9);
 	});
 
 	it("delay stops when the task is aborted", async () => {

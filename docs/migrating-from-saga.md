@@ -14,7 +14,7 @@ Read this page if you know redux-saga and want to find the same job in nanoeffec
 | `fork(fn, x)` | `ctx.run(task, x)` without `await` |
 | `spawn(fn, x)` | `ctx.emit(event, x)` or `bus.emit(event, x)` |
 | `put(action)` | `ctx.emit(action)` |
-| `take(pattern)` | [`take(ctx, event, { predicate })`](effects.md) |
+| `take(pattern)` | [`take(ctx, event, { predicate })`](effects.md), where `event` is a name or an action creator |
 | `select` | a [context field](context.md), such as `store` |
 | `all`, `race` | [`all`, `race`](effects.md) |
 | `retry`, `delay` | [`retry`, `delay`](effects.md) |
