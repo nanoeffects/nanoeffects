@@ -1,17 +1,13 @@
 import type { WithSignal } from "nanoeffects";
 import { retry, timeout } from "nanoeffects/effects";
 import { debounce, latest } from "nanoeffects/policies";
-import { api, HttpError } from "../../shared/api";
+import { api, isWorthRetrying } from "../../shared/api";
 
 // The work of the pokemon entity.
 
 // One request for a pokémon. It gets the signal from the task, so an abort cancels the request.
 const load = (query: string, { signal }: WithSignal) =>
 	api.getPokemon(query, { signal });
-
-// A 404 is an answer: asking again gives the same answer. A busy server or a lost connection may pass.
-const isWorthRetrying = (error: unknown) =>
-	!(error instanceof HttpError && error.status < 500);
 
 // Read from the inside out:
 // retry — try the request again, up to 3 attempts, 300 ms apart, unless the answer was a "no"

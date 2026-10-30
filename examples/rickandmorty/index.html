@@ -7,7 +7,11 @@
 		<style>
 			body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 1rem auto; padding: 0 1rem; }
 			form { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
-			input { flex: 1; padding: 0.4rem; }
+			.combo { position: relative; flex: 1; }
+			input { width: 100%; box-sizing: border-box; padding: 0.4rem; }
+			.options { position: absolute; left: 0; right: 0; background: #fff; border: 1px solid #ccc; z-index: 1; }
+			.option { padding: 0.3rem 0.5rem; cursor: pointer; }
+			.option[aria-selected="true"] { background: #e6f0ff; }
 			ul { list-style: none; padding: 0; }
 			li { display: flex; gap: 0.75rem; align-items: center; margin-bottom: 0.5rem; cursor: pointer; }
 			li img { width: 48px; height: 48px; border-radius: 50%; }

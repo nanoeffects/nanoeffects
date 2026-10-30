@@ -4,6 +4,9 @@ How to read an entry: **Breaking** needs a change in your code or setup, **Chang
 
 ## Unreleased
 
+### Added
+- Autocomplete in two examples. The pokédex suggests names from a list that it loads once, and its search now starts when you pick a name or press Enter instead of on every key press. The Rick and Morty browser suggests names from a command with `debounce`, `latest` and `timeout`. [Pokédex](examples/pokedex), [Rick and Morty](examples/rickandmorty)
+
 ### Changed
 - The chat and the pokédex examples are split into layers (`shared`, `entities`, `features`) that import downwards only, so no part imports a neighbour. The chat's `show-history` feature connects rooms to messages, and the pokédex's `show-abilities` connects a pokémon to its abilities. [Docs](docs/chat-example.md#see-how-the-files-are-split)
 

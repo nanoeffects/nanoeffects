@@ -6,7 +6,12 @@
 		<title>nanoeffects: a pokédex with PokeAPI</title>
 		<style>
 			body { font-family: system-ui, sans-serif; max-width: 36rem; margin: 1rem auto; padding: 0 1rem; }
-			input { padding: 0.4rem; width: 70%; box-sizing: border-box; }
+			.row { margin: 1em 0; }
+			.combo { position: relative; display: inline-block; width: 70%; }
+			input { padding: 0.4rem; width: 100%; box-sizing: border-box; }
+			.options { position: absolute; left: 0; right: 0; margin: 0; padding: 0; list-style: none; background: #fff; border: 1px solid #ccc; z-index: 1; }
+			.option { padding: 0.3rem 0.5rem; cursor: pointer; }
+			.option[aria-selected="true"] { background: #e6f0ff; }
 			.card { display: flex; gap: 1rem; align-items: center; min-height: 6rem; }
 			.card img { width: 96px; height: 96px; image-rendering: pixelated; }
 			.hint { color: #666; font-size: 0.9rem; }

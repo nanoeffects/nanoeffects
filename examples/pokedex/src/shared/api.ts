@@ -33,6 +33,8 @@ type PokemonAnswer = {
 	abilities: { ability: { name: string } }[];
 };
 
+type NamesAnswer = { results: { name: string }[] };
+
 type AbilityAnswer = {
 	effect_entries: { short_effect: string; language: { name: string } }[];
 };
@@ -47,6 +49,10 @@ const request = async <T>(path: string, { signal }: WithSignal): Promise<T> => {
 	return response.json();
 };
 
+// A 404 is an answer: asking again gives the same answer. A busy server or a lost connection may pass.
+export const isWorthRetrying = (error: unknown) =>
+	!(error instanceof HttpError && error.status < 500);
+
 export const api = {
 	// `query` is a name or a number
 	async getPokemon(query: string, options: WithSignal): Promise<Pokemon> {
@@ -60,6 +66,16 @@ export const api = {
 			types: answer.types.map((entry) => entry.type.name),
 			abilities: answer.abilities.map((entry) => entry.ability.name),
 		};
+	},
+
+	// Every name in one request (about 1300), so the page can suggest names without asking per key press
+	async listPokemonNames(options: WithSignal): Promise<string[]> {
+		const answer = await request<NamesAnswer>(
+			"/pokemon?limit=100000&offset=0",
+			options,
+		);
+
+		return answer.results.map((entry) => entry.name);
 	},
 
 	async getAbilityText(name: string, options: WithSignal): Promise<string> {
