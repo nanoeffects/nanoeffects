@@ -4,6 +4,8 @@ How to read an entry: **Breaking** needs a change in your code or setup, **Chang
 
 ## Unreleased
 
+## 0.23.1
+
 ### Fixed
 - A policy given to `createJob(type, policy(fn))` is known to the job like one bound with `commands.handle`: `pending` is sent when the policy starts the call, not at the call, and a call that never starts sends no outcome. A handler that is not a library policy is unchanged.
 
