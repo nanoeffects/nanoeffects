@@ -1,0 +1,44 @@
+name: Bug report
+description: Something does not work as the docs say.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A short reproduction is the fastest way to a fix. You can fork the
+        [playground](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/playground)
+        and change it.
+  - type: input
+    id: version
+    attributes:
+      label: Version of nanoeffects
+      placeholder: "0.26.0"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Where it runs
+      description: Node, browser, bundler, TypeScript, React/Vue/Svelte versions that matter.
+      placeholder: "Node 22, Vite 8, TypeScript 5.9"
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened
+      description: Include the error message or the trace.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: A link to a StackBlitz or a repository, or the smallest code that shows it.
+      render: js
+    validations:
+      required: true

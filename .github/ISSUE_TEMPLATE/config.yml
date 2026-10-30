@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or idea
+    url: https://github.com/nanoeffects/nanoeffects/discussions
+    about: Ask how to do something, or share how you use the library.
+  - name: Report a security problem
+    url: https://github.com/nanoeffects/nanoeffects/security/advisories/new
+    about: Report it privately; do not open a public issue.

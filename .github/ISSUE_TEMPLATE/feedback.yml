@@ -1,0 +1,37 @@
+name: Feedback from trying it
+description: Tell us what was hard or missing when you used nanoeffects. Useful before 1.0.
+labels: [feedback]
+body:
+  - type: textarea
+    id: project
+    attributes:
+      label: What were you building?
+      description: The kind of app and the problem you wanted to solve (races, retries, cancellation, …).
+    validations:
+      required: true
+  - type: textarea
+    id: friction
+    attributes:
+      label: What was confusing, awkward or missing?
+      description: A name, a docs page, a type error, a call form. Be as concrete as you can.
+    validations:
+      required: true
+  - type: textarea
+    id: alternative
+    attributes:
+      label: What would you have expected instead?
+  - type: dropdown
+    id: entries
+    attributes:
+      label: Which parts did you use?
+      multiple: true
+      options:
+        - nanoeffects (createBus)
+        - policies
+        - effects
+        - actions (commands, jobs, modules)
+        - trace
+        - React / Vue / Svelte
+        - Redux and other stores
+        - oop
+        - other
