@@ -122,3 +122,5 @@ Send it from the handler with `ctx.emit(userLoaded(user))`. Do not replace the c
 - **A handler that returns without a promise is finished with the call**, so a signal that aborts later does not reach it. Commands that fetch are async, so this only matters for a sync handler that sets up a callback.
 - **Give each request its own signal for an event.** For a command or a job the link ends when it settles. For `bus.emit(action, { signal })` it stays until the signal aborts.
 - **The signal reaches the tasks that this `emit` starts**, with the listeners of the command's type and the `ctx.run` children. A separate `bus.emit` that the handler makes is not linked: pass `{ signal: ctx.signal }` to it.
+
+A whole small app, with a search, a filter, pages and a detail panel, is in the [Rick and Morty example](../examples/rickandmorty).
