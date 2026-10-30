@@ -4,16 +4,19 @@ How to read an entry: **Breaking** needs a change in your code or setup, **Chang
 
 ## Unreleased
 
-### Added
-- Three backend examples on Fastify. A server over PokeAPI whose requests stop when the client leaves, a queue worker that retries, counts its outcomes and shuts down in three steps, and a WebSocket server whose work stops with each socket. [API server](examples/api-server), [Job worker](examples/job-worker), [WebSocket server](examples/ws-server)
-- Autocomplete in two examples. The pokédex suggests names from a list that it loads once, and its search now starts when you pick a name or press Enter instead of on every key press. The Rick and Morty browser suggests names from a command with `debounce`, `latest` and `timeout`. [Pokédex](examples/pokedex), [Rick and Morty](examples/rickandmorty)
-
-### Fixed
-- `queue` started the calls that were still waiting when one signal aborted them all (`bus.emit(call, { signal })` with the same signal for several calls). They ran their handler up to the first `await` and then ended as cancelled. A call that is aborted before its turn is now dropped, as the lifecycle of a job says.
+## 0.23.0
 
 ### Changed
 - A starter of `race`, `all`, `allSettled` and `timeout` gets the context of its own child task, not only `{ signal, abort }`, so `race(ctx, { cancelled: (child) => take(child, event) })` works and the child stops with the race. The effects of `effectsPlugin` and the `$effects` of a scope are on the child, bound to it: `({ delay }) => delay(1000)`. Starters that read only `signal` work as before. [Docs](docs/effects.md#run-several-starters-together)
 - The chat and the pokédex examples are split into layers (`shared`, `entities`, `features`) that import downwards only, so no part imports a neighbour. The chat's `show-history` feature connects rooms to messages, and the pokédex's `show-abilities` connects a pokémon to its abilities. [Docs](docs/chat-example.md#see-how-the-files-are-split)
+
+### Added
+- Three backend examples on Fastify. A server over PokeAPI whose requests stop when the client leaves, a queue worker that retries, counts its outcomes and shuts down in three steps, and a WebSocket server whose work stops with each socket. [API server](examples/api-server), [Job worker](examples/job-worker), [WebSocket server](examples/ws-server)
+- Autocomplete in two examples. The pokédex suggests names from a list that it loads once, and its search now starts when you pick a name or press Enter instead of on every key press. The Rick and Morty browser suggests names from a command with `debounce`, `latest` and `timeout`. [Pokédex](examples/pokedex), [Rick and Morty](examples/rickandmorty)
+- A page on stopping work on a server when the client leaves: one `AbortController` for each request or socket, `signalPlugin`, and a clean shutdown. [Docs](docs/server.md)
+
+### Fixed
+- `queue` started the calls that were still waiting when one signal aborted them all (`bus.emit(call, { signal })` with the same signal for several calls). They ran their handler up to the first `await` and then ended as cancelled. A call that is aborted before its turn is now dropped, as the lifecycle of a job says.
 
 ## 0.22.0
 
