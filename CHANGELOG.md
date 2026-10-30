@@ -2,7 +2,7 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
-## Unreleased
+## 0.24.0
 
 ### Added
 - `delay(ms)` and `take(event, options)` without `ctx` are starters: `race(ctx, { waited: delay(1000), cancelled: take("cancel") })` replaces `(child) => delay(child, 1000)`. The forms with `ctx` are unchanged. [Docs](docs/effects.md#run-several-starters-together)
