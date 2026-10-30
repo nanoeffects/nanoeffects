@@ -20,13 +20,14 @@ npm install
 npm run dev
 ```
 
-## A bigger project
+## Bigger projects
 
-A React and TypeScript chat with domains, modules and a small server that fails on a known schedule, written to show where logic goes when an app has several features. It is type-checked with the rest of the repository.
+React and TypeScript projects with domains and modules, written to show where logic goes when an app has several features. The chat runs against a small server that fails on a known schedule, the pokédex against a real public API. They are type-checked with the rest of the repository.
 
 | Folder | What is in it | Open |
 | --- | --- | --- |
 | [`chat`](chat) | Rooms, a history under `latest`, a send under `queue` and `retry`, a search across rooms with `allSettled` and `timeout`, and new messages polled with `poll`. One command starts the server and the page. Explained in [Build a chat with domains, modules and a small server](../docs/chat-example.md). | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/chat) |
+| [`pokedex`](pokedex) | Real requests to PokeAPI from the browser: a search with `debounce`, `latest`, `timeout` and a `retry` that does not repeat a 404, abilities loaded together with `allSettled`, and a Random button under `leading`. No server. | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/pokedex) |
 
 ## Recipes
 
