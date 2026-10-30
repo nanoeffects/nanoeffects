@@ -5,6 +5,7 @@ How to read an entry: **Breaking** needs a change in your code or setup, **Chang
 ## Unreleased
 
 ### Added
+- A spells example, the smallest one: a search against PotterAPI with one command that carries its handler and no domains. [Example](examples/spells)
 - A pokédex example that calls PokeAPI from the browser: a search that does not race, a limit of time, a retry that knows an answer from a failure, and abilities that settle together. [Example](examples/pokedex)
 - `npm create nanoeffects@latest my-app -- --template svelte-ts` makes the search app in Svelte 5 and TypeScript, with a Svelte store made from an event. [Docs](docs/starter.md#start-with-svelte)
 
