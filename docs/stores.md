@@ -25,7 +25,7 @@ Redux’s `dispatch` → reducers updates **state**. It does not give you first-
 
 `createEffectsMiddleware(bus)` does the same job: after the reducer runs, the action also hits the nanoeffects bus you pass to it. Keep RTK for state; use policies and effects for async.
 
-Skip this section if you are not already on Redux. The recipe as a file, type-checked with the project: [`examples/redux.ts`](../examples/redux.ts).
+Skip this section if you are not already on Redux. The recipe as a file, type-checked with the project: [`examples/redux.ts`](../examples/redux.ts). To run it, open the [counter example](../examples/counter): `redux.html` is a counter with Redux Toolkit and this middleware.
 
 ```js
 // bus.js

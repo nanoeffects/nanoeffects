@@ -62,6 +62,8 @@ bus.on(
 
 Tasks are plain `async` functions. `ctx.signal` replaces `cancel`: pass it to `fetch` or to your client, and the request stops.
 
+To see the counter, `takeLatest` with `delay`, a cancel and a failing call running, open the [counter example](../examples/counter): it has a page without a store and a page with Redux Toolkit.
+
 ## Start a task without waiting
 
 `fork` and `spawn` differ in what happens when the caller is aborted. Pick by that.
