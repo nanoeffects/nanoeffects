@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createBus } from "../core/bus";
+import { latest, queue } from "../policies";
+import { signalPlugin } from "../signal";
 import { deferred } from "../tests/test-helpers";
 import { createTraceRecorder } from "../trace/recorder";
 import { createTracer } from "../trace/tracer";
@@ -687,6 +689,105 @@ describe("createJob", () => {
 			expect(
 				recorder.events.map((event) => `${event.effect}/${event.phase}`),
 			).toEqual(["command/start", "command/done"]);
+		});
+	});
+
+	describe("a policy given to createJob", () => {
+		// the outcomes of the job `type`, in the order they were sent
+		const outcomesOf = (type: string) => {
+			const { bus, commands } = setup();
+			const seen: string[] = [];
+			bus.on(`${type}/pending`, (payload) => seen.push(`pending ${payload}`));
+			bus.on(`${type}/success`, (value) => seen.push(`success ${value}`));
+			bus.on(`${type}/cancel`, () => seen.push("cancel"));
+
+			return { bus, commands, seen };
+		};
+
+		it("sends pending when queue starts the call, not at the call", async () => {
+			const gates = [deferred<string>(), deferred<string>()];
+			let calls = 0;
+			const job = createJob(
+				"work",
+				queue(async (_payload: number) => gates[calls++]?.promise ?? "none"),
+			);
+			const { bus, seen } = outcomesOf("work");
+			const first = bus.emit(job(1));
+			const second = bus.emit(job(2));
+			expect(seen).toEqual(["pending 1"]);
+			gates[0]?.resolve("a");
+			await first;
+			expect(seen).toEqual(["pending 1", "success a", "pending 2"]);
+			gates[1]?.resolve("b");
+			await second;
+		});
+
+		it("sends nothing for a queued call that is aborted before its turn", async () => {
+			const gate = deferred<string>();
+			const job = createJob(
+				"work",
+				queue(async (_payload: number) => gate.promise),
+			);
+			const { seen } = outcomesOf("work");
+			const bus = createBus<Events>().use(signalPlugin());
+			bus.on("work/pending", (payload) => seen.push(`own pending ${payload}`));
+			bus.on("work/cancel", () => seen.push("own cancel"));
+			const controller = new AbortController();
+			const first = bus.emit(job(1));
+			const waiting = bus.emit(job(2), { signal: controller.signal });
+			controller.abort();
+			gate.resolve("a");
+			await Promise.all([first, waiting]);
+
+			expect(seen).toEqual(["own pending 1"]);
+		});
+
+		it("sends cancel for the run that latest replaces", async () => {
+			const job = createJob(
+				"work",
+				latest(
+					(_payload: number, { signal }) =>
+						new Promise<string>((resolve, reject) => {
+							signal.addEventListener("abort", () => reject(signal.reason));
+							setTimeout(() => resolve("done"), 5);
+						}),
+				),
+			);
+			const { bus, seen } = outcomesOf("work");
+			const first = bus.emit(job(1));
+			const second = bus.emit(job(2));
+			await Promise.all([first, second]);
+
+			expect(seen).toEqual([
+				"pending 1",
+				"cancel",
+				"pending 2",
+				"success done",
+			]);
+		});
+
+		it("gives the same outcomes as a handler bound in the registry", async () => {
+			const run = async (payload: number) => `done ${payload}`;
+			const given = createJob("given", queue(run));
+			const bound = createJob<number, string>("bound");
+			const first = outcomesOf("given");
+			const second = outcomesOf("bound");
+			second.commands.handle(bound, queue(run));
+			await Promise.all([first.bus.emit(given(1)), first.bus.emit(given(2))]);
+			await Promise.all([second.bus.emit(bound(1)), second.bus.emit(bound(2))]);
+
+			expect(first.seen).toEqual(second.seen);
+		});
+
+		it("still sends pending at the call for a handler that is not a policy", async () => {
+			const gate = deferred<string>();
+			const job = createJob("work", async (_payload: number) => gate.promise);
+			const { bus, seen } = outcomesOf("work");
+			const call = bus.emit(job(1));
+
+			expect(seen).toEqual(["pending 1"]);
+			gate.resolve("a");
+			await call;
 		});
 	});
 });

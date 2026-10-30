@@ -189,10 +189,7 @@ The [ws-server example](../examples/ws-server) adds a close for a silent socket,
 
 A worker takes jobs from a client and answers at once, and the work goes on in the background. Use `createJob` with `queue` to limit how many run together, `retry` and `timeout` to give up, and the outcomes of the job (`pending`, `success`, `fail`, `cancel`) to count them. Give every `emit` of the job the same signal; aborting it at shutdown cancels the jobs that are left.
 
-Two details matter:
-
-- Bind the handler with `commands.handle(job, queue(...))` (or `m.handle` in a module), not as the second argument of `createJob`. Only a bound handler lets the job learn from the policy when a call really starts, so `pending` is sent at the start and not at the call.
-- A call that is still waiting in the queue when the signal aborts never starts, and the job sends no outcome for it. Count such calls yourself if you need the totals to add up.
+One detail matters: a call that is still waiting in the queue when the signal aborts never starts, and the job sends no outcome for it. Count such calls yourself if you need the totals to add up.
 
 The [job-worker example](../examples/job-worker) has all of it: the counts, `GET /stats`, and a shutdown in three steps (stop taking jobs, wait, abort the rest).
 

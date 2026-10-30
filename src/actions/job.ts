@@ -273,6 +273,9 @@ export const createJob = <
 		return (payload: never, ctx: never) => route(base, payload, ctx, managed);
 	};
 
+	// a handler that is a library policy reports when its calls start, as a bound one does
+	const managed = Reflect.get(handler ?? {}, reportsLifecycle) === true;
+
 	// with a context the bus is running it; without, build the call for emit
 	function invoke(payload: P, ctx?: Context<E>) {
 		if (typeof ctx === "object") {
@@ -280,7 +283,7 @@ export const createJob = <
 			if (!handler) {
 				return Reflect.apply(command, null, [payload, ctx]);
 			}
-			return route(command, payload, ctx, false);
+			return route(command, payload, ctx, managed);
 		}
 		return carry(makeCommandCall(job, type, payload), scope);
 	}
