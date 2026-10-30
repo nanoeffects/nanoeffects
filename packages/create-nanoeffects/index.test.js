@@ -184,7 +184,7 @@ describe("refusals", () => {
 				version: "0.17.0",
 			}),
 		).rejects.toThrow(
-			/vanilla, react, vanilla-ts, react-ts, domains-ts, vue-ts/,
+			/vanilla, react, vanilla-ts, react-ts, domains-ts, vue-ts, svelte-ts/,
 		);
 		expect(existsSync(join(workdir, "app"))).toBe(false);
 	});
@@ -234,6 +234,7 @@ describe("templates", () => {
 			"react-ts",
 			"domains-ts",
 			"vue-ts",
+			"svelte-ts",
 		]);
 	});
 
@@ -316,6 +317,47 @@ describe("templates", () => {
 		expect(existsSync(join(workdir, "my-app", "src", "use-event-ref.ts"))).toBe(
 			false,
 		);
+	});
+
+	it("make a Svelte project from svelte-ts, with a store of the project for the event", async () => {
+		await run({
+			argv: ["my-app", "--template", "svelte-ts"],
+			cwd: workdir,
+			interactive: false,
+			print,
+			version: "0.17.0",
+		});
+		expect(existsSync(join(workdir, "my-app", ".gitignore"))).toBe(true);
+		expect(manifestOf("my-app").scripts.build).toBe(
+			"svelte-check --tsconfig ./tsconfig.json && vite build",
+		);
+		expect(read("my-app", "src", "event-store.ts")).toMatch(
+			/not a store of the app/,
+		);
+		expect(read("my-app", "src", "App.svelte")).toContain("oninput");
+	});
+
+	it("give svelte-ts the files of react-ts, with .svelte for the components and three more", () => {
+		const names = (template) => {
+			const target = join(workdir, `svelte-files-${template}`);
+			createProject({ target, template, version: "0.17.0" });
+			const files = [
+				...readdirSync(target),
+				...readdirSync(join(target, "src")).map((file) => `src/${file}`),
+			];
+			return files.map((file) => file.replace(/\.(tsx?|svelte)$/, "")).sort();
+		};
+		const reactFiles = names("react-ts");
+		const svelteFiles = names("svelte-ts");
+
+		for (const file of reactFiles) {
+			expect(svelteFiles).toContain(file);
+		}
+		expect(svelteFiles.filter((file) => !reactFiles.includes(file))).toEqual([
+			"src/env.d",
+			"src/event-store",
+			"svelte.config.js",
+		]);
 	});
 
 	it("give vue-ts the files of react-ts, with .vue for the components and the shim for them", () => {

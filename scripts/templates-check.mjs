@@ -3,6 +3,7 @@
 // directory that extends the template's own and maps `nanoeffects/*` to `src`, as the docs do.
 import { execFileSync } from "node:child_process";
 import {
+	cpSync,
 	mkdtempSync,
 	readdirSync,
 	readFileSync,
@@ -26,6 +27,34 @@ const paths = Object.fromEntries(
 	]),
 );
 
+// the program that checks a template, and its arguments
+const checkerOf = ({ hasSvelte, hasVue, directory, config }) => {
+	if (hasSvelte) {
+		return [
+			"pnpm",
+			"--filter",
+			"nanoeffects-svelte-check",
+			"exec",
+			"svelte-check",
+			"--workspace",
+			directory,
+			"--tsconfig",
+			config,
+		];
+	}
+	if (hasVue) {
+		return [
+			"node",
+			join(root, "scripts", "vue-tsc.mjs"),
+			"-p",
+			config,
+			"--noEmit",
+		];
+	}
+
+	return ["pnpm", "exec", "tsc", "-p", config, "--noEmit"];
+};
+
 const templates = readdirSync(templatesDir).filter((name) =>
 	name.endsWith("-ts"),
 );
@@ -33,7 +62,17 @@ const workdir = mkdtempSync(join(tmpdir(), "nanoeffects-templates-"));
 let failed = false;
 
 for (const template of templates) {
-	const directory = join(templatesDir, template);
+	let directory = join(templatesDir, template);
+	// `svelte-check` loads `svelte.config.js` of the project, which imports the Svelte plugin of Vite:
+	// the template is checked from a copy inside tools/svelte-check, where that plugin is installed
+	if (
+		readdirSync(join(directory, "src")).some((file) => file.endsWith(".svelte"))
+	) {
+		const copy = join(root, "tools", "svelte-check", ".templates", template);
+		rmSync(copy, { recursive: true, force: true });
+		cpSync(directory, copy, { recursive: true });
+		directory = copy;
+	}
 	const config = join(workdir, `${template}.json`);
 	const options = {
 		extends: join(directory, "tsconfig.json"),
@@ -46,17 +85,21 @@ for (const template of templates) {
 	};
 	writeFileSync(config, JSON.stringify(options));
 
-	// `tsc` cannot read a .vue file: a template that has one is checked with `vue-tsc`
-	const hasVue = readdirSync(join(directory, "src")).some((file) =>
-		file.endsWith(".vue"),
-	);
-	const [command, ...args] = hasVue
-		? ["node", join(root, "scripts", "vue-tsc.mjs")]
-		: ["pnpm", "exec", "tsc"];
+	// `tsc` cannot read a .vue or a .svelte file: such a template is checked with `vue-tsc` or
+	// `svelte-check`, each run with TypeScript 5 (see scripts/vue-tsc.mjs and tools/svelte-check)
+	const files = readdirSync(join(directory, "src"));
+	const hasVue = files.some((file) => file.endsWith(".vue"));
+	const hasSvelte = files.some((file) => file.endsWith(".svelte"));
+	const [command, ...args] = checkerOf({
+		hasSvelte,
+		hasVue,
+		directory,
+		config,
+	});
 
 	let output = "";
 	try {
-		execFileSync(command, [...args, "-p", config, "--noEmit"], {
+		execFileSync(command, args, {
 			cwd: root,
 			encoding: "utf8",
 			stdio: "pipe",
@@ -65,10 +108,16 @@ for (const template of templates) {
 		output = `${error.stdout ?? ""}${error.stderr ?? ""}`;
 	}
 
-	// the sources of nanoeffects are checked by `pnpm tsgo`; only the files of the template count here
-	const own = output
-		.split("\n")
-		.filter((line) => line.includes(`templates/${template}/`));
+	// the sources of nanoeffects are checked by `pnpm tsgo`; only the files of the template count here.
+	// `svelte-check` reports only the workspace, with paths relative to it.
+	const own = hasSvelte
+		? output
+				.split("\n")
+				.filter((line) => line.includes(" ERROR "))
+				.map((line) => `templates/${template}/${line}`)
+		: output
+				.split("\n")
+				.filter((line) => line.includes(`templates/${template}/`));
 	if (own.length > 0) {
 		failed = true;
 		console.error(`${template}:\n${own.join("\n")}`);

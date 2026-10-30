@@ -2,6 +2,11 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
+## Unreleased
+
+### Added
+- `npm create nanoeffects@latest my-app -- --template svelte-ts` makes the search app in Svelte 5 and TypeScript, with a Svelte store made from an event. [Docs](docs/starter.md#start-with-svelte)
+
 ## 0.20.0
 
 ### Changed

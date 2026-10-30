@@ -3,3 +3,4 @@ dist
 llms-full.txt
 *.tsbuildinfo
 .DS_Store
+tools/svelte-check/.templates

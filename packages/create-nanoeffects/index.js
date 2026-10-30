@@ -24,6 +24,7 @@ export const templates = [
 	"react-ts",
 	"domains-ts",
 	"vue-ts",
+	"svelte-ts",
 ];
 const defaultTemplate = "vanilla";
 const defaultName = "nanoeffects-app";
