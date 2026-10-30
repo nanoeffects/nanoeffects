@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createCommand, createModule, modulePlugin } from "../actions";
 import { createBus } from "../core/bus";
+import type { TraceEvent } from "../core/types";
 import { scopePlugin } from "../scope";
 import { createHarness } from "../tests/test-helpers";
 import { all, allSettled, delay, effectsPlugin, race, take, timeout } from ".";
@@ -101,6 +102,58 @@ describe("the context of a starter", () => {
 			);
 
 			expect(wait?.parentId).toBe(run?.id);
+		});
+	});
+
+	describe("a starter made by delay and take", () => {
+		// ids differ between two runs: an event is its place in the trace and the place of its parent
+		const shapeOf = (events: ReadonlyArray<TraceEvent>) => {
+			const places = new Map(events.map((event, index) => [event.id, index]));
+
+			return events.map((event) => ({
+				effect: event.effect,
+				phase: event.phase,
+				traceGroupId: event.traceGroupId,
+				parent: places.get(event.parentId ?? -1),
+				root: places.get(event.rootId ?? -1),
+			}));
+		};
+
+		it("gives the same trace as the wrapper that forwards the child", async () => {
+			const wrapped = createHarness();
+			const wrappedRace = race(wrapped.ctx(), {
+				cancelled: (child) => take(child, "b"),
+				waited: (child) => delay(child, 1000),
+			});
+			wrapped.bus.emit("b", "stop");
+			await wrappedRace;
+
+			const short = createHarness();
+			const shortRace = race(short.ctx(), {
+				cancelled: take("b"),
+				waited: delay(1000),
+			});
+			short.bus.emit("b", "stop");
+			await shortRace;
+
+			expect(shapeOf(short.recorder.events)).toEqual(
+				shapeOf(wrapped.recorder.events),
+			);
+			expect(short.recorder.events.length).toBeGreaterThan(0);
+		});
+
+		it("traces a stored starter under each group that calls it", async () => {
+			const harness = createHarness();
+			const pause = delay(10);
+			const first = all(harness.ctx(), { pause });
+			const second = all(harness.ctx(), { pause });
+			await vi.advanceTimersByTimeAsync(10);
+			await Promise.all([first, second]);
+			const groups = harness.recorder.events.filter(
+				(event) => event.effect === "all" && event.phase === "start",
+			);
+
+			expect(groups).toHaveLength(2);
 		});
 	});
 

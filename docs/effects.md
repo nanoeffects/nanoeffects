@@ -264,8 +264,10 @@ bus.on("login", async (user, ctx) => {
   console.log(stopped);
 
   // wait for a matching event, but not longer than 5 s
-  const id = await timeout(ctx, 5000, (child) =>
-    take(child, "saved", { predicate: (savedId) => savedId === draft.id }),
+  const id = await timeout(
+    ctx,
+    5000,
+    take("saved", { predicate: (savedId) => savedId === draft.id }), // take without ctx: a starter
   );
 });
 ```
@@ -273,7 +275,7 @@ bus.on("login", async (user, ctx) => {
 - Sees only events emitted after the call, takes one, and unsubscribes.
 - With an action creator the result has the payload type of the creator. A creator made without a payload type (`createAction("saved")`) takes it from the event map of the bus.
 - `options.predicate` skips payloads it rejects. In TypeScript, a type guard (`(payload): payload is Admin`) narrows the type of the result.
-- `options.signal` stops the wait. In a starter of `race`, `all` or `timeout` pass `child` as the first argument instead: it already carries the signal.
+- `options.signal` stops the wait. Inside `race`, `all` or `timeout` you do not need it: the group already stops the starter, so write `take("saved")` without options.
 - On abort of the task or of `options.signal`, unsubscribes and rejects with the abort reason.
 
 ## Run several starters together
@@ -311,8 +313,8 @@ const bus = createBus();
 bus.on("save", async (draft, ctx) => {
   // race — the first starter to finish wins, the other is cancelled
   const result = await race(ctx, {
-    waited: (child) => delay(child, 1000),
-    cancelled: (child) => take(child, "cancel"),
+    waited: delay(1000), // delay without ctx — a starter: race gives it its own child
+    cancelled: take("cancel"), // take without ctx — the same, waits for the next "cancel"
   });
 
   if ("waited" in result) {
@@ -321,12 +323,14 @@ bus.on("save", async (draft, ctx) => {
 });
 ```
 
+**`delay` and `take` without `ctx` are ready-made starters.** In a group, `delay(1000)` and `take("cancel")` do what `(child) => delay(child, 1000)` and `(child) => take(child, "cancel")` do. The group calls them with the child, so the wait stops with the group. Use this form inside `race`, `all`, `allSettled` and `timeout`; use `delay(ctx, 1000)` in plain handler code. A starter waits only when a group calls it: do not `await delay(1000)` on its own, it is a function, not a promise. Write `take("cancel")` in the group, as above; a starter stored in a variable outside it does not know the events of your bus, and you pin them yourself in TypeScript (`take<Events, "cancel">("cancel")`).
+
 **A starter gets the context of its own child task.** Pass `child` as the first argument to any effect, as a handler passes `ctx`: when the race ends, `child` is aborted and stops exactly this effect. The outer `ctx` is only for `race` itself. Your own API takes the signal in its options: `({ signal }) => fetchUser(id, { signal })`. The same holds for `all`, `allSettled` and `timeout`.
 
 If `ctx` is `{}` or a bare `{ signal }` (outside a task), `child` has only `signal` and `abort`, so it fits `delay` and `poll` but not `take`, which needs a bus.
 
 ## Pass `ctx` outside a task
 
-Effects that wait inside a body take `ctx` first: `delay`, `all`, `allSettled`, `race`, `cancellable`, `onAbort`, `take`, and the `ctx` forms of `retry` / `timeout` / `poll`. Outside a task, pass `{}` or any object with a `signal`.
+Effects that wait inside a body take `ctx` first: `delay`, `all`, `allSettled`, `race`, `cancellable`, `onAbort`, `take`, and the `ctx` forms of `retry` / `timeout` / `poll`. Outside a task, pass `{}` or any object with a `signal`. The one exception is `delay(ms)` and `take(event)` as starters of a group, which take no `ctx` (see above).
 
 For `fetch` and other APIs that take a signal, pass `ctx.signal`. A timeout without `race`: `AbortSignal.any([ctx.signal, AbortSignal.timeout(5000)])`.

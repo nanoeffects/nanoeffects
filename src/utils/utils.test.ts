@@ -264,3 +264,74 @@ describe("runAfter", () => {
 		expect(done).toHaveBeenCalledTimes(1);
 	});
 });
+
+describe("delay as a starter", () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it("starts no timer until it is called", () => {
+		const starter = delay(100);
+
+		expect(typeof starter).toBe("function");
+		expect(vi.getTimerCount()).toBe(0);
+	});
+
+	it("waits for the given time when it is called with a child", async () => {
+		const starter = delay(100);
+		const done = vi.fn();
+		starter({}).then(done);
+		await vi.advanceTimersByTimeAsync(99);
+		expect(done).not.toHaveBeenCalled();
+		await vi.advanceTimersByTimeAsync(1);
+
+		expect(done).toHaveBeenCalledTimes(1);
+	});
+
+	it("rejects with the abort reason of the child", async () => {
+		const controller = new AbortController();
+		const promise = delay(100)(controller);
+		controller.abort("stop");
+
+		await expect(promise).rejects.toBe("stop");
+		expect(vi.getTimerCount()).toBe(0);
+	});
+
+	it("can be used twice: each call waits on its own", async () => {
+		const starter = delay(100);
+		const first = new AbortController();
+		const firstCall = starter(first);
+		const secondCall = starter({});
+		const done = vi.fn();
+		secondCall.then(done);
+		first.abort("stop");
+		await expect(firstCall).rejects.toBe("stop");
+		await vi.advanceTimersByTimeAsync(100);
+
+		expect(done).toHaveBeenCalledTimes(1);
+	});
+
+	it("reads a function of ms at each call", async () => {
+		const ms = vi.fn(() => 10);
+		const starter = delay(ms);
+		expect(ms).not.toHaveBeenCalled();
+		const first = starter({});
+		const second = starter({});
+		await vi.advanceTimersByTimeAsync(10);
+		await Promise.all([first, second]);
+
+		expect(ms).toHaveBeenCalledTimes(2);
+	});
+
+	it("treats an empty object as a context", async () => {
+		const promise = delay({}, 10);
+
+		expect(isPromise(promise)).toBe(true);
+		await vi.advanceTimersByTimeAsync(10);
+		await promise;
+	});
+});

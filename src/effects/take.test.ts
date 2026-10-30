@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createAction } from "../actions/action";
-import { createHarness } from "../tests/test-helpers";
-import { delay } from "./index";
+import { createHarness, type TestEvents } from "../tests/test-helpers";
+import { all, delay } from "./index";
 import { race } from "./race";
 import { take } from "./take";
 import { timeout } from "./timeout";
@@ -370,5 +370,93 @@ describe("take", () => {
 
 			expect(harness.phases()).toEqual(["take/start", "take/error"]);
 		});
+	});
+});
+
+describe("take as a starter", () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it("subscribes only when the group calls it", async () => {
+		const harness = createHarness();
+		const starter = take<TestEvents, "b">("b");
+		harness.bus.emit("b", "early");
+		const promise = starter(harness.ctx());
+		harness.bus.emit("b", "late");
+
+		await expect(promise).resolves.toBe("late");
+	});
+
+	it("resolves with the payload of the next event in a race", async () => {
+		const harness = createHarness();
+		const promise = race(harness.ctx(), {
+			cancelled: take("b"),
+			waited: delay(1000),
+		});
+		harness.bus.emit("b", "stop");
+
+		await expect(promise).resolves.toEqual({ cancelled: "stop" });
+	});
+
+	it("takes an action creator", async () => {
+		const harness = createHarness();
+		const stopRequested = createAction<string, "b">("b");
+		const promise = race(harness.ctx(), { stopped: take(stopRequested) });
+		harness.bus.emit(stopRequested("now"));
+
+		await expect(promise).resolves.toEqual({ stopped: "now" });
+	});
+
+	it("unsubscribes when another starter wins", async () => {
+		const harness = createHarness();
+		const promise = race(harness.ctx(), {
+			cancelled: take("b"),
+			waited: delay(10),
+		});
+		await vi.advanceTimersByTimeAsync(10);
+		await expect(promise).resolves.toEqual({ waited: void 0 });
+		const heard = vi.fn();
+		harness.bus.on("b", heard);
+		harness.bus.emit("b", "late");
+
+		expect(heard).toHaveBeenCalledTimes(1);
+	});
+
+	it("waits for the event that the predicate accepts", async () => {
+		const harness = createHarness();
+		const promise = race(harness.ctx(), {
+			big: take("b", { predicate: (payload) => payload === "big" }),
+		});
+		harness.bus.emit("b", "small");
+		harness.bus.emit("b", "big");
+
+		await expect(promise).resolves.toEqual({ big: "big" });
+	});
+
+	it("stops with options.signal", async () => {
+		const harness = createHarness();
+		const controller = new AbortController();
+		const promise = all(harness.ctx(), [
+			take("b", { signal: controller.signal }),
+		]);
+		controller.abort("stop");
+
+		await expect(promise).rejects.toBe("stop");
+	});
+
+	it("can be used in two groups", async () => {
+		const harness = createHarness();
+		const starter = take<TestEvents, "b">("b");
+		const first = race(harness.ctx(), { a: starter });
+		const second = race(harness.ctx(), { a: starter });
+		harness.bus.emit("b", "x");
+
+		await expect(first).resolves.toEqual({ a: "x" });
+		await expect(second).resolves.toEqual({ a: "x" });
 	});
 });

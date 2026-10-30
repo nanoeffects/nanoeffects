@@ -123,8 +123,8 @@ bus.on("watch", async (_, ctx) => {
   await race(ctx, {
     // poll: a check every 5 s; waitForFn: the next pause starts after the check ends
     polling: (child) => poll(child, checkStatus, 5000, { waitForFn: true }),
-    // take: resolves at the next "leave", and race stops the polling
-    leave: (child) => take(child, "leave"),
+    // take without ctx: resolves at the next "leave", and race stops the polling
+    leave: take("leave"),
   });
 });
 

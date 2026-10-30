@@ -37,10 +37,10 @@ export const guardHandler =
 
 		for (;;) {
 			// race — the first to finish wins: a message of this socket, or the end of the time.
-			// Each starter gets its own child, so the loser is stopped with it.
+			// race gives each starter its own child, so the loser is stopped with it.
 			const result = await race(ctx, {
-				heard: (child) => take(child, heard, { predicate: fromThisSocket }),
-				idle: (child) => delay(child, idleMs),
+				heard: take(heard, { predicate: fromThisSocket }), // take without ctx: a starter
+				idle: delay(idleMs), // delay without ctx: a starter
 			});
 
 			if ("idle" in result) {

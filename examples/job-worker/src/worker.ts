@@ -123,8 +123,8 @@ export const createWorker = ({
 			log(`2. waiting up to ${drainMs} ms for ${queued + running} email(s)`);
 			// race — the first to finish wins: everything is sent, or the time is up
 			await race(ctx, {
-				drained: (child) => take(child, idle),
-				deadline: (child) => delay(child, drainMs),
+				drained: take(idle), // take without ctx: a starter
+				deadline: delay(drainMs), // delay without ctx: a starter
 			});
 		} else {
 			log("2. nothing in flight");

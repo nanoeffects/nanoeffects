@@ -1,7 +1,7 @@
 import type { ActionCreator, FreeActionCreator } from "../core/action-creator";
 import type { Context } from "../core/bus";
 import type { EventMap, Keys } from "../core/types";
-import { onAbort } from "../utils";
+import { isContext, onAbort } from "../utils";
 import { withGroup } from "./group";
 
 export type TakeOptions<P> = {
@@ -13,6 +13,43 @@ export type TakeOptions<P> = {
 	/** Stop waiting when this aborts, e.g. the signal of a `race` starter. */
 	signal?: AbortSignal | undefined;
 };
+
+const takeEvent = (
+	ctx: Context<EventMap>,
+	event: string | { type: string },
+	options: TakeOptions<unknown> = {},
+): Promise<unknown> =>
+	withGroup(
+		"take",
+		ctx,
+		(group) =>
+			new Promise<unknown>((resolve, reject) => {
+				const { predicate } = options;
+				const stops: Array<() => void> = [];
+				const stop = () => {
+					for (const fn of stops) {
+						fn();
+					}
+				};
+				const fail = (reason: unknown) => {
+					stop();
+					reject(reason);
+				};
+
+				// the overloads above check the event; `ctx.on` takes a name or a creator
+				const target = event as never;
+				stops.push(
+					ctx.on(target, (payload: unknown) => {
+						if (!predicate || predicate(payload)) {
+							stop();
+							resolve(payload);
+						}
+					}),
+				);
+				stops.push(onAbort(group, fail));
+				stops.push(onAbort({ signal: options.signal }, fail));
+			}),
+	);
 
 /**
  * Waits for the next `event` on the bus and resolves with its payload. `event` is the name
@@ -73,40 +110,45 @@ export function take<E extends EventMap, P>(
 	creator: ActionCreator<P>,
 	options?: TakeOptions<P>,
 ): Promise<P>;
-export function take(
-	ctx: Context<EventMap>,
-	event: string | { type: string },
-	options: TakeOptions<unknown> = {},
-): Promise<unknown> {
-	return withGroup(
-		"take",
-		ctx,
-		(group) =>
-			new Promise<unknown>((resolve, reject) => {
-				const { predicate } = options;
-				const stops: Array<() => void> = [];
-				const stop = () => {
-					for (const fn of stops) {
-						fn();
-					}
-				};
-				const fail = (reason: unknown) => {
-					stop();
-					reject(reason);
-				};
 
-				// the overloads above check the event; `ctx.on` takes a name or a creator
-				const target = event as never;
-				stops.push(
-					ctx.on(target, (payload: unknown) => {
-						if (!predicate || predicate(payload)) {
-							stop();
-							resolve(payload);
-						}
-					}),
-				);
-				stops.push(onAbort(group, fail));
-				stops.push(onAbort({ signal: options.signal }, fail));
-			}),
-	);
+// Without a context the call is a starter. The event map comes from the group that calls it.
+export function take<E extends EventMap, K extends Keys<E>, T extends E[K]>(
+	event: K,
+	options: TakeOptions<E[K]> & { predicate: (payload: E[K]) => payload is T },
+): (child: Context<E>) => Promise<T>;
+export function take<E extends EventMap, K extends Keys<E>>(
+	event: K,
+	options?: TakeOptions<E[K]>,
+): (child: Context<E>) => Promise<E[K]>;
+export function take<E extends EventMap, K extends Keys<E>, T extends E[K]>(
+	creator: FreeActionCreator<K>,
+	options: TakeOptions<E[K]> & { predicate: (payload: E[K]) => payload is T },
+): (child: Context<E>) => Promise<T>;
+export function take<E extends EventMap, K extends Keys<E>>(
+	creator: FreeActionCreator<K>,
+	options?: TakeOptions<E[K]>,
+): (child: Context<E>) => Promise<E[K]>;
+export function take<E extends EventMap, P, T extends P>(
+	creator: ActionCreator<P>,
+	options: TakeOptions<P> & { predicate: (payload: P) => payload is T },
+): (child: Context<E>) => Promise<T>;
+export function take<E extends EventMap, P>(
+	creator: ActionCreator<P>,
+	options?: TakeOptions<P>,
+): (child: Context<E>) => Promise<P>;
+// A context is an object; an event is a string or a function (a creator), so the two forms never meet.
+export function take(
+	first: Context<EventMap> | string | { type: string },
+	second?: string | { type: string } | TakeOptions<unknown>,
+	third?: TakeOptions<unknown>,
+): unknown {
+	if (isContext(first)) {
+		const ctx = first as Context<EventMap>;
+		const event = second as string | { type: string };
+
+		return takeEvent(ctx, event, third);
+	}
+	const options = second as TakeOptions<unknown> | undefined;
+
+	return (child: Context<EventMap>) => takeEvent(child, first, options);
 }

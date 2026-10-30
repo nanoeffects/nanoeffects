@@ -4,6 +4,9 @@ How to read an entry: **Breaking** needs a change in your code or setup, **Chang
 
 ## Unreleased
 
+### Added
+- `delay(ms)` and `take(event, options)` without `ctx` are starters: `race(ctx, { waited: delay(1000), cancelled: take("cancel") })` replaces `(child) => delay(child, 1000)`. The forms with `ctx` are unchanged. [Docs](docs/effects.md#run-several-starters-together)
+
 ## 0.23.1
 
 ### Fixed

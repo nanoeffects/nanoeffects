@@ -1,3 +1,4 @@
+export { isContext } from "./context-argument";
 export { linkedController } from "./controller";
 export { delay } from "./delay";
 export { onAbort } from "./onAbort";

@@ -283,6 +283,54 @@ describe("results of effects", () => {
 		});
 	});
 
+	it("delay and take without a context are starters of a group", () => {
+		const added = createAction<number, "counter/added">("counter/added");
+		const freeTick = createAction("tick");
+
+		bus.on("search", async (_, ctx) => {
+			const winner = await race(ctx, {
+				waited: delay(1000),
+				added: take(added),
+				count: take("count"),
+				ticked: take(freeTick),
+			});
+			// biome-ignore lint/suspicious/noConfusingVoidType: `void` is the type of the value of a delay
+			expectTypeOf(winner.waited).toEqualTypeOf<void | undefined>();
+			expectTypeOf(winner.added).toEqualTypeOf<number | undefined>();
+			expectTypeOf(winner.count).toEqualTypeOf<number | undefined>();
+			expectTypeOf(winner.ticked).toEqualTypeOf<undefined>();
+
+			const everything = await all(ctx, [delay(10), take("search")]);
+			expectTypeOf(everything[1]).toEqualTypeOf<string>();
+
+			const guarded = await race(ctx, {
+				user: take("loaded", {
+					predicate: (user): user is User & { id: "1" } => user.id === "1",
+				}),
+			});
+			expectTypeOf(guarded.user).toEqualTypeOf<
+				(User & { id: "1" }) | undefined
+			>();
+		});
+	});
+
+	it("a starter of delay or take is not a promise, and a wrong event is an error", () => {
+		bus.on("search", async (_, ctx) => {
+			const starter = delay(10);
+			expectTypeOf(starter).toBeFunction();
+			// @ts-expect-error a starter is a function, not a promise
+			expectTypeOf(starter).resolves.toBeVoid();
+
+			// @ts-expect-error the number of ms is a number or a function
+			delay("1000");
+
+			await race(ctx, {
+				// @ts-expect-error "missing" is not an event of the bus
+				missing: take("missing"),
+			});
+		});
+	});
+
 	it("cancellable is a promise of void unless told the value", () => {
 		bus.on("search", async (_, ctx) => {
 			const nothing = cancellable(ctx, ({ resolve }) => resolve());
