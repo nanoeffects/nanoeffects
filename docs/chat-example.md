@@ -44,7 +44,7 @@ Each domain is a folder. The components only emit events and read values; they n
 | `src/domains/incoming/` | New messages, asked for at an interval. |
 | `src/ui/` | The components. |
 
-A domain folder has its events (`rooms.ts`, which imports no bus), its work (`rooms-handlers.ts`), the state it keeps (`rooms-store.ts`) and a module (`rooms-module.ts`) that wires them. A domain reacts to another domain by listening to its events, never by importing its handlers or its store.
+A domain folder has its events (`rooms.ts`, which imports no bus), its work (`rooms-handlers.ts`), the state it keeps (`rooms-store.ts`) and a module (`rooms-module.ts`) that wires them. A domain reacts to another domain by listening to its events, never by importing its handlers or its store. Events and commands both live in the events file. An event (`createAction`) says that something happened, and any domain may listen: `rooms/selected` is heard by three. A command (`createCommand`) is an order that exactly one module answers, as `search/openResult` and `messages/mark` are, so it has one handler and can return a result.
 
 ## Load a history that must not race
 
@@ -173,19 +173,24 @@ export const runSearch = debounce(
 `take` waits for the next event of a name. Start it before the emit that causes the event, so nothing is missed:
 
 ```js
+import { createCommand } from "nanoeffects/actions";
 import { take } from "nanoeffects/effects";
+
+// createCommand — an order that the messages domain answers
+const markMessage = createCommand("messages/mark");
 
 // the room that is open, kept from the rooms/selected event
 let selectedRoom = "general";
 
-export const openResult = async (hit, ctx) => {
+export const goToResult = async (hit, ctx) => {
   if (hit.roomId !== selectedRoom) {
     // take — wait for the next event of that name; started before the emit so nothing is missed
     const loaded = take(ctx, "messages/loadHistory/success");
     ctx.emit("rooms/selected", hit.roomId);
     await loaded;
   }
-  ctx.emit("messages/marked", hit.id);
+  // ctx.emit with a command — the messages domain marks the message
+  ctx.emit(markMessage(hit.id));
 };
 ```
 

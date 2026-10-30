@@ -2,7 +2,7 @@ import type { Context, EventMap, WithSignal } from "nanoeffects";
 import { allSettled, take, timeout } from "nanoeffects/effects";
 import { debounce, latest } from "nanoeffects/policies";
 import { api, type Message, type Room, rooms } from "../../api";
-import { loadHistory, messageMarked } from "../messages/messages";
+import { loadHistory, markMessage } from "../messages/messages";
 import { roomSelected } from "../rooms/rooms";
 import { searchStore } from "./search-store";
 
@@ -47,12 +47,13 @@ export const runSearch = debounce(
 );
 
 // Opening a hit in another room selects it and waits for its history; only then the message is marked.
-export const openResult = async (hit: Message, ctx: Context<EventMap>) => {
+export const goToResult = async (hit: Message, ctx: Context<EventMap>) => {
 	if (hit.roomId !== searchStore.getState().selectedRoom) {
 		// take — wait for the next event of that name; started before the emit so nothing is missed
 		const loaded = take(ctx, loadHistory.success.type);
 		ctx.emit(roomSelected(hit.roomId));
 		await loaded;
 	}
-	ctx.emit(messageMarked(hit.id));
+	// ctx.emit with a command — the messages domain marks the message
+	ctx.emit(markMessage(hit.id));
 };

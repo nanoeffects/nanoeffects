@@ -1,7 +1,7 @@
 import { createModule } from "nanoeffects/actions";
 import { messageReceived } from "../incoming/incoming";
 import { roomSelected } from "../rooms/rooms";
-import { loadHistory, messageMarked, sendMessage } from "./messages";
+import { loadHistory, markMessage, sendMessage } from "./messages";
 import { deliver, fetchHistory, SendFailed } from "./messages-handlers";
 import { messagesStore } from "./messages-store";
 
@@ -46,5 +46,5 @@ export const messagesModule = createModule("messages", (module) => {
 	module.on(sendMessage.cancel, failEverythingSending);
 
 	module.on(messageReceived, addReceived);
-	module.on(messageMarked, mark);
+	module.handle(markMessage, mark);
 });

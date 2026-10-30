@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useStore } from "zustand";
 import { bus, useEmitter } from "../bus";
-import { resultOpened, searchMessages } from "../domains/search/search";
+import { openResult, searchMessages } from "../domains/search/search";
 import { searchStore } from "../domains/search/search-store";
 
 export function SearchBox() {
@@ -26,7 +26,7 @@ export function SearchBox() {
 				{hits.map((hit) => (
 					<li key={hit.id}>
 						{hit.roomId}: {hit.text}{" "}
-						<button type="button" onClick={() => bus.emit(resultOpened(hit))}>
+						<button type="button" onClick={() => bus.emit(openResult(hit))}>
 							Open
 						</button>
 					</li>

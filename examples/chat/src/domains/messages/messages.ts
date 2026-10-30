@@ -1,4 +1,4 @@
-import { createAction, createJob } from "nanoeffects/actions";
+import { createCommand, createJob } from "nanoeffects/actions";
 import type { Message } from "../../api";
 
 // The events of the messages domain. This file imports no bus.
@@ -12,5 +12,6 @@ export const loadHistory = createJob<string, Message[]>("messages/loadHistory");
 // createJob — sending a message; the local id lets the page tell which message an outcome is about
 export const sendMessage = createJob<SendCall, Sent>("messages/send");
 
-// createAction — mark one message, for example the one a search result points to
-export const messageMarked = createAction<string>("messages/marked");
+// createCommand — an order for this domain: mark one message, for example the one a search
+// result points to. The messages module answers it.
+export const markMessage = createCommand<string>("messages/mark");
