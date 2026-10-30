@@ -33,6 +33,8 @@ jobs:
       # the integration tests include the DevTools playground in a real Chromium
       - run: pnpm exec playwright-core install --with-deps chromium
       - run: pnpm test:integration
+      # the built declaration files must also compile with TypeScript 5.9
+      - run: pnpm types:ts5
       - run: pnpm lint:package
       - run: pnpm size
       - if: matrix.node == 22

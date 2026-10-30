@@ -54,7 +54,7 @@ A deprecated export keeps working and is removed only in a major release. `RaceS
 | ---- | --------- |
 | Node.js, the library | 18, 20, 22 and 24 (a smoke test runs the built package on each) |
 | Node.js, the dev tools and the trace in a browser | 22 and newer |
-| TypeScript | The types are written and checked with TypeScript 7. TypeScript 5.9 is used for the Vue tools and for the test of the exports. Older versions are not tested. |
+| TypeScript | 5.9 and 7. The built declaration files are type-checked with TypeScript 5.9 in CI, and the source with TypeScript 7. Older versions are not tested. |
 | React | 18 or newer (`nanoeffects/react`) |
 | Vue | 3.3 or newer (`nanoeffects/vue`) |
 | Svelte | 5 or newer (`nanoeffects/svelte`) |
