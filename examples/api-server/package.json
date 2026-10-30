@@ -1,0 +1,18 @@
+{
+	"name": "nanoeffects-api-server",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"start": "tsx src/main.ts",
+		"dev": "tsx watch src/main.ts"
+	},
+	"dependencies": {
+		"fastify": "^5.0.0",
+		"nanoeffects": "^0.22.0"
+	},
+	"devDependencies": {
+		"tsx": "^4.0.0",
+		"typescript": "^5.9.0",
+		"@types/node": "^22.0.0"
+	}
+}

@@ -5,6 +5,7 @@ How to read an entry: **Breaking** needs a change in your code or setup, **Chang
 ## Unreleased
 
 ### Added
+- Three backend examples on Fastify. A server over PokeAPI whose requests stop when the client leaves, a queue worker that retries, counts its outcomes and shuts down in three steps, and a WebSocket server whose work stops with each socket. [API server](examples/api-server), [Job worker](examples/job-worker), [WebSocket server](examples/ws-server)
 - Autocomplete in two examples. The pokédex suggests names from a list that it loads once, and its search now starts when you pick a name or press Enter instead of on every key press. The Rick and Morty browser suggests names from a command with `debounce`, `latest` and `timeout`. [Pokédex](examples/pokedex), [Rick and Morty](examples/rickandmorty)
 
 ### Changed

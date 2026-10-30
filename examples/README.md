@@ -33,6 +33,16 @@ React and TypeScript projects with entities, features and modules, written to sh
 | [`rickandmorty`](rickandmorty) | A browser for characters with React Query: React Query keeps the cache, the pages and the loading state, and the requests are commands (`timeout`, a `retry` that skips a 404) that get its abort signal through `signalPlugin`. Suggestions under the name box are a command outside React Query (`debounce`, `latest`). No server. | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/rickandmorty) |
 | [`trades`](trades) | A stream, not a request: live trades over a WebSocket (Binance, no key). One command keeps the connection: `retry` opens the socket again after a drop with a growing pause, `latest` closes the old socket when the pair changes, and `throttle` limits how often the list is drawn. No server. | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/trades) |
 
+## Backend examples
+
+Three small [Fastify](https://fastify.dev) apps with no database. They need Node 18 or newer and no browser: run `npm install` and `npm start` in the folder. They are type-checked with the rest of the repository and tested in `src/tests/backend-examples.test.ts`.
+
+| Folder | What is in it |
+| --- | --- |
+| [`api-server`](api-server) | A server over PokeAPI for a front end. The profile of a pokémon is one command (`timeout`, `retry`, `allSettled`), and a client that closes the connection aborts every request made for it through `signalPlugin`. |
+| [`job-worker`](job-worker) | A queue worker with a fake mailer: at most three sends at once (`queue`), `retry` and `timeout`, counts that come from the outcomes of a job, and a shutdown that stops intake, waits, then aborts the rest. |
+| [`ws-server`](ws-server) | A WebSocket server with `@fastify/websocket`: one controller for each socket stops everything started for it when the socket closes, a new subscription replaces the old one of the same socket only (`latest` with a `key`), and a silent socket is closed (`race`, `take`, `delay`). |
+
 ## Recipes
 
 Each file is one job, written as a short program with comments on every nanoeffects call. The docs page explains the idea; the file is the code that the project type-checks.
