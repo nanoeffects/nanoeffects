@@ -1,8 +1,7 @@
-import type { Context, EventMap, WithSignal } from "nanoeffects";
+import type { WithSignal } from "nanoeffects";
 import { retry, timeout } from "nanoeffects/effects";
-import { debounce, latest, leading } from "nanoeffects/policies";
+import { debounce, latest } from "nanoeffects/policies";
 import { api, HttpError } from "../../api";
-import { findPokemon } from "./pokemon";
 
 // The work of the pokemon domain.
 
@@ -27,13 +26,4 @@ export const searchPokemon = debounce(
 			retry(load, { times: 3, delay: 300, shouldRetry: isWorthRetrying }),
 		),
 	),
-);
-
-// leading — a second click while the first search runs does nothing
-export const pickRandomPokemon = leading(
-	async (_: unknown, ctx: Context<EventMap>) => {
-		const id = 1 + Math.floor(Math.random() * 1025);
-		// ctx.emit with a job — runs it and waits until it ends
-		await ctx.emit(findPokemon(String(id)));
-	},
 );

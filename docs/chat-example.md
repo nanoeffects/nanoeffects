@@ -44,7 +44,7 @@ Each domain is a folder. The components only emit events and read values; they n
 | `src/domains/incoming/` | New messages, asked for at an interval. |
 | `src/ui/` | The components. |
 
-A domain folder has its events (`rooms.ts`, which imports no bus), its work (`rooms-handlers.ts`), the state it keeps (`rooms-store.ts`) and a module (`rooms-module.ts`) that wires them. A domain reacts to another domain by listening to its events, never by importing its handlers or its store. Events and commands both live in the events file. An event (`createAction`) says that something happened, and any domain may listen: `rooms/selected` is heard by three. A command (`createCommand`) is an order that exactly one module answers, as `search/openResult` and `messages/mark` are, so it has one handler and can return a result.
+A domain folder has its events (`rooms.ts`, which imports no bus), its work (`rooms-handlers.ts`), the state it keeps (`rooms-store.ts`) and a module (`rooms-module.ts`) that wires them. A domain reacts to another domain by listening to its events, never by importing its handlers or its store. Events and commands both live in the events file. An event (`createAction`) says that something happened, and any domain may listen: `rooms/selected` is heard by three. A command (`createCommand`) is an order with exactly one handler, as `search/openResult` and `messages/mark` are. The handler is given to `createCommand`, so the command works wherever it is called and can return a result, and the module binds it with `module.use` for as long as it is mounted. A job is a command that also sends its outcomes, but its handler is bound in the module (`module.handle`): a job usually runs under a policy, and the type of its outcomes is exact only when the handler is not part of the type.
 
 ## Load a history that must not race
 
@@ -176,8 +176,8 @@ export const runSearch = debounce(
 import { createCommand } from "nanoeffects/actions";
 import { take } from "nanoeffects/effects";
 
-// createCommand — an order that the messages domain answers
-const markMessage = createCommand("messages/mark");
+// createCommand — an order for the messages domain, with the handler that does it
+const markMessage = createCommand("messages/mark", (messageId) => console.log("mark", messageId));
 
 // the room that is open, kept from the rooms/selected event
 let selectedRoom = "general";

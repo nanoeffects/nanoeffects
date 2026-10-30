@@ -1,6 +1,6 @@
 import { createModule } from "nanoeffects/actions";
 import { findPokemon, pickRandom } from "./pokemon";
-import { pickRandomPokemon, searchPokemon } from "./pokemon-handlers";
+import { searchPokemon } from "./pokemon-handlers";
 import { pokemonStore } from "./pokemon-store";
 
 // createModule — one domain: mounting it starts what it lists, unmounting undoes all of it
@@ -17,6 +17,6 @@ export const pokemonModule = createModule("pokemon", (module) => {
 	module.on(findPokemon.fail, showFailure);
 	module.on(findPokemon.cancel, stopLoading);
 
-	// handle — this module answers the pickRandom command while it is mounted
-	module.handle(pickRandom, pickRandomPokemon);
+	// use — a command that carries its handler: bind it for as long as this module is mounted
+	module.use(pickRandom);
 });

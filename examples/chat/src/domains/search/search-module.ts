@@ -1,7 +1,7 @@
 import { createModule } from "nanoeffects/actions";
 import { roomSelected } from "../rooms/rooms";
 import { openResult, searchMessages } from "./search";
-import { goToResult, runSearch } from "./search-handlers";
+import { runSearch } from "./search-handlers";
 import { searchStore } from "./search-store";
 
 export const searchModule = createModule("search", (module) => {
@@ -20,6 +20,6 @@ export const searchModule = createModule("search", (module) => {
 
 	// the open room comes from an event, not from the store of another domain
 	module.on(roomSelected, selectRoom);
-	// handle — this module answers the openResult command while it is mounted
-	module.handle(openResult, goToResult);
+	// use — a command that carries its handler: bind it for as long as this module is mounted
+	module.use(openResult);
 });

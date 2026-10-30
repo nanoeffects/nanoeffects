@@ -16,7 +16,6 @@ export const messagesModule = createModule("messages", (module) => {
 		markFailed,
 		failEverythingSending,
 		addReceived,
-		mark,
 	} = messagesStore.getState();
 
 	// handle — this module does the work of its two jobs while it is mounted
@@ -46,5 +45,6 @@ export const messagesModule = createModule("messages", (module) => {
 	module.on(sendMessage.cancel, failEverythingSending);
 
 	module.on(messageReceived, addReceived);
-	module.handle(markMessage, mark);
+	// use — a command that carries its handler: bind it for as long as this module is mounted
+	module.use(markMessage);
 });
