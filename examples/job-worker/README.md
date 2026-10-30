@@ -47,11 +47,9 @@ shows them in `cancelled`. With the default time the same emails time out first 
 Unmounting the worker module does not stop a call that is running: the module owns its listeners,
 not the calls it served. That is why the shutdown aborts a signal instead.
 
-One thing to know about `queue` when you abort: it frees the slot of the call that was running
-and starts the next waiting call before that call's own context is aborted. A waiting call
-therefore runs its handler up to the first `await` and then ends with `cancel`. The fake mailer is
-safe (it starts a timer and the abort clears it). If your handler has a side effect before its
-first `await`, check `ctx.signal.aborted` first.
+A call that is still waiting in the queue when the signal aborts never starts, and the job sends
+no outcome for it (`cancel` is for a call that started). The worker counts those emails as
+cancelled itself, so the counts still add up to the emails accepted.
 
 The files, each with one job:
 

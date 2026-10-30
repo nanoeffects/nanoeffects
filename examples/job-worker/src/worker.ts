@@ -45,14 +45,17 @@ export const createWorker = ({
 	let sent = 0;
 	let failed = 0;
 	let cancelled = 0;
+	// emails that were still waiting when the shutdown aborted: they never start, so the job
+	// sends no outcome for them
+	let abandoned = 0;
 	let lastId = 0;
 
 	const counts = (): Counts => ({
-		queued: accepted - started,
+		queued: accepted - started - abandoned,
 		running: started - sent - failed - cancelled,
 		sent,
 		failed,
-		cancelled,
+		cancelled: cancelled + abandoned,
 	});
 
 	// One attempt to send, given the signal of its task
@@ -127,13 +130,12 @@ export const createWorker = ({
 			log("2. nothing in flight");
 		}
 
-		// aborting the signal of the emits cancels what is still running or waiting
+		// Aborting the signal of the emits cancels what is left. A call that is running gets the
+		// outcome `cancel` at once; a call that is still waiting is dropped without an outcome, and
+		// the count of what was not started is how many that was.
 		log("3. aborting what is left");
 		stopping.abort();
-		const left = counts();
-		if (left.queued + left.running > 0) {
-			await take(ctx, idle);
-		}
+		abandoned = accepted - started;
 
 		return counts();
 	});

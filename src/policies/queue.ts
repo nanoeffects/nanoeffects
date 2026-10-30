@@ -131,18 +131,28 @@ const createQueue = <P, E extends EventMap, R>(
 				running++;
 
 				let held = true;
-				const free = () => {
+				const next = () => {
+					pump();
+					if (running === 0 && waiting.length === 0) {
+						onIdle();
+					}
+				};
+				const free = (viaAbort = false) => {
 					if (held) {
 						held = false;
 						running--;
-						pump();
-						if (running === 0 && waiting.length === 0) {
-							onIdle();
+						if (viaAbort) {
+							// Calls that share one signal are aborted one after the other. A waiting
+							// call whose own task is not told yet would start now, so look at the queue
+							// after the whole abort has been delivered.
+							queueMicrotask(next);
+						} else {
+							next();
 						}
 					}
 				};
 				const stopFree = onAbort(ctx, () => {
-					free();
+					free(true);
 					resolve(void 0);
 				});
 
