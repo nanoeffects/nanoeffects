@@ -1,6 +1,14 @@
 import type { EventMap, Task } from "../core/types";
 import { clearTimer, delay, onAbort, setTimer, type Timer } from "../utils";
-import { type KeyOption, keyed, noop } from "./keyed";
+import {
+	formOf,
+	type Keyed,
+	type KeyOption,
+	keyed,
+	type Loose,
+	noop,
+	type Unkeyed,
+} from "./keyed";
 import { latestWith } from "./latest";
 import { dropCall, startCall } from "./lifecycle";
 
@@ -15,6 +23,16 @@ export type DebounceOptions<P = never> = KeyOption<P> & {
 	/** Run the last call of a burst after `ms` of quiet. Default `true`. */
 	trailing?: boolean;
 };
+
+/** What `debounce(ms)` returns: it turns a task into a `debounce` task. */
+export type DebounceWrapper = <P, E extends EventMap, R>(
+	fn: Task<P, E, R>,
+) => Task<P, E, DebounceResult<R>>;
+
+/** What `debounce(ms, { key })` returns: the payload type comes from `key`. */
+export type KeyedDebounceWrapper<P> = <E extends EventMap, R>(
+	fn: Task<P, E, R>,
+) => Task<P, E, DebounceResult<R>>;
 
 /**
  * Waits for `ms` of quiet, then runs; a new call restarts the wait and drops
@@ -36,10 +54,27 @@ export type DebounceOptions<P = never> = KeyOption<P> & {
  * bus.emit("input", "re"); // only the last call runs, 300 ms after it
  * ```
  */
-export const debounce = <P, E extends EventMap, R>(
+export function debounce<P, E extends EventMap, R>(
 	ms: number,
 	fn: Task<P, E, R>,
-	options: DebounceOptions<P> = {},
+	options?: DebounceOptions<P>,
+): Task<P, E, DebounceResult<R>>;
+export function debounce(
+	ms: number,
+	options?: Unkeyed<DebounceOptions>,
+): DebounceWrapper;
+export function debounce<P>(
+	ms: number,
+	options: Keyed<DebounceOptions<P>, P>,
+): KeyedDebounceWrapper<P>;
+export function debounce(ms: number, first?: Loose, second?: Loose): unknown {
+	return formOf(first, second, (fn, options) => buildDebounce(ms, fn, options));
+}
+
+const buildDebounce = <P, E extends EventMap, R>(
+	ms: number,
+	fn: Task<P, E, R>,
+	options: DebounceOptions<P>,
 ): Task<P, E, DebounceResult<R>> => {
 	const create = (onIdle: () => void) =>
 		createDebounce(ms, fn, options, onIdle);

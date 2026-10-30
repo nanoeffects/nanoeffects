@@ -2,14 +2,37 @@ import type { Context } from "../core/bus";
 import { createSettle, forkTask, traceTask } from "../core/context";
 import type { EffectName, EventMap, Task } from "../core/types";
 import { isPromise, onAbort } from "../utils";
-import { type KeyOption, keyed, noop } from "./keyed";
+import {
+	formOf,
+	type Keyed,
+	type KeyOption,
+	keyed,
+	type Loose,
+	noop,
+	type Unkeyed,
+} from "./keyed";
 import { endCall, startCallOf } from "./lifecycle";
 
 export type LatestOptions<P = never> = KeyOption<P>;
 
+type LatestResult<R> = R | Promise<Awaited<R> | undefined> | undefined;
+
+/** What `latest()` returns: it turns a task into a `latest` task. */
+export type LatestWrapper = <P, E extends EventMap, R>(
+	fn: Task<P, E, R>,
+) => Task<P, E, LatestResult<R>>;
+
+/** What `latest({ key })` returns: the payload type comes from `key`. */
+export type KeyedLatestWrapper<P> = <E extends EventMap, R>(
+	fn: Task<P, E, R>,
+) => Task<P, E, LatestResult<R>>;
+
 /**
  * Aborts the previous run when a new call arrives; stale results are dropped.
  * With `options.key` each key has its own latest run.
+ *
+ * Called without the task, `latest()` returns a function that takes the task,
+ * so `usePolicy(callback, latest())` has no `(task) => ...` to get wrong.
  *
  * @example
  * ```ts
@@ -26,12 +49,27 @@ export type LatestOptions<P = never> = KeyOption<P>;
  *
  * // one latest run per user instead of one for all
  * bus.on("load", latest(loadUser, { key: (user) => user.id }));
+ *
+ * // without the task: for a hook that builds the task itself
+ * const search = usePolicy(runSearch, latest());
  * ```
  */
-export const latest = <P, E extends EventMap, R>(
+export function latest<P, E extends EventMap, R>(
 	fn: Task<P, E, R>,
-	options: LatestOptions<P> = {},
-): Task<P, E, R | Promise<Awaited<R> | undefined> | undefined> => {
+	options?: LatestOptions<P>,
+): Task<P, E, LatestResult<R>>;
+export function latest(options?: Unkeyed<LatestOptions>): LatestWrapper;
+export function latest<P>(
+	options: Keyed<LatestOptions<P>, P>,
+): KeyedLatestWrapper<P>;
+export function latest(first?: Loose, second?: Loose): unknown {
+	return formOf(first, second, buildLatest);
+}
+
+const buildLatest = <P, E extends EventMap, R>(
+	fn: Task<P, E, R>,
+	options: LatestOptions<P>,
+): Task<P, E, LatestResult<R>> => {
 	const create = (onIdle: () => void) =>
 		latestWith<P, E, R>(
 			"latest",

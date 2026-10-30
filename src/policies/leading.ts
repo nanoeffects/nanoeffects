@@ -1,9 +1,26 @@
 import type { EventMap, Task } from "../core/types";
 import { after, onAbort } from "../utils";
-import { type KeyOption, keyed } from "./keyed";
+import {
+	formOf,
+	type Keyed,
+	type KeyOption,
+	keyed,
+	type Loose,
+	type Unkeyed,
+} from "./keyed";
 import { dropCall, startCall } from "./lifecycle";
 
 export type LeadingOptions<P = never> = KeyOption<P>;
+
+/** What `leading()` returns: it turns a task into a `leading` task. */
+export type LeadingWrapper = <P, E extends EventMap, R>(
+	fn: Task<P, E, R>,
+) => Task<P, E, R | Promise<Awaited<R>> | undefined>;
+
+/** What `leading({ key })` returns: the payload type comes from `key`. */
+export type KeyedLeadingWrapper<P> = <E extends EventMap, R>(
+	fn: Task<P, E, R>,
+) => Task<P, E, R | Promise<Awaited<R>> | undefined>;
 
 /**
  * Drops new calls while the task is still running. The lock is released when
@@ -24,9 +41,21 @@ export type LeadingOptions<P = never> = KeyOption<P>;
  * bus.emit("save", draft); // dropped while the first save is in flight
  * ```
  */
-export const leading = <P, E extends EventMap, R>(
+export function leading<P, E extends EventMap, R>(
 	fn: Task<P, E, R>,
-	options: LeadingOptions<P> = {},
+	options?: LeadingOptions<P>,
+): Task<P, E, R | Promise<Awaited<R>> | undefined>;
+export function leading(options?: Unkeyed<LeadingOptions>): LeadingWrapper;
+export function leading<P>(
+	options: Keyed<LeadingOptions<P>, P>,
+): KeyedLeadingWrapper<P>;
+export function leading(first?: Loose, second?: Loose): unknown {
+	return formOf(first, second, buildLeading);
+}
+
+const buildLeading = <P, E extends EventMap, R>(
+	fn: Task<P, E, R>,
+	options: LeadingOptions<P>,
 ): Task<P, E, R | Promise<Awaited<R>> | undefined> => {
 	const create = (
 		onIdle: () => void,

@@ -1,6 +1,14 @@
 import type { EventMap, Task } from "../core/types";
 import { onAbort } from "../utils";
-import { type KeyOption, keyed, noop } from "./keyed";
+import {
+	formOf,
+	type Keyed,
+	type KeyOption,
+	keyed,
+	type Loose,
+	noop,
+	type Unkeyed,
+} from "./keyed";
 import { doneCall, dropCall, startCall } from "./lifecycle";
 
 export type QueueOptions<P = never> = KeyOption<P> & {
@@ -17,6 +25,16 @@ export type QueueOptions<P = never> = KeyOption<P> & {
 };
 
 type Entry = { start: () => void; drop: () => void };
+
+/** What `queue()` returns: it turns a task into a `queue` task. */
+export type QueueWrapper = <P, E extends EventMap, R>(
+	fn: Task<P, E, R>,
+) => Task<P, E, Promise<Awaited<R> | undefined>>;
+
+/** What `queue({ key })` returns: the payload type comes from `key`. */
+export type KeyedQueueWrapper<P> = <E extends EventMap, R>(
+	fn: Task<P, E, R>,
+) => Task<P, E, Promise<Awaited<R> | undefined>>;
 
 /**
  * Runs calls one after another, in the order they arrived: a call starts when
@@ -48,9 +66,21 @@ type Entry = { start: () => void; drop: () => void };
  * bus.emit("save", b); // waits for a, then runs
  * ```
  */
-export const queue = <P, E extends EventMap, R>(
+export function queue<P, E extends EventMap, R>(
 	fn: Task<P, E, R>,
-	options: QueueOptions<P> = {},
+	options?: QueueOptions<P>,
+): Task<P, E, Promise<Awaited<R> | undefined>>;
+export function queue(options?: Unkeyed<QueueOptions>): QueueWrapper;
+export function queue<P>(
+	options: Keyed<QueueOptions<P>, P>,
+): KeyedQueueWrapper<P>;
+export function queue(first?: Loose, second?: Loose): unknown {
+	return formOf(first, second, buildQueue);
+}
+
+const buildQueue = <P, E extends EventMap, R>(
+	fn: Task<P, E, R>,
+	options: QueueOptions<P>,
 ): Task<P, E, Promise<Awaited<R> | undefined>> => {
 	const create = (onIdle: () => void) => createQueue(fn, options, onIdle);
 

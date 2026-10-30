@@ -248,8 +248,8 @@ export const Search = ({ wait }) => {
       const found = await api.search(query, { signal });
       setItems(found);
     },
-    // the second argument builds the policy once; task runs the callback above
-    (task) => debounce(wait, task),
+    // debounce(wait) — the second argument builds the policy once around the callback above
+    debounce(wait),
     // deps — list what the second argument reads; a new wait makes a new policy
     [wait],
   );
@@ -265,7 +265,9 @@ export const Search = ({ wait }) => {
 
 - `onChange` keeps its identity while `wait` stays the same, so it is safe in `useEffect` and in props.
 - A pending call is cancelled on unmount and when `deps` change.
-- Do not write `usePolicy(debounce(300, callback))`. The policy would be made on every render or keep a stale callback.
+- Write the policy without its callback: `debounce(300)`, not `debounce(300, callback)`. `usePolicy` puts the callback in itself, always the one of the latest render.
+- To combine policies, write a function of the task: `(task) => throttle(100, latest(task))`. Here `task` is the callback that `usePolicy` keeps current; pass it, not your own function.
+- `deps` stay your job: `debounce(wait)` is made again on every render, but only the first one (and the one after `deps` change) is used.
 - Without a React component, use [`withPolicy`](policies.md#use-a-policy-without-a-bus).
 
 ## Where to go next

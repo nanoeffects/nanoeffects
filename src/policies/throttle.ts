@@ -1,7 +1,15 @@
 import type { Context } from "../core/bus";
 import type { EventMap, Task } from "../core/types";
 import { clearTimer, setTimer, type Timer } from "../utils";
-import { type KeyOption, keyed, noop } from "./keyed";
+import {
+	formOf,
+	type Keyed,
+	type KeyOption,
+	keyed,
+	type Loose,
+	noop,
+	type Unkeyed,
+} from "./keyed";
 import { dropCall, startCall } from "./lifecycle";
 
 type Pending<P, E extends EventMap, R> = {
@@ -17,6 +25,16 @@ export type ThrottleOptions<P = never> = KeyOption<P> & {
 	/** Run the latest call made while waiting, at the end of the window. Default `true`. */
 	trailing?: boolean;
 };
+
+/** What `throttle(ms)` returns: it turns a task into a `throttle` task. */
+export type ThrottleWrapper = <P, E extends EventMap, R>(
+	fn: Task<P, E, R>,
+) => Task<P, E, R | Promise<R | undefined> | undefined>;
+
+/** What `throttle(ms, { key })` returns: the payload type comes from `key`. */
+export type KeyedThrottleWrapper<P> = <E extends EventMap, R>(
+	fn: Task<P, E, R>,
+) => Task<P, E, R | Promise<R | undefined> | undefined>;
 
 /**
  * At most one run per `ms`, with the semantics of lodash `throttle` (and
@@ -44,10 +62,27 @@ export type ThrottleOptions<P = never> = KeyOption<P> & {
  * bus.emit("scroll", 30); // runs once the 200 ms window closes
  * ```
  */
-export const throttle = <P, E extends EventMap, R>(
+export function throttle<P, E extends EventMap, R>(
 	ms: number,
 	fn: Task<P, E, R>,
-	options: ThrottleOptions<P> = {},
+	options?: ThrottleOptions<P>,
+): Task<P, E, R | Promise<R | undefined> | undefined>;
+export function throttle(
+	ms: number,
+	options?: Unkeyed<ThrottleOptions>,
+): ThrottleWrapper;
+export function throttle<P>(
+	ms: number,
+	options: Keyed<ThrottleOptions<P>, P>,
+): KeyedThrottleWrapper<P>;
+export function throttle(ms: number, first?: Loose, second?: Loose): unknown {
+	return formOf(first, second, (fn, options) => buildThrottle(ms, fn, options));
+}
+
+const buildThrottle = <P, E extends EventMap, R>(
+	ms: number,
+	fn: Task<P, E, R>,
+	options: ThrottleOptions<P>,
 ): Task<P, E, R | Promise<R | undefined> | undefined> => {
 	const create = (onIdle: () => void) =>
 		createThrottle(ms, fn, options, onIdle);

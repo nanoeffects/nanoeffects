@@ -6,7 +6,7 @@ import {
 	noPayload,
 	type TestEvents,
 } from "../tests/test-helpers";
-import { debounce } from "./debounce";
+import { type DebounceOptions, debounce } from "./debounce";
 
 const debounceTask = <P, R>(ms: number, handler: Task<P, TestEvents, R>) =>
 	debounce(ms, handler);
@@ -401,7 +401,7 @@ describe("debounce", () => {
 	describe("leading and trailing options", () => {
 		const debounceWith = <P, R>(
 			handler: Task<P, TestEvents, R>,
-			options: Parameters<typeof debounce>[2],
+			options: DebounceOptions<P>,
 		) => debounce(100, handler, options);
 
 		it("leading runs the first call of a burst at once", () => {

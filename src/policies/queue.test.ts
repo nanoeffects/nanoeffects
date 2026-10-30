@@ -7,7 +7,7 @@ import {
 	deferred,
 	type TestEvents,
 } from "../tests/test-helpers";
-import { queue } from "./queue";
+import { type QueueOptions, queue } from "./queue";
 
 const queueTask = <P, R>(
 	handler: Task<P, TestEvents, R>,
@@ -448,7 +448,7 @@ describe("queue", () => {
 	describe("limit and overflow", () => {
 		const queueLimited = <P, R>(
 			handler: Task<P, TestEvents, R>,
-			options: Parameters<typeof queue>[1],
+			options: QueueOptions<P>,
 		) => queue(handler, options);
 
 		// a fn that records its payloads and finishes when its deferred resolves

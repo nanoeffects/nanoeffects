@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createModule } from "../actions";
 import type { Task } from "../core/types";
 import { timeout } from "../effects";
-import { queue } from "../policies";
+import { type QueueOptions, queue } from "../policies";
 import {
 	createApp,
 	createHarness,
@@ -16,7 +16,7 @@ import {
 
 const queueTask = <P, R>(
 	handler: Task<P, TestEvents, R>,
-	options?: Parameters<typeof queue>[1],
+	options?: QueueOptions<P>,
 ) => queue(handler, options);
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));

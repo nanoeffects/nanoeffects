@@ -9,9 +9,11 @@ import { type PolicyFunction, withPolicy } from "../policies/with-policy";
  * render. This hook keeps the policy across renders and calls the `callback` of
  * the latest render, so an inline callback sees fresh props and state.
  *
- * `make` gets a task that runs the callback and returns the policy built around
- * it. It runs once, and again when an item of `deps` changes: list there what
- * `make` reads, such as the wait time. The pending calls of the old function are
+ * `make` builds the policy around the callback. Pass a policy called without
+ * its task (`debounce(300)`, `latest()`), or a function `(task) => policy` for
+ * a combined policy such as `(task) => throttle(100, latest(task))`; `task`
+ * runs the callback. `make` runs once, and again when an item of `deps`
+ * changes: list there what it reads, such as the wait time. The pending calls of the old function are
  * cancelled then, and when the component unmounts. Needs `react` 18 or newer.
  *
  * @example
@@ -23,7 +25,7 @@ import { type PolicyFunction, withPolicy } from "../policies/with-policy";
  *   const [results, setResults] = useState([]);
  *   const onChange = usePolicy(
  *     async (query: string) => setResults(await search(query)), // latest render's callback
- *     (task) => debounce(wait, task), // the policy, made once per wait
+ *     debounce(wait), // the policy, made once per wait
  *     [wait],
  *   );
  *   return <input onChange={(event) => onChange(event.target.value)} />;

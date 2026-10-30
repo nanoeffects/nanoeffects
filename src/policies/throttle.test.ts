@@ -6,7 +6,7 @@ import {
 	noPayload,
 	type TestEvents,
 } from "../tests/test-helpers";
-import { throttle } from "./throttle";
+import { type ThrottleOptions, throttle } from "./throttle";
 
 const throttleTask = <P, R>(ms: number, handler: Task<P, TestEvents, R>) =>
 	throttle(ms, handler);
@@ -419,7 +419,7 @@ describe("throttle", () => {
 	describe("leading and trailing options", () => {
 		const throttleWith = <P, R>(
 			handler: Task<P, TestEvents, R>,
-			options: Parameters<typeof throttle>[2],
+			options: ThrottleOptions<P>,
 		) => throttle(100, handler, options);
 
 		it("trailing: false drops the calls made during a window", async () => {

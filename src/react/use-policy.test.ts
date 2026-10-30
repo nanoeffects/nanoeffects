@@ -21,17 +21,17 @@ type Props = {
 };
 
 // mounts a component that calls usePolicy with a debounce of `wait`; `render` re-renders it with new props
-const mount = (initial: Props, strict = false) => {
+const mountWith = (initial: Props, strict: boolean, curried: boolean) => {
 	const container = document.createElement("div");
 	const root = createRoot(container);
 	const seen: Array<PolicyFunction<string, unknown>> = [];
 
 	const Component = ({ callback, wait = 100 }: Props) => {
-		const onChange = usePolicy(
-			callback,
-			(task: Task<string, EventMap, unknown>) => debounce(wait, task),
-			[wait],
-		);
+		// the wrapper of `debounce(wait)` is new on every render, as one written in a component
+		const make = curried
+			? debounce(wait)
+			: (task: Task<string, EventMap, unknown>) => debounce(wait, task);
+		const onChange = usePolicy(callback, make, [wait]);
 		seen.push(onChange);
 		return createElement("span", null, "x");
 	};
@@ -52,7 +52,13 @@ const mount = (initial: Props, strict = false) => {
 	};
 };
 
-describe("usePolicy", () => {
+describe.each([
+	["make written as (task) => ...", false],
+	["make from a policy called without a task", true],
+])("usePolicy with %s", (_name, curried) => {
+	const mount = (initial: Props, strict = false) =>
+		mountWith(initial, strict, curried);
+
 	beforeAll(() => {
 		Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
 	});

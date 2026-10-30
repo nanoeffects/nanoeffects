@@ -207,7 +207,7 @@
 		{
 			"name": "policies (all)",
 			"path": "dist/policies.js",
-			"limit": "2.6 kB"
+			"limit": "2.65 kB"
 		},
 		{
 			"name": "effects (all)",

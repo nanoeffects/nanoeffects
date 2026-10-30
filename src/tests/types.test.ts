@@ -1777,6 +1777,57 @@ describe("usePolicy", () => {
 		expectTypeOf(useSearch).returns.toHaveProperty("cancel");
 	});
 
+	it("infers the payload and the result through a policy called without a task", () => {
+		const useSearch = () =>
+			usePolicy((query: string) => query.length, debounce(300));
+
+		expectTypeOf(useSearch).returns.parameter(0).toEqualTypeOf<string>();
+		expectTypeOf(useSearch).returns.returns.toEqualTypeOf<
+			Promise<number | undefined>
+		>();
+	});
+
+	it("keeps the payload through every policy called without a task", () => {
+		const useAll = () => ({
+			latest: usePolicy((query: string) => query, latest()),
+			leading: usePolicy((query: string) => query, leading()),
+			throttle: usePolicy((query: string) => query, throttle(100)),
+			queue: usePolicy((query: string) => query, queue({ concurrency: 2 })),
+		});
+
+		expectTypeOf(useAll).returns.toHaveProperty("latest");
+		expectTypeOf(useAll).returns.toHaveProperty("leading");
+		expectTypeOf<ReturnType<typeof useAll>["queue"]>()
+			.parameter(0)
+			.toEqualTypeOf<string>();
+		expectTypeOf<ReturnType<typeof useAll>["throttle"]>()
+			.parameter(0)
+			.toEqualTypeOf<string>();
+	});
+
+	it("types the payload of key from the annotated parameter", () => {
+		type Job = { id: number };
+		const useSave = () =>
+			usePolicy((job: Job) => job.id, queue({ key: (job: Job) => job.id }));
+		const wrongPayload = () => {
+			// @ts-expect-error the wrapper is for a task of Job
+			latest({ key: (job: Job) => job.id })((text: string) => text);
+		};
+
+		expectTypeOf(useSave).returns.parameter(0).toEqualTypeOf<Job>();
+		expectTypeOf(wrongPayload).toBeFunction();
+	});
+
+	it("a policy made with a task is not accepted as make", () => {
+		const wrongMake = () => {
+			const callback = (query: string) => query;
+			// @ts-expect-error make takes the task, a made policy is the task itself
+			usePolicy(callback, debounce(300, callback));
+		};
+
+		expectTypeOf(wrongMake).toBeFunction();
+	});
+
 	it("a wrong payload is an error", () => {
 		const useSearch = () =>
 			usePolicy(

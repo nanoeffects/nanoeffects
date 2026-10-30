@@ -36,6 +36,33 @@ Every policy accepts `key` in its options (see [Isolate state by key](#isolate-s
 | `throttle(ms, fn, options?)` | at most one run per `ms` |
 | `queue(fn, options?)` | one after another, in order |
 
+## Call a policy without its function
+
+**Problem.** Some code builds the function for you and only asks which policy to use, as [`usePolicy`](react.md#keep-a-debounced-handler-between-renders) does. If you must pass your own function there, it is easy to pass the wrong one.
+
+**When.** You pass a policy to `usePolicy`. With a bus, `withPolicy` or your own code, call the policy with its function as above.
+
+Leave the function out and the policy returns a wrapper. The wrapper takes a function and gives back the same policy as the direct call:
+
+```js
+import { debounce } from "nanoeffects/policies";
+
+const runSearch = async (query) => {
+  await api.search(query);
+};
+
+// debounce(300) — no function yet: returns a wrapper
+const wrap = debounce(300);
+
+// the wrapper takes the function; same as debounce(300, runSearch)
+const search = wrap(runSearch);
+```
+
+- It works for `latest()`, `leading()`, `debounce(ms)`, `throttle(ms)` and `queue()`, with the options as the last argument: `queue({ concurrency: 2 })`, `debounce(300, { leading: true })`.
+- Each time you apply a wrapper to a function, you get a new policy with its own state.
+- To combine policies, nest them as before: `throttle(100, latest(fn))`.
+- With `key`, annotate the payload of the key function in TypeScript: `latest({ key: (user: User) => user.id })`. Without the annotation the wrapper cannot know the payload type.
+
 ## Configure debounce and throttle
 
 `debounce` and `throttle` take `leading` and `trailing`. Behavior matches lodash (and patronum); tests compare random call sequences to lodash itself.

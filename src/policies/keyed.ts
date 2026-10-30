@@ -14,6 +14,33 @@ export type KeyOption<P> = {
 export const noop = () => {};
 
 /**
+ * Tells the two forms of a policy apart: with a task (`first` is a function)
+ * the policy is built at once, without one (`first` holds the options) a
+ * wrapper that takes the task is returned.
+ *
+ * @internal
+ */
+// biome-ignore lint/suspicious/noExplicitAny: the implementation signature of an overloaded policy takes every form
+export type Loose = any;
+
+export const formOf = (
+	first: Loose,
+	second: Loose,
+	build: (fn: Loose, options: Loose) => unknown,
+): unknown => {
+	if (typeof first === "function") {
+		return build(first, second ?? {});
+	}
+	return (fn: unknown) => build(fn, first ?? {});
+};
+
+/** Options of a policy called without a task: `key` is left out. */
+export type Unkeyed<O> = Omit<O, "key"> & { key?: undefined };
+
+/** Options of a policy called without a task, with a `key` that tells the payload type. */
+export type Keyed<O, P> = O & { key: (payload: P) => unknown };
+
+/**
  * Builds one policy instance per key, on demand. `create` gets an `onIdle`
  * callback: the instance calls it when it holds nothing any more, and its key
  * is forgotten.
