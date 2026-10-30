@@ -220,7 +220,7 @@
 		{
 			"name": "effects (all)",
 			"path": "dist/effects.js",
-			"limit": "2.8 kB"
+			"limit": "3 kB"
 		},
 		{
 			"name": "actions (all)",

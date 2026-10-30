@@ -1,4 +1,4 @@
-import type { ChildOf, Starter, Starters } from "./run";
+import type { ChildOf, GroupOptions, Starter, Starters } from "./run";
 import { emptyResult, groupOrStarter, runGroup } from "./run";
 
 const settled = (
@@ -33,6 +33,7 @@ export function allSettled<
 >(
 	ctx: C,
 	effects: T,
+	options?: GroupOptions | null,
 ): Promise<{
 	[K in keyof T]: PromiseSettledResult<Awaited<ReturnType<T[K]>>>;
 }>;
@@ -42,6 +43,7 @@ export function allSettled<
 >(
 	ctx: C,
 	effects: T,
+	options?: GroupOptions | null,
 ): Promise<{
 	-readonly [K in keyof T]: PromiseSettledResult<Awaited<ReturnType<T[K]>>>;
 }>;
@@ -63,7 +65,9 @@ export function allSettled<
 	-readonly [K in keyof T]: PromiseSettledResult<Awaited<ReturnType<T[K]>>>;
 }>;
 export function allSettled(
-	...args: [{ signal?: AbortSignal }, Starters] | [Starters]
+	...args:
+		| [{ signal?: AbortSignal }, Starters, (GroupOptions | null | undefined)?]
+		| [Starters]
 ) {
 	return groupOrStarter(args, allSettledOf);
 }
@@ -71,6 +75,7 @@ export function allSettled(
 const allSettledOf = (
 	ctx: { signal?: AbortSignal },
 	effects: Starters,
+	options?: GroupOptions | null,
 ): Promise<unknown> =>
 	runGroup(
 		"allSettled",
@@ -88,4 +93,5 @@ const allSettledOf = (
 			return result;
 		},
 		"failure",
+		options,
 	);

@@ -73,16 +73,119 @@ export const startStarters = (group: Context<EventMap>, effects: Starters) => {
 	};
 };
 
+/** Options of `all` and `allSettled`. */
+export type GroupOptions = {
+	/** At most this many starters run at once; the next starts when one settles. Default: no limit. */
+	concurrency?: number | undefined;
+};
+
+/** Reads `concurrency` before anything starts: a positive integer, or `Infinity` for no limit. */
+const concurrencyOf = (options: GroupOptions | null | undefined): number => {
+	const value = options?.concurrency ?? Number.POSITIVE_INFINITY;
+	if (
+		value !== Number.POSITIVE_INFINITY &&
+		!(Number.isInteger(value) && value >= 1)
+	) {
+		throw new RangeError("concurrency must be a positive integer");
+	}
+
+	return value;
+};
+
+/**
+ * Like `startStarters`, but a starter is forked and called only when fewer than `limit` run. A
+ * starter that never starts has no child task and no trace; its promise stays pending, and no one
+ * waits for it once the group is over. After a failure (when `stopOnFailure`), an abort of the
+ * group or `cancelAll`, no further starter starts.
+ */
+const startLimited = (
+	group: Context<EventMap>,
+	effects: Starters,
+	limit: number,
+	stopOnFailure: boolean,
+) => {
+	const entries = Object.entries(effects);
+	const resolvers: Array<(task: Promise<unknown>) => void> = [];
+	const tasks = entries.map(([key]) => {
+		const task = new Promise<unknown>((resolve) => resolvers.push(resolve));
+
+		return [key, task] as const;
+	});
+	const cancels = new Set<() => void>();
+	let next = 0;
+	let running = 0;
+	let stopped = false;
+
+	const launch = () => {
+		while (
+			!stopped &&
+			!group.signal.aborted &&
+			running < limit &&
+			next < entries.length
+		) {
+			const index = next++;
+			const [, starter] = entries[index] as [
+				string,
+				Starter<unknown, Context<EventMap>>,
+			];
+			const child = forkTask(group);
+			const start = () => starter(child.ctx);
+			const settle = () => {
+				child.unlink();
+				cancels.delete(child.ctx.abort);
+				running--;
+			};
+			cancels.add(child.ctx.abort);
+			running++;
+			const task = new Promise((resolve) =>
+				resolve(traceRun(child.ctx, "run", start)),
+			).then(
+				(value) => {
+					settle();
+					launch();
+
+					return value;
+				},
+				(error: unknown) => {
+					settle();
+					stopped = stopOnFailure;
+					launch();
+
+					throw error;
+				},
+			);
+			resolvers[index]?.(task);
+		}
+	};
+	launch();
+
+	return {
+		tasks,
+		cancelAll: () => {
+			stopped = true;
+			for (const cancel of cancels) {
+				cancel();
+			}
+		},
+	};
+};
+
 /**
  * One argument is a group without a context, which is a starter; two are the `ctx` form. The count
  * tells them apart because effects and a context are both objects. A lone context is a mistake:
  * its `signal` is an object, and the value of an effects key is a starter, a function.
  */
 export const groupOrStarter = <R>(
-	args: [{ signal?: AbortSignal }, Starters] | [Starters],
-	group: (ctx: { signal?: AbortSignal }, effects: Starters) => R,
+	args:
+		| [{ signal?: AbortSignal }, Starters, (GroupOptions | null | undefined)?]
+		| [Starters],
+	group: (
+		ctx: { signal?: AbortSignal },
+		effects: Starters,
+		options?: GroupOptions | null,
+	) => R,
 ): R | ((child: Context<EventMap>) => R) => {
-	if (args.length === 2) {
+	if (args.length !== 1) {
 		return group(...args);
 	}
 	const [effects] = args;
@@ -99,7 +202,7 @@ export const groupOrStarter = <R>(
  * What `all`, `allSettled` and `race` share: run the starters as one traced
  * group of `ctx`, and gather their promises with `gather`. `cancelAfter` tells
  * when the starters still running are cancelled: when the group failed (`all`),
- * or whenever it is over (`race`).
+ * or whenever it is over (`race`). `options.concurrency` limits how many run at once.
  */
 export const runGroup = <T>(
 	effect: EffectName,
@@ -109,14 +212,19 @@ export const runGroup = <T>(
 		tasks: ReadonlyArray<readonly [string, Promise<unknown>]>,
 	) => Promise<T>,
 	cancelAfter: "failure" | "end",
+	options?: GroupOptions | null,
 ): Promise<T> => {
+	const limit = concurrencyOf(options);
 	let cancelAll = () => {};
 
 	return withGroup(
 		effect,
 		ctx,
 		async (group) => {
-			const started = startStarters(group, effects);
+			const started =
+				limit === Number.POSITIVE_INFINITY
+					? startStarters(group, effects)
+					: startLimited(group, effects, limit, effect === "all");
 			cancelAll = started.cancelAll;
 
 			return gather(started.tasks);

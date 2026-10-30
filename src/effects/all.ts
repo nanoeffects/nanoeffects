@@ -1,4 +1,4 @@
-import type { ChildOf, Starter, Starters } from "./run";
+import type { ChildOf, GroupOptions, Starter, Starters } from "./run";
 import { emptyResult, groupOrStarter, runGroup } from "./run";
 
 /**
@@ -19,13 +19,18 @@ import { emptyResult, groupOrStarter, runGroup } from "./run";
 export function all<
 	C extends { signal?: AbortSignal },
 	T extends Record<string, Starter<unknown, ChildOf<C>>>,
->(ctx: C, effects: T): Promise<{ [K in keyof T]: Awaited<ReturnType<T[K]>> }>;
+>(
+	ctx: C,
+	effects: T,
+	options?: GroupOptions | null,
+): Promise<{ [K in keyof T]: Awaited<ReturnType<T[K]>> }>;
 export function all<
 	C extends { signal?: AbortSignal },
 	const T extends readonly Starter<unknown, ChildOf<C>>[],
 >(
 	ctx: C,
 	effects: T,
+	options?: GroupOptions | null,
 ): Promise<{ -readonly [K in keyof T]: Awaited<ReturnType<T[K]>> }>;
 // Without a context the call is a starter. The child type comes from the group that calls it.
 export function all<Child, T extends Record<string, Starter<unknown, Child>>>(
@@ -37,7 +42,9 @@ export function all<Child, const T extends readonly Starter<unknown, Child>[]>(
 	child: Child,
 ) => Promise<{ -readonly [K in keyof T]: Awaited<ReturnType<T[K]>> }>;
 export function all(
-	...args: [{ signal?: AbortSignal }, Starters] | [Starters]
+	...args:
+		| [{ signal?: AbortSignal }, Starters, (GroupOptions | null | undefined)?]
+		| [Starters]
 ) {
 	return groupOrStarter(args, allOf);
 }
@@ -45,6 +52,7 @@ export function all(
 const allOf = (
 	ctx: { signal?: AbortSignal },
 	effects: Starters,
+	options?: GroupOptions | null,
 ): Promise<unknown> =>
 	runGroup(
 		"all",
@@ -60,4 +68,5 @@ const allOf = (
 			return result;
 		},
 		"failure",
+		options,
 	);

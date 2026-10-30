@@ -376,6 +376,29 @@ bus.on("open", async (id, ctx) => {
 
 One argument is the short form and two arguments are the form with `ctx`: `all(effects)` returns a starter, `all(ctx, effects)` runs the group. The inner group stops with the outer one and cancels its own starters. Passing only a context, `all(ctx)`, is a mistake and throws a `TypeError` at once. A group starter written in a group needs no type. One kept in a variable outside a group does not know its bus: in TypeScript, annotate it with `StarterOf<Events>`, or `StarterOf<Events, Result>` when you need its value.
 
+**Limit how many run at once.** `all` and `allSettled` start every starter together. Over a long list that is a burst of requests. Pass `{ concurrency }` as the third argument and at most that many run at a time; the next one starts when a running one settles:
+
+```js
+import { createBus } from "nanoeffects";
+import { all, retry } from "nanoeffects/effects";
+
+const bus = createBus();
+
+bus.on("sync", async (ids, ctx) => {
+  // all with concurrency — 5 loads at a time, results in the order of ids
+  const users = await all(
+    ctx,
+    ids.map((id) => retry(() => loadUser(id), { times: 2 })),
+    { concurrency: 5 },
+  );
+
+  render(users);
+});
+```
+
+The result has the same order and shape as without the option. If one starter of `all` fails, the running ones are cancelled and the waiting ones are never called. `allSettled` goes on after a failure. When `ctx` aborts, both stop and start nothing more. A value that is not a positive integer (`0`, `-1`, `NaN`, `1.5`) throws a `RangeError` before anything starts; `Infinity` means no limit. `race` has no `concurrency`: it ends at the first result, so a starter that waited for a free slot would never run. A group starter inside another group takes no options; write `(child) => all(child, effects, { concurrency: 5 })` there.
+
+
 **A starter gets the context of its own child task.** Pass `child` as the first argument to any effect, as a handler passes `ctx`: when the race ends, `child` is aborted and stops exactly this effect. The outer `ctx` is only for `race` itself. Your own API takes the signal in its options: `({ signal }) => fetchUser(id, { signal })`. The same holds for `all`, `allSettled` and `timeout`.
 
 If `ctx` is `{}` or a bare `{ signal }` (outside a task), `child` has only `signal` and `abort`, so it fits `delay` and `poll` but not `take`, which needs a bus.

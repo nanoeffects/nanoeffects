@@ -7,7 +7,7 @@ import type { delay } from "../utils";
 import type { all } from "./all";
 import type { allSettled } from "./allSettled";
 import type { race } from "./race";
-import type { Starter } from "./run";
+import type { GroupOptions, Starter } from "./run";
 import type { TakeOptions, take } from "./take";
 
 /** The effects that `effectsPlugin` can put on `ctx`. */
@@ -32,19 +32,23 @@ type Bound<E extends EventMap, Child> = {
 	all: {
 		<T extends Record<string, Starter<unknown, Child>>>(
 			effects: T,
+			options?: GroupOptions | null,
 		): Promise<{ [K in keyof T]: Awaited<ReturnType<T[K]>> }>;
 		<const T extends readonly Starter<unknown, Child>[]>(
 			effects: T,
+			options?: GroupOptions | null,
 		): Promise<{ -readonly [K in keyof T]: Awaited<ReturnType<T[K]>> }>;
 	};
 	allSettled: {
 		<T extends Record<string, Starter<unknown, Child>>>(
 			effects: T,
+			options?: GroupOptions | null,
 		): Promise<{
 			[K in keyof T]: PromiseSettledResult<Awaited<ReturnType<T[K]>>>;
 		}>;
 		<const T extends readonly Starter<unknown, Child>[]>(
 			effects: T,
+			options?: GroupOptions | null,
 		): Promise<{
 			-readonly [K in keyof T]: PromiseSettledResult<Awaited<ReturnType<T[K]>>>;
 		}>;

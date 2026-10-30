@@ -2,6 +2,11 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
+## Unreleased
+
+### Added
+- `all(ctx, starters, { concurrency })` and `allSettled(...)` run at most `concurrency` starters at once, for a long list that would otherwise start together: `all(ctx, ids.map((id) => retry(() => loadUser(id))), { concurrency: 5 })`. [Docs](docs/effects.md#run-several-starters-together)
+
 ## 0.24.0
 
 ### Added

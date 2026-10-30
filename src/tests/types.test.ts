@@ -366,6 +366,36 @@ describe("results of effects", () => {
 		});
 	});
 
+	it("all and allSettled take a concurrency option and keep their result types", () => {
+		bus.on("search", async (id, ctx) => {
+			const fetchUser = (_id: string) => Promise.resolve({ name: "a" });
+			const users = await all(ctx, [retry(() => fetchUser(id))], {
+				concurrency: 5,
+			});
+			expectTypeOf(users[0]).toEqualTypeOf<{ name: string }>();
+
+			const settled = await allSettled(
+				ctx,
+				{ user: retry(() => fetchUser(id)) },
+				{ concurrency: 2 },
+			);
+			expectTypeOf(settled.user).toEqualTypeOf<
+				PromiseSettledResult<{ name: string }>
+			>();
+
+			// @ts-expect-error concurrency is a number
+			await all(ctx, [delay(1)], { concurrency: "5" });
+		});
+
+		const bound = createBus<Events>().use(effectsPlugin({ all }));
+		bound.on("search", async (_, { all: boundAll }) => {
+			const values = await boundAll([delay(1), take("count")], {
+				concurrency: 1,
+			});
+			expectTypeOf(values[1]).toEqualTypeOf<number>();
+		});
+	});
+
 	it("StarterOf types a starter kept in a variable", () => {
 		type Loaded = { name: string };
 		const loadUser = () => Promise.resolve<Loaded>({ name: "a" });
