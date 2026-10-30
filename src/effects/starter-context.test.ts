@@ -4,7 +4,17 @@ import { createBus } from "../core/bus";
 import type { TraceEvent } from "../core/types";
 import { scopePlugin } from "../scope";
 import { createHarness } from "../tests/test-helpers";
-import { all, allSettled, delay, effectsPlugin, race, take, timeout } from ".";
+import {
+	all,
+	allSettled,
+	delay,
+	effectsPlugin,
+	poll,
+	race,
+	retry,
+	take,
+	timeout,
+} from ".";
 
 describe("the context of a starter", () => {
 	beforeEach(() => {
@@ -134,6 +144,36 @@ describe("the context of a starter", () => {
 				waited: delay(1000),
 			});
 			short.bus.emit("b", "stop");
+			await shortRace;
+
+			expect(shapeOf(short.recorder.events)).toEqual(
+				shapeOf(wrapped.recorder.events),
+			);
+			expect(short.recorder.events.length).toBeGreaterThan(0);
+		});
+
+		it("gives the same trace for the Task of retry, timeout and poll as for the wrapper", async () => {
+			const hang = () => new Promise<string>(() => {});
+			const wrapped = createHarness();
+			const wrappedRace = race(wrapped.ctx(), {
+				retried: (child) => retry(child, hang, { times: 2 }),
+				limited: (child) => timeout(child, 5000, hang),
+				polled: (child) => poll(child, () => {}, 100),
+				left: (child) => take(child, "b"),
+			});
+			await vi.advanceTimersByTimeAsync(250);
+			wrapped.bus.emit("b", "leave");
+			await wrappedRace;
+
+			const short = createHarness();
+			const shortRace = race(short.ctx(), {
+				retried: retry(hang, { times: 2 }),
+				limited: timeout(5000, hang),
+				polled: poll(100, () => {}),
+				left: take("b"),
+			});
+			await vi.advanceTimersByTimeAsync(250);
+			short.bus.emit("b", "leave");
 			await shortRace;
 
 			expect(shapeOf(short.recorder.events)).toEqual(

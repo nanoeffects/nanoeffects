@@ -2,6 +2,7 @@ import type { Context } from "../core/bus";
 import type { EventMap, Task } from "../core/types";
 import { delay } from "../utils";
 import { bodyOf, runTraced, withGroup } from "./group";
+import { runTaskOrStarter, type Startable } from "./starter-call";
 
 export type RetryOptions = {
 	/** Total number of attempts, the first one included. Default 3. */
@@ -83,7 +84,7 @@ type RetryFn<T> = (attempt: number) => T | PromiseLike<T>;
 export function retry<P, E extends EventMap, R>(
 	task: Task<P, E, R>,
 	options?: RetryOptions,
-): Task<P, E, Promise<Awaited<R>>>;
+): Startable<P, E, Promise<Awaited<R>>>;
 export function retry<T>(
 	ctx: { signal?: AbortSignal },
 	fn: RetryFn<T>,
@@ -97,8 +98,12 @@ export function retry(
 	if (typeof first === "function") {
 		const task = first as Task<unknown, EventMap, unknown>;
 
-		return (payload: unknown, ctx: Context<EventMap>) =>
-			retryBody(ctx, bodyOf(task, payload), (second as RetryOptions) ?? {});
+		const options = (second as RetryOptions) ?? {};
+		const run = (ctx: Context<EventMap>, payload: unknown) =>
+			retryBody(ctx, bodyOf(task, payload), options);
+
+		return (payload: unknown, ctx?: Context<EventMap>) =>
+			runTaskOrStarter(payload, ctx, run);
 	}
 	const fn = second as RetryFn<unknown>;
 

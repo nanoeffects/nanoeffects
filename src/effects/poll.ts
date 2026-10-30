@@ -2,6 +2,7 @@ import type { Context, WithSignal } from "../core/bus";
 import type { EventMap, Task } from "../core/types";
 import { clearTimer, onAbort, setTimer, type Timer } from "../utils";
 import { bodyOf, runTraced, withGroup } from "./group";
+import { runTaskOrStarter, type Startable } from "./starter-call";
 
 export type PollOptions = {
 	/** Also call `fn` at once, not only after the first `ms`. Default `false`. */
@@ -122,7 +123,7 @@ export function poll<P, E extends EventMap, R>(
 	ms: PollMs,
 	task: Task<P, E, R>,
 	options?: PollOptions,
-): Task<P, E, Promise<void>>;
+): Startable<P, E, Promise<void>>;
 export function poll(
 	ctx: WithSignal,
 	fn: (tick: number) => unknown,
@@ -139,8 +140,11 @@ export function poll(
 		const task = second as Task<unknown, EventMap, unknown>;
 		const options = (third ?? {}) as PollOptions;
 
-		return (payload: unknown, ctx: Context<EventMap>) =>
+		const run = (ctx: Context<EventMap>, payload: unknown) =>
 			pollBody(ctx, bodyOf(task, payload), first, options);
+
+		return (payload: unknown, ctx?: Context<EventMap>) =>
+			runTaskOrStarter(payload, ctx, run);
 	}
 	const fn = second as (tick: number) => unknown;
 	const ms = third as PollMs;

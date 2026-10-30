@@ -314,6 +314,27 @@ describe("results of effects", () => {
 		});
 	});
 
+	it("the Task of retry, timeout and poll is a starter when it needs no payload", () => {
+		bus.on("search", async (id, ctx) => {
+			const fetchUser = (_id: string, _options: { signal: AbortSignal }) =>
+				Promise.resolve({ name: "a" });
+			const winner = await race(ctx, {
+				user: retry((_, { signal }) => fetchUser(id, { signal }), { times: 3 }),
+				page: timeout(100, () => "page"),
+				watching: poll(100, () => {}),
+				waited: delay(5000),
+			});
+			expectTypeOf(winner.user).toEqualTypeOf<{ name: string } | undefined>();
+			expectTypeOf(winner.page).toEqualTypeOf<string | undefined>();
+
+			const loadUser = (_id: string, _ctx: unknown) => Promise.resolve(1);
+			await race(ctx, {
+				// @ts-expect-error the task needs a string payload, a group gives it none
+				user: retry(loadUser),
+			});
+		});
+	});
+
 	it("a starter of delay or take is not a promise, and a wrong event is an error", () => {
 		bus.on("search", async (_, ctx) => {
 			const starter = delay(10);

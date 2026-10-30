@@ -4,6 +4,7 @@ import type { EventMap, Task } from "../core/types";
 import { clearTimer, raceAbort, setTimer } from "../utils";
 import { bodyOf, withGroup } from "./group";
 import type { ChildOf, Starter } from "./run";
+import { runTaskOrStarter, type Startable } from "./starter-call";
 
 // What `timeout` does for both of its forms: `run` gets the child that the time limit aborts
 const timeoutBody = <T>(
@@ -56,7 +57,7 @@ const timeoutBody = <T>(
 export function timeout<P, E extends EventMap, R>(
 	ms: number,
 	task: Task<P, E, R>,
-): Task<P, E, Promise<Awaited<R>>>;
+): Startable<P, E, Promise<Awaited<R>>>;
 export function timeout<C extends { signal?: AbortSignal }, T>(
 	ctx: C,
 	ms: number,
@@ -70,8 +71,11 @@ export function timeout(
 	if (typeof first === "number") {
 		const task = second as Task<unknown, EventMap, unknown>;
 
-		return (payload: unknown, ctx: Context<EventMap>) =>
+		const run = (ctx: Context<EventMap>, payload: unknown) =>
 			timeoutBody(ctx, first, bodyOf(task, payload));
+
+		return (payload: unknown, ctx?: Context<EventMap>) =>
+			runTaskOrStarter(payload, ctx, run);
 	}
 	const ms = second as number;
 	const starter = third as Starter<unknown, Context<EventMap>>;
