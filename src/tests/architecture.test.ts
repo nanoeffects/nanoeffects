@@ -78,7 +78,8 @@ const layerViolations = async (root: string) => {
 	return found;
 };
 
-describe("architecture", () => {
+// the checks read the whole source tree: the cycle check took 4.5 s on a CI runner, close to the default 5 s
+describe("architecture", { timeout: 30_000 }, () => {
 	// the core itself has cycles between its type files (`types.ts` names `bus.ts` and the other way round);
 	// they exist only in the types, so the check is for the layers above it
 	it("the layers above the core have no import cycles", async () => {
