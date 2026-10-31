@@ -1,6 +1,6 @@
 {
 	"name": "nanoeffects",
-	"version": "0.27.0",
+	"version": "0.28.0",
 	"description": "Business logic and side effects outside UI components, as plain async functions. Tiny, no dependencies.",
 	"keywords": [
 		"event-bus",
@@ -226,7 +226,7 @@
 		{
 			"name": "actions (all)",
 			"path": "dist/actions.js",
-			"limit": "3.3 kB"
+			"limit": "3.31 kB"
 		},
 		{
 			"name": "match (plugin)",

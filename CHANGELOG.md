@@ -2,6 +2,12 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
+## 0.28.0
+
+### Added
+- `bus.get(event)` gives the listeners an event has right now (`bus.get("saved").length` is how many), and `bus.get()` gives every listener of every event. Use it in a test or a dev tool to check that a closed feature left no subscriber. `"*"` gives the any-event listeners. [Docs](docs/guide.md#1-create-a-bus)
+- A chat widget example that mounts one module when it opens and unmounts it when it closes, with the listeners of the bus shown live. [Docs](docs/chat-widget.md)
+
 ## 0.27.0
 
 ### Breaking
