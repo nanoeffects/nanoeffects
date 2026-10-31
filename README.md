@@ -25,12 +25,13 @@ This is how the project works inside: every handler is an `on` listener and ever
 import { createBus } from "nanoeffects";
 
 const bus = createBus(); // event bus; each handler call is a task
+const cart = [];
 
 // two independent listeners of one event; on returns the function that unsubscribes
 const unbind = bus.on("cart/added", (item) => analytics.track("add", item));
-bus.on("cart/added", (item) => console.log("added", item.id));
+bus.on("cart/added", (item) => cart.push(item));
 
-bus.emit("cart/added", { id: "p1" }); // both listeners run
+bus.emit("cart/added", { id: "p1" }); // both listeners run, cart has the item
 unbind(); // stop tracking
 ```
 
