@@ -12,8 +12,8 @@ importers:
         specifier: ^5.100.0
         version: 5.105.0(@types/react@19.3.0)(react@19.3.1)
       nanoeffects:
-        specifier: ^0.20.0
-        version: 0.20.0(react@19.3.1)
+        specifier: ^0.27.0
+        version: 0.27.0(react@19.3.1)
       react:
         specifier: ^19.0.0
         version: 19.3.1
@@ -382,14 +382,17 @@ packages:
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
 
-  nanoeffects@0.20.0:
-    resolution: {integrity: sha512-uzW8ixIagI47Wx5mMuJhwwmAuAyeSCDYwLCY50ovhQdlLCMKZhlRNIODreQPFWOl+JE3w75zIgPul4qydq9iAw==}
+  nanoeffects@0.27.0:
+    resolution: {integrity: sha512-WTdaVFUObS1tYM4MIiMR4OjLtAXcAQ33sHozaZDRP9Yxh2P23H+XyVqhZzf3x51FaWat5mQUBtcGocxBAsN7sA==}
     engines: {node: '>=18'}
     peerDependencies:
       react: '>=18'
+      svelte: '>=5'
       vue: '>=3.3'
     peerDependenciesMeta:
       react:
+        optional: true
+      svelte:
         optional: true
       vue:
         optional: true
@@ -695,7 +698,7 @@ snapshots:
   fsevents@2.3.3:
     optional: true
 
-  nanoeffects@0.20.0(react@19.3.1):
+  nanoeffects@0.27.0(react@19.3.1):
     optionalDependencies:
       react: 19.3.1
 

@@ -8,7 +8,7 @@
 	},
 	"dependencies": {
 		"fastify": "^5.0.0",
-		"nanoeffects": "^0.23.0"
+		"nanoeffects": "^0.27.0"
 	},
 	"devDependencies": {
 		"tsx": "^4.0.0",
