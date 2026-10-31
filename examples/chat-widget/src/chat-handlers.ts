@@ -1,4 +1,4 @@
-import type { Context, EventMap, WithSignal } from "nanoeffects";
+import type { Context, EventMap } from "nanoeffects";
 import { poll, retry, timeout } from "nanoeffects/effects";
 import { type Line, messageAdded, typingChanged } from "./chat";
 import { fakeBot } from "./fake-bot";
@@ -9,15 +9,23 @@ const addLine = (ctx: Context<EventMap>, line: Line) => {
 	ctx.emit(messageAdded(line)); // after an abort this delivers nothing
 };
 
+// the request of one text: a task that gets the text and its context
+const request = (text: string, ctx: Context<EventMap>) =>
+	fakeBot.ask(text, ctx);
+
+// timeout — give up after 8 s; retry — ask again, 3 attempts in all. Both wrap a task and
+// give one back, so the call below runs with the context of the caller and its abort.
+const requestWithRetry = retry(timeout(8000, request), {
+	times: 3,
+	delay: 500,
+});
+
 // one text of the user: show it, ask the bot, show the answer
 export const askBot = async (text: string, ctx: Context<EventMap>) => {
 	addLine(ctx, { from: "user", text });
 	ctx.emit(typingChanged(true));
 	try {
-		// timeout — give up after 8 s; retry — ask again, 3 attempts in all
-		const request = (task: WithSignal) => fakeBot.ask(text, task);
-		const askOnce = () => timeout(ctx, 8000, request);
-		const answer = await retry(ctx, askOnce, { times: 3, delay: 500 });
+		const answer = await requestWithRetry(text, ctx);
 		addLine(ctx, { from: "bot", text: answer });
 	} catch {
 		// an abort (the chat was closed) lands here too, and addLine delivers nothing then
