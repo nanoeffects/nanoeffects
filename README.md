@@ -61,7 +61,7 @@ bus.on(
 
 `ctx.signal` is a standard [`AbortSignal`](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal), built into browsers and Node: `fetch` and many other APIs accept it and stop when it aborts.
 
-The handler knows nothing about the UI: it only emits `results`. The component sends `search` and listens to `results` ([Vue](docs/vue.md) and [Svelte](docs/svelte.md) work the same way):
+The handler knows nothing about the UI: it only emits `results`. The component sends `search` and listens to `results`. React has hooks for it (`useEventState`, `useEmitter`: [React](docs/react.md#show-the-last-value-of-an-event-as-state)), and [Vue](docs/vue.md) and [Svelte](docs/svelte.md) have their own helpers:
 
 ```jsx
 // SearchBox.jsx
