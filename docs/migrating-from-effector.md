@@ -2,6 +2,17 @@
 
 Read this page if your project uses Effector and you want to know where nanoeffects fits. They overlap in one place: events that start effects. Effector also holds state; nanoeffects does not. It maps the names, shows one effect both ways, and lists what has no equivalent.
 
+## On this page
+
+- [Split the work](#split-the-work)
+- [Find the equivalent](#find-the-equivalent)
+- [Rewrite an effect](#rewrite-an-effect)
+  - [Keep the state in Zustand](#keep-the-state-in-zustand)
+- [Rewrite a form](#rewrite-a-form)
+  - [Replace the log with a request](#replace-the-log-with-a-request)
+- [Use both in one app](#use-both-in-one-app)
+- [What is different](#what-is-different)
+
 ## Split the work
 
 | Job | Use |

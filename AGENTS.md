@@ -118,6 +118,7 @@ Do not drop a block of unfamiliar calls (`m.on` + `m.handle` + `m.use`, …) wit
 
 ### Guide and `docs/`
 
+- A page of about 250 lines or more with five or more sections starts with `## On this page` right after its intro: a list of its `##` headings, with the `###` ones nested one level (see `docs/stores.md`). Check that each anchor is the GitHub slug of its heading. The README does not get one: it is short on purpose.
 - Guide = ladder A → B → (C) → D; types late or optional.
 - Reference pages: who/when in the first lines; one minimal example; then the catalog.
 - Describe inputs, result, limits, side effects. Rare options after the base case.

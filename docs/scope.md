@@ -6,6 +6,18 @@ A **scope** is a plain object. Every key goes on `ctx` as it is (`cache`, `api`,
 
 You give a scope to the thing that uses it. A call can replace it. Nothing else changes: handlers still get `(payload, ctx)`.
 
+## On this page
+
+- [Turn scopes on](#turn-scopes-on)
+- [Give an action its own fields](#give-an-action-its-own-fields)
+- [Bind an effect to the task](#bind-an-effect-to-the-task)
+- [Replace a field for one call](#replace-a-field-for-one-call)
+- [Give an action, a job or a module its own fields](#give-an-action-a-job-or-a-module-its-own-fields)
+- [Which value wins](#which-value-wins)
+- [Keep a generic effect generic](#keep-a-generic-effect-generic)
+- [Type the fields (optional)](#type-the-fields-optional)
+- [Limits](#limits)
+
 ## Turn scopes on
 
 Scopes are a plugin, so a bus that does not use them pays nothing.

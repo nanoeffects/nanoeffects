@@ -72,8 +72,8 @@ import { race, retry } from "nanoeffects/effects";
 const bus = createBus();
 
 bus.on("open", async (id, ctx) => {
-  // with ctx: you pass the context, the function gets the signal
-  const user = await retry(ctx, ({ signal }) => fetchUser(id, { signal }), { times: 3 });
+  // with ctx: you pass the context, and the function takes the signal from it
+  const user = await retry(ctx, () => fetchUser(id, { signal: ctx.signal }), { times: 3 });
 
   // as a starter: a group (race, all, allSettled, timeout) calls it with its child
   const result = await race(ctx, {

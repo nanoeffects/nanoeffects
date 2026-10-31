@@ -2,6 +2,27 @@
 
 Optional. A plugin adds one thing to a bus: fields on `ctx`, a method, a registry of handlers, diagnostics. Read this page when you want to know which plugins exist, what each one gives you, and in what order to use them. Skip it for a small bus: `createBus()` alone is enough.
 
+## On this page
+
+- [Use a plugin](#use-a-plugin)
+- [Main plugins](#main-plugins)
+  - [Put a store or a client on every handler: `contextPlugin`](#put-a-store-or-a-client-on-every-handler-contextplugin)
+  - [Use `race` and `delay` without `ctx`: `effectsPlugin`](#use-race-and-delay-without-ctx-effectsplugin)
+  - [Bind or replace a handler: `actionsPlugin`](#bind-or-replace-a-handler-actionsplugin)
+  - [Mount a domain as one unit: `modulePlugin`](#mount-a-domain-as-one-unit-moduleplugin)
+- [Extra plugins](#extra-plugins)
+  - [Give one action its own fields: `scopePlugin`](#give-one-action-its-own-fields-scopeplugin)
+  - [Tie an emit to an outside signal: `signalPlugin`](#tie-an-emit-to-an-outside-signal-signalplugin)
+  - [Name the origin and the flow of a trace: `tracePlugin`](#name-the-origin-and-the-flow-of-a-trace-traceplugin)
+  - [Listen to a group of events: `matchPlugin`](#listen-to-a-group-of-events-matchplugin)
+  - [Hand the bus to a state manager: `emitterPlugin`](#hand-the-bus-to-a-state-manager-emitterplugin)
+  - [Tell the bus when a React value changes: `reactPlugin`](#tell-the-bus-when-a-react-value-changes-reactplugin)
+  - [Find leaks while you develop: `devPlugin`](#find-leaks-while-you-develop-devplugin)
+- [Put them together](#put-them-together)
+- [Use them in any order](#use-them-in-any-order)
+- [See what is not a plugin](#see-what-is-not-a-plugin)
+- [Write your own plugin](#write-your-own-plugin)
+
 ## Use a plugin
 
 A plugin is a function of the bus. `bus.use(plugin)` calls it with the bus and returns whatever the plugin returns. Most plugins return the same bus, so you can chain them: `createBus().use(a).use(b)`. A few return something of their own (a registry, an app, a `disconnect` function): keep it.
@@ -48,7 +69,7 @@ const bus = createBus().use(effects);
 
 bus.on("load", async (id, { race, delay }) => {
   const result = await race({
-    data: ({ signal }) => api.get(id, { signal }),
+    data: (child) => api.get(id, child),
     timeout: () => delay(5000),
   });
 });

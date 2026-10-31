@@ -9,6 +9,23 @@ Use this page when **your domain logic lives in classes**: a service, a store or
 
 If your logic is plain functions, stay with [modules](actions.md#mount-domains-with-modules): a module is the same idea without a class.
 
+## On this page
+
+- [The problem without it](#the-problem-without-it)
+- [Make an independent emitter with `Emitter`](#make-an-independent-emitter-with-emitter)
+  - [Type the events (optional)](#type-the-events-optional)
+- [Give a class the methods of a shared bus](#give-a-class-the-methods-of-a-shared-bus)
+  - [Extend the result with no class of your own](#extend-the-result-with-no-class-of-your-own)
+- [Let the class make its bus](#let-the-class-make-its-bus)
+- [End the subscriptions with `dispose`](#end-the-subscriptions-with-dispose)
+- [Stream an event with a `Subject`](#stream-an-event-with-a-subject)
+- [Keep a method of your own](#keep-a-method-of-your-own)
+- [Subscribe a method with `@On` and `@Once`](#subscribe-a-method-with-on-and-once)
+- [Decorate the class with `@WithBus`](#decorate-the-class-with-withbus)
+- [Pass a method by hand](#pass-a-method-by-hand)
+- [Type the instances (optional)](#type-the-instances-optional)
+- [What is not done](#what-is-not-done)
+
 ## The problem without it
 
 A class that listens to the bus keeps a reference to it, and keeps every unsubscribe function in a list to call when the object goes away. Forget one and the old object keeps handling events. `extendBus` does both for you.

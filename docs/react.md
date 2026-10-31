@@ -4,6 +4,16 @@ Use this page when a React screen starts requests on user input and you need the
 
 You need a React project and `nanoeffects` installed. The form talks to your own client, `api` below: replace it with your requests.
 
+## On this page
+
+- [See what goes wrong without a bus](#see-what-goes-wrong-without-a-bus)
+- [Wire the bus once](#wire-the-bus-once)
+- [Connect the form](#connect-the-form)
+- [Stop running work when the form closes](#stop-running-work-when-the-form-closes)
+- [Show the last value of an event as state](#show-the-last-value-of-an-event-as-state)
+- [Keep a debounced handler between renders](#keep-a-debounced-handler-between-renders)
+- [Where to go next](#where-to-go-next)
+
 ## See what goes wrong without a bus
 
 A registration form has three problems that `useEffect` and `fetch` leave to you:

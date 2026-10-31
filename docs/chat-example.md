@@ -14,6 +14,18 @@ npm run dev
 
 `npm run dev` starts the server and Vite together. Start it with `CHAOS=off npm run dev` to turn the failures off.
 
+## On this page
+
+- [Read how the server fails](#read-how-the-server-fails)
+- [See how the files are split](#see-how-the-files-are-split)
+- [Load a history that must not race](#load-a-history-that-must-not-race)
+- [Send a message that can fail](#send-a-message-that-can-fail)
+- [Search where one room is slow](#search-where-one-room-is-slow)
+- [Wait for a room before marking a result](#wait-for-a-room-before-marking-a-result)
+- [Poll for new messages](#poll-for-new-messages)
+- [Know where each value lives](#know-where-each-value-lives)
+- [Where to go next](#where-to-go-next)
+
 ## Read how the server fails
 
 The server keeps its data in memory. These rules are on purpose, and they are the same every run, so you can follow each section below by doing what the table says:

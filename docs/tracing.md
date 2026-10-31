@@ -4,6 +4,21 @@ Find out what your app did and why: which events were emitted, which calls a pol
 
 Tracing is optional. A bus works the same without it, and it costs almost nothing until you turn it on. If you only want to see what happens while you develop, jump to [Show every emit](#show-every-emit) and [Configure Redux DevTools](#configure-redux-devtools); the rest of the page is for apps that need to follow a flow or turn tracing off in a build.
 
+## On this page
+
+- [Attach a tracer](#attach-a-tracer)
+- [Show every emit](#show-every-emit)
+- [Show which subscription began a chain](#show-which-subscription-began-a-chain)
+- [Follow one flow with a traceGroupId](#follow-one-flow-with-a-tracegroupid)
+- [Name a listener](#name-a-listener)
+- [Keep the chain: `ctx.emit`, not `bus.emit`](#keep-the-chain-ctxemit-not-busemit)
+- [Turn the names off](#turn-the-names-off)
+- [Use built-in loggers](#use-built-in-loggers)
+  - [Cut volume in production](#cut-volume-in-production)
+  - [Configure Redux DevTools](#configure-redux-devtools)
+  - [Write your own logger](#write-your-own-logger)
+- [Drop tracing from a build](#drop-tracing-from-a-build)
+
 ## Attach a tracer
 
 Pass `trace` to `createBus`. Make it with `createTracer` from `nanoeffects/trace`, which takes a logger (a function) or an array of them. The tracing code lives in that entry, so a bus without `trace` does not carry it.

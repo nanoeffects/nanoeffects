@@ -4,6 +4,18 @@ Use this page for retry, timeouts, waiting, or parallel work — not as the firs
 
 An abort only raises a flag. Your code decides to stop. Start with `retry` / `timeout` on a handler (see [Guide §5](guide.md#5-add-retry-and-timeout)).
 
+## On this page
+
+- [Wrap a handler with retry and timeout](#wrap-a-handler-with-retry-and-timeout)
+  - [Options for retry, timeout, and poll](#options-for-retry-timeout-and-poll)
+- [Back off between retries](#back-off-between-retries)
+- [Put selected effects on `ctx`](#put-selected-effects-on-ctx)
+- [Tie a promise to the task signal](#tie-a-promise-to-the-task-signal)
+- [Run cleanup on abort](#run-cleanup-on-abort)
+- [Wait for the next event with `take`](#wait-for-the-next-event-with-take)
+- [Run several starters together](#run-several-starters-together)
+- [Pass `ctx` outside a task](#pass-ctx-outside-a-task)
+
 ## Wrap a handler with retry and timeout
 
 `retry`, `timeout`, and `poll` have two forms:
@@ -49,9 +61,7 @@ bus.on("load", async (id, ctx) => {
     () => fetchUser(id, { signal: ctx.signal }),
     { times: 4 },
   );
-  const data = await timeout(ctx, 5000, ({ signal }) => {
-    return fetchData(id, { signal });
-  });
+  const data = await timeout(ctx, 5000, (child) => fetchData(id, child));
   await poll(ctx, () => refresh(), 10_000);
   ctx.emit("ready", { user, data });
 });
@@ -160,7 +170,8 @@ const bus = createBus().use(effects);
 bus.on("load", async (id, { race, all, delay }) => {
   // race — same as race(ctx, …)
   const result = await race({
-    data: ({ signal }) => fetchData(id, { signal }),
+    // child — the context of this starter; it has the `signal`, so the request stops with the race
+    data: (child) => fetchData(id, child),
     // a starter gets its own child with the same bound effects, so delay(5000) stops with the race
     timeout: ({ delay }) => delay(5000),
   });
@@ -168,8 +179,8 @@ bus.on("load", async (id, { race, all, delay }) => {
 
   // all — same as all(ctx, …)
   const { user, posts } = await all({
-    user: ({ signal }) => fetchUser(id, { signal }),
-    posts: ({ signal }) => fetchPosts(id, { signal }),
+    user: (child) => fetchUser(id, child),
+    posts: (child) => fetchPosts(id, child),
   });
 });
 ```
@@ -292,8 +303,8 @@ const bus = createBus();
 
 bus.on("open", async (id, ctx) => {
   const { user, posts } = await allSettled(ctx, {
-    user: ({ signal }) => fetchUser(id, { signal }),
-    posts: ({ signal }) => fetchPosts(id, { signal }),
+    user: (child) => fetchUser(id, child),
+    posts: (child) => fetchPosts(id, child),
   });
 
   if (user.status === "fulfilled") {
@@ -399,7 +410,7 @@ bus.on("sync", async (ids, ctx) => {
 The result has the same order and shape as without the option. If one starter of `all` fails, the running ones are cancelled and the waiting ones are never called. `allSettled` goes on after a failure. When `ctx` aborts, both stop and start nothing more. A value that is not a positive integer (`0`, `-1`, `NaN`, `1.5`) throws a `RangeError` before anything starts; `Infinity` means no limit. `race` has no `concurrency`: it ends at the first result, so a starter that waited for a free slot would never run. The form without `ctx` takes no options, because a second argument would look like the form with `ctx`, so a group starter inside another group takes none; write `(child) => all(child, effects, { concurrency: 5 })` there.
 
 
-**A starter gets the context of its own child task.** Pass `child` as the first argument to any effect, as a handler passes `ctx`: when the race ends, `child` is aborted and stops exactly this effect. The outer `ctx` is only for `race` itself. Your own API takes the signal in its options: `({ signal }) => fetchUser(id, { signal })`. The same holds for `all`, `allSettled` and `timeout`.
+**A starter gets the context of its own child task.** Pass `child` as the first argument to any effect, as a handler passes `ctx`: when the race ends, `child` is aborted and stops exactly this effect. The outer `ctx` is only for `race` itself. Your own API takes the signal in its options, and `child` has a `signal`, so pass it as the options: `(child) => fetchUser(id, child)` (`fetch` reads only `signal` from it). The same holds for `all`, `allSettled` and `timeout`.
 
 If `ctx` is `{}` or a bare `{ signal }` (outside a task), `child` has only `signal` and `abort`, so it fits `delay` and `poll` but not `take`, which needs a bus.
 

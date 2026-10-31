@@ -10,6 +10,18 @@ A chat with two entities and three features, jobs under policies and effects, an
 
 A whole project with two domains, a job and React as a thin layer: `npm create nanoeffects@latest my-app -- --template domains-ts` (see [Start a project from a template](starter.md#start-with-domains)).
 
+## On this page
+
+- [Return a value from `emit` with a handler](#return-a-value-from-emit-with-a-handler)
+- [Describe events, handlers and jobs](#describe-events-handlers-and-jobs)
+  - [Actions](#actions)
+  - [Bind a handler later](#bind-a-handler-later)
+  - [Say what a bound handler returns](#say-what-a-bound-handler-returns)
+  - [Jobs](#jobs)
+- [Show a loading state with a job](#show-a-loading-state-with-a-job)
+- [Mount domains with modules](#mount-domains-with-modules)
+- [Give an action or a module its own fields](#give-an-action-or-a-module-its-own-fields)
+
 ## Return a value from `emit` with a handler
 
 Give `createAction` a handler, and `emit` runs it and returns its result. There is one creator for an event and for an action with work behind it; the handler is the only difference.

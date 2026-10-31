@@ -11,6 +11,23 @@ Climb one step at a time: small bus → policies → effects → handlers and mo
 
 Runnable code for every step: [`examples/guide.ts`](../examples/guide.ts).
 
+## On this page
+
+- [1. Create a bus](#1-create-a-bus)
+  - [Listen to every event](#listen-to-every-event)
+  - [Pick events with a function](#pick-events-with-a-function)
+- [2. Use the handler context](#2-use-the-handler-context)
+- [3. Abort the previous run with `latest`](#3-abort-the-previous-run-with-latest)
+- [4. Pick another policy when overlap differs](#4-pick-another-policy-when-overlap-differs)
+- [5. Add retry and timeout](#5-add-retry-and-timeout)
+- [6. Run work in parallel or wait for an event](#6-run-work-in-parallel-or-wait-for-an-event)
+- [7. Name events three ways](#7-name-events-three-ways)
+- [8. Bind a handler to an action later](#8-bind-a-handler-to-an-action-later)
+- [9. Mount a domain as a module](#9-mount-a-domain-as-a-module)
+- [10. Add types when you want checking (optional)](#10-add-types-when-you-want-checking-optional)
+- [11. Isolate errors and warn on typos](#11-isolate-errors-and-warn-on-typos)
+- [Where next](#where-next)
+
 ## 1. Create a bus
 
 `on` subscribes. `emit` calls the subscribers. `on` returns the unsubscribe function.
@@ -272,10 +289,11 @@ import { all, delay, race, take } from "nanoeffects/effects";
 const bus = createBus();
 
 // all — run together; one failure cancels the rest
+// child — the context of that starter: it has the `signal`, so the request stops with the group
 bus.on("search", async (id, ctx) => {
   const { user, posts } = await all(ctx, {
-    user: ({ signal }) => api.user(id, { signal }),
-    posts: ({ signal }) => api.posts(id, { signal }),
+    user: (child) => api.user(id, child),
+    posts: (child) => api.posts(id, child),
   });
   ctx.emit("loaded", { user, posts });
 });
