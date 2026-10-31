@@ -28,6 +28,8 @@ jobs:
       - run: pnpm check
       - run: pnpm docs:check
       - run: pnpm llms:check
+      # the site of docs/: a dead link or a broken page fails here
+      - run: pnpm docs:site
       - run: pnpm test
       - run: pnpm build
       # the integration tests include the DevTools playground in a real Chromium

@@ -35,7 +35,7 @@
 	"bugs": {
 		"url": "https://github.com/nanoeffects/nanoeffects/issues"
 	},
-	"homepage": "https://github.com/nanoeffects/nanoeffects#readme",
+	"homepage": "https://nanoeffects.github.io/nanoeffects/",
 	"engines": {
 		"node": ">=18"
 	},
@@ -160,6 +160,7 @@
 		"templates:check": "node scripts/templates-check.mjs",
 		"docs:check": "node scripts/docs-check.mjs",
 		"llms:check": "node scripts/llms-full.mjs --check",
+		"docs:site": "pnpm --filter nanoeffects-docs-site build",
 		"smoke": "node scripts/smoke.mjs && node scripts/smoke.mjs --notrace",
 		"consumer-check": "node scripts/consumer-check.mjs"
 	},

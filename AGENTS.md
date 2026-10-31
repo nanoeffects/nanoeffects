@@ -9,6 +9,7 @@ pnpm tsgo          # type check (tsc 7, strict, exactOptionalPropertyTypes, noUn
 pnpm check         # biome check ./src ./examples ./integration ./scripts, with the plugins from lint/
 pnpm format        # biome check --write --unsafe ./src
 pnpm docs:check    # type-checks the js/ts code blocks of docs/*.md against src (scripts/docs-check.mjs)
+pnpm docs:site     # builds the VitePress site of docs/ (tools/docs-site); a dead link fails it; CI runs it, `docs.yml` publishes it to GitHub Pages
 pnpm llms:check    # llms.txt links every docs page once and names only real entries (scripts/llms-full.mjs; `pnpm build` writes llms-full.txt)
 pnpm vitest run    # all tests (fake timers where time matters)
 pnpm build         # tsdown: dist/ and dist/notrace/, then scripts/notrace-types.mjs
@@ -47,6 +48,7 @@ src/utils/              onAbort hub, linkedController, delay, setTimer/clearTime
 packages/create-nanoeffects/  the npm package behind `npm create nanoeffects`: `index.js` (the CLI, no dependencies, no build), `templates/vanilla` and `templates/react` (JavaScript, Vite; biome ignores them), `index.test.js`
 src/tests/              tests that cross modules (flows, fuzz, scenarios, regressions.*) and test-helpers.ts
 integration/            tests with the real libraries and bundlers (own vitest config: vitest.integration.config.ts)
+tools/docs-site/        the VitePress site of docs/ (pages stay in docs/, the config only maps them; links out of docs/ go to GitHub; `sidebar.ts` lists every page, a test checks it: add a new page there and to llms.txt)
 docs/, examples/        user documentation (see Documentation); examples are type-checked (tsconfig paths map `nanoeffects/*` to `src`)
 lint/                   GritQL readability rules (see below); excluded from biome's formatter on purpose
 llms.txt                index of docs/ for AI assistants (by hand); llms-full.txt is built from it, not committed

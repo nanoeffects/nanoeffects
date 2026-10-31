@@ -1,0 +1,14 @@
+{
+	"name": "nanoeffects-docs-site",
+	"private": true,
+	"description": "The static site of docs/ (VitePress); the pages stay in docs/ and are the only source",
+	"type": "module",
+	"scripts": {
+		"dev": "vitepress dev .",
+		"build": "vitepress build .",
+		"preview": "vitepress preview ."
+	},
+	"devDependencies": {
+		"vitepress": "^1.6.4"
+	}
+}

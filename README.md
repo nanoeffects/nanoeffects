@@ -127,7 +127,7 @@ bus.on("save", async (draft, ctx) => {
 
 ## Docs
 
-Start with the [Guide](docs/guide.md), or jump by need:
+Read it on the [docs site](https://nanoeffects.github.io/nanoeffects/) (search and sidebar), or start with the [Guide](docs/guide.md) and jump by need:
 
 | Need | Page |
 | ---- | ---- |
