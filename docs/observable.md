@@ -2,6 +2,8 @@
 
 Use this page when your app already works with Observables or RxJS and you want a bus event as a stream. If you start from scratch, prefer `bus.on` with policies: they cancel work and show up in traces.
 
+The same entry has `events`, which needs no stream library: it gives an event to a `for await` loop. See [Read an event with a `for await` loop](#read-an-event-with-a-for-await-loop).
+
 `createObserve(bus)` from `nanoeffects/observable` turns a bus event into an Observable that follows the TC39 proposal (`subscribe`, `unsubscribe`, `Symbol.observable`). RxJS and other stream libraries take it as it is. Nothing here depends on them.
 
 ## Turn an event into a stream
@@ -144,6 +146,47 @@ bus.on(
 ```
 
 `switchMap` drops the old inner stream. `latest` aborts the old task through `signal`, so a `fetch` that got the signal really stops.
+
+## Read an event with a `for await` loop
+
+Problem: a task wants to handle the payloads of one event one after another, in order, and stop when the screen closes. `take` waits for one payload, and a listener has no place for a loop.
+
+`events(source, event, options)` from `nanoeffects/observable` returns an async iterator of the payloads. It listens from the call, so a payload that comes before the first read is kept. `source` is a bus or a task context; with a context the loop also ends when the task aborts.
+
+```js
+import { createBus } from "nanoeffects";
+import { events } from "nanoeffects/observable";
+
+const bus = createBus();
+const controller = new AbortController();
+
+// events — the "query/changed" payloads one by one; keeps the last 3 while the loop is busy
+const queries = events(bus, "query/changed", {
+  signal: controller.signal,
+  buffer: 3,
+});
+
+async function watchQueries() {
+  for await (const query of queries) {
+    console.log("search for", query); // runs once per payload, in order
+  }
+}
+
+watchQueries().catch((reason) => console.log("stopped:", reason)); // the abort rejects the loop
+bus.emit("query/changed", "cat");
+controller.abort("screen closed"); // the loop ends with this reason
+```
+
+| Option | What it does | Default |
+| ------ | ------------ | ------- |
+| `signal` | Ends the loop. The waiting read rejects with the abort reason. | none |
+| `buffer` | The most payloads kept while the loop is busy. | `Infinity` |
+| `overflow` | Which payload goes when the buffer is full: `"drop-oldest"` or `"drop-newest"`. | `"drop-oldest"` |
+
+- `break`, `return` and a throw inside the loop remove the listener.
+- With no `buffer`, a loop that never reads keeps every payload. Set `buffer` for a slow loop.
+- An event of a bus does not end, so the loop ends only by `break`, the `signal` or the task.
+- Inside a task, `events(ctx, "query/changed")` needs no `signal`: the task ending is the end.
 
 ## Convert back to a stream or a promise
 

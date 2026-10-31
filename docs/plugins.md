@@ -5,6 +5,7 @@ Optional. A plugin adds one thing to a bus: fields on `ctx`, a method, a registr
 ## On this page
 
 - [Use a plugin](#use-a-plugin)
+- [Pick a plugin by task](#pick-a-plugin-by-task)
 - [Main plugins](#main-plugins)
   - [Put a store or a client on every handler: `contextPlugin`](#put-a-store-or-a-client-on-every-handler-contextplugin)
   - [Use `race` and `delay` without `ctx`: `effectsPlugin`](#use-race-and-delay-without-ctx-effectsplugin)
@@ -12,7 +13,7 @@ Optional. A plugin adds one thing to a bus: fields on `ctx`, a method, a registr
   - [Mount a domain as one unit: `modulePlugin`](#mount-a-domain-as-one-unit-moduleplugin)
 - [Extra plugins](#extra-plugins)
   - [Give one action its own fields: `scopePlugin`](#give-one-action-its-own-fields-scopeplugin)
-  - [Tie an emit to an outside signal: `signalPlugin`](#tie-an-emit-to-an-outside-signal-signalplugin)
+  - [Tie an emit or a listener to an outside signal: `signalPlugin`](#tie-an-emit-or-a-listener-to-an-outside-signal-signalplugin)
   - [Name the origin and the flow of a trace: `tracePlugin`](#name-the-origin-and-the-flow-of-a-trace-traceplugin)
   - [Listen to a group of events: `matchPlugin`](#listen-to-a-group-of-events-matchplugin)
   - [Hand the bus to a state manager: `emitterPlugin`](#hand-the-bus-to-a-state-manager-emitterplugin)
@@ -28,6 +29,24 @@ Optional. A plugin adds one thing to a bus: fields on `ctx`, a method, a registr
 A plugin is a function of the bus. `bus.use(plugin)` calls it with the bus and returns whatever the plugin returns. Most plugins return the same bus, so you can chain them: `createBus().use(a).use(b)`. A few return something of their own (a registry, an app, a `disconnect` function): keep it.
 
 In TypeScript keep the result of `contextPlugin` and `effectsPlugin`: the type of the bus with its new fields is the type they return (`const bus = createBus().use(contextPlugin({ store }))`).
+
+## Pick a plugin by task
+
+Find your need in the left column. No row fits: you need no plugin.
+
+| I need | Use |
+| ------ | --- |
+| A store, client or logger on every handler | [`contextPlugin`](#put-a-store-or-a-client-on-every-handler-contextplugin) |
+| `race`, `all` or `delay` without passing `ctx` | [`effectsPlugin`](#use-race-and-delay-without-ctx-effectsplugin) |
+| A test that replaces a handler | [`actionsPlugin`](#bind-or-replace-a-handler-actionsplugin) |
+| One domain mounted and unmounted as a unit | [`modulePlugin`](#mount-a-domain-as-one-unit-moduleplugin) |
+| Fields for one action or module only | [`scopePlugin`](#give-one-action-its-own-fields-scopeplugin) |
+| Tasks that stop when a request, socket or query is cancelled | [`signalPlugin`](#tie-an-emit-or-a-listener-to-an-outside-signal-signalplugin) |
+| One listener for a group of events | [`matchPlugin`](#listen-to-a-group-of-events-matchplugin) |
+| A callback for a state manager that emits | [`emitterPlugin`](#hand-the-bus-to-a-state-manager-emitterplugin) |
+| A React component that sends its value to the bus | [`reactPlugin`](#tell-the-bus-when-a-react-value-changes-reactplugin) |
+| Names in the trace | [`tracePlugin`](#name-the-origin-and-the-flow-of-a-trace-traceplugin) |
+| Warnings about leaks while you develop | [`devPlugin`](#find-leaks-while-you-develop-devplugin) |
 
 ## Main plugins
 
@@ -53,6 +72,8 @@ const bus = createBus().use(contextPlugin({ store }));
 
 bus.on("save", (draft, { store }) => store.put(draft));
 ```
+
+A client that must stop with the task, such as an `axios` instance, goes in as `fromSignal((signal) => axios.create({ signal }))` from `nanoeffects/signal`: it is built from the signal of each task, when the task reads it. More in [Build a field from the signal of each task](context.md#build-a-field-from-the-signal-of-each-task).
 
 ### Use `race` and `delay` without `ctx`: `effectsPlugin`
 
@@ -116,7 +137,7 @@ Add one of these when you meet its need. None of them is required.
 | Plugin | What it gives you | Import | `bus.use` returns |
 | ------ | ----------------- | ------ | ----------------- |
 | [`scopePlugin`](#give-one-action-its-own-fields-scopeplugin) | Its own fields for one action, job or module, and a way to replace them in one `emit`. | `nanoeffects/scope` | The same bus |
-| [`signalPlugin`](#tie-an-emit-to-an-outside-signal-signalplugin) | `emit(call, { signal })` that aborts its tasks when an outside signal aborts. | `nanoeffects/signal` | The same bus, typed with the new `emit` |
+| [`signalPlugin`](#tie-an-emit-or-a-listener-to-an-outside-signal-signalplugin) | `emit(call, { signal })` that aborts its tasks, and `on(event, handler, { signal })` that removes the listener, when an outside signal aborts. | `nanoeffects/signal` | The same bus, typed with the new `emit` |
 | [`matchPlugin`](#listen-to-a-group-of-events-matchplugin) | `on` that listens to a group of events which a function picks. | `nanoeffects/match` | The same bus, typed with the new overloads |
 | [`emitterPlugin`](#hand-the-bus-to-a-state-manager-emitterplugin) | A callback that emits an action, to give to a state manager. | `nanoeffects/actions` | The same bus, with `emitter` |
 | [`tracePlugin`](#name-the-origin-and-the-flow-of-a-trace-traceplugin) | `traceId` and `traceGroupId` for a trace: the root of an emitter, a flow, a named listener. | `nanoeffects/trace` | The same bus |
@@ -144,9 +165,9 @@ const fakeApi = { getUser: async (id) => ({ id, name: "test" }) };
 bus.emit(getUser("1"), { api: fakeApi }); // a fake api for this call only
 ```
 
-### Tie an emit to an outside signal: `signalPlugin`
+### Tie an emit or a listener to an outside signal: `signalPlugin`
 
-A library such as React Query owns the request and gives you an `AbortSignal`. `emit` takes it as `{ signal }` and aborts the tasks it starts when the signal aborts, so `timeout`, `retry` and the request stop too. More in [Use nanoeffects with React Query and SWR](query-libraries.md).
+A library such as React Query owns the request and gives you an `AbortSignal`. `emit` takes it as `{ signal }` and aborts the tasks it starts when the signal aborts, so `timeout`, `retry` and the request stop too. More in [Use nanoeffects with React Query, SWR and RTK Query](query-libraries.md).
 
 ```js
 import { createBus } from "nanoeffects";
@@ -162,6 +183,22 @@ const controller = new AbortController();
 bus.emit(getUser("1"), { signal: controller.signal }); // runs the action
 controller.abort(); // ctx.signal of the handler aborts with it
 ```
+
+The same signal can end a listener. `on` and `once` take `{ signal }` as their options, as `addEventListener` does, so code that has a signal keeps no `unbind` function. The listener is removed when the signal aborts; a handler that already runs is not aborted. A signal that is aborted already adds no listener.
+
+```js
+import { createBus } from "nanoeffects";
+import { signalPlugin } from "nanoeffects/signal";
+
+// signalPlugin — on and once take { signal } in their options
+const bus = createBus().use(signalPlugin());
+
+const controller = new AbortController();
+bus.on("saved", (draft) => console.log(draft), { signal: controller.signal }); // listens until the abort
+controller.abort(); // the listener is gone: bus.get("saved") is empty
+```
+
+Without the plugin the `signal` option is ignored and the listener stays. `off(event, handler)` removes a listener but does not end its link to the signal; call the function that `on` returned for that.
 
 ### Name the origin and the flow of a trace: `tracePlugin`
 
@@ -316,7 +353,7 @@ These connect the bus to something, but are not used with `bus.use`:
 - `createEffectsMiddleware(bus, { filter })` from `nanoeffects/redux` is a Redux middleware for a bus that exists. See [Stores](stores.md#wire-redux-toolkit-to-a-bus).
 - `createBus({ trace })` takes a tracer from `nanoeffects/trace`. See [Tracing](tracing.md).
 - `extendBus(bus, Base)` from `nanoeffects/oop` gives a class the methods of a bus, with the subscriptions of each instance ended by `dispose()`. It reads the bus as it is, so use the plugins first. See [Use the bus from a class](oop.md).
-- `createObserve(bus)` from `nanoeffects/observable` turns an event into an Observable. See [Observable](observable.md).
+- `createObserve(bus)` from `nanoeffects/observable` turns an event into an Observable, and `events(bus, event)` into a `for await` loop. See [Observable](observable.md).
 
 ## Write your own plugin
 

@@ -1,9 +1,11 @@
 import type { Context } from "./bus";
 
-/** The third argument of `on` and `once`: read by `tracePlugin`, ignored without it. */
+/** The third argument of `on` and `once`: each field is read by the plugin that names it, ignored without it. */
 export type ListenerOptions = {
-	/** Names the listener in the trace: each call of it is a task with this `type`. */
+	/** Names the listener in the trace: each call of it is a task with this `type`. Read by `tracePlugin`. */
 	traceId?: string;
+	/** Removes the listener when this aborts, and adds none if it aborted already. Read by `signalPlugin`. */
+	signal?: AbortSignal;
 };
 
 export type PayloadOf<P> = undefined extends P ? [payload?: P] : [payload: P];

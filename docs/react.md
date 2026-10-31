@@ -85,7 +85,7 @@ The handlers know nothing about React. A test can emit `username/typed` and read
 
 <!-- docs-check: continue -->
 
-The component keeps what it shows in `useState`. It subscribes in `useEffect` and emits events from its handlers. `bus.on` returns the function that unsubscribes; returning it from the effect removes the listener on unmount.
+The component keeps what it shows in `useState`. It subscribes in `useEffect` and emits events from its handlers. `bus.on` returns the function that unsubscribes; returning it from the effect removes the listener on unmount. If the component already holds an `AbortSignal`, `bus.on(event, handler, { signal })` ends the listener with it; see [`signalPlugin`](plugins.md#tie-an-emit-or-a-listener-to-an-outside-signal-signalplugin).
 
 ```jsx
 // SignUpForm.jsx
@@ -286,4 +286,4 @@ export const Search = ({ wait }) => {
 - A policy as a plain function without a bus: [Use a policy without a bus](policies.md#use-a-policy-without-a-bus).
 - `retry`, `timeout` and the other effects: [Effects](effects.md).
 - A state library instead of `useState`: [Stores](stores.md).
-- React Query or SWR instead of your own state: [Use nanoeffects with React Query and SWR](query-libraries.md).
+- React Query or SWR instead of your own state: [Use nanoeffects with React Query, SWR and RTK Query](query-libraries.md).

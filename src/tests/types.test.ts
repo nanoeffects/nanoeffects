@@ -68,7 +68,7 @@ import {
 	timeout,
 } from "../effects";
 import { matchPlugin } from "../match";
-import { Subject } from "../observable";
+import { events, Subject } from "../observable";
 import { type BusMethods, Emitter, extendBus, On } from "../oop";
 import {
 	debounce,
@@ -80,7 +80,7 @@ import {
 } from "../policies";
 import { reactPlugin, usePolicy } from "../react";
 import { effect, type Signaled } from "../scope";
-import { signalPlugin } from "../signal";
+import { fromSignal, signalPlugin } from "../signal";
 import { createEffectsMiddleware, type ReduxStoreApi } from "../store/redux";
 import { sveltePlugin } from "../svelte";
 import {
@@ -969,6 +969,24 @@ describe("signalPlugin", () => {
 		};
 		expectTypeOf(wrongCalls).toBeFunction();
 	});
+
+	it("takes a signal in the options of on and once, with or without the plugin", () => {
+		const typedBus = createBus<{ saved: number }>();
+		const stop = typedBus.on("saved", () => {}, { signal: controller.signal });
+		typedBus.once("saved", () => {}, {
+			signal: controller.signal,
+			traceId: "a",
+		});
+		bus.on("saved", () => {}, { signal: controller.signal });
+		const wrongCalls = () => {
+			// @ts-expect-error a signal is an AbortSignal
+			typedBus.on("saved", () => {}, { signal: "stop" });
+			// @ts-expect-error unknown option
+			typedBus.on("saved", () => {}, { timeout: 5 });
+		};
+		expectTypeOf(stop).toEqualTypeOf<() => void>();
+		expectTypeOf(wrongCalls).toBeFunction();
+	});
 });
 
 describe("bus.use", () => {
@@ -1300,6 +1318,23 @@ describe("contextPlugin", () => {
 		const twice = createBus<UserEvents>().use(contextPlugin({ store }));
 		// @ts-expect-error the earlier plugin gave `store`
 		twice.use(contextPlugin({ store }));
+	});
+
+	it("gives the made value for a fromSignal field, and rejects a name the bus has", () => {
+		type Client = { get: (url: string) => string };
+		const bus = createBus<UserEvents>().use(
+			contextPlugin({
+				store,
+				http: fromSignal((signal): Client => ({ get: () => String(signal) })),
+			}),
+		);
+		bus.on("user/loaded", (_, ctx) => {
+			expectTypeOf(ctx.http).toEqualTypeOf<Client>();
+			expectTypeOf(ctx.store).toEqualTypeOf<Store>();
+		});
+
+		// @ts-expect-error `store` is a field of the bus already
+		bus.use(contextPlugin({ store: fromSignal(() => store) }));
 	});
 
 	it("leaves the old form as it was", () => {
@@ -2385,5 +2420,37 @@ describe("the result of a string emit", () => {
 		bus.on("user/rename", (payload) => {
 			expectTypeOf(payload).toEqualTypeOf<{ name: string }>();
 		});
+	});
+});
+
+describe("events", () => {
+	type Events = { query: string; count: number };
+	const bus = createBus<Events>();
+
+	it("gives the payload of a name, an action creator and an action", () => {
+		const queryChanged = createAction<number>("query/changed");
+		const run = createAction("run", (id: string) => id.length);
+		const read = async () => {
+			for await (const value of events(bus, "query")) {
+				expectTypeOf(value).toEqualTypeOf<string>();
+			}
+			for await (const value of events(bus, queryChanged)) {
+				expectTypeOf(value).toEqualTypeOf<number>();
+			}
+			for await (const value of events(bus, run)) {
+				expectTypeOf(value).toEqualTypeOf<string>();
+			}
+		};
+		expectTypeOf(read).toBeFunction();
+	});
+
+	it("rejects an event that the map does not have, and a wrong option", () => {
+		const wrongCalls = () => {
+			// @ts-expect-error not an event of the map
+			events(bus, "missing");
+			// @ts-expect-error overflow is one of two words
+			events(bus, "query", { overflow: "throw" });
+		};
+		expectTypeOf(wrongCalls).toBeFunction();
 	});
 });

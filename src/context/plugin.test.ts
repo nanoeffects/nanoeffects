@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import { modulePlugin } from "../actions";
 import { createBus, type WithContext } from "../core/bus";
 import { all, effectsPlugin, retry } from "../effects";
+import { fromSignal } from "../signal";
+import { createTracer } from "../trace";
+import { createTraceRecorder } from "../trace/recorder";
 import { contextPlugin } from "./plugin";
 
 type Store = { readonly name: string };
@@ -175,5 +178,157 @@ describe("contextPlugin", () => {
 		bus.emit("load", "a");
 
 		expect(seen).toBeUndefined();
+	});
+});
+
+describe("fromSignal fields", () => {
+	type Client = { readonly signal: AbortSignal };
+
+	const setup = () => {
+		const made: AbortSignal[] = [];
+		const make = (signal: AbortSignal): Client => {
+			made.push(signal);
+			return { signal };
+		};
+		const bus = createBus<LoadEvents>().use(
+			contextPlugin({ store, http: fromSignal(make) }),
+		);
+
+		return { bus, made };
+	};
+
+	it("builds the field from the signal of the task that reads it", () => {
+		const { bus, made } = setup();
+		let seen: Client | null = null;
+		let own: AbortSignal | null = null;
+		bus.on("load", (_, ctx) => {
+			seen = ctx.http;
+			own = ctx.signal;
+		});
+		bus.emit("load", "a");
+
+		expect(seen).toEqual({ signal: own });
+		expect(made).toEqual([own]);
+	});
+
+	it("leaves the plain fields as they are", () => {
+		const { bus } = setup();
+		let seen: Store | null = null;
+		bus.on("load", (_, ctx) => {
+			seen = ctx.store;
+		});
+		bus.emit("load", "a");
+
+		expect(seen).toBe(store);
+	});
+
+	it("does not build a field that nobody reads", () => {
+		const { bus, made } = setup();
+		bus.on("load", () => {});
+		bus.emit("load", "a");
+
+		expect(made).toHaveLength(0);
+	});
+
+	it("builds it once for a task", () => {
+		const { bus, made } = setup();
+		const seen: Client[] = [];
+		bus.on("load", (_, ctx) => {
+			seen.push(ctx.http, ctx.http, ctx.http);
+		});
+		bus.emit("load", "a");
+
+		expect(made).toHaveLength(1);
+		expect(new Set(seen).size).toBe(1);
+	});
+
+	it("gives a child task its own, from its own signal, and leaves the parent unbuilt", async () => {
+		const { bus, made } = setup();
+		const signals: AbortSignal[] = [];
+		bus.on("load", async (_, ctx) => {
+			await ctx.run((_payload, child) => {
+				signals.push(child.signal, child.http.signal);
+			}, "x");
+			signals.push(ctx.signal);
+		});
+		bus.emit("load", "a");
+		await Promise.resolve();
+		await Promise.resolve();
+
+		const [childSignal, clientSignal, parentSignal] = signals;
+		expect(clientSignal).toBe(childSignal);
+		expect(childSignal).not.toBe(parentSignal);
+		expect(made).toEqual([childSignal]);
+	});
+
+	it("is not built by a copy, a listing or a trace", () => {
+		const made: AbortSignal[] = [];
+		const recorder = createTraceRecorder<LoadEvents>();
+		const bus = createBus<LoadEvents>({ trace: createTracer(recorder) }).use(
+			contextPlugin({
+				http: fromSignal((signal) => {
+					made.push(signal);
+					return {};
+				}),
+			}),
+		);
+		let listed: string[] = [];
+		let present = false;
+		bus.on("load", (_, ctx) => {
+			const copy = { ...ctx };
+			listed = Object.keys(copy);
+			present = "http" in ctx;
+		});
+		bus.emit("load", "a");
+
+		expect(listed).not.toContain("http");
+		expect(present).toBe(true);
+		expect(made).toHaveLength(0);
+	});
+
+	it("makes the value with an aborted signal when the task is aborted already", () => {
+		const { bus } = setup();
+		let aborted: boolean | null = null;
+		bus.on("load", (_, ctx) => {
+			ctx.abort("stop");
+			aborted = ctx.http.signal.aborted;
+		});
+		bus.emit("load", "a");
+
+		expect(aborted).toBe(true);
+	});
+
+	it("reaches the request when the task aborts after the read", () => {
+		const { bus } = setup();
+		const reasons: unknown[] = [];
+		bus.on("load", (_, ctx) => {
+			ctx.http.signal.addEventListener("abort", () => {
+				reasons.push(ctx.http.signal.reason);
+			});
+			ctx.abort("stop");
+		});
+		bus.emit("load", "a");
+
+		expect(reasons).toEqual(["stop"]);
+	});
+
+	it("works as the result of a function of the task", () => {
+		const made: string[] = [];
+		const bus = createBus<LoadEvents>().use(
+			contextPlugin(({ type }) => ({
+				http: fromSignal(() => {
+					made.push(type);
+					return type;
+				}),
+			})),
+		);
+		let seen = "";
+		bus.on("load", (_, ctx) => {
+			seen = ctx.http;
+		});
+		bus.emit("load", "a");
+
+		expect(seen).toBe("load");
+		expect(made).toEqual(["load"]);
 	});
 });

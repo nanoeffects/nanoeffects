@@ -6,7 +6,11 @@ import {
 	handledOf,
 } from "../core/bus";
 import type { EmitScope, WithScope } from "../core/scope-types";
-import type { EventMap } from "../core/types";
+import type {
+	EventMap,
+	ListenerOptions,
+	UnsubscribeCallback,
+} from "../core/types";
 import { isPromise, onAbort } from "../utils";
 
 /** What the second argument of `emit` takes besides the fields of a scope. */
@@ -29,6 +33,39 @@ export type SignalEmit<E extends EventMap> = Emit<E> & {
 export type SignalBus<E extends EventMap> = Bus<E> & { emit: SignalEmit<E> };
 
 type Emitter = (event: unknown, ...rest: unknown[]) => unknown;
+
+type Handler = (payload: unknown, ctx: object) => unknown;
+type Subscriber = (
+	event: unknown,
+	handler: Handler,
+	options?: ListenerOptions,
+) => UnsubscribeCallback;
+
+// `on` or `once` that also takes `{ signal }`: the listener goes when the signal aborts
+const removedBy =
+	(subscribe: Subscriber, single: boolean): Subscriber =>
+	(event, handler, options) => {
+		const signal = options?.signal;
+		if (!signal) {
+			return subscribe(event, handler, options);
+		}
+
+		// the link ends with the listener, so a long-lived signal keeps nothing of a finished `once`;
+		// a signal that is aborted already removes the listener at once, before any emit can reach it
+		const run: Handler = single
+			? (payload, ctx) => {
+					unlink();
+					return handler(payload, ctx);
+				}
+			: handler;
+		const unbind = subscribe(event, run, options);
+		const unlink = onAbort({ signal }, unbind);
+
+		return () => {
+			unlink();
+			unbind();
+		};
+	};
 
 // the contexts that one emit made, to abort together
 type Linked = { target: object }[];
@@ -73,6 +110,12 @@ const follow = (
 };
 
 /**
+ * Also lets `bus.on(event, handler, { signal })` and `bus.once` remove the
+ * listener when the signal aborts, as `addEventListener` does, so a component or
+ * a script that holds a signal keeps no `unbind`. A handler that already runs is
+ * not aborted; a signal that is aborted already adds no listener. `off(event, fn)`
+ * does not end the link: the returned function does.
+ *
  * Lets `bus.emit(call, { signal })` tie the tasks that this emit starts to an
  * outside `AbortSignal`: when it aborts, their `ctx.signal` aborts with the same
  * reason, so a handler, `latest`, `retry` and `timeout` stop as for any abort. It
@@ -144,6 +187,12 @@ export const signalPlugin =
 			return signal ? follow(signal, linked, event, result) : result;
 		};
 		bus.emit = withSignal as SignalEmit<E>;
+
+		// the methods as they are now, so the plugins used before keep working under this one
+		const on = bus.on as Subscriber;
+		const once = bus.once as Subscriber;
+		bus.on = removedBy(on, false) as typeof bus.on;
+		bus.once = removedBy(once, true) as typeof bus.once;
 
 		return bus as SignalBus<E>;
 	};

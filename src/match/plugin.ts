@@ -81,6 +81,7 @@ export const matchPlugin =
 			predicate: AnyPredicate,
 			handler: Handler,
 			single: boolean,
+			options: unknown,
 		) => {
 			const listener = (payload: unknown, ctx: object) => {
 				const type = Reflect.get(ctx, "type");
@@ -96,6 +97,7 @@ export const matchPlugin =
 			const unbind: UnsubscribeCallback = Reflect.apply(on, bus, [
 				"*",
 				listener,
+				options,
 			]);
 			const record: Subscription = { handler, remove };
 			subscriptions.set(predicate, [
@@ -126,7 +128,7 @@ export const matchPlugin =
 			options: unknown,
 		) =>
 			isPredicate(first)
-				? subscribe(first, handler, single)
+				? subscribe(first, handler, single, options)
 				: Reflect.apply(single ? once : on, bus, [first, handler, options]);
 
 		const offWith = (first?: unknown, handler?: unknown) => {

@@ -69,6 +69,7 @@ describe("public entries", () => {
 			"$$observable",
 			"Subject",
 			"createObserve",
+			"events",
 		]);
 	});
 
@@ -97,7 +98,7 @@ describe("public entries", () => {
 	});
 
 	it("signal", () => {
-		expect(Object.keys(signal).sort()).toEqual(["signalPlugin"]);
+		expect(Object.keys(signal).sort()).toEqual(["fromSignal", "signalPlugin"]);
 	});
 
 	it("oop", () => {

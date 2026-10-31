@@ -7,6 +7,12 @@ How to read an entry: **Breaking** needs a change in your code or setup, **Chang
 ### Breaking
 - The word "command" is gone. The types `Command` and `CommandCall` are `Handled` and `HandledCall`. The trace effect `"command"` is `"action"` (a logger or a recorder that matches `effect === "command"` has to match `"action"`, and so does the label `checkout/pay · action` in Redux DevTools and the performance marks). `MissingHandlerError` says `No handler for action "<type>"`. [Docs](docs/actions.md#pick-the-word-event-action-job-module)
 
+### Added
+- `bus.on(event, handler, { signal })` and `bus.once` remove the listener when the signal aborts, as `addEventListener` does. Needs `signalPlugin`. [Docs](docs/plugins.md#tie-an-emit-or-a-listener-to-an-outside-signal-signalplugin)
+- `events(bus, event, { signal, buffer, overflow })` from `nanoeffects/observable` reads an event in a `for await` loop. It ends with the signal or the task, and `buffer` bounds a slow loop. [Docs](docs/observable.md#read-an-event-with-a-for-await-loop)
+- `fromSignal(make)` from `nanoeffects/signal` makes a field of `contextPlugin` from the signal of each task, when the task reads it: a client that stops with the task. [Docs](docs/context.md#build-a-field-from-the-signal-of-each-task)
+- Recipes for React Query, SWR and RTK Query: a client from `fromSignal`, a live stream into the cache, and a refetch on a bus event. [Docs](docs/query-libraries.md)
+
 ## 0.28.0
 
 ### Added

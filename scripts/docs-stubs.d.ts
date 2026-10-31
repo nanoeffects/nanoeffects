@@ -41,6 +41,9 @@ declare module "nanostores";
 declare module "@nanostores/react";
 declare module "valtio";
 declare module "swr";
+declare module "swr/subscription";
+declare module "axios";
+declare module "@tanstack/react-query";
 declare module "valtio/utils";
 // JSX of the docs: any tag, any props
 declare namespace JSX {

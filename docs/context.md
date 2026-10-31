@@ -45,6 +45,38 @@ bus.on("save", (draft, { store }) => store.put(draft));
 - A name that the bus already has is a type error. The fields of the library (`signal`, `emit`, `run`, …) win at runtime, and a field that the context already has is not replaced.
 - The plugin returns the same bus, so keep the result of the chain: `const bus = createBus().use(contextPlugin({ store }))`.
 
+## Build a field from the signal of each task
+
+Problem: an HTTP client or a database handle should stop when the task is aborted. Without help, every handler passes `ctx.signal` to it by hand, and one forgotten call leaves a request running.
+
+`fromSignal(make)` from `nanoeffects/signal` marks a field of `contextPlugin` as a value that is built from the signal of the task. It does not run `make` for the bus: it runs it for each task that reads the field, once, with the `ctx.signal` of that task.
+
+```js
+import { createBus } from "nanoeffects";
+import { contextPlugin } from "nanoeffects/context";
+import { fromSignal } from "nanoeffects/signal";
+import axios from "axios";
+
+// contextPlugin — every task gets these fields
+// fromSignal — http is made from the signal of the task that reads ctx.http
+const bus = createBus().use(
+  contextPlugin({
+    logger: console, // a plain field: the same object for every task
+    http: fromSignal((signal) => axios.create({ signal })),
+  }),
+);
+
+bus.on("user/open", async (id, ctx) => {
+  const response = await ctx.http.get(`/users/${id}`); // aborts with the task
+  ctx.logger.log(response.data);
+});
+```
+
+- `make` runs at the first read, so a handler that never uses `ctx.http` pays nothing for it.
+- A task that `ctx.run` starts builds its own value from its own signal, so aborting the child stops only the child's requests.
+- The field is not copied by `{ ...ctx }` and `Object.keys(ctx)` does not list it. Read `ctx.http` first if you copy a context.
+- Without `contextPlugin` a `fromSignal` marker is only an object.
+
 ### Name the fields in the event map instead
 
 `createBus<Events>({ context: { store } })` also types the fields, but through the event map: `WithContext` is checker-only and says which fields the handlers of this bus have. Use it when you cannot call `use`, for example for the bus that `createEffectsMiddleware` makes.

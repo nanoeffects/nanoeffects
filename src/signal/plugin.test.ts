@@ -1,8 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
-import { createAction, createJob } from "../actions";
+import {
+	createAction,
+	createJob,
+	createModule,
+	modulePlugin,
+} from "../actions";
 import { createBus, type WithContext } from "../core/bus";
 import type { EventMap } from "../core/types";
 import { retry } from "../effects";
+import { extendBus } from "../oop";
 import { latest } from "../policies";
 import { scopePlugin } from "../scope";
 import { aliveCount, deferred, settleGarbage } from "../tests/test-helpers";
@@ -220,6 +226,170 @@ describe("signalPlugin", () => {
 			await settleGarbage();
 
 			expect(aliveCount(refs)).toBe(0);
+		});
+	});
+	describe("the signal of a listener", () => {
+		it("removes the listener of on when the signal aborts", () => {
+			const bus = createBus<{ saved: number }>().use(signalPlugin());
+			const handler = vi.fn();
+			const controller = new AbortController();
+			bus.on("saved", handler, { signal: controller.signal });
+			bus.emit("saved", 1);
+			controller.abort();
+			bus.emit("saved", 2);
+
+			expect(handler).toHaveBeenCalledTimes(1);
+			expect(bus.get("saved")).toHaveLength(0);
+		});
+
+		it("adds no listener for a signal that is aborted already", () => {
+			const bus = createBus<{ saved: number }>().use(signalPlugin());
+			const handler = vi.fn();
+			const unbind = bus.on("saved", handler, {
+				signal: AbortSignal.abort(),
+			});
+			bus.emit("saved", 1);
+
+			expect(handler).not.toHaveBeenCalled();
+			expect(bus.get("saved")).toHaveLength(0);
+			expect(() => unbind()).not.toThrow();
+		});
+
+		it("does not abort a handler that already runs", async () => {
+			const bus = createBus<{ saved: number }>().use(signalPlugin());
+			const gate = deferred<void>();
+			const seen: boolean[] = [];
+			const controller = new AbortController();
+			bus.on(
+				"saved",
+				async (_payload, ctx) => {
+					await gate.promise;
+					seen.push(ctx.signal.aborted);
+				},
+				{ signal: controller.signal },
+			);
+			bus.emit("saved", 1);
+			controller.abort();
+			gate.resolve();
+			await gate.promise;
+			await Promise.resolve();
+
+			expect(seen).toEqual([false]);
+		});
+
+		it("removes a once that has not run", () => {
+			const bus = createBus<{ saved: number }>().use(signalPlugin());
+			const handler = vi.fn();
+			const controller = new AbortController();
+			bus.once("saved", handler, { signal: controller.signal });
+			controller.abort();
+			bus.emit("saved", 1);
+
+			expect(handler).not.toHaveBeenCalled();
+		});
+
+		it("runs a once one time and lets the signal go", async () => {
+			const bus = createBus<{ saved: number }>().use(signalPlugin());
+			const handler = vi.fn();
+			const controller = new AbortController();
+			bus.once("saved", handler, { signal: controller.signal });
+			bus.emit("saved", 1);
+			bus.emit("saved", 2);
+			controller.abort();
+
+			expect(handler).toHaveBeenCalledTimes(1);
+			expect(handler).toHaveBeenCalledWith(1, expect.anything());
+		});
+
+		it("returns an unsubscribe that works before the abort", () => {
+			const bus = createBus<{ saved: number }>().use(signalPlugin());
+			const handler = vi.fn();
+			const controller = new AbortController();
+			const unbind = bus.on("saved", handler, { signal: controller.signal });
+			unbind();
+			bus.emit("saved", 1);
+			controller.abort();
+
+			expect(handler).not.toHaveBeenCalled();
+			expect(bus.get("saved")).toHaveLength(0);
+		});
+
+		it("keeps nothing alive on a long-lived signal", async () => {
+			const bus = createBus<{ saved: number }>().use(signalPlugin());
+			const refs: Array<WeakRef<object>> = [];
+			const controller = new AbortController();
+			// the listeners are made in a function of their own, so no local of the test holds the last one
+			const listenAndLeave = () => {
+				for (let round = 0; round < 500; round++) {
+					const owner = {};
+					refs.push(new WeakRef(owner));
+					const unbind = bus.on("saved", () => owner, {
+						signal: controller.signal,
+					});
+					unbind();
+				}
+			};
+			listenAndLeave();
+			await settleGarbage();
+
+			expect(aliveCount(refs)).toBe(0);
+		});
+
+		it("reaches the on of a task context, of a module and of a class", () => {
+			const bus = createBus<{ saved: number; start: number }>().use(
+				signalPlugin(),
+			);
+			const seen: string[] = [];
+			const controller = new AbortController();
+			const { signal } = controller;
+			bus.use(
+				modulePlugin([
+					createModule("listener", (moduleContext) => {
+						moduleContext.on("saved", () => seen.push("module"), { signal });
+					}),
+				]),
+			);
+			bus.on("start", (_payload, ctx) => {
+				ctx.on("saved", () => seen.push("task"), { signal });
+			});
+			class Service {}
+			const Extended = extendBus(bus, Service);
+			const service = new Extended();
+			service.on("saved", () => seen.push("class"), { signal });
+			bus.emit("start", 1);
+			bus.emit("saved", 1);
+			controller.abort();
+			bus.emit("saved", 2);
+
+			expect(seen.sort()).toEqual(["class", "module", "task"]);
+		});
+
+		it("ignores the signal without the plugin", () => {
+			const bus = createBus<{ saved: number }>();
+			const handler = vi.fn();
+			const controller = new AbortController();
+			bus.on("saved", handler, { signal: controller.signal });
+			controller.abort();
+			bus.emit("saved", 1);
+
+			expect(handler).toHaveBeenCalledTimes(1);
+		});
+
+		it("passes the other options on", () => {
+			const bus = createBus<{ saved: number }>();
+			const received: unknown[] = [];
+			const base = bus.on;
+			const spy = (event: string, handler: () => void, options?: object) => {
+				received.push(options);
+				return Reflect.apply(base, bus, [event, handler, options]);
+			};
+			bus.on = spy as typeof bus.on;
+			bus.use(signalPlugin());
+			const controller = new AbortController();
+			const options = { traceId: "named", signal: controller.signal };
+			bus.on("saved", () => {}, options);
+
+			expect(received).toEqual([options]);
 		});
 	});
 });

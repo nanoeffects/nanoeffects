@@ -115,7 +115,7 @@ export const tracePlugin =
 			const wrapped: Subscribe = (event, fn, options) => {
 				const traceId = Reflect.get(Object(options), "traceId");
 				if (typeof traceId !== "string") {
-					return method(event, fn);
+					return method(event, fn, options);
 				}
 
 				const wrapper: Handler = once
@@ -125,7 +125,7 @@ export const tracePlugin =
 						}
 					: named(fn, traceId);
 				remember(event, fn, wrapper);
-				const off = method(event, wrapper);
+				const off = method(event, wrapper, options);
 
 				return () => {
 					off();

@@ -17,7 +17,7 @@ import { matchPlugin } from "../match";
 import { extendBus } from "../oop";
 import { reactPlugin } from "../react";
 import { scopePlugin } from "../scope";
-import { signalPlugin } from "../signal";
+import { fromSignal, signalPlugin } from "../signal";
 import { sveltePlugin } from "../svelte";
 import {
 	createTraceRecorder,
@@ -151,7 +151,12 @@ const make = (order: Name[]): Build => {
 
 	for (const name of order) {
 		if (name === "context") {
-			build.bus.use(contextPlugin({ store: { name: "main" } }));
+			build.bus.use(
+				contextPlugin({
+					store: { name: "main" },
+					probeClient: fromSignal((signal) => ({ signal })),
+				}),
+			);
 		} else if (name === "effects") {
 			build.bus.use(effectsPlugin({ delay, race }));
 		} else if (name === "scope") {
@@ -207,6 +212,27 @@ const probes: Probe[] = [
 			bus.emit("p/context");
 
 			return seen[0] === "main";
+		},
+	},
+	{
+		id: "a field from fromSignal is made from the signal of each task",
+		needs: ["context"],
+		run: async ({ bus }) => {
+			const seen: boolean[] = [];
+			bus.on("p/from-signal", async (_payload, ctx) => {
+				const client = field(ctx, "probeClient");
+				const own = field(client, "signal") === ctx.signal;
+				await ctx.run((_inner, child) => {
+					const inner = field(child, "probeClient");
+					seen.push(field(inner, "signal") === child.signal);
+				}, 1);
+				seen.push(own);
+			});
+			bus.emit("p/from-signal");
+			await Promise.resolve();
+			await Promise.resolve();
+
+			return seen.join() === "true,true";
 		},
 	},
 	{
@@ -513,6 +539,44 @@ const probes: Probe[] = [
 			controller.abort();
 
 			return (await result) === "aborted";
+		},
+	},
+	{
+		id: "an outside signal removes a listener of on and of once",
+		needs: ["signal"],
+		run: ({ bus }) => {
+			const controller = new AbortController();
+			const { signal } = controller;
+			const seen: string[] = [];
+			bus.on("p/listener-signal", () => seen.push("on"), { signal });
+			bus.once("p/listener-signal", () => seen.push("once"), { signal });
+			bus.emit("p/listener-signal");
+			controller.abort();
+			bus.emit("p/listener-signal");
+
+			return (
+				seen.join() === "on,once" && bus.get("p/listener-signal").length === 0
+			);
+		},
+	},
+	{
+		id: "an outside signal removes a predicate subscription",
+		needs: ["signal", "match"],
+		run: ({ bus }) => {
+			const controller = new AbortController();
+			const seen: string[] = [];
+			const picks = (action: { type: string }) =>
+				action.type === "p/pick-signal";
+			Reflect.apply(bus.on, bus, [
+				picks,
+				() => seen.push("hit"),
+				{ signal: controller.signal },
+			]);
+			bus.emit("p/pick-signal");
+			controller.abort();
+			bus.emit("p/pick-signal");
+
+			return seen.join() === "hit";
 		},
 	},
 	{

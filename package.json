@@ -236,12 +236,12 @@
 		{
 			"name": "signal (plugin)",
 			"path": "dist/signal.js",
-			"limit": "0.6 kB"
+			"limit": "0.7 kB"
 		},
 		{
 			"name": "context (plugin)",
 			"path": "dist/context.js",
-			"limit": "0.2 kB"
+			"limit": "0.4 kB"
 		},
 		{
 			"name": "oop (class entry)",
@@ -261,7 +261,7 @@
 		{
 			"name": "observable",
 			"path": "dist/observable.js",
-			"limit": "0.5 kB"
+			"limit": "0.85 kB"
 		},
 		{
 			"name": "react",
