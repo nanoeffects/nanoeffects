@@ -1,8 +1,21 @@
-import { existsSync, readdirSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readdirSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { checkBlocks, extractBlocks } from "./docs-check.mjs";
+import {
+	checkBlocks,
+	checkDocs,
+	checkParity,
+	extractBlocks,
+} from "./docs-check.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const stubs = join(root, "scripts", "docs-stubs.d.ts");
@@ -360,5 +373,78 @@ describe("named files", () => {
 
 		expect(result.errors).toHaveLength(1);
 		expect(result.errors[0].message).toContain("./helper");
+	});
+});
+
+describe("Russian pages", () => {
+	const blocksOf = (markdown, name) => extractBlocks(markdown, name);
+	const original = (code) =>
+		blocksOf(page("# T", "", `${fence}js`, code, fence), "docs/t.md");
+	const translated = (code) =>
+		blocksOf(page("# Т", "", `${fence}js`, code, fence), "docs/ru/t.md");
+
+	it("accepts a translated comment", () => {
+		const errors = checkParity(
+			original("bus.emit(a); // run it\nconst x = 1;"),
+			translated("bus.emit(a); // запусти\n// ещё строка\nconst x = 1;"),
+		);
+
+		expect(errors).toEqual([]);
+	});
+
+	it("keeps a url that has two slashes", () => {
+		const errors = checkParity(
+			original('fetch("https://a.b");'),
+			translated('fetch("https://a.b");'),
+		);
+
+		expect(errors).toEqual([]);
+	});
+
+	it("reports a changed line of code", () => {
+		const errors = checkParity(
+			original("bus.emit(a);"),
+			translated("bus.emit(b);"),
+		);
+
+		expect(errors).toHaveLength(1);
+		expect(errors[0].message).toContain("only comments may change");
+	});
+
+	it("reports another number of blocks", () => {
+		const errors = checkParity(original("a();"), []);
+
+		expect(errors[0].message).toContain("the original has 1");
+	});
+
+	it("reports another language", () => {
+		const errors = checkParity(
+			original("a();"),
+			blocksOf(page("# Т", `${fence}ts`, "a();", fence), "docs/ru/t.md"),
+		);
+
+		expect(errors[0].message).toContain("language ts");
+	});
+
+	describe("pages of a folder", () => {
+		const folder = mkdtempSync(join(tmpdir(), "docs-ru-"));
+		const write = (path, text) => {
+			mkdirSync(dirname(join(folder, path)), { recursive: true });
+			writeFileSync(join(folder, path), text);
+		};
+		const block = page("# T", "", `${fence}js`, "const a = 1;", fence, "");
+
+		it("reports a missing and an extra page", () => {
+			write("one.md", block);
+			write("ru/two.md", block);
+
+			const { errors } = checkDocs(folder, { stubs });
+			rmSync(folder, { recursive: true, force: true });
+
+			expect(errors.map(({ message }) => message)).toEqual([
+				"no Russian page docs/ru/one.md",
+				"no original page docs/two.md",
+			]);
+		});
 	});
 });

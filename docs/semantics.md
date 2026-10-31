@@ -1,5 +1,7 @@
 # Semantics
 
+> **Level F.** Read first: [Guide](guide.md#1-create-a-bus) steps 1 to 6.
+
 Guarantees and sharp edges. Read when something surprises you; not required to start.
 
 ## Five rules to know first

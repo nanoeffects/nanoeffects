@@ -1,5 +1,7 @@
 # Choose a package entry
 
+> **Levels A to F.** Read first: [README](../README.md).
+
 Imports are split so you only load what you use. `createBus` stays small; the rest is another entry.
 
 ## Start with these three

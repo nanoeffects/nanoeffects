@@ -1,5 +1,7 @@
 # Actions, jobs and modules
 
+> **Level D.** Read first: [Guide](guide.md#1-create-a-bus) steps 1 to 6.
+
 Use this page when **domain logic lives on the bus**, off the UI: the UI emits and listens; handlers and modules own the work.
 
 If you only need `on` / `emit` or policies, stay in the [Guide](guide.md) until you need a result from `emit` or a mountable domain.
@@ -362,7 +364,7 @@ If the `setup` of one module throws, the modules of that call that were already 
 
 ## Give an action or a module its own fields
 
-An action with a handler can need its own client, a module its own logger. Pass a scope, a plain object whose keys go on `ctx` (`$effects` binds functions to the task), as the last argument of `createAction`, `createAction`, `createModule` and `createJob`, and turn it on with `scopePlugin`:
+An action with a handler can need its own client, a module its own logger. Pass a scope, a plain object whose keys go on `ctx` (`$effects` binds functions to the task), as the last argument of `createAction`, `createModule` and `createJob`, and turn it on with `scopePlugin`:
 
 ```js
 // bus.js

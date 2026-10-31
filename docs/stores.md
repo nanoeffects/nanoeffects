@@ -1,5 +1,7 @@
 # Connect Redux, Zustand, MobX, or Pinia
 
+> **Level E.** Read first: [Guide](guide.md#1-create-a-bus) steps 1 to 3.
+
 Use this page when you **already have a store** and want async work with cancellation and policies next to it. It is not a reason to pick Redux (or any store).
 
 If you do not have a store yet, use `createBus` from the [Guide](guide.md).

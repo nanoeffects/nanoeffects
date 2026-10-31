@@ -1,5 +1,7 @@
 # Handle errors and unheard events
 
+> **Level B.** Read first: [Guide](guide.md#1-create-a-bus) steps 1 and 2.
+
 Defaults match a small bus. Set these when you want isolation or typo warnings.
 
 ## Isolate failing handlers
@@ -21,9 +23,9 @@ const bus = createBus({
 
 ## Warn when nobody listens
 
-A typo in an event name (`emit("serch")`) does nothing and says nothing. `onUnhandled` runs when an event is emitted and nobody listens (a listener of every event, `"*"`, counts). It is not called for actions, which always have a handler to run.
+A typo in an event name (`emit("serch")`) does nothing and says nothing. `onUnhandled` runs when an event is emitted and nobody listens (a listener of every event, `"*"`, counts). It is not called for an action that has a handler to run. An action without a handler is only an event, so it is called for it.
 
-Use it as a warning in development:
+Use it as a warning in development (`import.meta.env.DEV` is the Vite flag; use your own check in another bundler):
 
 ```js
 import { createBus } from "nanoeffects";

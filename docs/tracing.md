@@ -1,5 +1,7 @@
 # Trace tasks
 
+> **Level F.** Read first: [Guide](guide.md#1-create-a-bus) steps 1 and 2.
+
 Find out what your app did and why: which events were emitted, which calls a policy cancelled or dropped, which request failed. You see it in the browser console, in Redux DevTools, or in the Performance panel.
 
 Tracing is optional. A bus works the same without it, and it costs almost nothing until you turn it on. If you only want to see what happens while you develop, jump to [Show every emit](#show-every-emit) and [Configure Redux DevTools](#configure-redux-devtools); the rest of the page is for apps that need to follow a flow or turn tracing off in a build.

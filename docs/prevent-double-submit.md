@@ -1,5 +1,7 @@
 # Prevent a double submit
 
+> **Level B.** Read first: [Policies](policies.md).
+
 Read this page if a second click on "Pay", "Sign up" or "Save" sends the request twice. It shows how to ignore the second click while the first request runs, how to do it per item, and when to queue the calls instead.
 
 ## See the problem

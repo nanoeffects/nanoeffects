@@ -3,6 +3,7 @@
 // names that come from the reader's app (`api`, `report`) are declared in docs-stubs.d.ts.
 import { spawnSync } from "node:child_process";
 import {
+	existsSync,
 	mkdirSync,
 	mkdtempSync,
 	readdirSync,
@@ -10,7 +11,7 @@ import {
 	rmSync,
 	writeFileSync,
 } from "node:fs";
-import { basename, dirname, join, relative } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -131,7 +132,8 @@ function fileNameOf(block, index) {
 
 // The folder of the files of a section of a page: two sections can both name a file `bus.js` or
 // `events.js` without one replacing the other, as two examples would be two apps.
-const folderOf = (block) => `${basename(block.page, ".md")}-${block.section}`;
+const folderOf = (block) =>
+	`${block.page.replace(/\.md$/, "").replaceAll("/", "-")}-${block.section}`;
 
 /** Writes each block as a module of its own and returns the blocks by file name (with the folder of the page). */
 function writeBlocks(dir, blocks) {
@@ -237,16 +239,119 @@ export function checkBlocks(blocks, { stubs } = {}) {
 	}
 }
 
-/** Reads every `*.md` of a folder and checks the blocks of all pages together. */
-export function checkDocs(docsDir, options) {
-	const blocks = [];
-	for (const file of readdirSync(docsDir).filter((f) => f.endsWith(".md"))) {
-		const path = join(docsDir, file);
-		blocks.push(
-			...extractBlocks(readFileSync(path, "utf8"), relative(root, path)),
+// A translation keeps code, identifiers and strings; only comments change. These remove the comments
+// so two blocks can be compared. A `#` comment counts in shell blocks only; `//` needs a space or a
+// line start before it, so `https://` stays.
+const shellLanguages = new Set(["bash", "sh", "shell", "zsh", "console"]);
+function stripComments(block) {
+	const lines = block.code.replace(/\/\*[\s\S]*?\*\//g, "").split("\n");
+	return lines
+		.map((line) =>
+			shellLanguages.has(block.language)
+				? line.replace(/(^|\s)#.*$/, "")
+				: line.replace(/(^|\s)\/\/.*$/, ""),
+		)
+		.map((line) => line.trimEnd())
+		.filter((line) => line !== "")
+		.join("\n");
+}
+
+// the first line of a block can name a file (`// bus.js`): it is code, the blocks of the section import it
+const fileNameLine = (block) =>
+	/^\/\/ [\w-]+\.(?:jsx?|tsx?)$/.test(block.code.split("\n")[0] ?? "")
+		? block.code.split("\n")[0]
+		: "";
+
+/** Compares the blocks of a translated page with the blocks of its original, in order. */
+export function checkParity(original, translation) {
+	const errors = [];
+	const fail = (page, line, message) => errors.push({ page, line, message });
+	if (original.length !== translation.length) {
+		const page = translation[0]?.page ?? original[0]?.page ?? "";
+		fail(
+			page,
+			0,
+			`${translation.length} code blocks, the original has ${original.length}`,
 		);
+		return errors;
 	}
-	return checkBlocks(blocks, options);
+	for (const [index, block] of original.entries()) {
+		const other = translation[index];
+		const where = `block ${index + 1} (${block.page}:${block.line})`;
+		if (block.language !== other.language) {
+			fail(
+				other.page,
+				other.line,
+				`${where}: language ${other.language}, the original has ${block.language}`,
+			);
+		} else if (block.skip !== other.skip) {
+			fail(
+				other.page,
+				other.line,
+				`${where}: the docs-check skip marker differs`,
+			);
+		} else if (fileNameLine(block) !== fileNameLine(other)) {
+			fail(other.page, other.line, `${where}: the file name comment differs`);
+		} else if (stripComments(block) !== stripComments(other)) {
+			fail(
+				other.page,
+				other.line,
+				`${where}: the code differs from the original, only comments may change`,
+			);
+		}
+	}
+	return errors;
+}
+
+const readPages = (docsDir) =>
+	new Map(
+		readdirSync(docsDir)
+			.filter((file) => file.endsWith(".md"))
+			.map((file) => {
+				const path = join(docsDir, file);
+				return [
+					file,
+					extractBlocks(readFileSync(path, "utf8"), relative(root, path)),
+				];
+			}),
+	);
+
+/**
+ * Reads every `*.md` of a folder and checks the blocks of all pages together. A `ru` folder inside
+ * it holds the Russian pages: they are type-checked too, and each must match its original.
+ */
+export function checkDocs(docsDir, options) {
+	const pages = readPages(docsDir);
+	const translated = existsSync(join(docsDir, "ru"))
+		? readPages(join(docsDir, "ru"))
+		: new Map();
+	const blocks = [...pages.values(), ...translated.values()].flat();
+	const result = checkBlocks(blocks, options);
+	const errors = [...result.errors];
+	if (translated.size > 0) {
+		for (const file of pages.keys()) {
+			if (!translated.has(file)) {
+				errors.push({
+					page: `docs/${file}`,
+					line: 0,
+					message: `no Russian page docs/ru/${file}`,
+				});
+			}
+		}
+		for (const [file, translation] of translated) {
+			const original = pages.get(file);
+			if (original === void 0) {
+				errors.push({
+					page: `docs/ru/${file}`,
+					line: 0,
+					message: `no original page docs/${file}`,
+				});
+			} else {
+				errors.push(...checkParity(original, translation));
+			}
+		}
+	}
+	return { ...result, errors };
 }
 
 if (

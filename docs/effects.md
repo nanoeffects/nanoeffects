@@ -1,20 +1,73 @@
 # Effects and cancellation
 
+> **Level C.** Read first: [Policies](policies.md).
+
 Use this page for retry, timeouts, waiting, or parallel work — not as the first page for a small bus. Pick **one** helper for your job; the rest is reference.
 
 An abort only raises a flag. Your code decides to stop. Start with `retry` / `timeout` on a handler (see [Guide §5](guide.md#5-add-retry-and-timeout)).
 
 ## On this page
 
+- [Look up an effect](#look-up-an-effect)
+  - [`retry`](#retry), [`timeout`](#timeout), [`poll`](#poll), [`backoff`](#backoff), [`delay`](#delay), [`cancellable`](#cancellable), [`take`](#take), [`all`](#all), [`allSettled`](#allsettled), [`race`](#race), [`effectsPlugin`](#effectsplugin)
 - [Wrap a handler with retry and timeout](#wrap-a-handler-with-retry-and-timeout)
   - [Options for retry, timeout, and poll](#options-for-retry-timeout-and-poll)
 - [Back off between retries](#back-off-between-retries)
 - [Put selected effects on `ctx`](#put-selected-effects-on-ctx)
 - [Tie a promise to the task signal](#tie-a-promise-to-the-task-signal)
 - [Run cleanup on abort](#run-cleanup-on-abort)
+- [Listen for events inside a task](#listen-for-events-inside-a-task)
 - [Wait for the next event with `take`](#wait-for-the-next-event-with-take)
 - [Run several starters together](#run-several-starters-together)
 - [Pass `ctx` outside a task](#pass-ctx-outside-a-task)
+
+## Look up an effect
+
+One entry per effect: what it does, its signature, and the section with the full recipe. `ctx` is the context of the task.
+
+### `retry`
+
+Runs a function again after an error. `retry(fn, options?)` wraps a handler, `retry(ctx, fn, options?)` runs inside one. Options: [Options for retry, timeout, and poll](#options-for-retry-timeout-and-poll).
+
+### `timeout`
+
+Rejects with a `TimeoutError` when the work takes longer than `ms`. `timeout(ms, handler)` wraps a handler, `timeout(ctx, ms, starter)` runs inside one. Details: [Wrap a handler with retry and timeout](#wrap-a-handler-with-retry-and-timeout).
+
+### `poll`
+
+Calls a function again and again at an interval. `poll(ms, fn, options?)` or `poll(ctx, fn, ms)`. Options: [Options for retry, timeout, and poll](#options-for-retry-timeout-and-poll).
+
+### `backoff`
+
+Makes the pause between retries grow, with a cap and jitter. `backoff(options)` returns `(attempt) => ms`. Recipe: [Back off between retries](#back-off-between-retries).
+
+### `delay`
+
+Waits for `ms` and rejects on abort. `delay(ctx, ms)`. Recipe: [Tie a promise to the task signal](#tie-a-promise-to-the-task-signal).
+
+### `cancellable`
+
+A promise tied to the task signal, like `new Promise`, with an `onCancel` cleanup. `cancellable(ctx, executor)`. Recipe: [Tie a promise to the task signal](#tie-a-promise-to-the-task-signal).
+
+### `take`
+
+Waits for the next event of the bus. `take(ctx, "event")`. Recipe: [Wait for the next event with `take`](#wait-for-the-next-event-with-take).
+
+### `all`
+
+Runs starters together; one failure cancels the rest. `all(ctx, effects)`. Recipe: [Run several starters together](#run-several-starters-together).
+
+### `allSettled`
+
+Waits for every starter and never fails because of one. `allSettled(ctx, effects)`. Recipe: [Run several starters together](#run-several-starters-together).
+
+### `race`
+
+Settles with the first starter that finishes and cancels the others. `race(ctx, effects)`. Recipe: [Run several starters together](#run-several-starters-together).
+
+### `effectsPlugin`
+
+Puts chosen effects on `ctx`, so a handler uses them without passing `ctx`. `bus.use(effectsPlugin({ race, all, delay }))`. Recipe: [Put selected effects on `ctx`](#put-selected-effects-on-ctx).
 
 ## Wrap a handler with retry and timeout
 
@@ -238,7 +291,7 @@ bus.on("connect", (url, ctx) => {
 });
 ```
 
-## Wait for the next event with `take`
+## Listen for events inside a task
 
 A task context has `on` and `off`, like the bus. A subscription made with `ctx.on` ends when the task aborts:
 
@@ -255,6 +308,8 @@ bus.on("watch", (_, ctx) => {
 - The returned function unsubscribes sooner. After abort, `ctx.on` does nothing.
 - Under `latest`, subscriptions of a superseded run end with that run.
 - `ctx.off(event)` clears every handler of the event on the bus, not only the task’s.
+
+## Wait for the next event with `take`
 
 `take(ctx, event, options?)` waits for the next `event` and resolves with its payload. `event` is the name of an event or an action creator, as for `bus.on`:
 

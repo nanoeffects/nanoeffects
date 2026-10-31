@@ -1,5 +1,7 @@
 # Policies
 
+> **Level B.** Read first: [Guide](guide.md#1-create-a-bus) steps 1 to 3.
+
 Use this page when handlers overlap in a SPA (search-as-you-type, double submit, leave page). A **policy** wraps a handler and decides what happens then.
 
 Start with `latest`. The table and sections below are the rest of the reference.
@@ -35,6 +37,40 @@ Every policy accepts `key` in its options (see [Isolate state by key](#isolate-s
 | `debounce(ms, fn, options?)` | run after `ms` of quiet |
 | `throttle(ms, fn, options?)` | at most one run per `ms` |
 | `queue(fn, options?)` | one after another, in order |
+
+Each policy has a short entry in [Look up a policy](#look-up-a-policy).
+
+## Look up a policy
+
+One entry per policy: what it does, its signature, and the section with the full recipe.
+
+### `latest`
+
+A newer call aborts the older one and drops its result. `latest(fn, options?)`. Full recipe: [Abort the previous run](#abort-the-previous-run).
+
+### `leading`
+
+New calls are dropped while a run is going. `leading(fn, options?)`. Use it to prevent a double submit: [Prevent a double submit](prevent-double-submit.md).
+
+### `debounce`
+
+Runs after `ms` of quiet. `debounce(ms, fn, options?)`. Options (`leading`, `trailing`): [Configure debounce and throttle](#configure-debounce-and-throttle).
+
+### `throttle`
+
+At most one run per `ms`. `throttle(ms, fn, options?)`. Options: [Configure debounce and throttle](#configure-debounce-and-throttle).
+
+### `queue`
+
+Calls run one after another, in order. `queue(fn, options?)`, with `concurrency` to run several at once. Full recipe: [Run calls one after another with `queue`](#run-calls-one-after-another-with-queue).
+
+### `key`
+
+An option of every policy: each key gets its own state, so calls with different keys do not affect each other. `latest(fn, { key: (payload) => payload.id })`. Full recipe: [Isolate state by key](#isolate-state-by-key).
+
+### `withPolicy`
+
+Turns a policy into a plain function that needs no bus. `withPolicy(debounce(300, fn))`. Full recipe: [Use a policy without a bus](#use-a-policy-without-a-bus).
 
 ## Call a policy without its function
 

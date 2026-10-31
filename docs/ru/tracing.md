@@ -1,0 +1,411 @@
+# Трассировка задач
+
+> **Уровень F.** Сначала прочитайте: [Руководство](guide.md#1-создайте-шину), шаги 1 и 2.
+
+Узнайте, что делало ваше приложение и почему: какие события отправлялись, какие вызовы политика отменила или отбросила, какой запрос упал. Это видно в консоли браузера, в Redux DevTools или на панели Performance.
+
+Трассировка необязательна. Шина работает так же и без неё, а пока вы её не включили, она почти ничего не стоит. Если вы просто хотите видеть, что происходит при разработке, переходите к [Показать каждый emit](#показать-каждый-emit) и [Настройка Redux DevTools](#настройка-redux-devtools); остальное на этой странице — для приложений, которым нужно следить за потоком или отключать трассировку в сборке.
+
+## На этой странице
+
+- [Подключите трассировщик](#подключите-трассировщик)
+- [Показать каждый emit](#показать-каждый-emit)
+- [Покажите, какая подписка начала цепочку](#покажите-какая-подписка-начала-цепочку)
+- [Проследите один поток через traceGroupId](#проследите-один-поток-через-tracegroupid)
+- [Назовите слушателя](#назовите-слушателя)
+- [Сохраняйте цепочку: `ctx.emit`, а не `bus.emit`](#сохраняйте-цепочку-ctxemit-а-не-busemit)
+- [Отключите имена](#отключите-имена)
+- [Используйте встроенные логгеры](#используйте-встроенные-логгеры)
+  - [Сократите объём в production](#сократите-объём-в-production)
+  - [Храните последние события на случай инцидента](#храните-последние-события-на-случай-инцидента)
+  - [Настройка Redux DevTools](#настройка-redux-devtools)
+  - [Напишите свой логгер](#напишите-свой-логгер)
+- [Уберите трассировку из сборки](#уберите-трассировку-из-сборки)
+
+## Подключите трассировщик
+
+Передайте `trace` в `createBus`. Создайте его через `createTracer` из `nanoeffects/trace`, который принимает логгер (функцию) или массив логгеров. Код трассировки лежит в этой точке входа, поэтому шина без `trace` его не несёт.
+
+```js
+import { createBus } from "nanoeffects";
+import { createTracer } from "nanoeffects/trace";
+
+const bus = createBus({
+  // createTracer — наблюдать каждую фазу задачи
+  trace: createTracer((event) => console.log(event)),
+});
+```
+
+У каждого `TraceEvent` есть:
+
+| Поле | Значение |
+| ---- | -------- |
+| `id` | Уникальный идентификатор задачи в пределах шины |
+| `parentId` | Идентификатор задачи, которая запустила эту (у задач обработчиков отсутствует) |
+| `rootId` | Идентификатор корневой задачи цепочки; у самого корня отсутствует и одинаков через слушателя, который ничего не сообщает |
+| `type` | Тип события, над которым работает задача |
+| `effect` | `latest`, `debounce`, `throttle`, `leading`, `run`, `all`, `race`, …; `emit` для события emit от `tracePlugin` |
+| `phase` | `start`, `done`, `error`, `cancel` или `drop` |
+| `payload` | Нагрузка события |
+| `error` | Выброшенное значение, только для `error` |
+| `traceGroupId` | Поток задачи, если он есть у неё или у задачи выше |
+
+Фазы:
+
+- `start` — работа началась.
+- `done` / `error` — она завершилась или выбросила ошибку.
+- `cancel` — прервана после старта (вытеснена `latest`, родитель прерван, проиграла `race`).
+- `drop` — так и не стартовала (`leading`, пока занято, вызов `throttle`, заменённый более новым, вызов `debounce`, заменённый до конца задержки).
+
+`all` и `race` трассируются, когда вы передаёте им `ctx` обработчика: группа — одна задача; каждый стартер — дочерняя задача `run`.
+
+```js
+import { createBus } from "nanoeffects";
+import { all } from "nanoeffects/effects";
+
+const bus = createBus();
+
+bus.on("load", async (id, ctx) => {
+  await all(ctx, {
+    user: () => fetchUser(id),
+    posts: () => fetchPosts(id),
+  });
+});
+```
+
+## Показать каждый emit
+
+**Когда.** Вы хотите, чтобы лог говорил, что было отправлено, в том числе когда никто не слушает или слушатель — обычная функция. Без этого в трассировке есть только задачи, которые что-то сообщают: политика (`latest`, ...) или `ctx.run`.
+
+`tracePlugin` сообщает одно событие на каждый emit, с `effect: "emit"` и `phase: "done"`, до запуска обработчиков. `type` — имя события, а `payload` — то, что было отправлено. У `ctx.emit` в качестве `parentId` стоит задача, которая отправляет.
+
+```js
+// bus.js
+import { createBus } from "nanoeffects";
+import { consoleLogger, createTracer, tracePlugin } from "nanoeffects/trace";
+
+// createTracer: отправляет каждое событие трассировки логгеру; consoleLogger: печатает по одной строке на каждое
+const trace = createTracer(consoleLogger());
+
+export const bus = createBus({ trace })
+  .use(tracePlugin()); // tracePlugin: сообщает каждый emit как событие
+```
+
+```js
+import { bus } from "./bus";
+
+bus.emit("search", "nano"); // в логе: search · emit done
+```
+
+Больше это событие ничего не меняет: остальные задачи сохраняют свои `parentId`, `rootId` и `traceGroupId`. Без плагина в трассировке нет событий `emit`.
+
+- **Что считается emit.** Каждый `bus.emit`, в том числе те, что за вас делает библиотека: задача (job) отправляет свои `pending` и `success` (или `fail`, `cancel`), так что один вызов задачи — несколько событий `emit`.
+- **Цена.** Одна небольшая задача на каждый emit, около 60 нс на шине, у которой уже есть трассировщик (шина с трассировщиком, но без плагина: примерно на 250 нс больше, чем шина без него). `sample` и `filter` в `createTracer` сокращают это в логе, но не в работе.
+
+## Покажите, какая подписка начала цепочку
+
+**Проблема.** `useEmitter` и `bus.emitter` кладут событие на шину извне любой задачи, например из рендера или колбэка стора. В трассировке у такого события нет следа его происхождения. При множестве таких подписок трудно сказать, какая из них запустила цепочку действий и повторов.
+
+**Когда.** У шины есть трассировщик, а в проекте несколько вызовов `useEmitter` или `bus.emitter`. Имена приходят от `tracePlugin`: подключите его на шине, иначе `traceId` игнорируется.
+
+Дайте каждому `traceId`. Когда у шины есть трассировщик, emit делается из корневой задачи, у которой этот `traceId` — её `type`, а `run` — её effect. То, что запускает событие, лежит ниже. Без трассировщика ничего не меняется.
+
+```js
+import { createBus } from "nanoeffects";
+import { createAction, emitterPlugin } from "nanoeffects/actions";
+import { consoleLogger, createTracer, tracePlugin } from "nanoeffects/trace";
+
+// createTracer: сообщает каждую фазу задачи в консоль
+const trace = createTracer(consoleLogger());
+
+const bus = createBus({ trace })
+  .use(tracePlugin()) // tracePlugin: создаёт корневую задачу, которую называет traceId
+  .use(emitterPlugin());
+
+const cartChanged = createAction("cart/changed");
+
+// emitter: колбэк для стора; traceId называет его в трассировке
+const emitCartChanged = bus.emitter(cartChanged, { traceId: "cartStore" });
+```
+
+В компоненте тот же параметр передаётся в параметры хука: `useEmitter(nameChanged, name, { traceId: "Profile" })`. В консоли:
+
+```
+[nanoeffects] Profile · run start
+[nanoeffects]   user/save · action start
+[nanoeffects]   user/save · action done
+[nanoeffects] Profile · run done
+```
+
+`traceId` — выбранная вами строка, которую вы держите стабильной: имя компонента или стора. Без него у корня тип события.
+
+Две вещи, которые нужно знать:
+
+- **`sample` видит `traceId`.** Корень эмиттера — такая же задача, как любая другая, поэтому функция `sample` получает `{ type, payload }`, где `type` — это `traceId`, а `payload` — отправленное действие. Функция, которая сопоставляет тип события, например `event.type === "search"`, не выберет корень с другим `traceId`; сопоставляйте `traceId` или `payload.type`.
+- **Внутри обработчика отправляйте через `ctx.emit`.** `ctx.emit` сохраняет цепочку: то, что он запускает, лежит ниже обработчика. Обычный `bus.emit` внутри обработчика запускает новый корень без родителя и без `rootId`, так что трассировка теряет связь.
+
+У каждого события задачи, лежащей ниже другой, есть `rootId` — идентификатор корня цепочки, в том числе когда между ними стоит слушатель, который ничего не сообщает. `parentId` — задача непосредственно выше, и это может быть такой слушатель.
+
+## Проследите один поток через traceGroupId
+
+**Проблема.** У потока вроде оформления заказа несколько корней (клик, таймер, стор) и много ветвей. Идентификаторы родителей дают дерево, но вам нужно фильтровать лог по потоку.
+
+**Когда.** Один бизнес-поток проходит через несколько действий, и вы читаете лог по потокам.
+
+Дайте потоку `traceGroupId` в scope действия или задачи, которая его запускает. Каждая задача, которую она запускает через `ctx.emit` или `ctx.run`, получает тот же `traceGroupId`, как и каждое событие трассировки этих задач. Задача, которая объявляет собственный `traceGroupId`, использует его для себя и для того, что запускает.
+
+```js
+import { createBus } from "nanoeffects";
+import { createAction } from "nanoeffects/actions";
+import { consoleLogger, createTracer, tracePlugin } from "nanoeffects/trace";
+
+// createTracer: отправляет каждое событие трассировки логгеру; consoleLogger: печатает по одной строке на каждое
+const trace = createTracer(consoleLogger());
+
+// tracePlugin: читает traceGroupId из scope вызова
+const bus = createBus({ trace })
+  .use(tracePlugin());
+
+// scope называет поток; traceGroupId предназначен трассировщику, а не полю ctx
+const pay = createAction("checkout/pay", async () => {}, {
+  traceGroupId: "checkout",
+});
+```
+
+```
+[nanoeffects] [checkout] checkout/pay · action start
+```
+
+Эмиттеры его тоже принимают: `useEmitter(cartChanged, cart, { traceId: "Cart", traceGroupId: "checkout" })`. `traceGroupId` работает без `scopePlugin` и требует `tracePlugin`.
+
+## Назовите слушателя
+
+**Проблема.** Лог показывает, что запустило цепочку и что она запустила, но слушатель события ничего не сообщает, поэтому нельзя сказать, какой из нескольких слушателей выполнился.
+
+**Когда.** У события больше одного слушателя, и вы читаете трассировку, чтобы увидеть, кто сделал работу.
+
+Дайте слушателю `traceId` при регистрации. Плагин делает каждый его вызов задачей с этим именем, а то, что он отправляет через `ctx.emit`, лежит ниже. `off` работает как раньше. Это работает и в модуле (`m.on(event, handler, { traceId })`), и на экземпляре, созданном через `extendBus`.
+
+```js
+import { createBus } from "nanoeffects";
+import { consoleLogger, createTracer, tracePlugin } from "nanoeffects/trace";
+
+// createTracer: отправляет каждое событие трассировки логгеру; consoleLogger: печатает по одной строке на каждое
+const trace = createTracer(consoleLogger());
+
+const bus = createBus({ trace })
+  .use(tracePlugin());
+
+// traceId: имя этого слушателя в трассировке
+bus.on("name/changed", saveName, { traceId: "saveNotifier" });
+bus.once("name/changed", (name) => console.log(name), { traceId: "auditLog" });
+```
+
+```
+[nanoeffects] saveNotifier · run start
+[nanoeffects]   user/save · action start
+[nanoeffects] saveNotifier · run done
+```
+
+## Сохраняйте цепочку: `ctx.emit`, а не `bus.emit`
+
+Внутри обработчика отправляйте через `ctx.emit`. Он сохраняет цепочку: то, что он запускает, лежит ниже обработчика, а у его событий есть `rootId` цепочки. Обычный `bus.emit` внутри обработчика запускает новый корень без `parentId` и без `rootId`, так что трассировка теряет связь. Шина не может об этом предупредить, потому что не знает, какой обработчик сейчас выполняется.
+
+Имена работают везде, где создаётся событие или слушатель:
+
+| Где | Как назвать |
+| --- | ----------- |
+| `useEmitter` и `bus.emitter` | `{ traceId, traceGroupId }` в параметрах |
+| Redux dispatch | `createEffectsMiddleware(bus, { traceId, traceGroupId })` |
+| Слушатель, `bus.on` и `bus.once` | `{ traceId }` третьим аргументом |
+| Слушатель модуля или экземпляра `extendBus` | тот же третий аргумент его `on` и `once` |
+| Метод с `@On` или `@Once` | `{ traceId }` в декораторе |
+| Действие или задача | `traceGroupId` в её scope |
+
+## Отключите имена
+
+`tracePlugin` необязателен, и ничто из него не меняет работу вашего кода:
+
+- **Без плагина** или на шине без трассировщика `traceId` и `traceGroupId` игнорируются. Обработчики выполняются как есть, с теми же результатами, ошибками и отклонениями, а `onError` видит те же ошибки.
+- **Типы одинаковы** с плагином и без него, так что его можно использовать только при разработке: `if (isDev) bus.use(tracePlugin())` компилируется в обеих сборках.
+- **`traceGroupId` в scope** никогда не попадает на `ctx`.
+
+## Используйте встроенные логгеры
+
+Логгер — это `(event) => void`. `createTracer` принимает один логгер или массив. Логгер, который выбросил ошибку, сообщается в `console.error` и никогда не ломает задачу или другие логгеры.
+
+```js
+import { createBus } from "nanoeffects";
+import { consoleLogger, createTracer, reduxDevtools } from "nanoeffects/trace";
+
+const bus = createBus({
+  trace: createTracer([reduxDevtools({ name: "app" }), consoleLogger()]),
+});
+```
+
+| Логгер | Что делает |
+| ------ | ---------- |
+| `reduxDevtools()` | Отправляет emit в Redux DevTools, а с `policies` — стадии обработчиков как `type/effect/phase`; состояние — `{ running }` |
+| `consoleLogger()` | Печатает по одной строке на фазу, с отступом по глубине задачи |
+| `performanceLogger()` | Измерения User Timing для панели Performance браузера |
+| `createTraceRecorder()` | Хранит события в `recorder.events`: все — для тестов, либо с `{ capacity }` последние N ([см. ниже](#храните-последние-события-на-случай-инцидента)) |
+
+### Сократите объём в production
+
+```js
+import { createTracer } from "nanoeffects/trace";
+
+createTracer(logger, {
+  sample: 0.05, // трассировать 5% вызовов обработчиков (доля или функция от { type, payload })
+  filter: (event) => event.phase === "error", // оставить только сбои
+});
+```
+
+- `sample` решается один раз на корневую задачу; каждая задача ниже следует за ней, так что трассировка никогда не обрывается посередине. Задачи вне выборки почти ничего не стоят.
+- `filter` выполняется на каждом событии до того, как его увидит любой логгер.
+
+### Храните последние события на случай инцидента
+
+`createTraceRecorder()` без параметров хранит каждое событие, поэтому длинная сессия заполняет память. В тесте это нормально, а в работающем приложении неверно. Дайте ему `capacity`, и он будет хранить только последние N событий (кольцевой буфер): когда что-то пойдёт не так, у вас всё равно останется то, что к этому привело.
+
+<!-- docs-check: new -->
+
+```js
+// bus.js
+import { createBus } from "nanoeffects";
+import { createTraceRecorder, createTracer } from "nanoeffects/trace";
+
+// Логгер, который хранит последние 500 событий и отбрасывает более старые.
+export const recorder = createTraceRecorder({ capacity: 500 });
+
+// Подайте рекордер из трассировщика.
+const trace = createTracer(recorder);
+
+export const bus = createBus({ trace });
+```
+
+```js
+// incident.js
+import { recorder } from "./bus";
+
+// Оставьте то, что безопасно отправлять. У события есть ещё `payload` и `error`.
+const withoutPayload = ({ id, parentId, type, effect, phase }) => ({
+  id,
+  parentId,
+  type,
+  effect,
+  phase,
+});
+
+window.addEventListener("error", () => {
+  const events = recorder.events; // снимок, самое старое событие первым
+  const safe = events.map(withoutPayload);
+  const body = JSON.stringify(safe);
+  navigator.sendBeacon("/api/incident", body);
+});
+```
+
+Что нужно знать, прежде чем отправлять события:
+
+- **`payload` и `error` могут содержать приватные данные**: то, что ввёл пользователь, токены, личный текст. Рекордер хранит их как есть и не вычищает. Выбирайте, что отправлять, как это делает `withoutPayload`.
+- **У события нет времени.** Вы получаете порядок, а не длительность. Чтобы добавить время, оберните рекордер в логгер, который проставляет `performance.now()` на копии события.
+- **Старый `parentId` может указывать на событие, которое вытеснено.** Когда вы строите дерево из событий, считайте неизвестный `parentId` корнем.
+- **`recorder.events` с `capacity` — снимок.** Каждое чтение строит новый массив, поэтому читайте его один раз в нужный момент. Без `capacity` это один живой массив.
+- **Низкий `sample` разрежает буфер.** `createTracer(recorder, { sample: 0.05 })` записывает 5% корневых задач, поэтому к моменту инцидента в буфере может быть мало. См. [Сократите объём в production](#сократите-объём-в-production).
+- **`capacity`, не являющийся положительным целым** (`0`, отрицательное число, `NaN`), означает «без ограничения».
+
+### Настройка Redux DevTools
+
+<!-- docs-check: new -->
+
+Только для чтения (шина не владеет состоянием, поэтому путешествия по времени нет). Ничего не делает, если расширение не установлено. У него свой экземпляр в выборе DevTools, отдельный от вашего стора.
+
+По умолчанию тихо, так что вы сначала видите, что случилось, а потом как:
+
+- **Одно действие на emit**, названное по событию (`search`), с его нагрузкой. Для этого нужен `bus.use(tracePlugin())` (см. [Показать каждый emit](#показать-каждый-emit)); без него лог по умолчанию пуст, а логгер печатает один `console.warn`, когда заканчивается первая задача обработчика без emit перед ней.
+- **Упавший обработчик** отправляется как `search/latest/error`.
+- Больше ничего: ни start, ни `done`, ни стадий политик, ни эффектов.
+
+Включайте больше, когда нужно:
+
+- `policies` — стадии задач обработчиков, как `event/policy/phase`. `true` показывает каждую фазу, список показывает эти фазы, функция получает `{ effect, phase }`.
+- `starts: true` — отправлять ещё и старт каждой показываемой задачи. Выполняющиеся задачи лежат в состоянии `{ running }`.
+- `depth: 1` — ещё и эффекты, которые запускает обработчик (`retry`, `timeout`); `depth: Infinity` — всё ниже.
+- `payload` — какие действия несут нагрузку своего события:
+  - `"essential"` (по умолчанию) — действия emit, а также `cancel`, `drop` и `error` задачи, где нагрузка — единственный способ понять, какой это был вызов. `start` и `done` повторяют emit и нагрузки не имеют, так что большая нагрузка отправляется один раз.
+  - `"all"` — каждое действие, как в 0.12.
+  - `"none"` — ни одно действие. Используйте для большой нагрузки или такой, где лежат данные, которые не должны попасть в расширение браузера (токены, личные данные). Тогда вы больше не сможете сказать, какой вызов остановила политика.
+- `maxAge: 200` — сколько действий хранит DevTools (по умолчанию 50).
+
+```js
+// bus.js
+import { createBus } from "nanoeffects";
+import { createTracer, reduxDevtools, tracePlugin } from "nanoeffects/trace";
+
+// reduxDevtools: отправляет трассировку в расширение; только emit и сбои
+const logger = reduxDevtools({ name: "app" });
+
+export const bus = createBus({ trace: createTracer(logger) })
+  .use(tracePlugin()); // tracePlugin: создаёт события emit
+```
+
+```js
+import { reduxDevtools } from "nanoeffects/trace";
+
+// отладка гонки: какие вызовы политика отменила или отбросила?
+reduxDevtools({
+  name: "app",
+  policies: ["cancel", "drop"],
+});
+
+// каждая стадия каждой политики, одна функция для выбора
+reduxDevtools({
+  name: "app",
+  policies: ({ effect, phase }) => effect === "latest" && phase !== "start",
+});
+
+// старый лог: каждая стадия и эффекты под обработчиками
+reduxDevtools({
+  name: "app",
+  policies: true,
+  depth: 1,
+  payload: "all",
+});
+
+// не пускать нагрузки в расширение
+reduxDevtools({
+  name: "app",
+  payload: "none",
+});
+```
+
+При двух быстрых emit `search` и обработчике `latest` список по умолчанию — `search`, `search`. С `policies: true` к нему добавляются стадии `latest` каждого вызова, например `search/latest/cancel` для первого.
+
+### Напишите свой логгер
+
+```ts
+import type { TraceLogger } from "nanoeffects/trace";
+
+const errorsOnly = (): TraceLogger => (event) => {
+  if (event.phase === "error") {
+    report(event.error);
+  }
+};
+```
+
+## Уберите трассировку из сборки
+
+Без трассировщика хуки почти ничего не стоят. `nanoeffects/trace` попадает в бандл, только если его импортируют.
+
+Чтобы убрать код трассировки ещё и из ядра, используйте условие экспорта `notrace`. Пакет поставляет вторую сборку `index`, `effects`, `policies` и `actions` с `__NANOEFFECTS_TRACE__`, установленным в `false`.
+
+```js
+// vite / rolldown
+resolve: { conditions: ["notrace"] }
+// webpack
+resolve: { conditionNames: ["notrace", "import", "..."] }
+// esbuild
+conditions: ["notrace"]
+```
+
+В сборке из исходников `define: { __NANOEFFECTS_TRACE__: "false" }` делает то же самое. С установленным условием у типов этой сборки нет параметра `trace`: `createBus({ trace })` — ошибка типов. У `nanoeffects/trace` нет сборки `notrace`. Экономия — около 0,4 кБ gzip от всей библиотеки.

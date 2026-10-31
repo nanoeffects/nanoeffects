@@ -1,5 +1,7 @@
 # Use nanoeffects with React Query, SWR and RTK Query
 
+> **Level E.** Read first: [Guide](guide.md#1-create-a-bus) steps 1 to 3.
+
 Read this page if you fetch data with [React Query](https://tanstack.com/query) (TanStack Query), [SWR](https://swr.vercel.app) or [RTK Query](https://redux-toolkit.js.org/rtk-query/overview) and want `retry`, `timeout` and the abort of nanoeffects inside the request. It shows one action that the libraries call, then three recipes for the parts around it: a client that stops with the request, a live stream into the cache, and a refetch on a bus event.
 
 You need a React project, `nanoeffects`, and one of the libraries. `api` below is your own client: replace it with your requests.

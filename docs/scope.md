@@ -1,5 +1,7 @@
 # Pin context fields to an action, a module or a call
 
+> **Level D.** Read first: [Context fields](context.md) and [Actions](actions.md).
+
 Optional, for domain logic. Use it when one action needs its own client, one module its own logger, or one test its own fake, and a field on the whole bus ([context fields](context.md)) is too wide.
 
 A **scope** is a plain object. Every key goes on `ctx` as it is (`cache`, `api`, `logger`), except one: `$effects`. Its functions take `{ signal }` as the first parameter, like `retry(ctx, fn)`, and go on `ctx` bound to the task, so you call `ctx.fetchJson(url)` instead of `fetchJson(ctx, url)`.

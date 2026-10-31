@@ -1,13 +1,15 @@
 # Guide
 
-Climb one step at a time: small bus → policies → effects → handlers and modules. Stop when your project has what it needs.
+> **Levels A to D.** Read first: [README](../README.md) (install and the first example).
 
-| Your project | Stop after |
-| ------------ | ---------- |
-| Widget / prototype | §1–2 |
-| SPA with async UI | §3–4 |
-| Unreliable network / long flows | §5–6 |
-| Domain logic off the UI | §7–9 |
+Climb one step at a time: small bus → policies → effects → handlers and modules. Stop when your project has what it needs. Install the package first: `npm install nanoeffects` (details in the [README](../README.md#install)). The levels A to D are described in the [map of the docs](README.md#the-ladder-from-a-to-f).
+
+| Level | Your project | Stop after |
+| ----- | ------------ | ---------- |
+| A | Widget / prototype | §1–2 |
+| B | SPA with async UI | §3–4 |
+| C | Unreliable network / long flows | §5–6 |
+| D | Domain logic off the UI | §7–9 |
 
 Runnable code for every step: [`examples/guide.ts`](../examples/guide.ts).
 
@@ -48,7 +50,12 @@ bus.emit("greet", "Bob"); // nobody listens
 
 Handlers run at once, in subscription order.
 
-`bus.once` is like `on`, but the handler runs at most once (it is removed before it is invoked). `bus.off("greet")` clears every listener of that event; `bus.off()` with no arguments clears **every** listener on the bus (including `"*"`). `ctx.off` is the same `off` as the bus’s — so `ctx.off()` also clears the whole bus. `bus.get("greet")` gives the listeners that event has right now; `bus.get("greet").length === 0` tells that nobody listens any more (`"*"` gives the any-event listeners, which a named event does not include; `bus.get()` with no name gives every listener of every event). It takes the event name as a string: for an action creator use `creator.type`.
+Four more calls cover most of what you need from the bus itself:
+
+- `bus.once(event, handler)` is like `on`, but the handler runs at most once (it is removed before it is invoked).
+- `bus.off("greet")` clears every listener of that event.
+- `bus.off()` with no arguments clears **every** listener on the bus, `"*"` included. `ctx.off` is the same `off` as the bus's, so `ctx.off()` also clears the whole bus.
+- `bus.get("greet")` gives the listeners that event has right now, so `bus.get("greet").length === 0` tells that nobody listens any more. `"*"` gives the any-event listeners, which a named event does not include; `bus.get()` with no name gives every listener of every event. It takes the event name as a string: for an action creator use `creator.type`.
 
 ```js
 import { createBus } from "nanoeffects";
@@ -65,6 +72,8 @@ bus.off(); // clear every subscription
 ```
 
 ### Listen to every event
+
+You can skip this and the next section on a first read.
 
 `bus.on("*", fn)` runs for every event of the bus. It is for logging, debugging, or forwarding events elsewhere. The handler gets the payload and the task context as usual, and `ctx.type` is the name of the event.
 
@@ -88,7 +97,7 @@ unbind();
 
 ### Pick events with a function
 
-To listen to a group of events, such as every `user/*` event, `"*"` and a check of `ctx.type` do the job but leave the check to you. `matchPlugin` lets `on` take a function that picks the events. The function gets `{ type, payload }` of each event, and the handler runs when it returns true.
+This is for level B and later. To listen to a group of events, such as every `user/*` event, `"*"` and a check of `ctx.type` do the job but leave the check to you. `matchPlugin` lets `on` take a function that picks the events. The function gets `{ type, payload }` of each event, and the handler runs when it returns true.
 
 <!-- docs-check: new -->
 

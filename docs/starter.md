@@ -1,5 +1,7 @@
 # Start a project from a template
 
+> **Level A.** Read first: nothing: this page makes a project for you.
+
 Use this page when you want a running project in one command instead of wiring Vite and the bus by hand. It makes a small app with a search box that waits for you to stop typing (`debounce`) and aborts the older request when a newer one starts (`latest`).
 
 You need Node 18 or newer.

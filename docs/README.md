@@ -1,12 +1,25 @@
 # Documentation
 
-## Start here
+Read the docs from the level of your project and stop when it has what it needs. Each level adds one idea. A page says at its top which level it is for and what to read first.
 
-The [Guide](guide.md) is the ladder: small bus → policies for async UI → effects when you need them → handlers and modules for domain logic off the UI.
+New here? Do these three things, in order:
 
-Why the library exists (logic and side effects outside React, Vue and Svelte components, as plain `async` functions), and when to pick it over redux-saga, RxJS, Redux or Effector (including SDKs and Module Federation): [Why nanoeffects exists](motivation.md).
+1. **Decide.** Read the [README](../README.md) (two minutes): what the library is for, how to install it, a first working example. [Why nanoeffects exists](motivation.md) says when not to use it.
+2. **Start.** Run the first example, or make a project with `npm create nanoeffects@latest my-app` ([Start a project from a template](starter.md)).
+3. **Climb.** Follow the [Guide](guide.md) step by step, or look up your case in the [Recipes](recipes.md).
 
-Code for every guide step: [`examples/guide.ts`](../examples/guide.ts) (type-checked and tested).
+## The ladder, from A to F
+
+| Level | Your project | You can stop here when | Read |
+| ----- | ------------ | ---------------------- | ---- |
+| **A** | A small app, widget or prototype with rare races | Events and handlers do the job | [Guide](guide.md#1-create-a-bus) steps 1 and 2 |
+| **B** | A SPA with async UI: search, submit, leaving a page | A newer request must replace an older one | [Policies](policies.md), [Guide](guide.md#3-abort-the-previous-run-with-latest) steps 3 and 4 |
+| **C** | An unreliable network or a long flow | Retries, timeouts and waiting are handled | [Effects](effects.md), [Guide](guide.md#5-add-retry-and-timeout) steps 5 and 6 |
+| **D** | Domain logic that must live off the UI | Features are actions and modules, not components | [Actions, jobs and modules](actions.md), [Guide](guide.md#7-name-events-three-ways) steps 7 to 9 |
+| **E** | An existing Redux, Zustand, MobX or Pinia app, or a data library | The bus runs the async work next to your store | [Stores](stores.md), [Query libraries](query-libraries.md) |
+| **F** | A platform, an SDK or a long-lived app | You can see what ran, reload modules, rely on the rules | [Tracing](tracing.md), [Hot reload](hmr.md), [Semantics](semantics.md), [Stability](stability.md) |
+
+A small app never needs level B or higher. Move up when the first problem of that level appears, not before.
 
 ## Start with three imports
 
@@ -20,7 +33,11 @@ Most apps need only these. Everything else is optional; read it when you hit its
 
 The other entries and plugins: [Package entries](package.md) and [Plugins](plugins.md#pick-a-plugin-by-task).
 
-## Jump by project need
+Code for every guide step: [`examples/guide.ts`](../examples/guide.ts) (type-checked and tested).
+
+## Jump by need
+
+For a problem, start from [Recipes](recipes.md). For a project shape:
 
 | Project shape | First page |
 | ------------- | ---------- |
@@ -44,20 +61,12 @@ The other entries and plugins: [Package entries](package.md) and [Plugins](plugi
 
 ## Reference
 
-- [Policies](policies.md) — `latest`, `leading`, `debounce`, `throttle`, `queue`, `key`
-- [Effects and cancellation](effects.md) — `retry`, `timeout`, `poll`, `take`, `all`, …
-- [Actions, jobs and modules](actions.md)
-- [Sign-up form in React](react.md) — one form: races, double submit, retry
-- [nanoeffects in a Vue app](vue.md) — `watchEmitter` and `useEventRef`
-- [nanoeffects in a Svelte app](svelte.md) — `eventStore`
-- [Context fields](context.md) — store or client on every task
-- [Use the bus from a class](oop.md) — `extendBus`, `@WithBus`, `@On`, and `dispose()` for the subscriptions of an instance
-- [TypeScript in many files](typescript.md) — keep the types of the bus in actions and modules
-- [Errors and unheard events](errors.md)
-- [Package entries](package.md) — which import holds what
-- [Stability](stability.md) — which entries are stable, what is breaking, supported versions
-- [Plugins](plugins.md) — every plugin of a bus, what it returns, and the order to use them in
-- [Tracing](tracing.md) — loggers, Redux DevTools, `notrace`
-- [Observable](observable.md) — events as TC39 Observables
+Look these up when you need the exact rule.
+
+- [Package entries](package.md): which import holds what
+- [Stability](stability.md): which entries are stable, what is breaking, supported versions
+- [Plugins](plugins.md): every plugin of a bus, what it returns, and the order to use them in
+- [Semantics](semantics.md): the exact rules of emit, abort and ordering
+- [Tracing](tracing.md): loggers, Redux DevTools, `notrace`
+- [Observable](observable.md): events as TC39 Observables
 - [Hot reload and dev diagnostics](hmr.md)
-- [Semantics](semantics.md)

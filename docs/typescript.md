@@ -1,5 +1,7 @@
 # Use nanoeffects in a TypeScript app with many files
 
+> **Level D.** Read first: [Guide](guide.md#10-add-types-when-you-want-checking-optional).
+
 Read this page if your app is in TypeScript and the handlers and modules live in different files. It shows how to write an action with a handler so that TypeScript infers its payload and result, and what to add when the handlers need the fields of your bus (`ctx.store`, the effects of `effectsPlugin`). For one file or for JavaScript you do not need it.
 
 ## Write an action with its handler

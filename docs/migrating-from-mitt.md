@@ -1,5 +1,7 @@
 # Coming from mitt, nanoevents or EventEmitter
 
+> **Level A, for readers who know mitt or EventEmitter.** Read first: nothing: the bus is the same idea.
+
 Read this page if your app uses a small event emitter (`mitt`, `nanoevents`, Node's `EventEmitter`, `tiny-emitter`) and its handlers start to do async work: requests, timers, retries. It maps the calls, shows what you gain, and shows what to check before you switch.
 
 ## When to switch

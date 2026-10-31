@@ -1,5 +1,7 @@
 # Use the bus from a class
 
+> **Level D.** Read first: [Guide](guide.md#1-create-a-bus) step 1.
+
 Use this page when **your domain logic lives in classes**: a service, a store or a controller that needs the bus inside its methods. There are two ways to give a class the methods of a bus, and both remember what each instance subscribed to, so `dispose()` ends it all:
 
 | You want | Use |

@@ -1,5 +1,7 @@
 # Hot reload and development diagnostics
 
+> **Level F.** Read first: [Actions, jobs and modules](actions.md).
+
 Use this page in development with modules and hot reload. Skip until you mount domains with `modulePlugin`.
 
 When a file is edited, the bundler loads its new version and runs it again, while the page and the rest of the code stay alive. For a bus that can go wrong in three ways:

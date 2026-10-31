@@ -49,6 +49,7 @@ packages/create-nanoeffects/  the npm package behind `npm create nanoeffects`: `
 src/tests/              tests that cross modules (flows, fuzz, scenarios, regressions.*) and test-helpers.ts
 integration/            tests with the real libraries and bundlers (own vitest config: vitest.integration.config.ts)
 tools/docs-site/        the VitePress site of docs/ (pages stay in docs/, the config only maps them; links out of docs/ go to GitHub; `sidebar.ts` lists every page, a test checks it: add a new page there and to llms.txt)
+docs/ru/                the Russian pages, one for each page of docs/ with the same file name (docs:check requires it and compares the code of every block with the English one: only comments may differ)
 docs/, examples/        user documentation (see Documentation); examples are type-checked (tsconfig paths map `nanoeffects/*` to `src`)
 lint/                   GritQL readability rules (see below); excluded from biome's formatter on purpose
 llms.txt                index of docs/ for AI assistants (by hand); llms-full.txt is built from it, not committed
@@ -125,6 +126,14 @@ Do not drop a block of unfamiliar calls (`m.on` + `m.handle` + `m.use`, …) wit
 - Reference pages: who/when in the first lines; one minimal example; then the catalog.
 - Describe inputs, result, limits, side effects. Rare options after the base case.
 - Everyday JS wording; explain a specialized term on first use. No duplication of README in `docs/` and vice versa.
+
+### Russian pages
+
+Every page of `docs/` has a page in `docs/ru/` with the same name. When you change a page, change both: `docs:check` fails on a missing page and on a code block that differs from the English one (comments may differ), but it cannot see prose that went stale, so the prose is yours to keep in step. Translate prose, headings, table text and the comments of snippets; keep API names, identifiers, code, strings in code and file names. A link out of docs has one more `../` in `docs/ru/`. Links to a heading use the translated heading (`tools/docs-site/docs-site.test.ts` checks them). Terms are the same on every page: reuse the word the other pages use (bus — шина, handler — обработчик, task — задача, policy — политика, effect — эффект, abort — прерывание, listener — слушатель).
+
+### Newcomer check
+
+Before a docs page is done, read it as someone who has seen nothing else: does the top say its level and what to read first; is every name in a snippet defined or called the app's own; is there a next step; is it in `docs/recipes.md` when it solves a problem.
 
 ### Code blocks in `docs/` are type-checked
 

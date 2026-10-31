@@ -1,5 +1,7 @@
 # Debounce a request and abort the previous one
 
+> **Level B.** Read first: [Policies](policies.md).
+
 Read this page if you debounce user input (a search box, an autosave, a resize handler) and you also want the request in flight to stop when a new one starts. `debounce` alone waits for a pause. It does not cancel a request that already started. This page shows the two policies together, the order to put them in, and when to use `throttle` instead.
 
 ## Know what each policy does

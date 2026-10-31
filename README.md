@@ -13,7 +13,7 @@ Move business logic and side effects out of React, Vue and Svelte components int
 npm install nanoeffects
 ```
 
-ESM only, no dependencies, types included.
+`pnpm add nanoeffects` and `yarn add nanoeffects` work the same. The package is ESM only (use `import`, not `require`), has no dependencies and includes its types. It runs on Node 18 or newer and in any bundler: [supported versions](docs/stability.md#check-the-supported-versions).
 
 New project: `npm create nanoeffects@latest my-app` ([Docs](docs/starter.md)). Try it first: [playground](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/playground) in your browser, no install.
 
@@ -28,11 +28,11 @@ const bus = createBus(); // event bus; each handler call is a task
 const cart = [];
 
 // two independent listeners of one event; on returns the function that unsubscribes
-const unbind = bus.on("cart/added", (item) => analytics.track("add", item));
+const unbind = bus.on("cart/added", (item) => console.log("added", item));
 bus.on("cart/added", (item) => cart.push(item));
 
 bus.emit("cart/added", { id: "p1" }); // both listeners run, cart has the item
-unbind(); // stop tracking
+unbind(); // stop logging
 ```
 
 ## Keep the logic out of the component
@@ -51,7 +51,8 @@ export const bus = createBus();
 bus.on(
   "search",
   latest(async (query, ctx) => {
-    // signal — lets latest cancel this request, not only drop its result
+    // api is your own client (a fetch wrapper, axios, ...); signal lets latest cancel
+    // this request, not only drop its result
     const items = await api.search(query, { signal: ctx.signal });
     ctx.emit("results", items);
   }),
@@ -127,7 +128,7 @@ bus.on("save", async (draft, ctx) => {
 
 ## Docs
 
-Read it on the [docs site](https://nanoeffects.github.io/nanoeffects/) (search and sidebar), or start with the [Guide](docs/guide.md) and jump by need:
+Read it on the [docs site](https://nanoeffects.github.io/nanoeffects/) (search and sidebar; [in Russian](https://nanoeffects.github.io/nanoeffects/ru/)), or start with the [Guide](docs/guide.md) and jump by need:
 
 | Need | Page |
 | ---- | ---- |

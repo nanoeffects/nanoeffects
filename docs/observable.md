@@ -1,5 +1,7 @@
 # Turn events into Observables
 
+> **Level F.** Read first: [Guide](guide.md#1-create-a-bus) step 1.
+
 Use this page when your app already works with Observables or RxJS and you want a bus event as a stream. If you start from scratch, prefer `bus.on` with policies: they cancel work and show up in traces.
 
 The same entry has `events`, which needs no stream library: it gives an event to a `for await` loop. See [Read an event with a `for await` loop](#read-an-event-with-a-for-await-loop).

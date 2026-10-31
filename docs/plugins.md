@@ -1,5 +1,7 @@
 # Choose the plugins of a bus
 
+> **Level F.** Read first: [Guide](guide.md#1-create-a-bus) steps 1 and 2.
+
 Optional. A plugin adds one thing to a bus: fields on `ctx`, a method, a registry of handlers, diagnostics. Read this page when you want to know which plugins exist, what each one gives you, and in what order to use them. Skip it for a small bus: `createBus()` alone is enough.
 
 ## On this page
@@ -56,7 +58,7 @@ These four cover what most apps need: shared dependencies, effects, handlers and
 | ------ | ----------------- | ------ | ----------------- |
 | [`contextPlugin`](#put-a-store-or-a-client-on-every-handler-contextplugin) | Your own fields (a store, a client, a logger) on `ctx` of every handler. | `nanoeffects` | The same bus, typed with the fields |
 | [`effectsPlugin`](#use-race-and-delay-without-ctx-effectsplugin) | `race`, `all`, `delay` and your own effects on `ctx`, called without passing `ctx`. | `nanoeffects/effects` | The same bus, typed with the effects |
-| [`actionsPlugin`](#let-a-test-replace-a-handler-commandsplugin) | The handlers of actions in a registry, so a test can bind or replace one. | `nanoeffects/actions` | The registry `{ run, handle }` |
+| [`actionsPlugin`](#bind-or-replace-a-handler-actionsplugin) | The handlers of actions in a registry, so a test can bind or replace one. | `nanoeffects/actions` | The registry `{ run, handle }` |
 | [`modulePlugin`](#mount-a-domain-as-one-unit-moduleplugin) | A module: the listeners, handlers and tasks of one domain, mounted and unmounted with one call. | `nanoeffects/actions` | The app `{ mount, unmount, isMounted, dispose, actions, createModule }` |
 
 ### Put a store or a client on every handler: `contextPlugin`
@@ -174,7 +176,7 @@ import { createBus } from "nanoeffects";
 import { createAction } from "nanoeffects/actions";
 import { signalPlugin } from "nanoeffects/signal";
 
-// signalPlugin — emit takes { signal } for an action, a job or an action
+// signalPlugin — emit takes { signal } for an action or a job
 const bus = createBus().use(signalPlugin());
 
 const getUser = createAction("user/get", (id, { signal }) => api.getUser(id, { signal }));

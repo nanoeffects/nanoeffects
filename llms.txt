@@ -15,6 +15,7 @@ Rules that generated code often gets wrong:
 ## Start here
 
 - [Guide](docs/guide.md): bus, handler context, policies, effects, actions and modules, step by step
+- [Recipes](docs/recipes.md): find the page for your problem (a race, a double submit, a flaky network, a store, a framework), simplest first
 - [Start a project from a template](docs/starter.md): `npm create nanoeffects` makes a Vite project (`vanilla`, `react`, `vue-ts`, `svelte-ts` and others, in JavaScript or TypeScript) with a bus, `debounce` and `latest`
 - [Why nanoeffects exists](docs/motivation.md): logic and side effects outside UI components as plain async functions, no dependencies and no global state for SDKs and Module Federation, and why not redux-saga, RxJS, Redux or Effector
 - [Package entries](docs/package.md): which import holds what

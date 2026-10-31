@@ -1,5 +1,7 @@
 # Cancel stale requests and fix race conditions
 
+> **Level B.** Read first: the bus from the [README](../README.md).
+
 Read this page if an older response can overwrite a newer one: a search box that shows the results of the previous query, a filter that flickers, a form that submits twice. It shows the cause, the fix with `latest`, and how to add a pause, a retry and a timeout. It needs only the bus from the [README](../README.md).
 
 ## See the problem

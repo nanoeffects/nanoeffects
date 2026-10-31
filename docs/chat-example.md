@@ -1,5 +1,7 @@
 # Build a chat with entities, features, modules and a small server
 
+> **Level D.** Read first: [Actions, jobs and modules](actions.md).
+
 Use this page when your app has several features that react to each other and you want to see where each piece of logic goes. The example is a chat with rooms, a history that loads, messages that can fail to send, a search across all rooms, and new messages that arrive on their own. A small Fastify server in the example answers every request, and it misbehaves on a known schedule, so each problem on this page really happens.
 
 It is a level D example. Start with [Actions, jobs and modules](actions.md) for the API, or with the `domains-ts` template in [Start a project from a template](starter.md#start-with-domains) for a smaller project.

@@ -1,5 +1,7 @@
 # Build a sign-up form in React
 
+> **Level B.** Read first: [Guide](guide.md#1-create-a-bus) steps 1 to 3.
+
 Use this page when a React screen starts requests on user input and you need them not to race: a username check while typing, a submit button, a flaky network. It builds one registration form. The bus lives outside React; the component only subscribes to it.
 
 You need a React project and `nanoeffects` installed. The form talks to your own client, `api` below: replace it with your requests.

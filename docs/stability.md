@@ -1,5 +1,7 @@
 # Know what is stable
 
+> **Level F.** Read first: [Package entries](package.md).
+
 Use this page to decide what you can rely on. It says which imports are stable, what counts as a breaking change, which versions are supported, and which call forms stay.
 
 ## See which entries are stable
@@ -16,10 +18,10 @@ A stable entry follows the rules below. An unstable entry can change in any mino
 | `nanoeffects/trace` | Unstable: the tools | `createTracer`, `consoleLogger`, `performanceLogger`, `createTraceRecorder`, `reduxDevtools` and their option types |
 | `nanoeffects/scope` | Unstable | `scopePlugin`, `effect` |
 | `nanoeffects/match` | Unstable | `matchPlugin` |
-| `nanoeffects/signal` | Unstable | `signalPlugin` |
+| `nanoeffects/signal` | Unstable | `signalPlugin`, `fromSignal` |
 | `nanoeffects/context` | Unstable | `contextPlugin` |
 | `nanoeffects/oop` | Unstable | `Emitter`, `extendBus`, `On`, `Once`, `WithBus`, `disposeBus` |
-| `nanoeffects/observable` | Unstable | `createObserve`, `Subject` |
+| `nanoeffects/observable` | Unstable | `createObserve`, `Subject`, `events` |
 | `nanoeffects/redux` | Unstable | `createEffectsMiddleware` |
 | `nanoeffects/react` | Unstable | `reactPlugin`, `usePolicy` |
 | `nanoeffects/svelte` | Unstable | `sveltePlugin` |

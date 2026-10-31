@@ -1,5 +1,7 @@
 # Coming from redux-saga
 
+> **Level E, for readers who know redux-saga.** Read first: [Guide](guide.md#1-create-a-bus) steps 1 to 3.
+
 Read this page if you know redux-saga and want to find the same job in nanoeffects. It maps the names, shows one saga rewritten, and lists what has no equivalent. It does not teach the library: start with the [Guide](guide.md).
 
 ## Find the equivalent

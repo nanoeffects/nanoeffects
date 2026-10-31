@@ -1,5 +1,7 @@
 # Use nanoeffects in a Svelte app
 
+> **Level B.** Read first: [Guide](guide.md#1-create-a-bus) steps 1 to 3.
+
 Use this page when your app is in Svelte 5 and a component has to show the result of an event. `sveltePlugin` gives you one function for that, `eventStore`. To see it in a running project, start from the `svelte-ts` template in [Start a project from a template](starter.md#start-with-svelte).
 
 You need Svelte 5 or newer and `nanoeffects` installed. If you do not know what the bus is, read the [Guide](guide.md) first.

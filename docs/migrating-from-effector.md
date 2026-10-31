@@ -1,5 +1,7 @@
 # Coming from Effector
 
+> **Level E, for readers who know Effector.** Read first: [Guide](guide.md#1-create-a-bus) steps 1 to 3.
+
 Read this page if your project uses Effector and you want to know where nanoeffects fits. They overlap in one place: events that start effects. Effector also holds state; nanoeffects does not. It maps the names, shows one effect both ways, and lists what has no equivalent.
 
 ## On this page

@@ -1,5 +1,7 @@
 # Build a chat widget that listens only while it is open
 
+> **Level D.** Read first: [Guide](guide.md#1-create-a-bus) steps 1 to 3.
+
 Use this page when a site has a chat with a bot behind a launcher button, and the chat must cost nothing while it is closed. Closed means no subscriptions on the bus, no polling, no keyboard listener, and no request still running. Opening turns all of it on, and closing turns all of it off in one call.
 
 The code is in [`examples/chat-widget`](../examples/chat-widget): plain DOM and TypeScript, a fake bot in the browser, no server. Run it on [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/chat-widget), or on your machine:

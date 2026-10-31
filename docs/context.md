@@ -1,5 +1,7 @@
 # Put your own fields on every task
 
+> **Level D.** Read first: [Guide](guide.md#1-create-a-bus) steps 1 and 2.
+
 Optional: put a store, client, or logger on every task. Skip until many handlers need the same dependency.
 
 ## Pass values at runtime
@@ -15,7 +17,7 @@ bus.on("save", (draft, { store }) => {
 });
 ```
 
-That is enough in JavaScript. The fields appear on handlers, `ctx.run`, `ctx.on`, actions, modules, and child tasks of effects and policies.
+Here `store` is your own object: a store, an API client, a logger, anything. That is enough in JavaScript. The fields appear on handlers, `ctx.run`, `ctx.on`, actions, modules, and child tasks of effects and policies.
 
 Library fields (`signal`, `emit`, `run`, …) win on name clashes. `context` may be a function `(task) => fields` when the value depends on the task.
 

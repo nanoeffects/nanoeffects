@@ -1,5 +1,7 @@
 # Use nanoeffects next to RxJS
 
+> **Level E, for readers who know RxJS.** Read first: [Guide](guide.md#1-create-a-bus) steps 1 to 3.
+
 Read this page if your project uses RxJS and you wonder what nanoeffects takes over. It does not replace RxJS. The two split the work: RxJS shapes streams of values, nanoeffects runs the side effects that events start. It maps the operators, shows a search box and a polling loop both ways, and lists what stays in RxJS.
 
 ## Split the work

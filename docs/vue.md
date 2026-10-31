@@ -1,5 +1,7 @@
 # Use nanoeffects in a Vue app
 
+> **Level B.** Read first: [Guide](guide.md#1-create-a-bus) steps 1 to 3.
+
 Use this page when your app is in Vue 3 and a component has to talk to the bus: tell it that a value changed, and show the result of an event. `vuePlugin` gives you two functions for that. To see them in a running project, start from the `vue-ts` template in [Start a project from a template](starter.md#start-with-vue).
 
 You need Vue 3.3 or newer and `nanoeffects` installed. If you do not know what the bus is, read the [Guide](guide.md) first.

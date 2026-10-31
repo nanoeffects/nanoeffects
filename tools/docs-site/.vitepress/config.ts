@@ -1,7 +1,8 @@
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitepress";
 import { repositoryLink } from "./links";
-import { sidebar } from "./sidebar";
+import { ruSidebar, sidebar } from "./sidebar";
+import { slug } from "./slug";
 
 export default defineConfig({
 	title: "nanoeffects",
@@ -17,16 +18,60 @@ export default defineConfig({
 	vite: {
 		publicDir: fileURLToPath(new URL("../public", import.meta.url)),
 	},
-	rewrites: { "README.md": "index.md" },
+	rewrites: { "README.md": "index.md", "ru/README.md": "ru/index.md" },
+	locales: {
+		root: { label: "English", lang: "en" },
+		ru: {
+			label: "Русский",
+			lang: "ru-RU",
+			link: "/ru/",
+			description:
+				"Бизнес-логика и побочные эффекты вне UI-компонентов, в виде обычных async-функций.",
+			themeConfig: {
+				outline: { label: "На странице" },
+				docFooter: { prev: "Назад", next: "Дальше" },
+				sidebarMenuLabel: "Меню",
+				returnToTopLabel: "Наверх",
+				langMenuLabel: "Язык",
+				darkModeSwitchLabel: "Тема",
+				lightModeSwitchTitle: "Светлая тема",
+				darkModeSwitchTitle: "Тёмная тема",
+			},
+		},
+	},
 	themeConfig: {
 		logo: "/logo.png",
-		sidebar,
-		search: { provider: "local" },
+		// the right-hand outline lists the ### headings too (every policy and effect)
+		outline: [2, 3],
+		sidebar: { "/ru/": ruSidebar, "/": sidebar },
+		search: {
+			provider: "local",
+			options: {
+				locales: {
+					ru: {
+						translations: {
+							button: { buttonText: "Поиск", buttonAriaLabel: "Поиск" },
+							modal: {
+								noResultsText: "Ничего не найдено",
+								resetButtonTitle: "Сбросить",
+								footer: {
+									selectText: "выбрать",
+									navigateText: "перемещаться",
+									closeText: "закрыть",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 		socialLinks: [
 			{ icon: "github", link: "https://github.com/nanoeffects/nanoeffects" },
 		],
 	},
 	markdown: {
+		// the ids of the headings, as GitHub makes them
+		anchor: { slugify: slug },
 		config(md) {
 			md.core.ruler.push("repository-links", (state) => {
 				const page: string = state.env.relativePath ?? "index.md";

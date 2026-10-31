@@ -1,5 +1,7 @@
 # Stop work on a server when the client leaves
 
+> **Level C.** Read first: [Guide](guide.md#1-create-a-bus) steps 1 to 3.
+
 Read this page if you run a Node server (the examples use [Fastify](https://fastify.dev)) and want the work for a request, a socket or a queued job to stop when nobody needs it. It shows one pattern in three places: a request, a WebSocket and a worker.
 
 You need Node 18 or newer, `fastify` and `nanoeffects`. `api` below is your own client for another service: replace it with your requests.

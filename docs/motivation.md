@@ -1,6 +1,8 @@
 # Why nanoeffects exists
 
-Read this page to see why the library exists and when to pick it. The main reason is to take business logic and side effects out of React, Vue or Svelte components and write them as plain `async` functions, with cancellation, retries and a context for dependencies. The second part of the page is for SDKs, core libraries and micro-frontend shells, where a shared dependency is a shared risk. It does not teach the API: start with the [Guide](guide.md).
+> **Level A.** Read first: [README](../README.md).
+
+Read this page to see why the library exists and when to pick it. The main reason is to take business logic and side effects out of React, Vue or Svelte components and write them as plain `async` functions, with cancellation, retries and a context for dependencies. The second part of the page is for SDKs, core libraries and micro-frontend shells, where a shared dependency is a shared risk. It does not teach the API: start with the [Guide](guide.md). Not sure you need the library at all? Jump to [When this is not the right tool](#when-this-is-not-the-right-tool).
 
 ## The main reason: logic outside the UI
 
@@ -44,4 +46,4 @@ A library that is **not** a shared singleton cannot break this way. nanoeffects 
 
 ## When this is not the right tool
 
-nanoeffects holds no state. If you need a store, keep Redux, Zustand or Effector and let the bus run the async work: [Stores](stores.md). If you already have streams everywhere, keep RxJS: [Use nanoeffects next to RxJS](migrating-from-rxjs.md).
+A small app with one or two requests does not need it: `fetch` in an event handler is enough until the first race appears. nanoeffects holds no state. If you need a store, keep Redux, Zustand or Effector and let the bus run the async work: [Stores](stores.md). If you already have streams everywhere, keep RxJS: [Use nanoeffects next to RxJS](migrating-from-rxjs.md).
