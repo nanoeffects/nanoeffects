@@ -310,7 +310,7 @@ export const SearchService = extendBus(bus, SearchServiceBase);
 
 Things to know:
 
-- The event is a name, an action creator or a command, as for `bus.on`. For a creator or a command the payload of the method is checked against it.
+- The event is a name or an action creator, as for `bus.on`. For a creator the payload of the method is checked against it.
 - The second argument, `wrap`, takes the bound handler and returns the one to subscribe: `latest`, or `(handler) => debounce(300, handler)`. A policy needs it: `latest(this.search)` wraps the function without `this`, and the bound handler is what `wrap` gets.
 - The subscriptions are made right after the constructor of `Base`. An event that is emitted inside that constructor does not reach them.
 - A subclass inherits them. A method that a subclass overrides is subscribed only if the override is decorated.

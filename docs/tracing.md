@@ -132,9 +132,9 @@ Every event of a task below another one has `rootId`, the id of the root of the 
 
 **Problem.** A flow such as a checkout has several roots (a click, a timer, a store) and many branches. Parent ids give a tree, but you want to filter the log by the flow.
 
-**When.** One business flow runs through several commands, and you read the log by flow.
+**When.** One business flow runs through several actions, and you read the log by flow.
 
-Give the flow a `traceGroupId` in the scope of the command, the job or the action that starts it. Every task that it starts through `ctx.emit` or `ctx.run` has the same `traceGroupId`, and so does every trace event of those tasks. A task that declares its own `traceGroupId` uses it for itself and for what it starts.
+Give the flow a `traceGroupId` in the scope of the action or the job that starts it. Every task that it starts through `ctx.emit` or `ctx.run` has the same `traceGroupId`, and so does every trace event of those tasks. A task that declares its own `traceGroupId` uses it for itself and for what it starts.
 
 ```js
 import { createBus } from "nanoeffects";
@@ -202,7 +202,7 @@ The names work wherever an event or a listener is made:
 | A listener, `bus.on` and `bus.once` | `{ traceId }` as the third argument |
 | A listener of a module or of an instance of `extendBus` | the same third argument of its `on` and `once` |
 | A method with `@On` or `@Once` | `{ traceId }` in the decorator |
-| A command, a job or an action | `traceGroupId` in its scope |
+| An action or a job | `traceGroupId` in its scope |
 
 ## Turn the names off
 

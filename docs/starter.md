@@ -46,7 +46,7 @@ Pass `--template` to skip the question. With npm, put `--` before the option.
 | `react` | The same handler with `useEmitter` and `useEventState`, and `usePolicy` for a debounced save in a component | You build a React app |
 | `vanilla-ts` | The `vanilla` app in TypeScript | You want the compiler to check events and handlers |
 | `react-ts` | The `react` app in TypeScript | You build a React app in TypeScript |
-| `domains-ts` | Commands, a job and modules, with the logic split into domain folders and React as a thin layer | You build an app with more than one feature and want the logic off the UI |
+| `domains-ts` | Actions with handlers, a job and modules, with the logic split into domain folders and React as a thin layer | You build an app with more than one feature and want the logic off the UI |
 | `vue-ts` | The `react-ts` app in Vue 3, with `watchEmitter` and `useEventRef` from `nanoeffects/vue` | You build a Vue 3 app |
 | `svelte-ts` | The `react-ts` app in Svelte 5, with `eventStore` from `nanoeffects/svelte` | You build a Svelte app |
 
@@ -94,13 +94,13 @@ npm create nanoeffects@latest my-app -- --template domains-ts
 | ---- | --- |
 | `src/bus.ts` | Creates the bus. It imports no events and no domain. |
 | `src/app.ts` | Mounts the domains with `modulePlugin`. |
-| `src/domains/catalog/` | Searching products: `catalog.ts` (events and a command), `catalog-handlers.ts` (`debounce` and `latest`), `catalog-module.ts`. |
+| `src/domains/catalog/` | Searching products: `catalog.ts` (events and an action with a handler), `catalog-handlers.ts` (`debounce` and `latest`), `catalog-module.ts`. |
 | `src/domains/checkout/` | Placing an order: `checkout.ts` (a job), `checkout-handlers.ts` (`leading` and `retry`), `checkout-store.ts` (state written from the job's outcomes), `checkout-module.ts`. |
 | `src/ui/` | The components. None of them calls the fake server in `src/api.ts`. |
 
 For a bigger example, a chat in which parts react to each other, see [Build a chat with entities, features, modules and a small server](chat-example.md). It has more layers than `domains-ts`: when domains must react to each other, it keeps them from importing each other by splitting them into entities and features.
 
-The commands, jobs and modules themselves are explained in [Actions, jobs and modules](actions.md). The template keeps found products in a Context provider with one `useEventState`, and the order state in a store of its own: `useEventState` is [not a store](react.md#show-the-last-value-of-an-event-as-state).
+The actions, jobs and modules themselves are explained in [Actions, jobs and modules](actions.md). The template keeps found products in a Context provider with one `useEventState`, and the order state in a store of its own: `useEventState` is [not a store](react.md#show-the-last-value-of-an-event-as-state).
 
 ## Read the files
 

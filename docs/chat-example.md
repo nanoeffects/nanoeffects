@@ -48,7 +48,7 @@ The code is in layers, and a file imports only from the layers below it. The com
 
 That rule is why `show-history` exists. Selecting a room must load its history, but `room` does not know `message` and `message` does not know `room`. The feature `show-history` is the one place that knows both: it listens to `rooms/selected` and starts the job `messages/loadHistory`. The same goes for a message that arrives: `receive-messages` emits `incoming/received`, an event that the `message` entity owns and listens to.
 
-A folder has its events (`room.ts`, which imports no bus), its work (`room-handlers.ts`), the state it keeps (`room-store.ts`) and a module (`room-module.ts`) that wires them. Another layer reaches an entity through its events and commands, never through its handlers or its store. Events and commands both live in the events file. An event (`createAction` with no handler) says that something happened, and any feature may listen: `rooms/selected` is heard by two. A command (`createAction` with a handler) is an order with exactly one handler, as `search/openResult` and `messages/mark` are. The handler is given to `createAction`, so the command works wherever it is called and can return a result, and the module binds it with `module.use` for as long as it is mounted. A job is a command that also sends its outcomes, but its handler is bound in the module (`module.handle`): a job usually runs under a policy, and the type of its outcomes is exact only when the handler is not part of the type.
+A folder has its events (`room.ts`, which imports no bus), its work (`room-handlers.ts`), the state it keeps (`room-store.ts`) and a module (`room-module.ts`) that wires them. Another layer reaches an entity through its actions, never through its handlers or its store. All actions live in the events file. An action with no handler says that something happened, and any feature may listen: `rooms/selected` is heard by two. An action with a handler is an order with exactly one handler, as `search/openResult` and `messages/mark` are. The handler is given to `createAction`, so the action works wherever it is called and can return a result, and the module binds it with `module.use` for as long as it is mounted. A job is an action with a handler that also sends its outcomes, but its handler is bound in the module (`module.handle`): a job usually runs under a policy, and the type of its outcomes is exact only when the handler is not part of the type.
 
 The layers come from [Feature-Sliced Design](https://feature-sliced.design/), reduced to the three that an app of this size needs.
 
@@ -64,7 +64,7 @@ A job sends `pending` when its handler starts and exactly one of `success`, `fai
 // message.js
 import { createJob } from "nanoeffects/actions";
 
-// createJob — a command that also sends pending, success, fail and cancel
+// createJob — an action with a handler that also sends pending, success, fail and cancel
 export const loadHistory = createJob("messages/loadHistory");
 ```
 
@@ -195,7 +195,7 @@ export const goToResult = async (hit, ctx) => {
     ctx.emit("rooms/selected", hit.roomId);
     await loaded;
   }
-  // ctx.emit with a command — the message entity marks the message
+  // ctx.emit with an action that has a handler — the message entity marks the message
   ctx.emit(markMessage(hit.id));
 };
 ```
@@ -247,6 +247,6 @@ Each entity and each feature that has state keeps it in a [Zustand](https://zust
 
 ## Where to go next
 
-- The API of commands, jobs and modules: [Actions, jobs and modules](actions.md).
+- The API of actions, jobs and modules: [Actions, jobs and modules](actions.md).
 - Policies such as `latest` and `queue`: [Policies](policies.md). Effects such as `allSettled`, `take` and `poll`: [Effects](effects.md).
 - A smaller project with two domains: [Start with domains](starter.md#start-with-domains). Its two domains do not talk to each other, so it needs no layers.
