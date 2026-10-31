@@ -19,7 +19,7 @@ New project: `npm create nanoeffects@latest my-app` ([Docs](docs/starter.md)). T
 
 ## Create a bus
 
-This is how the project works inside: every handler is an `on` listener and every message an `emit`. You rarely need to think about it, because policies, actions and modules (below) do the work. Full API of the bus (`once`, `off`, options): [Guide](docs/guide.md#1-create-a-bus).
+The project is built on the event emitter pattern, also known as [publish–subscribe](https://en.wikipedia.org/wiki/Publish%E2%80%93subscribe_pattern): every handler is an `on` listener and every message an `emit`. You rarely need to think about it, because policies, actions and modules (below) do the work. Full API of the bus (`once`, `off`, options): [Guide](docs/guide.md#1-create-a-bus).
 
 ```js
 import { createBus } from "nanoeffects";
