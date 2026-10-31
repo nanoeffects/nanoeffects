@@ -19,6 +19,7 @@ Code for every guide step: [`examples/guide.ts`](../examples/guide.ts) (type-che
 | Already on Redux / Zustand / MobX / Pinia | [Stores](stores.md) |
 | A Node server (Fastify) whose work must stop when the client leaves | [Stop work on a server](server.md) |
 | A React form with async checks | [Build a sign-up form in React](react.md) |
+| A site widget that listens only while open | [Build a chat widget](chat-widget.md) |
 | A Vue app | [Use nanoeffects in a Vue app](vue.md) |
 | A Svelte app | [Use nanoeffects in a Svelte app](svelte.md) |
 | Old responses overwrite new ones | [Cancel stale requests](cancel-stale-requests.md) |

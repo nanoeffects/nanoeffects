@@ -1,0 +1,15 @@
+{
+	"name": "nanoeffects-chat-widget",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "vite"
+	},
+	"dependencies": {
+		"nanoeffects": "^0.27.0"
+	},
+	"devDependencies": {
+		"typescript": "^5.9.0",
+		"vite": "^7.0.0"
+	}
+}

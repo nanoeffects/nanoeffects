@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>nanoeffects: a chat widget that listens only while it is open</title>
+		<style>
+			body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; }
+			#chat-launcher { position: fixed; right: 1rem; bottom: 1rem; padding: 0.75rem 1rem; border-radius: 2rem; border: 0; background: #2563eb; color: white; font-size: 1rem; cursor: pointer; }
+			section.chat { position: fixed; right: 1rem; bottom: 4.5rem; width: 20rem; display: flex; flex-direction: column; gap: 0.5rem; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 0.75rem; background: white; box-shadow: 0 8px 24px rgb(0 0 0 / 0.12); }
+			.lines { height: 14rem; overflow-y: auto; }
+			.lines p { margin: 0.25rem 0; }
+			.user { color: #1d4ed8; }
+			.operator { color: #15803d; }
+			.typing { margin: 0; color: #64748b; font-size: 0.875rem; }
+			form { display: flex; gap: 0.5rem; }
+			input { flex: 1; padding: 0.4rem; }
+			#status { font-size: 0.875rem; color: #64748b; }
+		</style>
+	</head>
+	<body>
+		<h1>A chat widget that listens only while it is open</h1>
+		<p>Click the button, write to the bot, and close the chat while it is answering: the request is aborted and no line appears. <kbd>Escape</kbd> closes it too.</p>
+		<p id="status">The chat is closed: nothing is subscribed, nothing is polled.</p>
+		<button id="chat-launcher" type="button">Chat</button>
+		<script type="module" src="./src/main.ts"></script>
+	</body>
+</html>
