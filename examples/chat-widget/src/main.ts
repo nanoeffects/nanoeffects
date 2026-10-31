@@ -40,7 +40,10 @@ const open = () => {
 	// mount — the subscriptions, the polling and the Escape listener of the module start
 	const stopModule = app.mount(chatModule);
 	const stopPanel = renderPanel(document.body);
+	// the launcher listens for Escape only while the chat is open: nothing sends it otherwise
+	const stopEscape = bus.on(closeRequested, () => close?.());
 	close = () => {
+		stopEscape();
 		stopPanel();
 		stopModule(); // everything the module started ends, a running request included
 		close = null;
@@ -58,8 +61,5 @@ button?.addEventListener("click", () => {
 		open();
 	}
 });
-
-// the launcher stays subscribed: it must hear Escape to close the chat
-bus.on(closeRequested, () => close?.());
 
 show("The chat is closed: nothing is subscribed, nothing is polled.");

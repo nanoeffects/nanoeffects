@@ -30,7 +30,7 @@ It is a level D example: the logic lives in one module, and the page only mounts
 | `src/chat-handlers.ts` | `askBot` (`timeout` and `retry` inside) and `watchOperator` (`poll`): plain `async` functions that know nothing about the page. |
 | `src/chat-module.ts` | The list of what is alive while the chat is open. |
 | `src/panel.ts` | The view: shows the lines, sends the texts, returns one function that removes it. |
-| `src/main.ts` | The launcher: the only file that knows both the module and the panel. |
+| `src/main.ts` | The launcher: the only file that knows both the module and the panel; it listens for `closeRequested` only while the chat is open. |
 
 ## Bind everything in one module
 
@@ -80,7 +80,7 @@ Three details that make the cleanup complete:
 
 ## Open and close from the launcher
 
-`app.mount` returns the function that unmounts the module. The launcher puts it together with the one that removes the panel.
+`app.mount` returns the function that unmounts the module. `bus.on` returns the one that unsubscribes. The launcher puts them together with the one that removes the panel into a single `close`.
 
 <!-- docs-check: skip - the other files of the example are in examples/chat-widget -->
 ```js
@@ -96,7 +96,10 @@ let close = null; // set while the chat is open
 const open = () => {
   const stopModule = app.mount(chatModule); // subscriptions, polling and Escape start
   const stopPanel = renderPanel(document.body);
+  // the module emits closeRequested on Escape; nothing does while the chat is closed
+  const stopEscape = bus.on(closeRequested, () => close?.());
   close = () => {
+    stopEscape();
     stopPanel();
     stopModule(); // everything the module started ends, a running request included
     close = null;
@@ -110,18 +113,15 @@ button.addEventListener("click", () => {
     open();
   }
 });
-
-// the launcher stays subscribed: it must hear Escape to close the chat
-bus.on(closeRequested, () => close?.());
 ```
 
-The launcher's own `bus.on` is the only subscription that lives while the chat is closed, and it does nothing then: `close` is `null`.
+While the chat is closed the launcher holds no subscription at all: it only has the click listener of the button, which is a DOM listener, not a listener of the bus.
 
 ## Check that closing cleans up
 
 1. Open the chat and send a text. The bot answers after about a second. Every third question fails, and the retry asks again.
 2. Send a text and close the chat before the answer arrives. No line appears, also when you open the chat again.
-3. Look at the box "Listeners on the bus": it shows `bus.get(event).length` for four events and updates when the chat opens or closes. Closed: only `chat/closeRequested` has a listener (the launcher). Open: `chat/sent`, `chat/messageAdded` and `chat/typing` have one each as well. That is the proof that nothing is left subscribed.
+3. Look at the box "Listeners on the bus": it shows `bus.get(event).length` for four events and updates when the chat opens or closes. Closed: every event shows `0`, and so does "all events". Open: each of the four has one listener, and "all events" is `4`. That is the proof that nothing is left subscribed.
 4. Wait 10 s with the chat closed. The operator is not polled: no line from the operator appears.
 5. Press `Escape` with the chat closed. Nothing happens. Open the chat and press it again: it closes.
 6. Open the chat again. The old lines are back, and the polling runs.
