@@ -2,7 +2,7 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
-## Unreleased
+## 0.27.0
 
 ### Breaking
 - One creator for events and commands: `createCommand` is removed. `createCommand(type, fn, scope)` becomes `createAction(type, fn, scope)`, and `createCommand<Payload, Result>(type)` becomes `createAction<Call<Payload, Result>>(type)`. An action made without a handler is an event: it no longer throws `MissingHandlerError` (a job without a handler still does). [Docs](docs/actions.md)
