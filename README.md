@@ -28,7 +28,7 @@ const bus = createBus(); // event bus; each handler call is a task
 
 // two independent listeners of one event; on returns the function that unsubscribes
 const unbind = bus.on("cart/added", (item) => analytics.track("add", item));
-bus.on("cart/added", (item) => badge.update(item));
+bus.on("cart/added", (item) => console.log("added", item.id));
 
 bus.emit("cart/added", { id: "p1" }); // both listeners run
 unbind(); // stop tracking
