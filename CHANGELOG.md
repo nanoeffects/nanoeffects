@@ -12,6 +12,7 @@ How to read an entry: **Breaking** needs a change in your code or setup, **Chang
 - `events(bus, event, { signal, buffer, overflow })` from `nanoeffects/observable` reads an event in a `for await` loop. It ends with the signal or the task, and `buffer` bounds a slow loop. [Docs](docs/observable.md#read-an-event-with-a-for-await-loop)
 - `fromSignal(make)` from `nanoeffects/signal` makes a field of `contextPlugin` from the signal of each task, when the task reads it: a client that stops with the task. [Docs](docs/context.md#build-a-field-from-the-signal-of-each-task)
 - Recipes for React Query, SWR and RTK Query: a client from `fromSignal`, a live stream into the cache, and a refetch on a bus event. [Docs](docs/query-libraries.md)
+- `createTraceRecorder({ capacity })` keeps only the last N trace events, so you can keep a short history in a running app and send it when something goes wrong. [Docs](docs/tracing.md#keep-the-last-events-for-an-incident)
 
 ## 0.28.0
 

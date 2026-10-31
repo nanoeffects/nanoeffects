@@ -1,13 +1,22 @@
 import type { TraceEvent, TraceLogger } from "../core/types";
 
 export type Recorder<E = Record<string, unknown>> = TraceLogger<E> & {
-	/** Every event received so far, in order. */
+	/**
+	 * The events received so far, oldest first. Without a `capacity` it is one
+	 * live array; with one, each read is a new array that is a snapshot.
+	 */
 	readonly events: TraceEvent<E>[];
 	clear: () => void;
 };
 
 /**
- * Trace logger that keeps events in memory; meant for tests.
+ * Trace logger that keeps events in memory. With no option it keeps all of
+ * them, for tests. With `capacity` it keeps the last events, to send when
+ * something goes wrong.
+ *
+ * `payload` and `error` are kept as they are, and can hold private data: cut
+ * what you send. An event has no time, and a `parentId` can name an event that
+ * was pushed out: read it as a root.
  *
  * @example
  * ```ts
@@ -17,22 +26,49 @@ export type Recorder<E = Record<string, unknown>> = TraceLogger<E> & {
  * bus.emit("search", "re");
  * bus.emit("search", "redux");
  * recorder.events.map((e) => e.phase); // ["start", "cancel", "start", "done"]
+ *
+ * const lastEvents = createTraceRecorder<Events>({ capacity: 500 });
  * ```
  */
-export const createTraceRecorder = <
-	E = Record<string, unknown>,
->(): Recorder<E> => {
-	const events: TraceEvent<E>[] = [];
+export const createTraceRecorder = <E = Record<string, unknown>>(
+	/** `capacity`: keep the last N events (a ring buffer); not a positive integer, or left out: keep all. */
+	options?: { capacity?: number },
+): Recorder<E> => {
+	const capacity = options?.capacity ?? 0;
+	const limit = Number.isInteger(capacity) && capacity > 0 ? capacity : 0;
+	const buffer: TraceEvent<E>[] = [];
+	let written = 0;
 
-	return Object.assign(
-		(event: TraceEvent<E>) => {
-			events.push(event);
-		},
-		{
-			events,
-			clear: () => {
-				events.length = 0;
-			},
-		},
-	);
+	const record = (event: TraceEvent<E>) => {
+		if (limit === 0) {
+			buffer.push(event);
+			return;
+		}
+		buffer[written % limit] = event;
+		written += 1;
+	};
+
+	const clear = () => {
+		buffer.length = 0;
+		written = 0;
+	};
+
+	const snapshot = () => {
+		const size = Math.min(written, limit);
+		const first = written > limit ? written % limit : 0;
+		const events: TraceEvent<E>[] = [];
+		for (let index = 0; index < size; index += 1) {
+			const event = buffer[(first + index) % limit];
+			if (event) {
+				events.push(event);
+			}
+		}
+		return events;
+	};
+
+	const recorder = Object.assign(record, { clear, events: buffer });
+	if (limit > 0) {
+		Object.defineProperty(recorder, "events", { get: snapshot });
+	}
+	return recorder;
 };

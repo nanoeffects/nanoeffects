@@ -15,6 +15,7 @@ Tracing is optional. A bus works the same without it, and it costs almost nothin
 - [Turn the names off](#turn-the-names-off)
 - [Use built-in loggers](#use-built-in-loggers)
   - [Cut volume in production](#cut-volume-in-production)
+  - [Keep the last events for an incident](#keep-the-last-events-for-an-incident)
   - [Configure Redux DevTools](#configure-redux-devtools)
   - [Write your own logger](#write-your-own-logger)
 - [Drop tracing from a build](#drop-tracing-from-a-build)
@@ -245,7 +246,7 @@ const bus = createBus({
 | `reduxDevtools()` | Sends the emits to Redux DevTools, and with `policies` the stages of the handlers as `type/effect/phase`; state is `{ running }` |
 | `consoleLogger()` | Prints one line per phase, indented by task depth |
 | `performanceLogger()` | User Timing measures for the browser Performance panel |
-| `createTraceRecorder()` | Keeps events in `recorder.events`, for tests |
+| `createTraceRecorder()` | Keeps events in `recorder.events`: all of them for tests, or with `{ capacity }` the last N ([see below](#keep-the-last-events-for-an-incident)) |
 
 ### Cut volume in production
 
@@ -261,7 +262,59 @@ createTracer(logger, {
 - `sample` is decided once per root task; every task below it follows, so a trace is never cut in the middle. Unsampled tasks cost almost nothing.
 - `filter` runs on each event before any logger sees it.
 
+### Keep the last events for an incident
+
+`createTraceRecorder()` with no option keeps every event, so a long session fills memory. That is fine in a test and wrong in a running app. Give it a `capacity` and it keeps only the last N events (a ring buffer): when something goes wrong, you still have what led up to it.
+
+<!-- docs-check: new -->
+
+```js
+// bus.js
+import { createBus } from "nanoeffects";
+import { createTraceRecorder, createTracer } from "nanoeffects/trace";
+
+// A logger that keeps the last 500 events and drops the older ones.
+export const recorder = createTraceRecorder({ capacity: 500 });
+
+// Feed the recorder from the tracer.
+const trace = createTracer(recorder);
+
+export const bus = createBus({ trace });
+```
+
+```js
+// incident.js
+import { recorder } from "./bus";
+
+// Keep what is safe to send. An event also has `payload` and `error`.
+const withoutPayload = ({ id, parentId, type, effect, phase }) => ({
+  id,
+  parentId,
+  type,
+  effect,
+  phase,
+});
+
+window.addEventListener("error", () => {
+  const events = recorder.events; // a snapshot, oldest event first
+  const safe = events.map(withoutPayload);
+  const body = JSON.stringify(safe);
+  navigator.sendBeacon("/api/incident", body);
+});
+```
+
+What to know before you send the events:
+
+- **`payload` and `error` can hold private data**: what a user typed, tokens, personal text. The recorder keeps them as they are and does not redact. Choose what to send, as `withoutPayload` does.
+- **There is no time on an event.** You get the order, not the duration. To add a time, wrap the recorder in a logger that stamps `performance.now()` on a copy of the event.
+- **An old `parentId` can point at an event that was pushed out.** When you build a tree from the events, treat an unknown `parentId` as a root.
+- **`recorder.events` is a snapshot with a `capacity`.** Each read builds a new array, so read it once at the moment you need it. Without a `capacity` it is one live array.
+- **A low `sample` thins the buffer.** `createTracer(recorder, { sample: 0.05 })` records 5% of root tasks, so the buffer may hold little when the incident comes. See [Cut volume in production](#cut-volume-in-production).
+- **A `capacity` that is not a positive integer** (`0`, a negative number, `NaN`) means no limit.
+
 ### Configure Redux DevTools
+
+<!-- docs-check: new -->
 
 Read-only (the bus owns no state, so there is no time travel). Does nothing when the extension is not installed. Has its own instance in the DevTools picker, apart from your store.
 
