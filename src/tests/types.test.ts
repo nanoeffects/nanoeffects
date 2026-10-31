@@ -122,6 +122,23 @@ describe("inference of handlers and policies", () => {
 		bus.once("search", (query: number) => query);
 	});
 
+	it("get gives the listeners of an event name and checks the name", () => {
+		const searchListeners = bus.get("search");
+		const anyListeners = bus.get("*");
+		const wrongName = () => {
+			// @ts-expect-error "searhc" is not an event of this bus
+			bus.get("searhc");
+		};
+
+		expectTypeOf(searchListeners.length).toBeNumber();
+		expectTypeOf(searchListeners[0]).toEqualTypeOf<
+			Task<string, Events> | undefined
+		>();
+		expectTypeOf(anyListeners.length).toBeNumber();
+		expectTypeOf(bus.get().length).toBeNumber();
+		expectTypeOf(wrongName).toBeFunction();
+	});
+
 	it("latest, leading, queue take the payload from the event", () => {
 		bus.on(
 			"loaded",

@@ -1,4 +1,4 @@
-import { isPromise, report } from "../utils";
+import { report } from "../utils";
 import type {
 	ActionCreator,
 	DataOf,
@@ -9,7 +9,7 @@ import type {
 import { createTask, currentEmitter, traceRun } from "./context";
 import { eventKey, eventPayload } from "./event";
 import type { EmitScope, WithFields, WithScope } from "./scope-types";
-import { anyEventType, createStore } from "./store";
+import { anyEventType, createStore, type Store } from "./store";
 import type { Tracer } from "./tracer";
 import type {
 	EventMap,
@@ -314,6 +314,24 @@ export interface Bus<E extends EventMap> {
 	 */
 	once: On<E>;
 	off: Off<E>;
+	/**
+	 * The listeners an event has right now, in the order they run: what `on`,
+	 * `once`, `ctx.on` and the `on` of a module registered, as the bus holds them
+	 * (a plugin may have wrapped a function, so compare the length, not the
+	 * functions). It takes the event name as a string, as the bus stores it, not
+	 * an action creator: use `creator.type`. `"*"` gives the any-event listeners,
+	 * which a named event does not include. The array is not changed afterwards: a later `on` or unbind
+	 * gives the next `get` a new one.
+	 *
+	 * @example
+	 * ```ts
+	 * const unbind = bus.on("saved", save);
+	 * bus.get("saved").length; // 1
+	 * unbind();
+	 * bus.get("saved").length; // 0
+	 * ```
+	 */
+	get: Store<E>["get"];
 	emit: Emit<E>;
 	/**
 	 * Calls `plugin` with the bus and returns what it returns: an api, a
@@ -398,18 +416,22 @@ export const createBus = <Events extends EventMap>(
 		events.remove(eventKey(event), fn);
 	};
 
+	// the context of a task made for an emitted action: one for each handler, one for a command
+	const taskOf = (action: Action<Events>) =>
+		createTask({
+			event: action,
+			bus,
+			tracer: options.trace,
+			parent: { ref: currentEmitter() },
+		}).ctx;
+
 	// runs one handler as a task; errors go to `onError` when there is one
 	const callHandler = (
 		fn: Task<EventPayload<Events>, Events>,
 		action: Action<Events>,
 	) => {
 		const { onError } = options;
-		const { ctx } = createTask({
-			event: action,
-			bus,
-			tracer: options.trace,
-			parent: { ref: currentEmitter() },
-		});
+		const ctx = taskOf(action);
 		if (!onError) {
 			fn(action.payload, ctx);
 			return;
@@ -423,8 +445,11 @@ export const createBus = <Events extends EventMap>(
 			}
 		};
 		try {
-			const result = fn(action.payload, ctx);
-			if (isPromise(result)) {
+			const result = fn(action.payload, ctx) as
+				| PromiseLike<unknown>
+				| undefined;
+			// a thenable is told apart by its `then`; nothing is allocated for any other result
+			if (typeof result?.then === "function") {
 				Promise.resolve(result).catch(fail);
 			}
 		} catch (error) {
@@ -452,12 +477,7 @@ export const createBus = <Events extends EventMap>(
 		}
 
 		if (command) {
-			const { ctx } = createTask({
-				event: action,
-				bus,
-				tracer: options.trace,
-				parent: { ref: currentEmitter() },
-			});
+			const ctx = taskOf(action);
 			const run = bus.actions?.run ?? callCommand;
 
 			return traceRun(ctx, "command", () => run(command, data, ctx));
@@ -465,14 +485,14 @@ export const createBus = <Events extends EventMap>(
 	};
 
 	const bus: Bus<Events> = {
+		get: events.get,
 		on,
-		once: once as On<Events>,
 		off: off as Off<Events>,
+		once: once as On<Events>,
 		emit: emit as Emit<Events>,
 		use: (plugin) => plugin(bus),
 		ctx: options.context,
 		trace: options.trace,
 	};
-
 	return bus;
 };

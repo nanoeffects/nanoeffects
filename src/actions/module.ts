@@ -340,6 +340,7 @@ export const modulePlugin =
 		// the modules keep their place ahead of them.
 		const hold = holdListeners(bus);
 		const emitted = bus.emit;
+		const read = bus.get;
 		type Running = {
 			root: ReturnType<typeof createTask<E>>;
 			apps: ReturnType<typeof mountEach<Module<E>>>;
@@ -379,6 +380,12 @@ export const modulePlugin =
 			return Reflect.apply(emitted, bus, args);
 		};
 		bus.emit = starting as Emit<E>;
+
+		// a `get` is a use of the bus too: the listeners held until now must be there when it reads
+		bus.get = ((...args: unknown[]) => {
+			start();
+			return Reflect.apply(read, bus, args);
+		}) as typeof bus.get;
 
 		// Nothing used the app by the end of this synchronous block: start it now. Every
 		// `bus.use` of the same block has run by then, so the plugins used after this one

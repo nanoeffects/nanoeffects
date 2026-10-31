@@ -16,12 +16,16 @@
 			form { display: flex; gap: 0.5rem; }
 			input { flex: 1; padding: 0.4rem; }
 			#status { font-size: 0.875rem; color: #64748b; }
+			#listeners { background: #f1f5f9; padding: 0.5rem 0.75rem; border-radius: 0.5rem; }
 		</style>
 	</head>
 	<body>
 		<h1>A chat widget that listens only while it is open</h1>
 		<p>Click the button, write to the bot, and close the chat while it is answering: the request is aborted and no line appears. <kbd>Escape</kbd> closes it too.</p>
-		<p id="status">The chat is closed: nothing is subscribed, nothing is polled.</p>
+		<p id="status"></p>
+		<h2>Listeners on the bus</h2>
+		<p>Read with <code>bus.get(event).length</code> each time the chat opens or closes.</p>
+		<pre id="listeners"></pre>
 		<button id="chat-launcher" type="button">Chat</button>
 		<script type="module" src="./src/main.ts"></script>
 	</body>

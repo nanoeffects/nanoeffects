@@ -434,6 +434,33 @@ const probes: Probe[] = [
 		},
 	},
 	{
+		id: "get lists a listener once, whatever the plugins wrap",
+		needs: [],
+		run: ({ bus }) => {
+			const unbind = bus.on("p/get", () => {});
+			bus.once("p/get", () => {});
+			const before = bus.get("p/get").length;
+			unbind();
+			bus.emit("p/get");
+
+			return before === 2 && bus.get("p/get").length === 0;
+		},
+	},
+	{
+		id: "get lists a predicate under the any-event key",
+		needs: ["match"],
+		run: ({ bus }) => {
+			const picks = (action: { type: string }) => action.type === "p/pick-get";
+			// the module of the probes may listen to "*" itself, so count against what is there
+			const base = bus.get("*").length;
+			const unbind = Reflect.apply(bus.on, bus, [picks, () => {}]);
+			const before = bus.get("*").length;
+			unbind();
+
+			return before === base + 1 && bus.get("*").length === base;
+		},
+	},
+	{
 		id: "a predicate, once and off work",
 		needs: ["match"],
 		run: ({ bus }) => {

@@ -121,9 +121,10 @@ The launcher's own `bus.on` is the only subscription that lives while the chat i
 
 1. Open the chat and send a text. The bot answers after about a second. Every third question fails, and the retry asks again.
 2. Send a text and close the chat before the answer arrives. No line appears, also when you open the chat again.
-3. Wait 10 s with the chat closed. The operator is not polled: no line from the operator appears.
-4. Press `Escape` with the chat closed. Nothing happens. Open the chat and press it again: it closes.
-5. Open the chat again. The old lines are back, and the polling runs.
+3. Look at the box "Listeners on the bus": it shows `bus.get(event).length` for four events and updates when the chat opens or closes. Closed: only `chat/closeRequested` has a listener (the launcher). Open: `chat/sent`, `chat/messageAdded` and `chat/typing` have one each as well. That is the proof that nothing is left subscribed.
+4. Wait 10 s with the chat closed. The operator is not polled: no line from the operator appears.
+5. Press `Escape` with the chat closed. Nothing happens. Open the chat and press it again: it closes.
+6. Open the chat again. The old lines are back, and the polling runs.
 
 `src/tests/chat-widget-example.test.ts` checks the same points without a browser.
 

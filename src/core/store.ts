@@ -12,6 +12,8 @@ export interface UnsubscribeTask<E extends EventMap> {
 
 export type Store<E extends EventMap> = {
 	get: {
+		/** Every listener of every event, in the order of the events. */
+		(): Task<DataOf<E[Keys<E>]>, E>[];
 		(key: AnyType): Task<DataOf<E[Keys<E>]>, E>[];
 		<K extends Keys<E>>(key: K): Task<DataOf<E[K]>, E>[];
 	};
@@ -61,21 +63,24 @@ export const createStore = <E extends EventMap>(): Store<E> => {
 		lists = {};
 	};
 
-	return {
-		get: (key: PropertyKey) => {
-			lists[key] ??= [...(events[key] ?? [])].flatMap(([task, count]) =>
-				Array(count).fill(task),
-			);
+	const get = (key?: PropertyKey): unknown[] => {
+		if (key === void 0) {
+			return Object.keys(events).flatMap(get);
+		}
+		lists[key] ??= [...(events[key] ?? [])].flatMap(([task, count]) =>
+			Array(count).fill(task),
+		);
 
-			return lists[key];
-		},
+		return lists[key];
+	};
+
+	return {
+		get,
 		add: (key: PropertyKey, task: unknown) => {
 			const tasks = change(key);
 			tasks.set(task, (tasks.get(task) ?? 0) + 1);
 
-			return () => {
-				remove(key, task);
-			};
+			return () => remove(key, task);
 		},
 		remove,
 		clear,

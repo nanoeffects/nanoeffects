@@ -54,6 +54,15 @@ describe("examples/chat-widget", () => {
 		expect(lines.map((line) => line.from)).toEqual(["user", "bot"]);
 	});
 
+	it("leaves no listener of the module when the chat is closed", () => {
+		expect(bus.get(messageSent.type)).toHaveLength(0);
+		stop = app.mount(chatModule);
+		expect(bus.get(messageSent.type)).toHaveLength(1);
+		stop();
+		stop = null;
+		expect(bus.get(messageSent.type)).toHaveLength(0);
+	});
+
 	it("ignores texts and Escape while it is closed", async () => {
 		bus.emit(messageSent("hello"));
 		press("Escape");
