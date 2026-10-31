@@ -16,7 +16,7 @@ they want a subscribe message sent in `onopen`, the rest of the example stays th
 All the logic is in `src/trades.ts`: one command that carries its handler.
 
 ```ts
-export const watchTrades = createCommand(
+export const watchTrades = createAction(
   "trades/watch",
   latest(retry(listen, { times: Number.POSITIVE_INFINITY, delay: pause })),
 );

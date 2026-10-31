@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createCommand } from "../actions";
+import { createAction } from "../actions";
 import { createBus } from "../core/bus";
 import { noPayload } from "../tests/test-helpers";
 import { createTraceRecorder } from "../trace/recorder";
@@ -19,8 +19,8 @@ describe("emitFrom", () => {
 	it("emits from a root task, and a command it emits is its child", async () => {
 		const recorder = createTraceRecorder();
 		const bus = createBus({ trace: createTracer(recorder) });
-		const save = createCommand("user/save", async (_: undefined) => 1);
-		bus.commands = {
+		const save = createAction("user/save", async (_: undefined) => 1);
+		bus.actions = {
 			run: (command, payload, ctx) =>
 				Reflect.apply(command, null, [payload, ctx]),
 		};
@@ -63,7 +63,7 @@ describe("emitFrom", () => {
 
 	it("gives the group to the root and to what it starts", async () => {
 		const { bus, recorder } = setup();
-		const save = createCommand("user/save", async (_: undefined) => 1);
+		const save = createAction("user/save", async (_: undefined) => 1);
 		bus.on("name/changed", async (_name, ctx) => {
 			await ctx.emit(save(noPayload));
 		});

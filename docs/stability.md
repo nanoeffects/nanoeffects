@@ -11,7 +11,7 @@ A stable entry follows the rules below. An unstable entry can change in any mino
 | `nanoeffects` | Stable | `createBus` and the types of a bus |
 | `nanoeffects/effects` | Stable | `retry`, `timeout`, `poll`, `take`, `delay`, `all`, `allSettled`, `race`, `backoff`, `cancellable`, `effectsPlugin` |
 | `nanoeffects/policies` | Stable | `latest`, `leading`, `debounce`, `throttle`, `queue`, `withPolicy` |
-| `nanoeffects/actions` | Stable | `createAction`, `createCommand`, `createJob`, `createModule` and their plugins |
+| `nanoeffects/actions` | Stable | `createAction`, `createJob`, `createModule` and their plugins |
 | `nanoeffects/trace` | Stable: the contract | `Tracer`, `Trace`, `TraceEvent`, `TraceLogger`, `Phase`, `EffectName` and `tracePlugin` |
 | `nanoeffects/trace` | Unstable: the tools | `createTracer`, `consoleLogger`, `performanceLogger`, `createTraceRecorder`, `reduxDevtools` and their option types |
 | `nanoeffects/scope` | Unstable | `scopePlugin`, `effect` |

@@ -43,12 +43,8 @@ describe("docs/guide.md", () => {
 		]);
 	});
 
-	it("8. a command needs a registered handler", async () => {
-		expect(await step8()).toEqual([
-			'No handler for command "user/get"',
-			"user 1",
-			'No handler for command "user/get"',
-		]);
+	it("8. a handler can be bound to an action later", async () => {
+		expect(await step8()).toEqual(["heard", "heard", "user 1", "heard"]);
 	});
 
 	it("9. a module is undone as a whole, with its commands", () => {

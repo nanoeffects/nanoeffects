@@ -1,6 +1,6 @@
-# Pin context fields to a command, an action, a module or a call
+# Pin context fields to an action, a module or a call
 
-Optional, for domain logic. Use it when one command needs its own client, one module its own logger, or one test its own fake, and a field on the whole bus ([context fields](context.md)) is too wide.
+Optional, for domain logic. Use it when one action needs its own client, one module its own logger, or one test its own fake, and a field on the whole bus ([context fields](context.md)) is too wide.
 
 A **scope** is a plain object. Every key goes on `ctx` as it is (`cache`, `api`, `logger`), except one: `$effects`. Its functions take `{ signal }` as the first parameter, like `retry(ctx, fn)`, and go on `ctx` bound to the task, so you call `ctx.fetchJson(url)` instead of `fetchJson(ctx, url)`.
 
@@ -19,21 +19,21 @@ import { scopePlugin } from "nanoeffects/scope";
 export const bus = createBus().use(scopePlugin());
 ```
 
-The bus is in one file and the commands and actions in files named after their domain, so the next example imports `bus` from here. Each section after it keeps its own `bus.js` and domain file, as if it were an app of its own.
+The bus is in one file and the actions in files named after their domain, so the next example imports `bus` from here. Each section after it keeps its own `bus.js` and domain file, as if it were an app of its own.
 
 - Without `scopePlugin` a scope is **ignored**: no error and no warning. If a field is missing from `ctx`, check this first.
 - Use it in any order with the other plugins: a scope wins over `effectsPlugin`, `contextPlugin` and `createBus({ context })`.
 
-## Give a command its own fields
+## Give an action its own fields
 
 <!-- docs-check: continue -->
 
 ```js
 // user.js
-import { createCommand } from "nanoeffects/actions";
+import { createAction } from "nanoeffects/actions";
 
-// createCommand — third argument is the scope of this command
-export const getUser = createCommand(
+// createAction — third argument is the scope of this action
+export const getUser = createAction(
   "user/get",
   (id, { api, cache }) => {
     // api and cache are on ctx for this command only
@@ -50,7 +50,7 @@ import { getUser } from "./user";
 const user = await bus.emit(getUser("1")); // the handler has api and cache
 ```
 
-The listeners of `"user/get"` get the same fields when the command is emitted, because the fields belong to the call.
+The listeners of `"user/get"` get the same fields when the action is emitted, because the fields belong to the call.
 
 ## Bind an effect to the task
 
@@ -58,14 +58,14 @@ An effect is a function with `{ signal }` as its first parameter. In `$effects` 
 
 ```js
 // feed.js
-import { createCommand } from "nanoeffects/actions";
+import { createAction } from "nanoeffects/actions";
 import { delay, race } from "nanoeffects/effects";
 
 // your own effect: first parameter is the task (only its signal is used)
 const fetchJson = (ctx, url) =>
   fetch(url, { signal: ctx.signal }).then((response) => response.json());
 
-export const loadFeed = createCommand(
+export const loadFeed = createAction(
   "feed/load",
   (url, { fetchJson, race, delay }) =>
     // race, delay, fetchJson — bound to this task: no ctx argument
@@ -111,9 +111,9 @@ export const bus = createBus().use(scopePlugin());
 
 ```js
 // user.js
-import { createCommand } from "nanoeffects/actions";
+import { createAction } from "nanoeffects/actions";
 
-export const getUser = createCommand(
+export const getUser = createAction(
   "user/get",
   (id, { api }) => api.getUser(id),
   { api },
@@ -134,7 +134,7 @@ await bus.emit(getUser("1"), { api: fakeApi });
 
 Rules for the second argument:
 
-- It works with an action or a command call (`emit(getUser("1"), scope)`, `ctx.emit(loaded(user), scope)`).
+- It works with the call of an action (`emit(getUser("1"), scope)`, `ctx.emit(loaded(user), scope)`).
 - It does not work with the string form: in `emit("user/get", payload)` the second argument is the payload.
 - It can replace `$effects` too: `{ $effects: { delay: instantDelay } }`.
 - Fields of the library (`signal`, `emit`, …) in it are ignored.
@@ -199,13 +199,13 @@ In `$effects` a function loses its first parameter, and TypeScript cannot keep a
 
 ```js
 // pick.js
-import { createCommand } from "nanoeffects/actions";
+import { createAction } from "nanoeffects/actions";
 import { effect } from "nanoeffects/scope";
 
 // effect — marks the function, so a scope binds it to the task; the editor keeps its generic
 const first = effect((ctx, items) => items[0]);
 
-export const pick = createCommand("pick", (items, { first }) => first(items), {
+export const pick = createAction("pick", (items, { first }) => first(items), {
   first, // a plain key of the scope, not an entry of `$effects`
 });
 ```
@@ -215,7 +215,7 @@ Call `effect` where you declare the function, as above, and not inline in the sc
 `Effect<F>` (TypeScript): declare how the effect looks **after** it is bound, and keep it in `$effects`.
 
 ```ts
-import { createCommand } from "nanoeffects/actions";
+import { createAction } from "nanoeffects/actions";
 import type { Effect } from "nanoeffects/effects";
 
 // First — checker-only: how a handler calls the effect (no ctx)
@@ -224,7 +224,7 @@ type First = <T>(items: T[]) => T;
 // Effect<First> — the function takes the task first and is typed as First once bound
 const first: Effect<First> = (ctx, items) => items[0];
 
-const pick = createCommand(
+const pick = createAction(
   "pick",
   (id: string, { first }) => first([id]), // string
   { $effects: { first } },
@@ -235,14 +235,14 @@ const pick = createCommand(
 
 ## Type the fields (optional)
 
-A handler of a command, job or module with a scope sees the fields of the scope in `ctx`, typed from the values you gave. You write no `WithContext`.
+A handler of an action, job or module with a scope sees the fields of the scope in `ctx`, typed from the values you gave. You write no `WithContext`.
 
 ```ts
-import { createCommand } from "nanoeffects/actions";
+import { createAction } from "nanoeffects/actions";
 
 type User = { id: string; name: string };
 
-const getUser = createCommand(
+const getUser = createAction(
   "user/get",
   async (id: string, ctx) => {
     ctx.cache; // Map<string, User>, from the scope below
@@ -260,7 +260,7 @@ const getUser = createCommand(
 ## Limits
 
 - No plugin, no scope: see [Turn scopes on](#turn-scopes-on).
-- The fields of the bus are not in the handler of a command made with `createCommand(…, scope)` unless you type `ctx` yourself; the fields of the scope are.
+- The fields of the bus are not in the handler of an action made with `createAction(…, scope)` unless you type `ctx` yourself; the fields of the scope are.
 - The string form of `emit` takes no scope.
 - `effect(fn)` works only as a value of a scope, not as an entry of `$effects`.
-- A scope on a command, action, job or module is typed without the events of a bus, so `take` in its `$effects` takes any event name.
+- A scope on an action, job or module is typed without the events of a bus, so `take` in its `$effects` takes any event name.

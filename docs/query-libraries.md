@@ -1,6 +1,6 @@
 # Use nanoeffects with React Query and SWR
 
-Read this page if you fetch data with [React Query](https://tanstack.com/query) (TanStack Query) or [SWR](https://swr.vercel.app) and want `retry`, `timeout` and the abort of nanoeffects inside the request. It shows one command that both libraries call.
+Read this page if you fetch data with [React Query](https://tanstack.com/query) (TanStack Query) or [SWR](https://swr.vercel.app) and want `retry`, `timeout` and the abort of nanoeffects inside the request. It shows one action that both libraries call.
 
 You need a React project, `nanoeffects`, and one of the two libraries. `api` below is your own client: replace it with your requests.
 
@@ -16,9 +16,9 @@ The libraries and nanoeffects do different jobs, so each keeps its own.
 
 `isLoading` and `data` come from the library, not from `emit`. `await bus.emit(...)` resolves once, with the result, so it cannot report that the request is still running.
 
-## Make the command
+## Make the action
 
-A command is the request itself. It lives in files that know nothing about React: the bus, the command with its handler, and the component.
+An action with a handler is the request itself. It lives in files that know nothing about React: the bus, the action with its handler, and the component.
 
 ```js
 // bus.js
@@ -34,11 +34,11 @@ The handler tries the request up to three times and gives up after five seconds 
 
 ```js
 // user.js
-import { createCommand } from "nanoeffects/actions";
+import { createAction } from "nanoeffects/actions";
 import { retry, timeout } from "nanoeffects/effects";
 
-// createCommand — a command with a handler: emit returns what the handler returns
-export const getUser = createCommand("user/get", async (id, ctx) => {
+// createAction with a handler — emit returns what the handler returns
+export const getUser = createAction("user/get", async (id, ctx) => {
   // one try: the request, with the signal of timeout so it can stop it
   const load = ({ signal }) => api.getUser(id, { signal });
   // timeout — fail the try after 5 s
@@ -73,13 +73,13 @@ export function Profile({ id }) {
 }
 ```
 
-The command rejects when all tries fail, so React Query shows the `error`. React Query counts its own `retry` too: set `retry: false` in `useQuery` when the handler already retries, or the tries multiply.
+The action rejects when all tries fail, so React Query shows the `error`. React Query counts its own `retry` too: set `retry: false` in `useQuery` when the handler already retries, or the tries multiply.
 
 ## Call it from SWR
 
 <!-- docs-check: continue -->
 
-SWR does not pass a signal to the fetcher, so there is nothing to give to `emit`. The command still brings `retry` and `timeout`.
+SWR does not pass a signal to the fetcher, so there is nothing to give to `emit`. The action still brings `retry` and `timeout`.
 
 ```jsx
 // Profile.jsx
@@ -103,7 +103,7 @@ export function Profile({ id }) {
 
 <!-- docs-check: continue -->
 
-A command gives its result only to the caller. If a store or another module must react to a loaded user, the handler can say so:
+An action with a handler gives its result only to the caller. If a store or another module must react to a loaded user, the handler can say so:
 
 ```js
 // user-events.js
@@ -113,14 +113,14 @@ import { createAction } from "nanoeffects/actions";
 export const userLoaded = createAction("user/loaded");
 ```
 
-Send it from the handler with `ctx.emit(userLoaded(user))`. Do not replace the command with `createJob` here: a job handles the error itself and resolves with `undefined`, so React Query would never see the failure. Use a job when nothing waits for the result and the app shows a loading state from the bus, see [Show a loading state with a job](actions.md#show-a-loading-state-with-a-job).
+Send it from the handler with `ctx.emit(userLoaded(user))`. Do not replace the action with `createJob` here: a job handles the error itself and resolves with `undefined`, so React Query would never see the failure. Use a job when nothing waits for the result and the app shows a loading state from the bus, see [Show a loading state with a job](actions.md#show-a-loading-state-with-a-job).
 
 ## Know the limits
 
-- **Without the plugin, `{ signal }` is ignored.** The command runs, but the abort does not reach it. Call `bus.use(signalPlugin())` once, where the bus is made.
+- **Without the plugin, `{ signal }` is ignored.** The action runs, but the abort does not reach it. Call `bus.use(signalPlugin())` once, where the bus is made.
 - **Only the call forms take it.** `bus.emit(getUser(id), { signal })` works; `bus.emit("user/get", id, { signal })` does not.
-- **A handler that returns without a promise is finished with the call**, so a signal that aborts later does not reach it. Commands that fetch are async, so this only matters for a sync handler that sets up a callback.
-- **Give each request its own signal for an event.** For a command or a job the link ends when it settles. For `bus.emit(action, { signal })` it stays until the signal aborts.
-- **The signal reaches the tasks that this `emit` starts**, with the listeners of the command's type and the `ctx.run` children. A separate `bus.emit` that the handler makes is not linked: pass `{ signal: ctx.signal }` to it.
+- **A handler that returns without a promise is finished with the call**, so a signal that aborts later does not reach it. Actions that fetch are async, so this only matters for a sync handler that sets up a callback.
+- **Give each request its own signal for an event.** For an action with a handler or a job the link ends when it settles. For `bus.emit(action, { signal })` it stays until the signal aborts.
+- **The signal reaches the tasks that this `emit` starts**, with the listeners of the action's type and the `ctx.run` children. A separate `bus.emit` that the handler makes is not linked: pass `{ signal: ctx.signal }` to it.
 
 A whole small app, with a search, a filter, pages and a detail panel, is in the [Rick and Morty example](../examples/rickandmorty).

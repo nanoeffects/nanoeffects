@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type { Call } from "../core/action-creator";
 import { createBus } from "../core/bus";
 import { latest } from "../policies";
 import {
@@ -8,7 +9,8 @@ import {
 } from "../tests/test-helpers";
 import { createTraceRecorder } from "../trace/recorder";
 import { createTracer } from "../trace/tracer";
-import { bindHandler, commandsPlugin, createCommand } from "./command";
+import { createAction } from "./action";
+import { actionsPlugin, setHandler } from "./command";
 import { createJob } from "./job";
 
 type Events = TestEvents & { "user/get": string };
@@ -16,17 +18,17 @@ type Events = TestEvents & { "user/get": string };
 const setup = () => {
 	const recorder = createTraceRecorder<Events>();
 	const bus = createBus<Events>({ trace: createTracer(recorder) });
-	const commands = bus.use(commandsPlugin());
+	const commands = bus.use(actionsPlugin());
 	const phases = () =>
 		recorder.events.map((event) => `${event.effect}/${event.phase}`);
 	return { bus, commands, recorder, phases };
 };
 
-describe("createCommand", () => {
+describe("createAction", () => {
 	describe("a command with a handler", () => {
 		it("calling the command builds an action and does not run the handler", () => {
 			const handler = vi.fn((value: number) => value * 2);
-			const double = createCommand("math/double", handler);
+			const double = createAction("math/double", handler);
 
 			expect(double(21)).toEqual({ type: "math/double", payload: 21 });
 			expect(handler).not.toHaveBeenCalled();
@@ -34,7 +36,7 @@ describe("createCommand", () => {
 
 		it("emit of a command call runs the handler and returns its result", () => {
 			const { bus } = setup();
-			const double = createCommand("math/double", (value: number) => value * 2);
+			const double = createAction("math/double", (value: number) => value * 2);
 			const seen: number[] = [];
 			bus.on(double, (value) => seen.push(value));
 
@@ -45,7 +47,7 @@ describe("createCommand", () => {
 		it("a plain action of the same type does not run the command", () => {
 			const { bus } = setup();
 			const handler = vi.fn((value: number) => value * 2);
-			const double = createCommand("t", handler);
+			const double = createAction("t", handler);
 			bus.on(double, () => {});
 
 			expect(bus.emit({ type: "t", payload: 21 })).toBeUndefined();
@@ -54,17 +56,14 @@ describe("createCommand", () => {
 
 		it("emit returns what the handler returns", () => {
 			const { bus } = setup();
-			const double = createCommand("math/double", (value: number) => value * 2);
+			const double = createAction("math/double", (value: number) => value * 2);
 
 			expect(bus.emit(double, 4)).toBe(8);
 		});
 
 		it("returns the promise of an async handler", async () => {
 			const { bus } = setup();
-			const load = createCommand(
-				"user/get",
-				async (id: string) => `user ${id}`,
-			);
+			const load = createAction("user/get", async (id: string) => `user ${id}`);
 			const user: string = await bus.emit(load, "1");
 
 			expect(user).toBe("user 1");
@@ -73,7 +72,7 @@ describe("createCommand", () => {
 		it("gives the handler the payload and a task context", () => {
 			const { bus } = setup();
 			const seen: unknown[] = [];
-			const command = createCommand("a/b", (value: number, ctx) => {
+			const command = createAction("a/b", (value: number, ctx) => {
 				seen.push(value, ctx.type, ctx.payload, ctx.signal.aborted);
 			});
 			bus.emit(command, 3);
@@ -84,7 +83,7 @@ describe("createCommand", () => {
 		it("gives each emit its own context", () => {
 			const { bus } = setup();
 			const signals: AbortSignal[] = [];
-			const command = createCommand("a/b", (_: number, ctx) => {
+			const command = createAction("a/b", (_: number, ctx) => {
 				signals.push(ctx.signal);
 			});
 			bus.emit(command, 1);
@@ -97,7 +96,7 @@ describe("createCommand", () => {
 			const { bus } = setup();
 			const handler = vi.fn();
 			bus.on("b", handler);
-			const command = createCommand("a/b", (_: number, ctx) => {
+			const command = createAction("a/b", (_: number, ctx) => {
 				ctx.emit("b", "from handler");
 			});
 			bus.emit(command, 1);
@@ -107,8 +106,8 @@ describe("createCommand", () => {
 
 		it("lets the handler run another command", () => {
 			const { bus } = setup();
-			const inner = createCommand("math/inc", (value: number) => value + 1);
-			const outer = createCommand("math/inc2", (value: number, ctx) => {
+			const inner = createAction("math/inc", (value: number) => value + 1);
+			const outer = createAction("math/inc2", (value: number, ctx) => {
 				const once = ctx.emit(inner, value) as unknown as number;
 				return bus.emit(inner, once);
 			});
@@ -119,7 +118,7 @@ describe("createCommand", () => {
 		it("tells the listeners of its type before the handler runs", () => {
 			const { bus } = setup();
 			const order: string[] = [];
-			const command = createCommand("a/b", (value: number) => {
+			const command = createAction("a/b", (value: number) => {
 				order.push(`handler ${value}`);
 			});
 			bus.on(command, (value: number) => order.push(`listener ${value}`));
@@ -130,7 +129,7 @@ describe("createCommand", () => {
 
 		it("throws the error of a sync handler from emit", () => {
 			const { bus } = setup();
-			const command = createCommand("a/b", (_: number) => {
+			const command = createAction("a/b", (_: number) => {
 				throw new Error("boom");
 			});
 
@@ -139,7 +138,7 @@ describe("createCommand", () => {
 
 		it("returns a rejected promise for a failing async handler", async () => {
 			const { bus } = setup();
-			const command = createCommand("a/b", async (_: number) => {
+			const command = createAction("a/b", async (_: number) => {
 				throw new Error("boom");
 			});
 
@@ -149,7 +148,7 @@ describe("createCommand", () => {
 		it("works with a policy as the handler", async () => {
 			const { bus } = setup();
 			const firstGate = deferred<string>();
-			const search = createCommand(
+			const search = createAction(
 				"search",
 				latest(async (queued: string) =>
 					queued === "a" ? firstGate.promise : `result ${queued}`,
@@ -164,38 +163,34 @@ describe("createCommand", () => {
 		});
 
 		it("a contract call builds an action without throwing", () => {
-			const command = createCommand<number, number>("a/b");
+			const command = createAction<Call<number, number>>("a/b");
 
 			expect(command(1)).toEqual({ type: "a/b", payload: 1 });
 		});
 	});
 
-	describe("a command without a handler", () => {
-		it("throws from emit when nothing is bound, not from the call", () => {
+	describe("an action without a handler", () => {
+		it("is an event when nothing is bound: emit does not throw", () => {
 			const { bus } = setup();
-			const command = createCommand<number, number>("a/b");
+			const command = createAction<Call<number, number>>("a/b");
 
 			expect(command(1)).toEqual({ type: "a/b", payload: 1 });
-			expect(() => bus.emit(command(1))).toThrow(
-				'No handler for command "a/b"',
-			);
+			expect(() => bus.emit(command(1))).not.toThrow();
 		});
 
-		it("throws from emit when nothing is bound, after telling the listeners", () => {
+		it("tells the listeners when nothing is bound", () => {
 			const { bus } = setup();
-			const command = createCommand<number, number>("a/b");
+			const command = createAction<Call<number, number>>("a/b");
 			const handler = vi.fn();
 			bus.on(command, handler);
+			bus.emit(command(1));
 
-			expect(() => bus.emit(command, 1)).toThrow(
-				'No handler for command "a/b"',
-			);
 			expect(handler).toHaveBeenCalledTimes(1);
 		});
 
 		it("runs the handler bound to the bus", () => {
 			const { bus, commands } = setup();
-			const command = createCommand<number, number>("a/b");
+			const command = createAction<Call<number, number>>("a/b");
 			commands.handle(command, (value) => value * 3);
 
 			expect(bus.emit(command, 2)).toBe(6);
@@ -205,7 +200,7 @@ describe("createCommand", () => {
 	describe("commands.handle", () => {
 		it("a bound handler wins over the one the command has", () => {
 			const { bus, commands } = setup();
-			const command = createCommand("a/b", (value: number) => value);
+			const command = createAction("a/b", (value: number) => value);
 			commands.handle(command, (value) => value * 100);
 
 			expect(bus.emit(command, 2)).toBe(200);
@@ -213,7 +208,7 @@ describe("createCommand", () => {
 
 		it("the returned function unbinds, so the default comes back", () => {
 			const { bus, commands } = setup();
-			const command = createCommand("a/b", (value: number) => value);
+			const command = createAction("a/b", (value: number) => value);
 			const unbind = commands.handle(command, (value) => value * 100);
 			unbind();
 
@@ -222,7 +217,7 @@ describe("createCommand", () => {
 
 		it("the latest binding wins, and unbinding it brings the previous back", () => {
 			const { bus, commands } = setup();
-			const command = createCommand<number, string>("a/b");
+			const command = createAction<Call<number, string>>("a/b");
 			commands.handle(command, () => "first");
 			const unbind = commands.handle(command, () => "second");
 			expect(bus.emit(command, 1)).toBe("second");
@@ -233,19 +228,19 @@ describe("createCommand", () => {
 
 		it("unbinding twice, or an older binding, is harmless", () => {
 			const { bus, commands } = setup();
-			const command = createCommand<number, string>("a/b");
+			const command = createAction<Call<number, string>>("a/b");
 			const old = commands.handle(command, () => "first");
 			const unbind = commands.handle(command, () => "second");
 			old();
 			unbind();
 			unbind();
 
-			expect(() => bus.emit(command, 1)).toThrow("No handler");
+			expect(() => bus.emit(command(1))).not.toThrow();
 		});
 
 		it("accepts the type as a string", () => {
 			const { bus, commands } = setup();
-			const command = createCommand<number, number>("a/b");
+			const command = createAction<Call<number, number>>("a/b");
 			commands.handle("a/b", (value: never) => (value as number) + 1);
 
 			expect(bus.emit(command, 1)).toBe(2);
@@ -254,7 +249,7 @@ describe("createCommand", () => {
 		it("gives the bound handler the payload and a task context", () => {
 			const { bus, commands } = setup();
 			const seen: unknown[] = [];
-			const command = createCommand<number, void>("a/b");
+			const command = createAction<Call<number, void>>("a/b");
 			commands.handle(command, (value, ctx) => {
 				seen.push(value, ctx.type, ctx.signal.aborted);
 			});
@@ -266,7 +261,7 @@ describe("createCommand", () => {
 		it("binds per bus: another bus is untouched", () => {
 			const first = setup();
 			const second = setup();
-			const command = createCommand("a/b", (value: number) => value);
+			const command = createAction("a/b", (value: number) => value);
 			first.commands.handle(command, () => 111);
 
 			expect(first.bus.emit(command, 1)).toBe(111);
@@ -274,22 +269,22 @@ describe("createCommand", () => {
 			expect(command(1)).toEqual({ type: "a/b", payload: 1 });
 		});
 
-		it("commandsPlugin binds the list it is given", () => {
-			const send = createCommand<string, string>("mail/send");
+		it("actionsPlugin binds the list it is given", () => {
+			const send = createAction<Call<string, string>>("mail/send");
 			const bus = createBus<Events>();
-			bus.use(commandsPlugin([bindHandler(send, (to) => `sent to ${to}`)]));
+			bus.use(actionsPlugin([setHandler(send, (to) => `sent to ${to}`)]));
 
 			expect(bus.emit(send, "ann")).toBe("sent to ann");
 		});
 
 		it("binds several commands from the list", () => {
-			const first = createCommand<number, number>("a");
-			const second = createCommand<number, number>("b");
+			const first = createAction<Call<number, number>>("a");
+			const second = createAction<Call<number, number>>("b");
 			const bus = createBus<Events>();
 			bus.use(
-				commandsPlugin([
-					bindHandler(first, (value) => value + 1),
-					bindHandler(second, (value) => value * 2),
+				actionsPlugin([
+					setHandler(first, (value) => value + 1),
+					setHandler(second, (value) => value * 2),
 				]),
 			);
 
@@ -298,17 +293,17 @@ describe("createCommand", () => {
 
 		it("a binding can name the command by its type string", () => {
 			const bus = createBus<Events>();
-			bus.use(commandsPlugin([["x/y", () => 1]]));
-			const command = createCommand<number, number>("x/y");
+			bus.use(actionsPlugin([["x/y", () => 1]]));
+			const command = createAction<Call<number, number>>("x/y");
 
 			expect(bus.emit(command, 0)).toBe(1);
 		});
 
 		it("a handler bound later wins over the list", () => {
-			const command = createCommand<number, string>("a/b");
+			const command = createAction<Call<number, string>>("a/b");
 			const bus = createBus<Events>();
 			const commands = bus.use(
-				commandsPlugin([bindHandler(command, () => "listed")]),
+				actionsPlugin([setHandler(command, () => "listed")]),
 			);
 			commands.handle(command, () => "later");
 
@@ -318,7 +313,7 @@ describe("createCommand", () => {
 		it("without commands on the bus a command runs its own handler, with a context", () => {
 			const bus = createBus<Events>();
 			const seen: unknown[] = [];
-			const command = createCommand("a/b", (value: number, ctx) => {
+			const command = createAction("a/b", (value: number, ctx) => {
 				seen.push(value, ctx.type, ctx.signal.aborted);
 				return value + 1;
 			});
@@ -327,21 +322,19 @@ describe("createCommand", () => {
 			expect(seen).toEqual([4, "a/b", false]);
 		});
 
-		it("without commands on the bus a command with no handler throws", () => {
+		it("without commands on the bus an action with no handler is an event", () => {
 			const bus = createBus<Events>();
-			const command = createCommand<number, number>("a/b");
+			const command = createAction<Call<number, number>>("a/b");
 
-			expect(() => bus.emit(command, 1)).toThrow(
-				'No handler for command "a/b"',
-			);
+			expect(() => bus.emit(command(1))).not.toThrow();
 		});
 	});
 
-	describe("bindHandler", () => {
+	describe("setHandler", () => {
 		it("pairs a command with its handler", () => {
-			const command = createCommand<number, number>("a/b");
+			const command = createAction<Call<number, number>>("a/b");
 			const handler = (value: number) => value;
-			const pair = bindHandler(command, handler);
+			const pair = setHandler(command, handler);
 
 			expect(pair[0]).toBe(command);
 			expect(pair[1]).toBe(handler);
@@ -352,7 +345,7 @@ describe("createCommand", () => {
 		it("reports the run of a command", () => {
 			const { bus, phases } = setup();
 			bus.emit(
-				createCommand("a/b", (value: number) => value),
+				createAction("a/b", (value: number) => value),
 				1,
 			);
 
@@ -361,7 +354,7 @@ describe("createCommand", () => {
 
 		it("reports an error", () => {
 			const { bus, phases } = setup();
-			const command = createCommand("a/b", (_: number) => {
+			const command = createAction("a/b", (_: number) => {
 				throw new Error("boom");
 			});
 			try {
@@ -374,7 +367,7 @@ describe("createCommand", () => {
 		it("reports an async run", async () => {
 			const { bus, phases } = setup();
 			const gate = deferred<number>();
-			const command = createCommand("a/b", (_: number) => gate.promise);
+			const command = createAction("a/b", (_: number) => gate.promise);
 			const result = bus.emit(command, 1);
 			expect(phases()).toEqual(["command/start"]);
 			gate.resolve(1);
@@ -386,7 +379,7 @@ describe("createCommand", () => {
 		it("reports cancel when the handler aborts its own task", async () => {
 			const { bus, phases } = setup();
 			const gate = deferred();
-			const command = createCommand("a/b", (_: number, ctx) => {
+			const command = createAction("a/b", (_: number, ctx) => {
 				const waiting = gate.promise;
 				ctx.abort();
 				return waiting;
@@ -411,7 +404,7 @@ describe("createCommand", () => {
 
 describe("command.match", () => {
 	it("is true for an action of the type of the command and false for another", () => {
-		const getUser = createCommand("user/get", async (id: string) => id);
+		const getUser = createAction("user/get", async (id: string) => id);
 
 		expect(getUser.match({ type: "user/get", payload: "1" })).toBe(true);
 		expect(getUser.match({ type: "user/other" })).toBe(false);

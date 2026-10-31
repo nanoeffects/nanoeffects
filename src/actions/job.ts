@@ -15,9 +15,9 @@ import { type ActionCreator, createAction } from "./action";
 import { beneath, carriedBy, carry } from "./carry";
 import {
 	type CarryingCalls,
-	createCommand,
 	type MadeCommand,
 	MissingHandlerError,
+	makeCommand,
 } from "./command";
 
 // what a given outcome can be besides a string: an action creator, made by `createAction`
@@ -173,7 +173,7 @@ export const createJob = <
 	Promise<Awaited<R> | undefined>,
 	FieldsOfScope<E, X>
 > => {
-	const command = createCommand<P, R, T, Scoped<E, X>>(type, handler);
+	const command = makeCommand<P, R, T, Scoped<E, X>>(type, handler);
 	const outcomeOf = (name: keyof typeof outcomes) =>
 		creatorOf(outcomes[name] ?? `${type}/${name}`);
 	const pendingAction = outcomeOf("pending");

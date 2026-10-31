@@ -1,14 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
+import type { Call } from "../core/action-creator";
 import { createBus, type WithContext } from "../core/bus";
 import { createApp, type TestEvents } from "../tests/test-helpers";
-import { commandsPlugin, createCommand } from "./command";
+import { createAction } from "./action";
+import { actionsPlugin } from "./command";
 import { createModule, type ModuleContext, modulePlugin } from "./module";
 
 describe("modulePlugin", () => {
 	it("mounts the given modules and mounts more later", () => {
 		const setup = vi.fn();
 		const bus = createBus<TestEvents>();
-		bus.use(commandsPlugin());
+		bus.use(actionsPlugin());
 		const app = bus.use(modulePlugin([createModule("first", setup)]));
 		const later = createModule<TestEvents>("second", setup);
 		const unmount = app.mount(later);
@@ -23,7 +25,7 @@ describe("modulePlugin", () => {
 		type StoreEvents = TestEvents & WithContext<{ store: { name: string } }>;
 		const context = { store: { name: "main" } };
 		const bus = createBus<StoreEvents>({ context });
-		bus.use(commandsPlugin());
+		bus.use(actionsPlugin());
 		let seen: unknown = null;
 		const store = createModule<StoreEvents>("m", (moduleContext) => {
 			seen = moduleContext.store;
@@ -35,7 +37,7 @@ describe("modulePlugin", () => {
 	});
 
 	it("runs the commands that the modules bind on the bus", () => {
-		const double = createCommand<number, number>("double");
+		const double = createAction<Call<number, number>>("double");
 		const { bus } = createApp<TestEvents>({
 			modules: [
 				createModule("math", (moduleContext) => {
@@ -63,7 +65,7 @@ describe("modulePlugin", () => {
 
 	it("brings its own registry when the bus has none, and the bus runs its commands", () => {
 		const bus = createBus<TestEvents>();
-		const double = createCommand<number, number>("double");
+		const double = createAction<Call<number, number>>("double");
 		const app = bus.use(
 			modulePlugin([
 				createModule("math", (moduleContext) => {
@@ -73,28 +75,28 @@ describe("modulePlugin", () => {
 		);
 
 		expect(bus.emit(double, 4)).toBe(8);
-		expect(bus.commands).toBe(app.commands);
+		expect(bus.actions).toBe(app.actions);
 	});
 
 	it("uses the registry that the bus was made with", () => {
 		const bus = createBus<TestEvents>();
-		const commands = bus.use(commandsPlugin());
+		const commands = bus.use(actionsPlugin());
 		const app = bus.use(modulePlugin());
 
-		expect(app.commands).toBe(commands);
+		expect(app.actions).toBe(commands);
 	});
 
 	it("a custom commands runner without handle fails when a module binds", () => {
 		const bus = createBus<TestEvents>();
-		bus.commands = { run: () => 0 };
+		bus.actions = { run: () => 0 };
 
 		const math = createModule<TestEvents>("math", (moduleContext) => {
-			moduleContext.handle(createCommand("x"), () => {});
+			moduleContext.handle(createAction("x"), () => {});
 		});
 		const app = bus.use(modulePlugin([math]));
 
 		// the modules are mounted on the first use of the app
-		expect(() => app.isMounted(math)).toThrow("commandsPlugin");
+		expect(() => app.isMounted(math)).toThrow("actionsPlugin");
 	});
 
 	it("modules that bind nothing work on a plain bus", () => {
@@ -155,7 +157,7 @@ describe("replacing a module by its name (hot reload)", () => {
 	it("the old commands are unbound, and the new ones answer", () => {
 		const bus = createBus<TestEvents>();
 		const app = bus.use(modulePlugin());
-		const double = createCommand<number, number>("double");
+		const double = createAction<Call<number, number>>("double");
 		const moduleWith = (factor: number) =>
 			createModule<TestEvents>("math", (moduleContext) => {
 				moduleContext.handle(double, (value: number) => value * factor);
@@ -232,8 +234,8 @@ describe("use with commands", () => {
 
 		return { bus, app };
 	};
-	const double = createCommand("math/double", (value: number) => value * 2);
-	const triple = createCommand("math/triple", (value: number) => value * 3);
+	const double = createAction("math/double", (value: number) => value * 2);
+	const triple = createAction("math/triple", (value: number) => value * 3);
 
 	it("binds commands that carry a handler, and emit answers with their results", () => {
 		const { bus, app } = setup();
@@ -255,7 +257,7 @@ describe("use with commands", () => {
 			}),
 		);
 		// a bound command answers in the registry: its own entry runs through `run`
-		app.commands.handle(triple, () => 0);
+		app.actions.handle(triple, () => 0);
 		answers.push(bus.emit(double, 5), bus.emit(triple, 5));
 
 		expect(answers).toEqual([10, 0]);
@@ -304,7 +306,7 @@ describe("use with commands", () => {
 			moduleContext.use(double);
 		});
 		app.mount(math);
-		app.commands.handle(double, (value: number) => value + 100);
+		app.actions.handle(double, (value: number) => value + 100);
 		app.unmount(math);
 
 		expect(bus.emit(double, 1)).toBe(101);
@@ -313,7 +315,7 @@ describe("use with commands", () => {
 	it("the function that use returns undoes only that call", () => {
 		const { bus, app } = setup();
 		const undos: Array<() => void> = [];
-		const tracked = createCommand("a/tracked", (value: number) => value);
+		const tracked = createAction("a/tracked", (value: number) => value);
 		app.mount(
 			createModule<TestEvents>("math", (moduleContext) => {
 				undos.push(moduleContext.use(double));
@@ -321,7 +323,7 @@ describe("use with commands", () => {
 			}),
 		);
 		// both are bound in the registry; undo of the first removes only its entry
-		app.commands.handle(tracked, () => -1);
+		app.actions.handle(tracked, () => -1);
 		undos[0]?.();
 
 		expect(bus.emit(double, 2)).toBe(4); // its own handler is the fallback
@@ -335,7 +337,7 @@ describe("use with commands", () => {
 				moduleContext.use(double);
 			}),
 		);
-		const unbind = app.commands.handle(double, () => 99);
+		const unbind = app.actions.handle(double, () => 99);
 		const during = bus.emit(double, 1);
 		unbind();
 
@@ -381,7 +383,7 @@ describe("modulePlugin as a plugin", () => {
 		const app = bus.use(modulePlugin<TestEvents>());
 
 		expect(Object.keys(app).sort()).toEqual([
-			"commands",
+			"actions",
 			"createModule",
 			"dispose",
 			"isMounted",
@@ -460,7 +462,7 @@ describe("modulePlugin as a plugin", () => {
 		const first = bus.use(modulePlugin<TestEvents>());
 		const second = bus.use(modulePlugin<TestEvents>());
 
-		expect(second.commands).toBe(first.commands);
+		expect(second.actions).toBe(first.actions);
 	});
 
 	describe("app.createModule", () => {

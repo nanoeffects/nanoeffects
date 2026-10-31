@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { commandsPlugin, createCommand, createModule } from "../actions";
+import { actionsPlugin, createAction, createModule } from "../actions";
 import { type Context, createBus, type WithContext } from "../core/bus";
 import { all, retry } from "../effects";
 import { debounce, queue } from "../policies";
@@ -92,14 +92,14 @@ describe("BusOptions.context", () => {
 	});
 
 	it("is in the context of a command handler", async () => {
-		const read = createCommand(
+		const read = createAction(
 			"read",
 			(_: undefined, ctx: Context<StoreEvents>) => {
 				return ctx.store.name;
 			},
 		);
 		const bus = createBus<StoreEvents>({ context: { store } });
-		bus.use(commandsPlugin());
+		bus.use(actionsPlugin());
 
 		expect(bus.emit(read)).toBe("main");
 	});

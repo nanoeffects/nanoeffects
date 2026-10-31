@@ -17,7 +17,7 @@ The object returned by `bus.use(modulePlugin(...))` SHALL have `createModule(nam
 - **THEN** both are known to the type checker, and a field that the bus does not have is a type error
 
 #### Scenario: The payload and result come from the command
-- **WHEN** `m.handle(getUser, (id, ctx) => …)` is written in such a module and `getUser` was made as `createCommand<string, Promise<User>>("user/get")`
+- **WHEN** `m.handle(getUser, (id, ctx) => …)` is written in such a module and `getUser` was made as `createAction<Call<string, Promise<User>>>("user/get")`
 - **THEN** `id` is a string and the handler must return `Promise<User>`
 
 ### Requirement: Creating does not mount

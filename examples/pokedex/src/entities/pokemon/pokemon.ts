@@ -1,5 +1,5 @@
 import type { Context, EventMap } from "nanoeffects";
-import { createCommand, createJob } from "nanoeffects/actions";
+import { createAction, createJob } from "nanoeffects/actions";
 import { leading } from "nanoeffects/policies";
 import type { Pokemon } from "../../shared/api";
 
@@ -9,10 +9,10 @@ import type { Pokemon } from "../../shared/api";
 // (pending, success, fail, cancel) give the page its states
 export const findPokemon = createJob<string, Pokemon>("pokemon/find");
 
-// createCommand — an order for this entity, with the handler that does it: search for a pokémon at
+// createAction — an order for this entity, with the handler that does it: search for a pokémon at
 // random. leading drops a second click while the first search runs. The pokemon module binds the
 // command with module.use.
-export const pickRandom = createCommand<void, unknown>(
+export const pickRandom = createAction<void, unknown>(
 	"pokemon/pickRandom",
 	leading(async (_: unknown, ctx: Context<EventMap>) => {
 		const id = 1 + Math.floor(Math.random() * 1025);

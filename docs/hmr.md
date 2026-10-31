@@ -10,7 +10,7 @@ When a file is edited, the bundler loads its new version and runs it again, whil
 
 ## Replace modules by name
 
-Mounting a module whose name is taken replaces the mounted one. The old module is unmounted first — and with it its subscriptions, bound commands, sub-modules, and background tasks (their signals abort). The new version of a module file only has to mount again; nothing piles up.
+Mounting a module whose name is taken replaces the mounted one. The old module is unmounted first — and with it its subscriptions, bound handlers, sub-modules, and background tasks (their signals abort). The new version of a module file only has to mount again; nothing piles up.
 
 - **Names must be unique.** The name means “this is the new version of that module”, so two different modules with one name replace each other. The name is also the type of the module’s tasks in the trace.
 - **Pass `signal` to what the module does.** An unmount aborts the tasks, but a `fetch` or a loop that ignores `ctx.signal` runs on with the old code.

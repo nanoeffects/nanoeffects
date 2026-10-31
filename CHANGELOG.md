@@ -2,6 +2,21 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
+## Unreleased
+
+### Breaking
+- One creator for events and commands: `createCommand` is removed. `createCommand(type, fn, scope)` becomes `createAction(type, fn, scope)`, and `createCommand<Payload, Result>(type)` becomes `createAction<Call<Payload, Result>>(type)`. An action made without a handler is an event: it no longer throws `MissingHandlerError` (a job without a handler still does). [Docs](docs/actions.md)
+- The registry is named for what it holds: `commandsPlugin` → `actionsPlugin`, `bus.commands` → `bus.actions`, `app.commands` → `app.actions`, `bindHandler` → `setHandler`, and the `Commands` type → `Actions`. A custom runner `bus.actions = { run }` keeps working. [Docs](docs/actions.md#bind-a-handler-later)
+- `createAction(type, fn)` now means a handler. The function that builds a payload moves into an object: `createAction(type, { prepare: fn })`.
+
+### Changed
+- `handle` and `prepare` are reserved function fields in the scope object of `createAction`: a scope with a function field of one of these names has to rename it.
+
+### Added
+- `createAction` takes a handler, like `createCommand` did, so `bus.emit(getUser("1"))` runs it and returns the result. Everything fits in one object, `createAction(type, { handle, prepare, ...scope })`. [Docs](docs/actions.md#return-a-value-from-emit-with-a-handler)
+- A handler bound in the registry (`actions.handle(action, fn)`, `setHandler`) answers any action, also one made without a handler, and an action with a bound handler does not reach `onUnhandled`. [Docs](docs/actions.md#bind-a-handler-later)
+- The result type of a string `emit`: `bus.emit<string>("user/getId")` on a bus without an event map, and `Call<Payload, Result>` in an event map (`Call` is a type only). [Docs](docs/actions.md#say-what-a-bound-handler-returns)
+
 ## 0.26.0
 
 ### Changed

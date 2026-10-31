@@ -1,5 +1,5 @@
 import { createBus } from "nanoeffects";
-import { createCommand, createModule, modulePlugin } from "nanoeffects/actions";
+import { createAction, createModule, modulePlugin } from "nanoeffects/actions";
 import { delay, race, retry, take, timeout } from "nanoeffects/effects";
 import { queue } from "nanoeffects/policies";
 import { signalPlugin } from "nanoeffects/signal";
@@ -114,7 +114,7 @@ export const createWorker = ({
 	};
 
 	// The shutdown in three steps. It is a command, so its race can use take and delay.
-	const stop = createCommand("worker/shutdown", async (_: undefined, ctx) => {
+	const stop = createAction("worker/shutdown", async (_: undefined, ctx) => {
 		accepting = false;
 		log("1. not taking new emails");
 

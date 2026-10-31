@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
-	bindHandler,
 	createAction,
-	createCommand,
 	createJob,
 	createModule,
 	modulePlugin,
+	setHandler,
 } from "../actions";
+import type { Call } from "../core/action-creator";
 import { createBus } from "../core/bus";
 import { noPayload } from "../tests/test-helpers";
 import { scopePlugin } from ".";
@@ -170,13 +170,13 @@ describe("module scope", () => {
 
 	it("covers moduleContext.on, moduleContext.handle, moduleContext.use and moduleContext.spawn", async () => {
 		const seen: unknown[] = [];
-		const ask = createCommand("ask", (_: undefined, ctx) => {
+		const ask = createAction("ask", (_: undefined, ctx) => {
 			seen.push(["handle", nameOf(ctx)]);
 		});
-		const own = createCommand("own", (_: undefined, ctx) => {
+		const own = createAction("own", (_: undefined, ctx) => {
 			seen.push(["use", nameOf(ctx)]);
 		});
-		const bound = createCommand<void, void>("bound");
+		const bound = createAction<Call<void, void>>("bound");
 		const userModule = createModule(
 			"user",
 			(moduleContext) => {
@@ -188,7 +188,7 @@ describe("module scope", () => {
 					seen.push(["handle", nameOf(ctx)]);
 				});
 				moduleContext.handle([
-					bindHandler(bound, (_, ctx) => {
+					setHandler(bound, (_, ctx) => {
 						seen.push(["bindings", nameOf(ctx)]);
 					}),
 				]);
@@ -250,14 +250,14 @@ describe("module scope", () => {
 
 	it("the bus, then the module, then the command, then emit", () => {
 		const seen: unknown[] = [];
-		const read = createCommand(
+		const read = createAction(
 			"read",
 			(_: undefined, ctx) => {
 				seen.push(nameOf(ctx));
 			},
 			{ fields: commandFields },
 		);
-		const plain = createCommand("plain", (_: undefined, ctx) => {
+		const plain = createAction("plain", (_: undefined, ctx) => {
 			seen.push(nameOf(ctx));
 		});
 		const userModule = createModule(

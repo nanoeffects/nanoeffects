@@ -6,7 +6,7 @@ import { deferred } from "../tests/test-helpers";
 import { createTraceRecorder } from "../trace/recorder";
 import { createTracer } from "../trace/tracer";
 import { createAction } from "./action";
-import { commandsPlugin } from "./command";
+import { actionsPlugin } from "./command";
 import { createJob } from "./job";
 
 type Events = Record<string, unknown>;
@@ -14,7 +14,7 @@ type Events = Record<string, unknown>;
 const setup = () => {
 	const recorder = createTraceRecorder<Events>();
 	const bus = createBus<Events>({ trace: createTracer(recorder) });
-	const commands = bus.use(commandsPlugin());
+	const commands = bus.use(actionsPlugin());
 
 	return { bus, commands, recorder };
 };

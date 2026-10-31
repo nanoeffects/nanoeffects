@@ -1,7 +1,7 @@
 // A page for the browser tests of the trace: one bus with every logger and, unless the address
 // says `?plugin=off`, tracePlugin. `runFlow()` runs a checkout and answers with what it returned.
 import { createBus } from "nanoeffects";
-import { createCommand } from "nanoeffects/actions";
+import { createAction } from "nanoeffects/actions";
 import { retry } from "nanoeffects/effects";
 import { latest } from "nanoeffects/policies";
 import {
@@ -30,7 +30,7 @@ if (new URLSearchParams(location.search).get("plugin") !== "off") {
 }
 
 // the first attempt is declined, the second goes through; the group names the whole flow
-const pay = createCommand(
+const pay = createAction(
 	"checkout/pay",
 	(total: number, ctx) =>
 		retry(

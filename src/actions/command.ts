@@ -1,10 +1,28 @@
-import type { Bus, Command, CommandCall, Commands, Context } from "../core/bus";
-import { makeCommandCall } from "../core/bus";
+import type { Actions, Bus, Command, CommandCall, Context } from "../core/bus";
+import { commandCall, makeCommandCall } from "../core/bus";
 import { eventKey } from "../core/event";
 import type { Scope, WithScope } from "../core/scope-types";
 import type { EventMap, Task, UnsubscribeCallback } from "../core/types";
 import type { FieldsOfScope, Scoped } from "../scope/types";
 import { carry } from "./carry";
+
+// what `bound` hands to the bus for a type: the handler is found again by `type` when it runs
+const placeholder = (type: string): Command => {
+	const build = (payload: never) => makeCommandCall(command, type, payload);
+	const command: Command = Object.assign(build, { type });
+
+	return command;
+};
+
+/** Builds the payload of a call from the arguments of the creator, as `createAction` takes it in `prepare`. */
+export type Prepare = (...args: never[]) => { payload: unknown };
+
+// the context of a task has the signal and the `emit` of the bus: arguments of a creator do not
+const isTaskContext = (value: unknown): value is Context<EventMap> =>
+	typeof value === "object" &&
+	value !== null &&
+	Reflect.get(value, "signal") instanceof AbortSignal &&
+	typeof Reflect.get(value, "emit") === "function";
 
 /** Thrown when a command runs without a handler: a mistake of the program, not a failure of the work. */
 export class MissingHandlerError extends Error {}
@@ -40,7 +58,7 @@ export type ScopedCommand<P, R, T extends string, F> = ((
  *
  * The handler is optional. A command without one is only a contract, and the
  * bus gets its implementation from the `commands` registry (see
- * `commandsPlugin` and `bindHandler`). A handler bound there wins over the one
+ * `actionsPlugin` and `setHandler`). A handler bound there wins over the one
  * the command was created with, so a test can give a bus its own implementation.
  *
  * A handler can be wrapped in a policy, e.g. `latest(fn)`.
@@ -60,19 +78,19 @@ export type ScopedCommand<P, R, T extends string, F> = ((
  * const sendMail = createCommand<Mail, void>("mail/send"); // implemented elsewhere
  *
  * const bus = createBus<Events>();
- * bus.use(commandsPlugin([bindHandler(sendMail, smtpSend)]));
+ * bus.use(actionsPlugin([setHandler(sendMail, smtpSend)]));
  * const user = await bus.emit(getUser("1"));
  *
  * commands.handle(getUser, async () => fakeUser); // in a test
  * ```
  */
-export function createCommand<
+export function makeCommand<
 	P = void,
 	R = void,
 	T extends string = string,
 	E extends EventMap = EventMap,
 >(type: T, handler?: Task<P, E, R>): MadeCommand<P, R, T>;
-export function createCommand<
+export function makeCommand<
 	P,
 	R,
 	T extends string,
@@ -82,83 +100,130 @@ export function createCommand<
 	handler: Task<P, Scoped<EventMap, S>, R> | undefined,
 	scope: S,
 ): ScopedCommand<P, R, T, FieldsOfScope<EventMap, S>>;
-export function createCommand(
+export function makeCommand(
 	type: string,
 	handler?: Task<unknown, EventMap, unknown>,
 	scope?: Scope,
+): MadeCommand<unknown, unknown, string> {
+	return buildCommand(type, handler, scope);
+}
+
+/** `makeCommand` with the loose types of the runtime, and `prepare`, which `createAction` also gives. */
+export function buildCommand(
+	type: string,
+	handler?: Task<unknown, EventMap, unknown>,
+	scope?: Scope,
+	prepare?: Prepare,
 ): MadeCommand<unknown, unknown, string> {
 	const match = (action: {
 		type: string;
 		payload?: unknown;
 	}): action is { type: string; payload: unknown } => action.type === type;
 
-	// with a context the bus is running it; without, build the call for emit
-	function invoke(payload: unknown, ctx?: Context<EventMap>) {
-		if (typeof ctx === "object") {
+	// The bus runs a command as `command(payload, ctx)`, and a user builds a call as
+	// `command(...args)`. Without `prepare` a second object argument can only be the
+	// context; with it the arguments are the user's own, so the context is known by what it has.
+	const runs = (args: unknown[]) =>
+		prepare
+			? args.length === 2 && isTaskContext(args[1])
+			: typeof args[1] === "object";
+
+	function invoke(...args: unknown[]) {
+		const [first, second] = args;
+		if (runs(args)) {
 			if (!handler) {
 				throw new MissingHandlerError(`No handler for command "${type}"`);
 			}
-			return handler(payload, ctx);
+			const ctx = second as Context<EventMap>;
+
+			return handler(first, ctx);
 		}
+		const built: { payload: unknown } | undefined =
+			prepare && Reflect.apply(prepare, null, args);
+		const payload = built ? built.payload : first;
+
 		return carry(makeCommandCall(command, type, payload), scope);
 	}
 
-	const made = Object.assign(invoke, { type, match }) as MadeCommand<
-		unknown,
-		unknown,
-		string
-	>;
+	const made = Object.assign(invoke, {
+		type,
+		match,
+		toString: () => type,
+	}) as MadeCommand<unknown, unknown, string>;
 	const command = carry(made, scope);
 
 	return command;
 }
 
-/** A command (or its type) with the handler to bind to it; `bindHandler` makes one. */
+/** A command (or its type) with the handler to bind to it; `setHandler` makes one. */
 export type Binding<E extends EventMap = EventMap> = readonly [
 	Command<never, unknown> | string,
 	Task<never, E, unknown>,
 ];
 
 /**
- * Pairs a command with the handler to bind to it, for `commandsPlugin`. It
- * checks that the handler fits the command.
+ * Pairs an action with the handler to bind to it, for `actionsPlugin`. For a
+ * command (an action made with a handler, or with a `Call` type) it checks that
+ * the handler fits; any other action is accepted with a handler of any payload.
  *
  * @example
  * ```ts
- * bus.use(commandsPlugin([bindHandler(sendMail, smtpSend)]));
+ * bus.use(actionsPlugin([setHandler(sendMail, smtpSend)]));
  * ```
  */
-export const bindHandler = <P, R, E extends EventMap>(
+export function setHandler<P, R, E extends EventMap>(
 	command: Command<P, R>,
 	fn: Task<P, E, R>,
-): Binding<E> => {
-	const looseCommand: unknown = command;
-	const looseTask: unknown = fn;
-	return [
-		looseCommand as Command<never, unknown>,
-		looseTask as Task<never, E, unknown>,
-	];
-};
+): Binding<E>;
+export function setHandler<
+	A extends { readonly type: string },
+	E extends EventMap,
+>(action: A, fn: LooseHandler<A, E>): Binding<E>;
+export function setHandler(
+	action: { readonly type: string },
+	fn: Task<never, EventMap, unknown>,
+): Binding<EventMap> {
+	// a binding is looked up by the type of the action, so a command is only a way to say it
+	const looseAction: unknown = action;
 
-/** The registry of handlers that `commandsPlugin` returns: `run` for the bus, `handle` to bind more. */
-export interface Registry<E extends EventMap> extends Commands {
+	return [looseAction as Command<never, unknown>, fn];
+}
+
+/**
+ * The handler an action that is not a command can have: any. A command
+ * (a creator whose calls are command calls) is not accepted here, so its own
+ * overload checks the handler against its payload and result.
+ */
+export type LooseHandler<A, E extends EventMap> = A extends (
+	...args: never[]
+) => { readonly [commandCall]: unknown }
+	? never
+	: Task<never, E, unknown>;
+
+/** The registry of handlers that `actionsPlugin` returns: `run` for the bus, `handle` to bind more. */
+export interface Registry<E extends EventMap> extends Actions {
 	handle<P, R>(command: Command<P, R>, fn: Task<P, E, R>): UnsubscribeCallback;
+	/** Also an action made without a handler: what is emitted for its type runs `fn` and returns its result. */
+	handle<A extends { readonly type: string }>(
+		action: A,
+		fn: LooseHandler<A, E>,
+	): UnsubscribeCallback;
 	handle(type: string, fn: Task<never, E, unknown>): UnsubscribeCallback;
 	handle(bindings: readonly Binding<E>[]): UnsubscribeCallback;
 }
 
-// the registry of an earlier `commandsPlugin`: `commands` with a `handle`, which a custom runner does not have
+// the registry of an earlier `actionsPlugin`: `actions` with a `handle`, which a custom runner does not have
 const isRegistry = <E extends EventMap>(
-	commands: Commands | undefined,
-): commands is Registry<E> =>
-	typeof Reflect.get(commands ?? {}, "handle") === "function";
+	actions: Actions | undefined,
+): actions is Registry<E> =>
+	typeof Reflect.get(actions ?? {}, "handle") === "function";
 
 /**
  * The plugin that gives a bus the handlers bound to commands:
- * `bus.use(commandsPlugin(bindings))` makes the registry, sets it as the
+ * `bus.use(actionsPlugin(bindings))` makes the registry, sets it as the
  * commands of the bus and returns it. Each bus has its own, so each test can
  * have its own implementation. `handle` binds more later and returns the
- * function that unbinds. A second `commandsPlugin` on the same bus binds its
+ * function that unbinds. A second `actionsPlugin` on the same bus binds its
  * list in the registry that is there and returns it, so the order of the
  * plugins does not matter. A `commands` that is not such a registry (a custom
  * runner) is replaced.
@@ -169,16 +234,16 @@ const isRegistry = <E extends EventMap>(
  * @example
  * ```ts
  * const bus = createBus<Events>();
- * const commands = bus.use(commandsPlugin([bindHandler(sendMail, smtpSend)]));
+ * const commands = bus.use(actionsPlugin([setHandler(sendMail, smtpSend)]));
  *
  * const unbind = commands.handle(getUser, async () => fakeUser);
  * unbind(); // the command's own handler is back
  * ```
  */
-export const commandsPlugin =
+export const actionsPlugin =
 	<E extends EventMap>(bindings: readonly Binding<E>[] = []) =>
 	(bus: Bus<E>): Registry<E> => {
-		const existing = bus.commands;
+		const existing = bus.actions;
 		if (isRegistry<E>(existing)) {
 			existing.handle(bindings);
 
@@ -204,6 +269,10 @@ export const commandsPlugin =
 		function handle<P, R>(
 			command: Command<P, R>,
 			fn: Task<P, E, R>,
+		): UnsubscribeCallback;
+		function handle<A extends { readonly type: string }>(
+			action: A,
+			fn: LooseHandler<A, E>,
 		): UnsubscribeCallback;
 		function handle(
 			type: string,
@@ -234,7 +303,7 @@ export const commandsPlugin =
 		handle(bindings);
 
 		// the contract passes the payload and the context loosely typed: they belong to the command
-		const run: Commands["run"] = (command, payload, ctx) => {
+		const run: Actions["run"] = (command, payload, ctx) => {
 			const stack = bound.get(command.type) ?? [];
 			const fn = stack.at(-1)?.fn;
 			const routed = fn && command.wrap ? command.wrap(fn) : (fn ?? command);
@@ -242,8 +311,12 @@ export const commandsPlugin =
 			return Reflect.apply(routed, null, [payload, ctx]);
 		};
 
-		const registry: Registry<E> = { run, handle };
-		bus.commands = registry;
+		// a handler bound to a type makes an action of that type a command, whatever made it
+		const bound_ = (type: string): Command | undefined =>
+			bound.has(type) ? placeholder(type) : void 0;
+
+		const registry: Registry<E> = { run, handle, bound: bound_ };
+		bus.actions = registry;
 
 		return registry;
 	};

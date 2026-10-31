@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createAction, createCommand } from "../actions";
+import { createAction } from "../actions";
 import { createBus } from "../core/bus";
 import { latest } from "../policies";
 import { tracePlugin } from "../trace/plugin";
@@ -76,7 +76,7 @@ describe("matchPlugin", () => {
 	it("keeps an action creator and a command working", () => {
 		const bus = setup();
 		const placed = createAction("order/placed");
-		const double = createCommand("math/double", (value: number) => value * 2);
+		const double = createAction("math/double", (value: number) => value * 2);
 		const seen: unknown[] = [];
 		bus.on(placed, (value) => {
 			seen.push(["creator", value]);

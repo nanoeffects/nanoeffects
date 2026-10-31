@@ -138,7 +138,7 @@ Give the flow a `traceGroupId` in the scope of the command, the job or the actio
 
 ```js
 import { createBus } from "nanoeffects";
-import { createCommand } from "nanoeffects/actions";
+import { createAction } from "nanoeffects/actions";
 import { consoleLogger, createTracer, tracePlugin } from "nanoeffects/trace";
 
 // createTracer: sends each trace event to the logger; consoleLogger: prints one line each
@@ -149,7 +149,7 @@ const bus = createBus({ trace })
   .use(tracePlugin());
 
 // the scope names the flow; traceGroupId is for the tracer, not a field of ctx
-const pay = createCommand("checkout/pay", async () => {}, {
+const pay = createAction("checkout/pay", async () => {}, {
   traceGroupId: "checkout",
 });
 ```

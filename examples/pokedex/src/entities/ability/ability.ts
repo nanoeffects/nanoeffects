@@ -1,4 +1,4 @@
-import { createCommand, createJob } from "nanoeffects/actions";
+import { createAction, createJob } from "nanoeffects/actions";
 import type { AbilityText } from "../../shared/api";
 import { abilityStore } from "./ability-store";
 
@@ -9,9 +9,9 @@ export const loadAbilities = createJob<string[], AbilityText[]>(
 	"abilities/load",
 );
 
-// createCommand — an order for this entity, with the handler that does it: empty the abilities.
+// createAction — an order for this entity, with the handler that does it: empty the abilities.
 // The feature that connects the pokémon to its abilities emits it, so it never writes the store.
 // The module binds the command with module.use for as long as it is mounted.
-export const clearAbilities = createCommand("abilities/clear", () =>
+export const clearAbilities = createAction("abilities/clear", () =>
 	abilityStore.getState().clear(),
 );

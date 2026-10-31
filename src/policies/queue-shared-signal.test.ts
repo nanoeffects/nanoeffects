@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { commandsPlugin, createJob } from "../actions";
+import { actionsPlugin, createJob } from "../actions";
 import { createBus } from "../core/bus";
 import { signalPlugin } from "../signal";
 import { queue } from "./queue";
@@ -15,7 +15,7 @@ describe("queue with one signal for several calls", () => {
 		const outcomes: string[] = [];
 		const send = createJob<number, void>("send");
 		// the handler is bound in the registry, where the job learns from the policy when a call starts
-		const commands = bus.use(commandsPlugin());
+		const commands = bus.use(actionsPlugin());
 		commands.handle(
 			send,
 			queue(

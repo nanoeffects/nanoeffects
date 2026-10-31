@@ -25,7 +25,7 @@ const cases = [];
 const add = (name, run) => cases.push({ name, run, times: [] });
 
 const { createBus } = await load(dist, "index.js");
-const { createCommand, createAction } = await load(dist, "actions.js");
+const { createAction } = await load(dist, "actions.js");
 const { scopePlugin } = await load(dist, "scope.js");
 const { delay } = await load(dist, "effects.js");
 const scope = { a: 1, b: { n: 2 }, effects: { delay } };
@@ -41,7 +41,7 @@ const scope = { a: 1, b: { n: 2 }, effects: { delay } };
 }
 {
 	const bus = createBus();
-	const command = createCommand("c", () => 1);
+	const command = createAction("c", () => 1);
 	add("this build, no plugin, command", () => {
 		for (let i = 0; i < TASKS; i++) {
 			bus.emit(command());
@@ -59,7 +59,7 @@ const scope = { a: 1, b: { n: 2 }, effects: { delay } };
 }
 {
 	const bus = createBus().use(scopePlugin());
-	const command = createCommand("c", () => 1);
+	const command = createAction("c", () => 1);
 	add("plugin, command with no scope", () => {
 		for (let i = 0; i < TASKS; i++) {
 			bus.emit(command());
@@ -68,7 +68,7 @@ const scope = { a: 1, b: { n: 2 }, effects: { delay } };
 }
 {
 	const bus = createBus().use(scopePlugin());
-	const command = createCommand("c", () => 1, scope);
+	const command = createAction("c", () => 1, scope);
 	add("plugin, command with a scope of 3 fields", () => {
 		for (let i = 0; i < TASKS; i++) {
 			bus.emit(command());
@@ -77,7 +77,7 @@ const scope = { a: 1, b: { n: 2 }, effects: { delay } };
 }
 {
 	const bus = createBus().use(scopePlugin());
-	const command = createCommand("c", () => 1, scope);
+	const command = createAction("c", () => 1, scope);
 	add("plugin, command + a new scope in each emit", () => {
 		for (let i = 0; i < TASKS; i++) {
 			bus.emit(command(), { a: i });
@@ -174,7 +174,7 @@ if (baseline) {
 // does the cost grow with history? batches of 10 000 tasks, time and heap after gc
 if (typeof globalThis.gc === "function") {
 	const bus = createBus().use(scopePlugin());
-	const command = createCommand("c", () => 1, scope);
+	const command = createAction("c", () => 1, scope);
 	const batches = [];
 	for (let batch = 1; batch <= 10; batch++) {
 		const start = performance.now();

@@ -16,7 +16,7 @@ Rules that generated code often gets wrong:
 
 - [Guide](docs/guide.md): bus, handler context, policies, effects, commands and modules, step by step
 - [Start a project from a template](docs/starter.md): `npm create nanoeffects` makes a Vite project (`vanilla`, `react`, `vue-ts`, `svelte-ts` and others, in JavaScript or TypeScript) with a bus, `debounce` and `latest`
-- [Why nanoeffects exists](docs/motivation.md): no dependencies and no global state for SDKs and Module Federation, and why not Redux, Effector or RxJS
+- [Why nanoeffects exists](docs/motivation.md): logic and side effects outside UI components as plain async functions, no dependencies and no global state for SDKs and Module Federation, and why not redux-saga, RxJS, Redux or Effector
 - [Package entries](docs/package.md): which import holds what
 - [Stability](docs/stability.md): which entries are stable or unstable, what a breaking change is, the supported Node, TypeScript and framework versions, the call forms that stay
 - [Plugins](docs/plugins.md): every plugin of a bus, what `bus.use` returns, and the order to use them in
@@ -32,7 +32,7 @@ Rules that generated code often gets wrong:
 
 ## Domain logic and stores
 
-- [Actions, commands, jobs and modules](docs/actions.md): `createAction`, `createCommand`, `createJob`, `createModule`
+- [Actions, jobs and modules](docs/actions.md): `createAction`, `createAction`, `createJob`, `createModule`
 - [Connect Redux, Zustand, MobX, or Pinia](docs/stores.md): the Redux middleware and callbacks of other stores
 - [Use nanoeffects with React Query and SWR](docs/query-libraries.md): call a command from `queryFn` or the SWR fetcher; `signalPlugin` passes the abort of the library to the task
 - [Stop work on a server when the client leaves](docs/server.md): one `AbortController` for each request or socket, `signalPlugin`, a clean shutdown, and a queue worker; Fastify examples

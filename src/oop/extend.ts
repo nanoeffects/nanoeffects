@@ -11,7 +11,7 @@ const slots = new Set([
 	"off",
 	"emit",
 	"ctx",
-	"commands",
+	"actions",
 	"trace",
 	"addContext",
 	"applyScope",

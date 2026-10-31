@@ -16,9 +16,9 @@ The fix is one `AbortController` for each unit of work that the client owns, and
 | A WebSocket | the socket connects | the socket closes |
 | A queued job | the job is accepted | the server shuts down |
 
-## Make the bus and the command
+## Make the bus and the action
 
-The bus and the command live in files that know nothing about HTTP, so the same command can run in a route, a test or a worker.
+The bus and the action live in files that know nothing about HTTP, so the same action can run in a route, a test or a worker.
 
 ```js
 // bus.js
@@ -30,15 +30,15 @@ import { signalPlugin } from "nanoeffects/signal";
 export const bus = createBus().use(signalPlugin());
 ```
 
-The command loads a user. It tries the request up to three times, and gives up on each try after five seconds. `ctx.signal` is the signal of the task: it aborts when the controller of the request aborts.
+The action loads a user. It tries the request up to three times, and gives up on each try after five seconds. `ctx.signal` is the signal of the task: it aborts when the controller of the request aborts.
 
 ```js
 // user.js
-import { createCommand } from "nanoeffects/actions";
+import { createAction } from "nanoeffects/actions";
 import { retry, timeout } from "nanoeffects/effects";
 
-// createCommand — a command with a handler: emit returns what the handler returns
-export const getUser = createCommand("user/get", async (id, ctx) => {
+// createAction — a command with a handler: emit returns what the handler returns
+export const getUser = createAction("user/get", async (id, ctx) => {
   // one try: the request, with the signal of timeout so it can stop it
   const load = ({ signal }) => api.getUser(id, { signal });
   // timeout — fail the try after 5 s
@@ -91,7 +91,7 @@ app.get("/users/:id", async (request, reply) => {
 });
 ```
 
-After an abort the command rejects with the abort reason. The `catch` above ignores it when the connection is gone, because there is nobody to answer.
+After an abort the action rejects with the abort reason. The `catch` above ignores it when the connection is gone, because there is nobody to answer.
 
 ## Stop the server
 
@@ -123,17 +123,17 @@ The route above fills `inFlight` and empties it in the `close` listener. The [ap
 
 A socket lasts minutes and carries several tasks (a subscription, a heartbeat), so the controller belongs to the socket and every `emit` for it gets the same signal. Closing the socket stops all of them.
 
-First the command. It sends a price now and then every second, until its task is aborted.
+First the action. It sends a price now and then every second, until its task is aborted.
 
 ```js
 // prices.js
-import { createCommand } from "nanoeffects/actions";
+import { createAction } from "nanoeffects/actions";
 import { poll } from "nanoeffects/effects";
 import { latest } from "nanoeffects/policies";
 
-// createCommand — a command with a handler
+// createAction — a command with a handler
 // latest — a new subscription stops the old one; key — but only the old one of the same socket
-export const watchPrices = createCommand(
+export const watchPrices = createAction(
   "prices/watch",
   latest(
     async (call, ctx) => {
@@ -147,7 +147,7 @@ export const watchPrices = createCommand(
 );
 ```
 
-Without the `key`, one policy serves the whole command, and a new subscription on one socket would stop the subscription on another.
+Without the `key`, one policy serves the whole action, and a new subscription on one socket would stop the subscription on another.
 
 Then the route. Each socket gets an id and a controller.
 

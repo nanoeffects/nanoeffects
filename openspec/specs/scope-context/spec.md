@@ -43,13 +43,12 @@ A scope SHALL be a plain object. Every key SHALL be put on the task context as i
 - **WHEN** a scope is `{ effects: { retries: 3 } }`
 - **THEN** `ctx.effects` is that object, and nothing in it is bound to the task
 
-
 #### Scenario: traceGroupId is not a context field
 - **WHEN** a scope is `{ traceGroupId: "checkout", cache }`
 - **THEN** `ctx.cache` is the cache, `ctx.traceGroupId` is `undefined`, and the tracer reads the `traceGroupId`
 
 ### Requirement: A scope can be given to an action, a command, a job and a module
-`createCommand`, `createJob`, `createAction` and `createModule` (and `createModule` of an app) SHALL accept a scope. The fields of a command, job or action scope SHALL be on the context of every handler that runs for a call made with it, including listeners of its type. The fields of a module scope SHALL be on the context of its listeners, bound commands and background tasks. When a job sends an outcome whose action has a scope of its own, its listeners SHALL see the fields of the job's scope with those of the action's scope over them.
+`createJob`, `createAction` (also with a handler, which makes it a command) and `createModule` (and `createModule` of an app) SHALL accept a scope. The fields of a command, job or action scope SHALL be on the context of every handler that runs for a call made with it, including listeners of its type. The fields of a module scope SHALL be on the context of its listeners, bound commands and background tasks. When a job sends an outcome whose action has a scope of its own, its listeners SHALL see the fields of the job's scope with those of the action's scope over them.
 
 #### Scenario: Command scope reaches its handler and listeners
 - **WHEN** `bus.emit(getUser("1"))` runs and `getUser` has `{ cache }`
@@ -147,7 +146,7 @@ A function typed `Effect<F>` SHALL be bound with the type `F`, generics included
 A handler of a command, job or module with a scope SHALL see the scope fields in its context type, merged over the fields of the bus, with no hand-written `WithContext`. A listener of an action with a scope SHALL see them as well. A field set in a scope SHALL replace a field of the same name from the bus in the type. An override in `emit` SHALL be checked against the type of the field it replaces.
 
 #### Scenario: Handler infers the scope
-- **WHEN** `createCommand("user/get", (id: string, { cache }) => …, { cache })`
+- **WHEN** `createAction("user/get", (id: string, { cache }) => …, { cache })`
 - **THEN** `cache` has the type of the value that was given
 
 #### Scenario: A scope field replaces a bus field in the type

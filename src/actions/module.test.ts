@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
+import type { Call } from "../core/action-creator";
 import { delay, take } from "../effects";
 import { createApp } from "../tests/test-helpers";
 import { createTraceRecorder } from "../trace/recorder";
 import { createTracer } from "../trace/tracer";
 import { createAction } from "./action";
-import { bindHandler, createCommand } from "./command";
+import { setHandler } from "./command";
 import { createModule } from "./module";
 
 type Events = { ping: number; pong: string; job: number };
@@ -48,7 +49,7 @@ describe("createApp", () => {
 	});
 
 	it("has a bus that runs the commands bound by the modules", () => {
-		const getUser = createCommand<string, string>("user/get");
+		const getUser = createAction<Call<string, string>>("user/get");
 		const app = createApp<Events>({
 			modules: [
 				createModule("user", (moduleContext) =>
@@ -80,7 +81,7 @@ describe("createApp", () => {
 describe("module context", () => {
 	describe("handle", () => {
 		it("binds the handler of a command", () => {
-			const command = createCommand<number, number>("math/double");
+			const command = createAction<Call<number, number>>("math/double");
 			const app = createApp<Events>({
 				modules: [
 					createModule("math", (moduleContext) =>
@@ -93,14 +94,14 @@ describe("module context", () => {
 		});
 
 		it("binds a list of handlers", () => {
-			const first = createCommand<number, number>("a");
-			const second = createCommand<number, number>("b");
+			const first = createAction<Call<number, number>>("a");
+			const second = createAction<Call<number, number>>("b");
 			const app = createApp<Events>({
 				modules: [
 					createModule("math", (moduleContext) =>
 						moduleContext.handle([
-							bindHandler(first, (value) => value + 1),
-							bindHandler(second, (value) => value * 2),
+							setHandler(first, (value) => value + 1),
+							setHandler(second, (value) => value * 2),
 						]),
 					),
 				],
@@ -112,7 +113,7 @@ describe("module context", () => {
 		});
 
 		it("accepts the type as a string", () => {
-			const command = createCommand<number, number>("a/b");
+			const command = createAction<Call<number, number>>("a/b");
 			const app = createApp<Events>({
 				modules: [
 					createModule("m", (moduleContext) =>
@@ -125,7 +126,7 @@ describe("module context", () => {
 		});
 
 		it("returns a function that unbinds at once", () => {
-			const command = createCommand<number, number>("a/b", (value) => value);
+			const command = createAction<number, number>("a/b", (value) => value);
 			const app = createApp<Events>();
 			let unbind: () => void = () => {};
 			app.mount(
@@ -140,7 +141,7 @@ describe("module context", () => {
 		});
 
 		it("is undone when the module is unmounted, and the command's own handler is back", () => {
-			const command = createCommand<number, number>("a/b", (value) => value);
+			const command = createAction<number, number>("a/b", (value) => value);
 			const app = createApp<Events>();
 			const module = createModule<Events>("m", (moduleContext) =>
 				moduleContext.handle(command, () => 99),
@@ -153,7 +154,7 @@ describe("module context", () => {
 		});
 
 		it("the module mounted last wins, and unmounting it brings the other back", () => {
-			const command = createCommand<number, string>("a/b");
+			const command = createAction<Call<number, string>>("a/b");
 			const app = createApp<Events>();
 			app.mount(
 				createModule("first", (moduleContext) =>
@@ -173,7 +174,7 @@ describe("module context", () => {
 
 		it("a bound handler gets the payload and a task context", () => {
 			const seen: unknown[] = [];
-			const command = createCommand<number, void>("a/b");
+			const command = createAction<Call<number, void>>("a/b");
 			const app = createApp<Events>({
 				modules: [
 					createModule("m", (moduleContext) =>
@@ -617,7 +618,7 @@ describe("modules on the fly", () => {
 
 	it("a module whose setup throws is undone, and the error is thrown from mount", () => {
 		const handler = vi.fn();
-		const command = createCommand<number, number>("a/b", (value) => value);
+		const command = createAction<number, number>("a/b", (value) => value);
 		const app = createApp<Events>();
 		const broken = createModule<Events>("broken", (moduleContext) => {
 			moduleContext.on("ping", handler);
@@ -633,14 +634,14 @@ describe("modules on the fly", () => {
 	});
 
 	it("commands are bound and unbound on the fly through the registry", () => {
-		const command = createCommand<number, number>("a/b");
+		const command = createAction<Call<number, number>>("a/b");
 		const app = createApp<Events>();
-		expect(() => app.bus.emit(command, 1)).toThrow("No handler");
-		const unbind = app.commands.handle(command, (value) => value + 1);
+		expect(() => app.bus.emit(command(1))).not.toThrow();
+		const unbind = app.actions.handle(command, (value) => value + 1);
 		expect(app.bus.emit(command, 1)).toBe(2);
 		unbind();
 
-		expect(() => app.bus.emit(command, 1)).toThrow("No handler");
+		expect(() => app.bus.emit(command(1))).not.toThrow();
 	});
 
 	describe("dispose", () => {
@@ -718,7 +719,7 @@ describe("modules in the trace", () => {
 
 	it("a command run by the bus is traced with the command type", () => {
 		const recorder = createTraceRecorder<Events>();
-		const command = createCommand<number, number>("math/double");
+		const command = createAction<Call<number, number>>("math/double");
 		const app = createApp<Events>({
 			trace: createTracer(recorder),
 			modules: [

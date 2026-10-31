@@ -1,6 +1,6 @@
 // The profile of a pokémon: what the server answers, and the command that builds it.
 // This file imports no bus.
-import { createCommand } from "nanoeffects/actions";
+import { createAction } from "nanoeffects/actions";
 import { profileHandler } from "./profile-handlers";
 import type { Upstream } from "./upstream";
 
@@ -16,4 +16,4 @@ export type Profile = {
 // createProfile — makes the command that builds a profile. It carries its handler, which uses the
 // upstream it is given, so a test hands in a fake.
 export const createProfile = (upstream: Upstream) =>
-	createCommand("profile/load", profileHandler(upstream));
+	createAction("profile/load", profileHandler(upstream));

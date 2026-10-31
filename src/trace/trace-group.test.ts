@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createAction, createCommand, createJob } from "../actions";
+import { createAction, createJob } from "../actions";
 import { createBus } from "../core/bus";
 import { scopePlugin } from "../scope";
 import { noPayload } from "../tests/test-helpers";
@@ -24,7 +24,7 @@ const setup = () => {
 describe("traceGroupId", () => {
 	it("is declared in the scope of a command", async () => {
 		const { bus, groupsOf } = setup();
-		const pay = createCommand("checkout/pay", async (_: undefined) => 1, {
+		const pay = createAction("checkout/pay", async (_: undefined) => 1, {
 			traceGroupId: "checkout",
 		});
 
@@ -50,7 +50,7 @@ describe("traceGroupId", () => {
 	it("is declared in the scope of an action, and its listeners pass it on", async () => {
 		const { bus, groupsOf } = setup();
 		const saved = createAction("user/saved", { traceGroupId: "save" });
-		const notify = createCommand("notify", async (_: undefined) => 1);
+		const notify = createAction("notify", async (_: undefined) => 1);
 		bus.on(saved, async (_payload, ctx) => {
 			await ctx.emit(notify(noPayload));
 		});
@@ -63,15 +63,15 @@ describe("traceGroupId", () => {
 
 	it("is inherited by the tasks that a task starts with ctx.emit", async () => {
 		const { bus, groupsOf } = setup();
-		const inner = createCommand("inner", async (_: undefined) => 1);
-		const outer = createCommand(
+		const inner = createAction("inner", async (_: undefined) => 1);
+		const outer = createAction(
 			"outer",
 			async (_: undefined, ctx) => {
 				await ctx.emit(inner(noPayload));
 			},
 			{ traceGroupId: "flow" },
 		);
-		bus.commands = {
+		bus.actions = {
 			run: (command, payload, ctx) =>
 				Reflect.apply(command, null, [payload, ctx]),
 		};
@@ -83,11 +83,11 @@ describe("traceGroupId", () => {
 
 	it("is inherited through ctx.run", async () => {
 		const { bus, groupsOf } = setup();
-		const outer = createCommand(
+		const outer = createAction(
 			"outer",
 			async (_: undefined, ctx) => {
 				await ctx.run(async (_value: number, child) => {
-					const deep = createCommand("deep", async (_: undefined) => 1);
+					const deep = createAction("deep", async (_: undefined) => 1);
 					await child.emit(deep(noPayload));
 				}, 1);
 			},
@@ -101,10 +101,10 @@ describe("traceGroupId", () => {
 
 	it("has the nearer group win, and leaves the group above as it was", async () => {
 		const { bus, groupsOf } = setup();
-		const payment = createCommand("payment", async (_: undefined) => 1, {
+		const payment = createAction("payment", async (_: undefined) => 1, {
 			traceGroupId: "payment",
 		});
-		const checkout = createCommand(
+		const checkout = createAction(
 			"checkout",
 			async (_: undefined, ctx) => {
 				await ctx.emit(payment(noPayload));
@@ -120,10 +120,10 @@ describe("traceGroupId", () => {
 
 	it("is shared by two roots that declare the same group", async () => {
 		const { bus, recorder } = setup();
-		const first = createCommand("first", async (_: undefined) => 1, {
+		const first = createAction("first", async (_: undefined) => 1, {
 			traceGroupId: "flow",
 		});
-		const second = createCommand("second", async (_: undefined) => 1, {
+		const second = createAction("second", async (_: undefined) => 1, {
 			traceGroupId: "flow",
 		});
 
@@ -136,7 +136,7 @@ describe("traceGroupId", () => {
 
 	it("is absent from the events when no task has a group", async () => {
 		const { bus, recorder } = setup();
-		const plain = createCommand("plain", async (_: undefined) => 1);
+		const plain = createAction("plain", async (_: undefined) => 1);
 
 		await bus.emit(plain(noPayload));
 
@@ -149,7 +149,7 @@ describe("traceGroupId", () => {
 	it("is not a field of the context", async () => {
 		const { bus } = setup();
 		let seen: unknown = "unset";
-		const pay = createCommand(
+		const pay = createAction(
 			"checkout/pay",
 			async (_: undefined, ctx) => {
 				seen = Reflect.get(ctx, "traceGroupId");
@@ -201,7 +201,7 @@ describe("traceGroupId in a scope", () => {
 			.use(scopePlugin());
 		let seen: unknown = "unset";
 		let cache: unknown;
-		const pay = createCommand(
+		const pay = createAction(
 			"checkout/pay",
 			async (_: undefined, ctx) => {
 				seen = Reflect.get(ctx, "traceGroupId");
@@ -220,12 +220,7 @@ describe("traceGroupId in a scope", () => {
 	});
 
 	it("takes a scope for a command whose handler is bound later", () => {
-		const later = createCommand<
-			undefined,
-			number,
-			"later",
-			{ traceGroupId: string }
-		>("later", void 0, { traceGroupId: "flow" });
+		const later = createAction("later", { traceGroupId: "flow" });
 
 		expect(later.type).toBe("later");
 	});
@@ -235,7 +230,7 @@ describe("rootId", () => {
 	it("links a command below a listener to the root, though its parentId is the listener", async () => {
 		const recorder = createTraceRecorder();
 		const bus = createBus({ trace: createTracer(recorder) }).use(tracePlugin());
-		const save = createCommand("user/save", async (_: undefined) => 1);
+		const save = createAction("user/save", async (_: undefined) => 1);
 		bus.on("name/changed", async (_name, ctx) => {
 			await ctx.emit(save(noPayload));
 		});
@@ -257,7 +252,7 @@ describe("rootId", () => {
 	it("is the same for tasks of a policy and its runs", async () => {
 		const recorder = createTraceRecorder();
 		const bus = createBus({ trace: createTracer(recorder) }).use(tracePlugin());
-		const load = createCommand("load", async (_: undefined, ctx) => {
+		const load = createAction("load", async (_: undefined, ctx) => {
 			await ctx.run(async () => 1);
 		});
 
@@ -274,7 +269,7 @@ describe("rootId", () => {
 	it("is absent from the events of every root task", async () => {
 		const recorder = createTraceRecorder();
 		const bus = createBus({ trace: createTracer(recorder) }).use(tracePlugin());
-		const plain = createCommand("plain", async (_: undefined) => 1);
+		const plain = createAction("plain", async (_: undefined) => 1);
 
 		await bus.emit(plain(noPayload));
 

@@ -1,6 +1,6 @@
 // A command with its own effects, and a test that replaces one of them for a single call.
 import { createBus, type WithSignal } from "nanoeffects";
-import { createCommand } from "nanoeffects/actions";
+import { createAction } from "nanoeffects/actions";
 import { delay, race } from "nanoeffects/effects";
 import { scopePlugin } from "nanoeffects/scope";
 
@@ -12,8 +12,8 @@ const fetchUser = (ctx: WithSignal, id: string): Promise<User> =>
 		response.json(),
 	);
 
-// createCommand — third argument is the scope: effects of this command only
-export const loadUser = createCommand(
+// createAction — third argument is the scope: effects of this command only
+export const loadUser = createAction(
 	"user/load",
 	(id: string, { fetchUser, race, delay }) => {
 		// fetchUser, race and delay are bound to this task: no ctx argument

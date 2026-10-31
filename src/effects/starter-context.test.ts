@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createCommand, createModule, modulePlugin } from "../actions";
+import { createAction, createModule, modulePlugin } from "../actions";
 import { createBus } from "../core/bus";
 import type { TraceEvent } from "../core/types";
 import { scopePlugin } from "../scope";
@@ -330,7 +330,7 @@ describe("the context of a starter", () => {
 		it("carries the fields of a scope", async () => {
 			const bus = createBus().use(scopePlugin());
 			const seen: unknown[] = [];
-			const load = createCommand(
+			const load = createAction(
 				"load",
 				async (_: undefined, ctx) => {
 					await all(ctx, {

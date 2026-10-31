@@ -1,10 +1,10 @@
 // One feature in its own file: a command with its handler, and the module that mounts it.
-import { createCommand } from "nanoeffects/actions";
+import { createAction } from "nanoeffects/actions";
 import { type AppContext, createModule } from "./bus";
 
-// createCommand — the payload comes from `id: string`, the result from the body.
+// createAction — the payload comes from `id: string`, the result from the body.
 // `ctx: AppContext` is there to read `store`; `signal` needs no annotation.
-export const getUser = createCommand(
+export const getUser = createAction(
 	"user/get",
 	(id: string, { store, signal }: AppContext) =>
 		store.fetchUser(id, { signal }),

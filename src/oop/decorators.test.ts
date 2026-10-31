@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createAction, createCommand } from "../actions";
+import { createAction } from "../actions";
 import { createBus } from "../core/bus";
 import { latest } from "../policies";
 import { deferred } from "../tests/test-helpers";
@@ -153,10 +153,7 @@ describe("@On and @Once", () => {
 	it("take an action creator and a command as the event", () => {
 		const bus = createBus();
 		const userLoaded = createAction<{ id: string }>("user/loaded");
-		const double = createCommand<number, number>(
-			"double",
-			(value) => value * 2,
-		);
+		const double = createAction<number, number>("double", (value) => value * 2);
 		const seen: unknown[] = [];
 		class Base {
 			loaded(payload: { id: string }) {

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
 	createAction,
-	createCommand,
 	createJob,
 	createModule,
 	modulePlugin,
@@ -19,7 +18,7 @@ describe("scopes do not leak", () => {
 	it("the check sees a context that is kept", async () => {
 		const bus = createBus().use(scopePlugin());
 		const kept: object[] = [];
-		const hold = createCommand(
+		const hold = createAction(
 			"hold",
 			(_: undefined, ctx) => {
 				kept.push(ctx);
@@ -40,7 +39,7 @@ describe("scopes do not leak", () => {
 			<T>(_ctx: { signal: AbortSignal }, items: T[]): T | undefined => items[0],
 		);
 		const wait = (ctx: { signal: AbortSignal }, ms: number) => delay(ctx, ms);
-		const work = createCommand(
+		const work = createAction(
 			"work",
 			async (id: number, ctx) => {
 				refs.push(new WeakRef(ctx));
@@ -91,7 +90,7 @@ describe("scopes do not leak", () => {
 			const bus = createBus().use(scopePlugin());
 			const fields = { name: "fields" };
 			refs.push(new WeakRef(fields));
-			const read = createCommand("read", (_: undefined) => 1, {
+			const read = createAction("read", (_: undefined) => 1, {
 				fields,
 			});
 			bus.emit(read(noPayload));
@@ -158,7 +157,7 @@ describe("scopes do not leak", () => {
 			new Promise<void>((resolve) => {
 				ctx.signal.addEventListener("abort", () => resolve());
 			});
-		const stuck = createCommand(
+		const stuck = createAction(
 			"stuck",
 			async (_: undefined, ctx) => {
 				refs.push(new WeakRef(ctx));

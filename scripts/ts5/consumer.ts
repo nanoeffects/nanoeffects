@@ -1,12 +1,7 @@
 // Type-checked by TypeScript 5.9 against the built declaration files (`pnpm types:ts5`).
 // It imports every entry and uses the calls whose types are the hardest to infer.
 import { type Context, createBus } from "nanoeffects";
-import {
-	createAction,
-	createCommand,
-	createJob,
-	createModule,
-} from "nanoeffects/actions";
+import { createAction, createJob, createModule } from "nanoeffects/actions";
 import { contextPlugin } from "nanoeffects/context";
 import {
 	all,
@@ -60,7 +55,7 @@ bus.on(
 );
 
 export const search = createAction<string, "search">("search");
-export const load = createCommand(
+export const load = createAction(
 	"load",
 	async (id: string, _ctx: Context<Events>) => loadUser(id),
 );

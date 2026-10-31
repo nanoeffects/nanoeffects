@@ -13,7 +13,7 @@ npm run dev
 The commands are in `src/characters.ts`:
 
 ```ts
-export const findCharacters = createCommand(
+export const findCharacters = createAction(
   "characters/find",
   timeout(8000, retry(load, { times: 3, delay: 300, shouldRetry: isFailure })),
 );

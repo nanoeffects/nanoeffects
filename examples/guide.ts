@@ -1,10 +1,10 @@
+import type { Call } from "nanoeffects";
 // The code of docs/guide.md, step by step. Each step is a function that returns what it saw,
 // so the guide is type-checked and run by `src/tests/guide.test.ts`.
 import { createBus, type WithSignal } from "nanoeffects";
 import {
-	commandsPlugin,
+	actionsPlugin,
 	createAction,
-	createCommand,
 	createModule,
 	modulePlugin,
 } from "nanoeffects/actions";
@@ -161,7 +161,7 @@ export const step6 = async () => {
 
 // 7. Three ways to name an event
 const moved = createAction("moved");
-const double = createCommand("math/double", (value: number) => value * 2);
+const double = createAction("math/double", (value: number) => value * 2);
 
 export const step7 = () => {
 	const seen: unknown[] = [];
@@ -182,21 +182,20 @@ export const step7 = () => {
 	return seen;
 };
 
-// 8. A command needs a registered handler
-const getUser = createCommand<string, Promise<User>>("user/get");
+// 8. Bind a handler to an action later
+const getUser = createAction<Call<string, Promise<User>>>("user/get");
 
 export const step8 = async () => {
 	const seen: string[] = [];
 	const bus = createBus<Events>();
-	const commands = bus.use(commandsPlugin());
+	const actions = bus.use(actionsPlugin());
 
-	try {
-		bus.emit(getUser("1"));
-	} catch (error) {
-		seen.push((error as Error).message);
-	}
+	bus.on(getUser, () => {
+		seen.push("heard");
+	});
+	bus.emit(getUser("1")); // nothing is bound: only the listener runs
 
-	const unregister = commands.handle(getUser, async (id) => ({
+	const unregister = actions.handle(getUser, async (id) => ({
 		id,
 		name: `user ${id}`,
 	}));
@@ -204,11 +203,7 @@ export const step8 = async () => {
 	seen.push(user.name);
 
 	unregister();
-	try {
-		bus.emit(getUser("1"));
-	} catch (error) {
-		seen.push((error as Error).message);
-	}
+	bus.emit(getUser("1")); // unbound again: only the listener runs
 
 	return seen;
 };

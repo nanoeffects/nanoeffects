@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createAction, createCommand, createJob } from "../actions";
+import { createAction, createJob } from "../actions";
 import { createBus, type WithContext } from "../core/bus";
 import type { EventMap } from "../core/types";
 import { retry } from "../effects";
@@ -24,7 +24,7 @@ describe("signalPlugin", () => {
 		const bus = createBus().use(signalPlugin());
 		const gate = deferred<string>();
 		const seen: unknown[] = [];
-		const getUser = createCommand("user/get", async (_: string, ctx) => {
+		const getUser = createAction("user/get", async (_: string, ctx) => {
 			seen.push(ctx.signal.aborted);
 			ctx.signal.addEventListener("abort", () => {
 				seen.push(ctx.signal.reason);
@@ -43,7 +43,7 @@ describe("signalPlugin", () => {
 
 	it("returns the result of the handler", async () => {
 		const bus = createBus().use(signalPlugin());
-		const getUser = createCommand(
+		const getUser = createAction(
 			"user/get",
 			async (id: string) => `user ${id}`,
 		);
@@ -56,7 +56,7 @@ describe("signalPlugin", () => {
 
 	it("rejects a handler that stops on the signal, as for any abort", async () => {
 		const bus = createBus().use(signalPlugin());
-		const getUser = createCommand("user/get", (_: string, ctx) =>
+		const getUser = createAction("user/get", (_: string, ctx) =>
 			stopOn(ctx.signal),
 		);
 		const controller = new AbortController();
@@ -69,7 +69,7 @@ describe("signalPlugin", () => {
 	it("aborts the tasks at once when the signal is aborted already", async () => {
 		const bus = createBus().use(signalPlugin());
 		const seen: boolean[] = [];
-		const getUser = createCommand("user/get", async (_: string, ctx) => {
+		const getUser = createAction("user/get", async (_: string, ctx) => {
 			seen.push(ctx.signal.aborted);
 		});
 		await bus.emit(getUser("1"), { signal: AbortSignal.abort() });
@@ -80,7 +80,7 @@ describe("signalPlugin", () => {
 	it("is a cancel for latest and stops retry", async () => {
 		const bus = createBus().use(signalPlugin());
 		const attempts = vi.fn();
-		const getUser = createCommand(
+		const getUser = createAction(
 			"user/get",
 			latest(async (_: string, ctx) => {
 				const stop = stopOn(ctx.signal);
@@ -137,9 +137,9 @@ describe("signalPlugin", () => {
 
 	it("does not link a separate emit that a handler makes", async () => {
 		const bus = createBus().use(signalPlugin());
-		const other = createCommand("other", async (_: string, ctx) => ctx.signal);
+		const other = createAction("other", async (_: string, ctx) => ctx.signal);
 		const seen: boolean[] = [];
-		const outer = createCommand("outer", async (_: string, ctx) => {
+		const outer = createAction("outer", async (_: string, ctx) => {
 			const innerSignal = await ctx.emit(other("1"));
 			seen.push(innerSignal.aborted);
 		});
@@ -153,7 +153,7 @@ describe("signalPlugin", () => {
 
 	it("adds no listener without a signal", async () => {
 		const bus = createBus().use(signalPlugin());
-		const getUser = createCommand("user/get", async (id: string) => id);
+		const getUser = createAction("user/get", async (id: string) => id);
 		const add = vi.spyOn(AbortSignal.prototype, "addEventListener");
 		await bus.emit(getUser("1"));
 		const added = add.mock.calls.filter(([type]) => type === "abort").length;
@@ -172,7 +172,7 @@ describe("signalPlugin", () => {
 			const bus = make();
 			const seen: unknown[] = [];
 			const gate = deferred<string>();
-			const getUser = createCommand("user/get", async (_: string, ctx) => {
+			const getUser = createAction("user/get", async (_: string, ctx) => {
 				seen.push(Reflect.get(ctx, "api"));
 				await Promise.race([gate.promise, stopOn(ctx.signal)]).catch(() => {});
 				seen.push(ctx.signal.aborted);
@@ -193,7 +193,7 @@ describe("signalPlugin", () => {
 		it("a command that finished keeps nothing on a long-lived signal", async () => {
 			const bus = createBus().use(signalPlugin());
 			const refs: Array<WeakRef<object>> = [];
-			const getUser = createCommand("user/get", async (id: string, ctx) => {
+			const getUser = createAction("user/get", async (id: string, ctx) => {
 				refs.push(new WeakRef(ctx));
 				return id;
 			});
@@ -209,7 +209,7 @@ describe("signalPlugin", () => {
 		it("a command with a sync handler too", async () => {
 			const bus = createBus().use(signalPlugin());
 			const refs: Array<WeakRef<object>> = [];
-			const getUser = createCommand("user/get", (id: string, ctx) => {
+			const getUser = createAction("user/get", (id: string, ctx) => {
 				refs.push(new WeakRef(ctx));
 				return id;
 			});

@@ -56,7 +56,7 @@ export const noPayload = Reflect.get({}, "none");
 
 /** A bus with `modulePlugin`, and its parts at hand, for tests of modules and commands. */
 export const createApp = <E extends EventMap = EventMap>(
-	options: Omit<BusOptions<E>, "commands"> & {
+	options: Omit<BusOptions<E>, "actions"> & {
 		modules?: readonly Module<E>[];
 	} = {},
 ) => {

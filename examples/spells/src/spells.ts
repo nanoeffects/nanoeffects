@@ -1,5 +1,5 @@
 import type { WithSignal } from "nanoeffects";
-import { createCommand } from "nanoeffects/actions";
+import { createAction } from "nanoeffects/actions";
 import { retry, timeout } from "nanoeffects/effects";
 import { debounce, latest } from "nanoeffects/policies";
 
@@ -20,14 +20,14 @@ const load = async (query: string, { signal }: WithSignal) => {
 	return spells;
 };
 
-// createCommand — a call that returns a result, with the handler that does it. The handler is read
+// createAction — a call that returns a result, with the handler that does it. The handler is read
 // from the inside out:
 // retry — try a failed request again, up to 3 attempts, 300 ms apart
 // timeout — all the attempts together may take 5 s
 // latest — a newer search aborts the older one
 // debounce — wait 300 ms of quiet before a search starts
 // bus.emit(searchSpells(query)) gives back the spells, or undefined when the call was dropped or replaced.
-export const searchSpells = createCommand(
+export const searchSpells = createAction(
 	"spells/search",
 	debounce(300, latest(timeout(5000, retry(load, { times: 3, delay: 300 })))),
 );

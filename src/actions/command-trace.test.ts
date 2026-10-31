@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
+import type { Call } from "../core/action-creator";
 import { createApp, deferred } from "../tests/test-helpers";
 import { createTraceRecorder } from "../trace/recorder";
 import { createTracer } from "../trace/tracer";
 import { createAction } from "./action";
-import { createCommand } from "./command";
 import { createJob } from "./job";
 import { createModule } from "./module";
 
@@ -26,7 +26,7 @@ describe("tracing of commands", () => {
 		it("reports the type, the effect and the payload", () => {
 			const { app, startOf } = setup();
 			app.bus.emit(
-				createCommand("math/double", (value: number) => value * 2),
+				createAction("math/double", (value: number) => value * 2),
 				4,
 			);
 
@@ -40,11 +40,11 @@ describe("tracing of commands", () => {
 
 		it("reports done, error and cancel", async () => {
 			const { app, recorder } = setup();
-			const ok = createCommand("ok", (value: number) => value);
-			const bad = createCommand("bad", (_: number) => {
+			const ok = createAction("ok", (value: number) => value);
+			const bad = createAction("bad", (_: number) => {
 				throw new Error("boom");
 			});
-			const stop = createCommand("stop", (_: number, ctx) => {
+			const stop = createAction("stop", (_: number, ctx) => {
 				const pending = deferred();
 				ctx.abort();
 				return pending.promise;
@@ -67,9 +67,9 @@ describe("tracing of commands", () => {
 			]);
 		});
 
-		it("reports a command with no handler as an error", () => {
+		it("reports a job with no handler as an error", () => {
 			const { app, recorder } = setup();
-			const command = createCommand<number, number>("a/b");
+			const command = createJob<number, number>("a/b");
 			try {
 				app.bus.emit(command, 1);
 			} catch {}
@@ -81,8 +81,8 @@ describe("tracing of commands", () => {
 
 		it("reports a bound handler like the default one", () => {
 			const { app, startOf } = setup();
-			const command = createCommand<number, number>("a/b");
-			app.commands.handle(command, (value) => value);
+			const command = createAction<Call<number, number>>("a/b");
+			app.actions.handle(command, (value) => value);
 			app.bus.emit(command, 1);
 
 			expect(startOf("a/b")?.effect).toBe("command");
@@ -90,7 +90,7 @@ describe("tracing of commands", () => {
 
 		it("gives every run its own id", () => {
 			const { app, starts } = setup();
-			const command = createCommand("a/b", (value: number) => value);
+			const command = createAction("a/b", (value: number) => value);
 			app.bus.emit(command, 1);
 			app.bus.emit(command, 2);
 			const ids = starts().map((event) => event.id);
@@ -112,8 +112,8 @@ describe("tracing of commands", () => {
 	describe("causality", () => {
 		it("a command emitted with ctx.emit is a child of the command that emitted it", () => {
 			const { app, startOf } = setup();
-			const inner = createCommand("inner", (value: number) => value + 1);
-			const outer = createCommand("outer", (value: number, ctx) =>
+			const inner = createAction("inner", (value: number) => value + 1);
+			const outer = createAction("outer", (value: number, ctx) =>
 				ctx.emit(inner, value),
 			);
 			app.bus.emit(outer, 1);
@@ -124,7 +124,7 @@ describe("tracing of commands", () => {
 		it("a root command has no parent", () => {
 			const { app, startOf } = setup();
 			app.bus.emit(
-				createCommand("outer", (value: number) => value),
+				createAction("outer", (value: number) => value),
 				1,
 			);
 
@@ -133,11 +133,11 @@ describe("tracing of commands", () => {
 
 		it("links a chain of three", () => {
 			const { app, startOf } = setup();
-			const ctx2 = createCommand("c", (value: number) => value);
-			const second = createCommand("b", (value: number, ctx) =>
+			const ctx2 = createAction("c", (value: number) => value);
+			const second = createAction("b", (value: number, ctx) =>
 				ctx.emit(ctx2, value),
 			);
-			const first = createCommand("a", (value: number, ctx) =>
+			const first = createAction("a", (value: number, ctx) =>
 				ctx.emit(second, value),
 			);
 			app.bus.emit(first, 1);
@@ -148,8 +148,8 @@ describe("tracing of commands", () => {
 
 		it("a command emitted with a plain bus.emit is not linked", () => {
 			const { app, startOf } = setup();
-			const inner = createCommand("inner", (value: number) => value);
-			const outer = createCommand("outer", (value: number) =>
+			const inner = createAction("inner", (value: number) => value);
+			const outer = createAction("outer", (value: number) =>
 				app.bus.emit(inner, value),
 			);
 			app.bus.emit(outer, 1);
@@ -159,8 +159,8 @@ describe("tracing of commands", () => {
 
 		it("the link is gone once ctx.emit has returned", () => {
 			const { app, startOf } = setup();
-			const inner = createCommand("inner", (value: number) => value);
-			const noise = createCommand("noise", (_: number, ctx) => {
+			const inner = createAction("inner", (value: number) => value);
+			const noise = createAction("noise", (_: number, ctx) => {
 				ctx.emit("ping", 0);
 			});
 			app.bus.emit(noise, 1);
@@ -171,11 +171,11 @@ describe("tracing of commands", () => {
 
 		it("the link is restored even when the emitted handler throws", () => {
 			const { app, startOf } = setup();
-			const inner = createCommand("inner", (value: number) => value);
-			const boom = createCommand("boom", (_: number) => {
+			const inner = createAction("inner", (value: number) => value);
+			const boom = createAction("boom", (_: number) => {
 				throw new Error("boom");
 			});
-			const outer = createCommand("outer", (value: number, ctx) => {
+			const outer = createAction("outer", (value: number, ctx) => {
 				try {
 					ctx.emit(boom, value);
 				} catch {}
@@ -188,9 +188,9 @@ describe("tracing of commands", () => {
 
 		it("nested links do not leak into a sibling emitted afterwards", () => {
 			const { app, startOf } = setup();
-			const first = createCommand("a", (value: number) => value);
-			const second = createCommand("b", (value: number) => value);
-			const outer = createCommand("outer", (value: number, ctx) => {
+			const first = createAction("a", (value: number) => value);
+			const second = createAction("b", (value: number) => value);
+			const outer = createAction("outer", (value: number, ctx) => {
 				ctx.emit(first, value);
 				ctx.emit(second, value);
 			});
@@ -202,8 +202,8 @@ describe("tracing of commands", () => {
 
 		it("a command emitted after the task was aborted is not run", () => {
 			const { app, starts } = setup();
-			const inner = createCommand("inner", (value: number) => value);
-			const outer = createCommand("outer", (value: number, ctx) => {
+			const inner = createAction("inner", (value: number) => value);
+			const outer = createAction("outer", (value: number, ctx) => {
 				ctx.abort();
 				ctx.emit(inner, value);
 			});
@@ -228,7 +228,7 @@ describe("tracing of commands", () => {
 		it("the cancel action of an aborted job keeps the causal link, and the task still ends with the cancel phase", async () => {
 			const { app, recorder, startOf } = setup();
 			const cancelled = createAction<unknown, "loaded">("loaded");
-			const inner = createCommand("inner", (value: number) => value);
+			const inner = createAction("inner", (value: number) => value);
 			const job = createJob(
 				"user/load",
 				async (_: string, ctx) => {
@@ -251,7 +251,7 @@ describe("tracing of commands", () => {
 		it("the pending action keeps the causal link", async () => {
 			const { app, startOf } = setup();
 			const loading = createAction<string, "ping">("ping");
-			const inner = createCommand("inner", (value: number) => value);
+			const inner = createAction("inner", (value: number) => value);
 			const job = createJob("user/load", async (_: string) => "x", {
 				pending: loading,
 			});
@@ -265,8 +265,8 @@ describe("tracing of commands", () => {
 	describe("sampling follows the root", () => {
 		it("traces the whole chain of a sampled root", () => {
 			const { app, starts } = setup({ sample: 1 });
-			const inner = createCommand("inner", (value: number) => value);
-			const outer = createCommand("outer", (value: number, ctx) =>
+			const inner = createAction("inner", (value: number) => value);
+			const outer = createAction("outer", (value: number, ctx) =>
 				ctx.emit(inner, value),
 			);
 			app.bus.emit(outer, 1);
@@ -276,8 +276,8 @@ describe("tracing of commands", () => {
 
 		it("traces nothing of a root that is not sampled, including what it emits", () => {
 			const { app, recorder } = setup({ sample: 0 });
-			const inner = createCommand("inner", (value: number) => value);
-			const outer = createCommand("outer", (value: number, ctx) =>
+			const inner = createAction("inner", (value: number) => value);
+			const outer = createAction("outer", (value: number, ctx) =>
 				ctx.emit(inner, value),
 			);
 			app.bus.emit(outer, 1);
@@ -287,11 +287,11 @@ describe("tracing of commands", () => {
 
 		it("decides per root: only the chosen roots are traced, with their children", () => {
 			const { app, starts } = setup({ sample: ({ type }) => type === "keep" });
-			const child = createCommand("child", (value: number) => value);
-			const keep = createCommand("keep", (value: number, ctx) =>
+			const child = createAction("child", (value: number) => value);
+			const keep = createAction("keep", (value: number, ctx) =>
 				ctx.emit(child, value),
 			);
-			const skip = createCommand("skip", (value: number, ctx) =>
+			const skip = createAction("skip", (value: number, ctx) =>
 				ctx.emit(child, value),
 			);
 			app.bus.emit(skip, 1);
@@ -304,7 +304,7 @@ describe("tracing of commands", () => {
 	describe("modules", () => {
 		it("a command emitted by a module has a parent", () => {
 			const { app, startOf } = setup();
-			const command = createCommand("a/b", (value: number) => value);
+			const command = createAction("a/b", (value: number) => value);
 			app.mount(
 				createModule<Events>("m", (moduleContext) =>
 					moduleContext.emit(command, 1),

@@ -113,7 +113,7 @@ The package SHALL NOT export `registerModules`; attaching modules SHALL be done 
 - **THEN** `bus.app` is `undefined`
 
 ### Requirement: Plugins work in any order
-The plugins `contextPlugin`, `effectsPlugin`, `commandsPlugin`, `modulePlugin`, `scopePlugin`, `matchPlugin`, `emitterPlugin`, `reactPlugin` and `devPlugin` SHALL give the same result in every order in which they are used on a bus, including the order in which the listeners of one event are called.
+The plugins `contextPlugin`, `effectsPlugin`, `actionsPlugin`, `modulePlugin`, `scopePlugin`, `matchPlugin`, `emitterPlugin`, `reactPlugin` and `devPlugin` SHALL give the same result in every order in which they are used on a bus, including the order in which the listeners of one event are called.
 
 #### Scenario: Every order of every pair passes
 - **WHEN** every ordered pair of the plugins is used on a bus and the probe of each plugin runs

@@ -11,7 +11,7 @@ npm run dev
 All the logic is in `src/spells.ts`: one command that carries its handler.
 
 ```ts
-export const searchSpells = createCommand(
+export const searchSpells = createAction(
   "spells/search",
   debounce(300, latest(timeout(5000, retry(load, { times: 3, delay: 300 })))),
 );

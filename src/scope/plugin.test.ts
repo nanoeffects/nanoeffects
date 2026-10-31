@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createAction, createCommand } from "../actions";
+import { createAction } from "../actions";
 import { contextPlugin } from "../context";
 import { createBus, type WithContext } from "../core/bus";
 import type { EventMap } from "../core/types";
@@ -25,7 +25,7 @@ describe("scopePlugin", () => {
 	it("ignores a scope on a bus without the plugin", () => {
 		const bus = createBus();
 		const seen: unknown[] = [];
-		const getUser = createCommand(
+		const getUser = createAction(
 			"user/get",
 			(id: string, ctx) => {
 				seen.push(Reflect.get(ctx, "cache"));
@@ -43,7 +43,7 @@ describe("scopePlugin", () => {
 	it("uses a scope as it is now: a field changed after the first use is seen", () => {
 		const bus = createBus<CacheBus>().use(scopePlugin());
 		const scope = { cache: mainCache };
-		const getUser = createCommand(
+		const getUser = createAction(
 			"user/get",
 			(_id: string, { cache }) => cache,
 			scope,
@@ -59,7 +59,7 @@ describe("scopePlugin", () => {
 		it("gives its fields to the handler and to the listeners of its type", () => {
 			const bus = createBus<CacheBus>().use(scopePlugin());
 			const seen: unknown[] = [];
-			const getUser = createCommand(
+			const getUser = createAction(
 				"user/get",
 				(id: string, { cache }) => {
 					seen.push(["handler", cache]);
@@ -81,7 +81,7 @@ describe("scopePlugin", () => {
 
 		it("gives its fields when it is emitted with a payload, not a call", () => {
 			const bus = createBus<CacheBus>().use(scopePlugin());
-			const getUser = createCommand(
+			const getUser = createAction(
 				"user/get",
 				(_id: string, { cache }) => cache,
 				{ cache: mainCache },
@@ -93,7 +93,7 @@ describe("scopePlugin", () => {
 		it("does not leave its fields for the next emit", () => {
 			const bus = createBus<CacheBus>().use(scopePlugin());
 			const seen: unknown[] = [];
-			const getUser = createCommand(
+			const getUser = createAction(
 				"user/get",
 				(_id: string, { cache }) => cache,
 				{ cache: mainCache },
@@ -150,7 +150,7 @@ describe("scopePlugin", () => {
 						resolve(`${label}: aborted`),
 					);
 				});
-			const wait = createCommand(
+			const wait = createAction(
 				"wait",
 				async (_: undefined, { watch, abort }) => {
 					const pending = watch("job");
@@ -167,7 +167,7 @@ describe("scopePlugin", () => {
 
 		it("binds the built-in effects", async () => {
 			const bus = createBus<CacheBus>().use(scopePlugin());
-			const winner = createCommand(
+			const winner = createAction(
 				"winner",
 				(_: undefined, { race, delay }) =>
 					race({ fast: () => "fast", slow: () => delay(1000) }),
@@ -182,7 +182,7 @@ describe("scopePlugin", () => {
 		it("is an ordinary field: that object goes on ctx and nothing in it is bound", () => {
 			const bus = createBus().use(scopePlugin());
 			const retries = { retries: 3 };
-			const read = createCommand("read", (_: undefined, ctx) => ctx.effects, {
+			const read = createAction("read", (_: undefined, ctx) => ctx.effects, {
 				effects: retries,
 			});
 
@@ -198,7 +198,7 @@ describe("scopePlugin", () => {
 				<T>(ctx: { signal: AbortSignal }, items: T[]): T | undefined =>
 					ctx.signal.aborted ? void 0 : items[0],
 			);
-			const pick = createCommand(
+			const pick = createAction(
 				"pick",
 				(_: undefined, { first }) => first(["a", "b"]),
 				{ first },
@@ -210,7 +210,7 @@ describe("scopePlugin", () => {
 		it("leaves a plain function in context as it is", () => {
 			const bus = createBus<CacheBus>().use(scopePlugin());
 			const format = (value: number) => `#${value}`;
-			const show = createCommand(
+			const show = createAction(
 				"show",
 				(_: undefined, { format }) => format(7),
 				{ format },
@@ -223,7 +223,7 @@ describe("scopePlugin", () => {
 	describe("emit", () => {
 		it("replaces a field for this emit only", () => {
 			const bus = createBus<CacheBus>().use(scopePlugin());
-			const getUser = createCommand(
+			const getUser = createAction(
 				"user/get",
 				(_id: string, { cache }) => cache,
 				{ cache: mainCache },
@@ -249,7 +249,7 @@ describe("scopePlugin", () => {
 
 		it("replaces an effect", async () => {
 			const bus = createBus<CacheBus>().use(scopePlugin());
-			const wait = createCommand(
+			const wait = createAction(
 				"wait",
 				(_: undefined, { delay }) => delay(10_000),
 				{ $effects: { delay } },
@@ -294,12 +294,12 @@ describe("scopePlugin", () => {
 			const bus = createBus({ context: { cache: { name: "bus" } } }).use(
 				scopePlugin(),
 			);
-			const getUser = createCommand(
+			const getUser = createAction(
 				"user/get",
 				(_id: string, { cache }) => cache,
 				{ cache: mainCache },
 			);
-			const plain = createCommand("plain", (_: undefined, ctx) =>
+			const plain = createAction("plain", (_: undefined, ctx) =>
 				Reflect.get(ctx, "cache"),
 			);
 
@@ -327,7 +327,7 @@ describe("scopePlugin", () => {
 			const bus = createBus<CacheBus>().use(scopePlugin());
 			const seen: unknown[] = [];
 			const hostile = { signal: "no", emit: "no", run: "no", payload: "no" };
-			const check = createCommand("check", (_: undefined, ctx) => {
+			const check = createAction("check", (_: undefined, ctx) => {
 				seen.push(
 					ctx.signal instanceof AbortSignal,
 					typeof ctx.emit,
@@ -349,7 +349,7 @@ describe("scopePlugin", () => {
 			const seen: unknown[] = [];
 			const instant = (_ctx: { signal: AbortSignal }, _ms: number) =>
 				Promise.resolve("instant");
-			const read = createCommand(
+			const read = createAction(
 				"read",
 				async (_: undefined, { cache, delay }) => {
 					seen.push(cache, await delay(1));
@@ -370,7 +370,7 @@ describe("scopePlugin", () => {
 		const outcomes: string[] = [];
 		const instant = (_ctx: { signal: AbortSignal }, _ms: number) =>
 			Promise.resolve("instant");
-		const read = createCommand(
+		const read = createAction(
 			"read",
 			async (_: undefined, { delay }) => {
 				outcomes.push(String(await delay(1)));
@@ -388,7 +388,7 @@ describe("scopePlugin", () => {
 		it("a child made by ctx.run has the fields, also after an await", async () => {
 			const bus = createBus<CacheBus>().use(scopePlugin());
 			const seen: unknown[] = [];
-			const parent = createCommand(
+			const parent = createAction(
 				"parent",
 				async (_: undefined, ctx) => {
 					await Promise.resolve();
@@ -408,7 +408,7 @@ describe("scopePlugin", () => {
 			const bus = createBus<CacheBus>().use(scopePlugin());
 			const seen: boolean[] = [];
 			const aborted = (ctx: { signal: AbortSignal }) => ctx.signal.aborted;
-			const parent = createCommand(
+			const parent = createAction(
 				"parent",
 				async (_: undefined, ctx) => {
 					await ctx.run((_payload: undefined, child) => {
@@ -430,7 +430,7 @@ describe("scopePlugin", () => {
 			bus.on("inner", (_, ctx) => {
 				seen.push(Reflect.get(ctx, "cache"));
 			});
-			const outer = createCommand(
+			const outer = createAction(
 				"outer",
 				(_: undefined, ctx) => {
 					ctx.emit("inner");

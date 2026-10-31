@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-	createCommand,
+	createAction,
 	createJob,
 	createModule,
 	modulePlugin,
@@ -81,7 +81,7 @@ describe("tracePlugin", () => {
 
 		it("takes the payload of an action and the type of a command", async () => {
 			const { bus, recorder } = setup();
-			const rename = createCommand("rename", async (name: string) => name);
+			const rename = createAction("rename", async (name: string) => name);
 			await bus.emit(rename("Eva"));
 
 			expect(emitEvents(recorder.events)).toMatchObject([
@@ -138,7 +138,7 @@ describe("tracePlugin", () => {
 
 		it("carries the group of the call that is emitted", async () => {
 			const { bus, recorder } = setup();
-			const grouped = createCommand("grouped", async (_: undefined) => 1, {
+			const grouped = createAction("grouped", async (_: undefined) => 1, {
 				traceGroupId: "flow",
 			});
 			await bus.emit(grouped(noPayload));
@@ -199,11 +199,11 @@ describe("tracePlugin", () => {
 	describe("the call that is being emitted", () => {
 		it("gives a nested call its own group and puts the outer one back", async () => {
 			const { bus, recorder } = setup();
-			const payment = createCommand("payment", async (_: undefined) => 1, {
+			const payment = createAction("payment", async (_: undefined) => 1, {
 				traceGroupId: "payment",
 			});
-			const plain = createCommand("plain", async (_: undefined) => 1);
-			const checkout = createCommand(
+			const plain = createAction("plain", async (_: undefined) => 1);
+			const checkout = createAction(
 				"checkout",
 				async (_: undefined, ctx) => {
 					await ctx.emit(payment(noPayload));
@@ -225,16 +225,16 @@ describe("tracePlugin", () => {
 			bus.on("name/changed", () => {
 				throw new Error("boom");
 			});
-			const grouped = createCommand("grouped", async (_: undefined) => 1, {
+			const grouped = createAction("grouped", async (_: undefined) => 1, {
 				traceGroupId: "flow",
 			});
 
 			expect(() => bus.emit("name/changed", "Eva")).toThrow("boom");
-			bus.commands = {
+			bus.actions = {
 				run: (command, payload, ctx) =>
 					Reflect.apply(command, null, [payload, ctx]),
 			};
-			bus.emit(createCommand("later", async (_: undefined) => 1)(noPayload));
+			bus.emit(createAction("later", async (_: undefined) => 1)(noPayload));
 			void grouped;
 
 			const later = recorder.events.find((event) => event.type === "later");
@@ -245,7 +245,7 @@ describe("tracePlugin", () => {
 	describe("a named listener", () => {
 		it("is a task named by its traceId, and a command it emits is below it", async () => {
 			const { bus, recorder } = setup();
-			const save = createCommand("user/save", async (_: undefined) => 1);
+			const save = createAction("user/save", async (_: undefined) => 1);
 			bus.on(
 				"name/changed",
 				async (_name, ctx) => {

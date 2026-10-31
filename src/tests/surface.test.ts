@@ -29,12 +29,13 @@ const entries: Record<string, string> = {
 const typeExports: Record<string, string[]> = {
 	".": [
 		"Action",
+		"Actions",
 		"AnyEvent",
 		"Bus",
 		"BusOptions",
+		"Call",
 		"Command",
 		"CommandCall",
-		"Commands",
 		"Context",
 		"ContextOf",
 		"ContextOption",

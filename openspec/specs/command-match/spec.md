@@ -6,10 +6,10 @@ Gives every command, and so every job, a `match(action)` that tells whether an a
 ## Requirements
 
 ### Requirement: A command has match
-A command made by `createCommand` (and so a job) SHALL have `match(action)`, which returns `true` when the type of `action` is the type of the command, and narrows the type of `action` to `{ type: T; payload: P }` for the command's literal type and payload type.
+An action creator (so also a command, an action made with a handler, and a job) SHALL have `match(action)`, which returns `true` when the type of `action` is the type of the command, and narrows the type of `action` to `{ type: T; payload: P }` for the command's literal type and payload type.
 
 #### Scenario: The type is compared
-- **WHEN** `getUser.match({ type: "user/get", payload: "1" })` and `getUser.match({ type: "other" })` are called for `createCommand("user/get", ...)`
+- **WHEN** `getUser.match({ type: "user/get", payload: "1" })` and `getUser.match({ type: "other" })` are called for `createAction("user/get", handler)`
 - **THEN** the first returns `true` and the second `false`
 
 #### Scenario: A job is matched as a command

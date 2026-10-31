@@ -7,7 +7,7 @@ Imports are split so you only load what you use. `createBus` stays small; the re
 | `nanoeffects` | `createBus`, the types |
 | `nanoeffects/policies` | `latest`, `leading`, `debounce`, `throttle`, `queue` |
 | `nanoeffects/effects` | `retry`, `timeout`, `poll`, `delay`, `take`, `all`, `allSettled`, `race`, `effectsPlugin` |
-| `nanoeffects/actions` | `createAction`, `createCommand`, `createJob`, `createModule`, `modulePlugin`, `commandsPlugin` |
+| `nanoeffects/actions` | `createAction`, `createJob`, `createModule`, `modulePlugin`, `actionsPlugin` |
 | `nanoeffects/match` | `matchPlugin`: `on`, `once` and `off` that take a function which picks the events |
 | `nanoeffects/context` | `contextPlugin`: your own fields (a store, a client) on `ctx` of every task, typed from the value |
 | `nanoeffects/signal` | `signalPlugin`: `emit(call, { signal })` ties the tasks of an emit to an outside `AbortSignal` |

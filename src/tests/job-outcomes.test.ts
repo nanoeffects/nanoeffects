@@ -2,7 +2,7 @@
 // inside the job and tells it when a call starts, is dropped, or is cancelled
 // (see the change `policy-outcomes`).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { commandsPlugin, createJob } from "../actions";
+import { actionsPlugin, createJob } from "../actions";
 import { createBus } from "../core/bus";
 import { debounce, latest, leading, queue, throttle } from "../policies";
 import { deferred } from "./test-helpers";
@@ -14,7 +14,7 @@ const names = ["pending", "success", "fail", "cancel"] as const;
 // a job whose outcomes are recorded in order, with a counter and a flag of loading
 const setup = () => {
 	const bus = createBus<Events>();
-	const commands = bus.use(commandsPlugin());
+	const commands = bus.use(actionsPlugin());
 	const job = createJob<string, string | undefined>("user/load");
 	const seen: string[] = [];
 	const state = { running: 0, loading: false };

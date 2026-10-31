@@ -1,20 +1,20 @@
 # Use nanoeffects in a TypeScript app with many files
 
-Read this page if your app is in TypeScript and the commands and modules live in different files. It shows how to write a command so that TypeScript infers its payload and result, and what to add when the handlers need the fields of your bus (`ctx.store`, the effects of `effectsPlugin`). For one file or for JavaScript you do not need it.
+Read this page if your app is in TypeScript and the handlers and modules live in different files. It shows how to write an action with a handler so that TypeScript infers its payload and result, and what to add when the handlers need the fields of your bus (`ctx.store`, the effects of `effectsPlugin`). For one file or for JavaScript you do not need it.
 
-## Write a command with its handler
+## Write an action with its handler
 
-Give `createCommand` the handler and write nothing else. The payload comes from the annotated parameter, the result from the body. You do not write a generic.
+Give `createAction` the handler and write nothing else. The payload comes from the annotated parameter, the result from the body. You do not write a generic.
 
 <!-- docs-check: skip - a file of examples/typescript, type-checked there -->
 ```ts
 // user.ts
-import { createCommand, createModule } from "nanoeffects/actions";
+import { createAction, createModule } from "nanoeffects/actions";
 
 export type User = { id: string; name: string };
 
 // payload: string, from `id: string`; result: Promise<User>, from the body
-export const getUser = createCommand(
+export const getUser = createAction(
   "user/get",
   async (id: string, { signal }) => {
     const response = await fetch(`/api/users/${id}`, { signal });
@@ -56,11 +56,11 @@ A wrong payload at the call (`getUser(1)`) is an error. Annotate the parameters,
 
 ## Give `ctx` the fields of your bus
 
-Types of a bus live on the bus. `contextPlugin({ store })` and `effectsPlugin({ race })` make `ctx.store` and `ctx.race` known to the handlers of **that bus**. A command made in another file does not see the bus, so its `ctx` has no `store`:
+Types of a bus live on the bus. `contextPlugin({ store })` and `effectsPlugin({ race })` make `ctx.store` and `ctx.race` known to the handlers of **that bus**. An action with a handler made in another file does not see the bus, so its `ctx` has no `store`:
 
 <!-- docs-check: skip - shows the error on purpose -->
 ```ts
-export const getUser = createCommand("user/get", (id: string, ctx) => {
+export const getUser = createAction("user/get", (id: string, ctx) => {
   ctx.store; // error: Property 'store' does not exist
 });
 ```
@@ -93,7 +93,7 @@ export type AppContext = Context<AppEvents>; // ctx of a handler of this bus: ha
 | Type | What it is | Why you name it |
 | ---- | ---------- | --------------- |
 | `EventsOf<typeof bus>` | the event map of the bus, with the context fields of the plugins (and of `WithContext`, if you use it) | the source of `AppContext` |
-| `Context<AppEvents>` | the `ctx` that a handler of the bus gets | annotate the `ctx` of a handler given to `createCommand` |
+| `Context<AppEvents>` | the `ctx` that a handler of the bus gets | annotate the `ctx` of a handler given to `createAction` |
 
 These types change nothing at runtime. They only tell the checker what the bus already does.
 
@@ -102,10 +102,10 @@ Annotate `ctx` with `AppContext` where the handler reads a field of the bus, and
 <!-- docs-check: skip - a file of examples/typescript-context, type-checked there -->
 ```ts
 // user.ts
-import { createCommand } from "nanoeffects/actions";
+import { createAction } from "nanoeffects/actions";
 import { type AppContext, createModule } from "./bus";
 
-export const getUser = createCommand(
+export const getUser = createAction(
   "user/get",
   (id: string, { store, signal }: AppContext) => store.fetchUser(id, { signal }),
 );
@@ -145,14 +145,14 @@ Pass `ctx` (or `{ signal }`) when you call it. The effects of `nanoeffects/effec
 
 ## Keep the contract apart from the code
 
-When the file with the command must not import the code that implements it, make the command without a handler. Here you write the payload and the result once, as generics, and the handler goes to a module, where it needs no annotation:
+When the file with the action must not import the code that implements it, make the action without a handler. Here you write the payload and the result once, as a `Call`, and the handler goes to a module, where it needs no annotation. `Call` is a promise of yours: nothing checks it against the handler, so keep the handler typed from it in the module:
 
 <!-- docs-check: skip - fragment of the file above -->
 ```ts
-export const getUser = createCommand<string, Promise<User>>("user/get"); // the contract
+export const getUser = createAction<Call<string, Promise<User>>>("user/get"); // the contract
 
 createModule("user", (m) => {
-  // payload and result come from the command, ctx from the app: no annotation
+  // payload and result come from the Call, ctx from the app: no annotation
   m.handle(getUser, (id, { store, signal }) => store.fetchUser(id, { signal }));
 });
 ```
@@ -161,8 +161,8 @@ A wrong payload, a wrong field of `ctx` and a wrong result are errors.
 
 ## Check your setup
 
-- **A field is missing on `ctx`.** The `ctx` of a handler given to `createCommand` is not annotated: add `: AppContext`. A handler written inline in `m.handle` or `m.on` of a module made with the `createModule` of `bus.ts` does not need it. The default `ctx` has no fields of your bus.
-- **`EventsOf<typeof bus>` is `never`.** `bus` is not a bus. `bus.use(commandsPlugin())` and `bus.use(modulePlugin(...))` return the registry or the app, not the bus: keep the bus in its own constant (`bus`, then `app = bus.use(modulePlugin())`).
+- **A field is missing on `ctx`.** The `ctx` of a handler given to `createAction` is not annotated: add `: AppContext`. A handler written inline in `m.handle` or `m.on` of a module made with the `createModule` of `bus.ts` does not need it. The default `ctx` has no fields of your bus.
+- **`EventsOf<typeof bus>` is `never`.** `bus` is not a bus. `bus.use(actionsPlugin())` and `bus.use(modulePlugin(...))` return the registry or the app, not the bus: keep the bus in its own constant (`bus`, then `app = bus.use(modulePlugin())`).
 - **`effectsPlugin` is not in the type.** `use` must come before you read `typeof bus`. Chain `createBus(...).use(effectsPlugin(...))` in one binding.
 - **A policy loses the types.** It does not: `latest(handler)` keeps the payload, the result and the context of `handler`.
-- **Do not pass the context as a generic of `createCommand`.** It is the fourth generic, after the payload, the result and the type string, so you would have to write all four. Annotate `ctx` with `AppContext`, or put the handler in a module made with the `createModule` of `bus.ts`.
+- **Do not pass the context as a generic of `createAction`.** It is the fourth generic of the handler form, after the payload, the result and the type string, so you would have to write all four. Annotate `ctx` with `AppContext`, or put the handler in a module made with the `createModule` of `bus.ts`.

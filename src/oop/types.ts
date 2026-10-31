@@ -4,7 +4,7 @@ import type { Command } from "../core/bus";
 // the parts of a bus that are not methods of an instance: data and hooks for the plugins
 type Slots =
 	| "ctx"
-	| "commands"
+	| "actions"
 	| "trace"
 	| "addContext"
 	| "applyScope"

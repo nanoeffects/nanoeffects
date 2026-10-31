@@ -1,5 +1,5 @@
 import type { Context, EventMap } from "nanoeffects";
-import { createAction, createCommand } from "nanoeffects/actions";
+import { createAction } from "nanoeffects/actions";
 import { retry } from "nanoeffects/effects";
 import { latest } from "nanoeffects/policies";
 
@@ -55,11 +55,11 @@ const listen = (symbol: string, ctx: Context<EventMap>) =>
 // 0.5 s, 1 s, 2 s ... up to 10 s between attempts
 const pause = (attempt: number) => Math.min(10_000, 2 ** attempt * 250);
 
-// createCommand — a call with its handler. The handler is read from the inside out:
+// createAction — a call with its handler. The handler is read from the inside out:
 // retry — open the socket again after a drop, with no limit of attempts and a growing pause
 // latest — a new pair aborts the connection of the old one, and the abort closes its socket
 // bus.emit(watchTrades("btcusdt")) settles only when the connection is aborted.
-export const watchTrades = createCommand(
+export const watchTrades = createAction(
 	"trades/watch",
 	latest(retry(listen, { times: Number.POSITIVE_INFINITY, delay: pause })),
 );

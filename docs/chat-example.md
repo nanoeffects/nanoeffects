@@ -2,7 +2,7 @@
 
 Use this page when your app has several features that react to each other and you want to see where each piece of logic goes. The example is a chat with rooms, a history that loads, messages that can fail to send, a search across all rooms, and new messages that arrive on their own. A small Fastify server in the example answers every request, and it misbehaves on a known schedule, so each problem on this page really happens.
 
-It is a level D example. Start with [Actions, commands, jobs and modules](actions.md) for the API, or with the `domains-ts` template in [Start a project from a template](starter.md#start-with-domains) for a smaller project.
+It is a level D example. Start with [Actions, jobs and modules](actions.md) for the API, or with the `domains-ts` template in [Start a project from a template](starter.md#start-with-domains) for a smaller project.
 
 The code is in [`examples/chat`](../examples/chat). Run it on [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/chat), or on your machine:
 
@@ -48,7 +48,7 @@ The code is in layers, and a file imports only from the layers below it. The com
 
 That rule is why `show-history` exists. Selecting a room must load its history, but `room` does not know `message` and `message` does not know `room`. The feature `show-history` is the one place that knows both: it listens to `rooms/selected` and starts the job `messages/loadHistory`. The same goes for a message that arrives: `receive-messages` emits `incoming/received`, an event that the `message` entity owns and listens to.
 
-A folder has its events (`room.ts`, which imports no bus), its work (`room-handlers.ts`), the state it keeps (`room-store.ts`) and a module (`room-module.ts`) that wires them. Another layer reaches an entity through its events and commands, never through its handlers or its store. Events and commands both live in the events file. An event (`createAction`) says that something happened, and any feature may listen: `rooms/selected` is heard by two. A command (`createCommand`) is an order with exactly one handler, as `search/openResult` and `messages/mark` are. The handler is given to `createCommand`, so the command works wherever it is called and can return a result, and the module binds it with `module.use` for as long as it is mounted. A job is a command that also sends its outcomes, but its handler is bound in the module (`module.handle`): a job usually runs under a policy, and the type of its outcomes is exact only when the handler is not part of the type.
+A folder has its events (`room.ts`, which imports no bus), its work (`room-handlers.ts`), the state it keeps (`room-store.ts`) and a module (`room-module.ts`) that wires them. Another layer reaches an entity through its events and commands, never through its handlers or its store. Events and commands both live in the events file. An event (`createAction` with no handler) says that something happened, and any feature may listen: `rooms/selected` is heard by two. A command (`createAction` with a handler) is an order with exactly one handler, as `search/openResult` and `messages/mark` are. The handler is given to `createAction`, so the command works wherever it is called and can return a result, and the module binds it with `module.use` for as long as it is mounted. A job is a command that also sends its outcomes, but its handler is bound in the module (`module.handle`): a job usually runs under a policy, and the type of its outcomes is exact only when the handler is not part of the type.
 
 The layers come from [Feature-Sliced Design](https://feature-sliced.design/), reduced to the three that an app of this size needs.
 
@@ -179,11 +179,11 @@ export const runSearch = debounce(
 `take` waits for the next event of a name. Start it before the emit that causes the event, so nothing is missed:
 
 ```js
-import { createCommand } from "nanoeffects/actions";
+import { createAction } from "nanoeffects/actions";
 import { take } from "nanoeffects/effects";
 
-// createCommand — an order for the message entity, with the handler that does it
-const markMessage = createCommand("messages/mark", (messageId) => console.log("mark", messageId));
+// createAction with a handler — an order for the message entity, with the handler that does it
+const markMessage = createAction("messages/mark", (messageId) => console.log("mark", messageId));
 
 // the room that is open, kept from the rooms/selected event
 let selectedRoom = "general";
@@ -247,6 +247,6 @@ Each entity and each feature that has state keeps it in a [Zustand](https://zust
 
 ## Where to go next
 
-- The API of commands, jobs and modules: [Actions, commands, jobs and modules](actions.md).
+- The API of commands, jobs and modules: [Actions, jobs and modules](actions.md).
 - Policies such as `latest` and `queue`: [Policies](policies.md). Effects such as `allSettled`, `take` and `poll`: [Effects](effects.md).
 - A smaller project with two domains: [Start with domains](starter.md#start-with-domains). Its two domains do not talk to each other, so it needs no layers.

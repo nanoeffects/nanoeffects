@@ -1,11 +1,12 @@
+export type { Call } from "./core/action-creator";
 export {
 	type Action,
+	type Actions,
 	type AnyEvent,
 	type Bus,
 	type BusOptions,
 	type Command,
 	type CommandCall,
-	type Commands,
 	type Context,
 	type ContextOf,
 	type ContextOption,

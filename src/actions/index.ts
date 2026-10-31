@@ -4,10 +4,9 @@ export {
 	type FreeActionCreator,
 } from "./action";
 export {
+	actionsPlugin,
 	type Binding,
-	bindHandler,
-	commandsPlugin,
-	createCommand,
+	setHandler,
 } from "./command";
 export { type EmitterApi, emitterPlugin } from "./emitter";
 export { createJob, type Job } from "./job";

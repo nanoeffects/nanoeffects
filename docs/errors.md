@@ -21,7 +21,7 @@ const bus = createBus({
 
 ## Warn when nobody listens
 
-A typo in an event name (`emit("serch")`) does nothing and says nothing. `onUnhandled` runs when an event is emitted and nobody listens (a listener of every event, `"*"`, counts). It is not called for commands, which always have a handler to run.
+A typo in an event name (`emit("serch")`) does nothing and says nothing. `onUnhandled` runs when an event is emitted and nobody listens (a listener of every event, `"*"`, counts). It is not called for actions, which always have a handler to run.
 
 Use it as a warning in development:
 

@@ -1,5 +1,5 @@
 import type { WithSignal } from "nanoeffects";
-import { createCommand } from "nanoeffects/actions";
+import { createAction } from "nanoeffects/actions";
 import { retry, timeout } from "nanoeffects/effects";
 import { debounce, latest } from "nanoeffects/policies";
 import {
@@ -27,17 +27,17 @@ const load = async (query: CharactersQuery, { signal }: WithSignal) => {
 	}
 };
 
-// createCommand — a call that returns a result, with the handler that does it.
+// createAction — a call that returns a result, with the handler that does it.
 // retry — try a failed request again, up to 3 attempts, 300 ms apart, but not after an answer below 500
 // timeout — all the attempts together may take 8 s
 // bus.emit(findCharacters(query), { signal }) gives back a page of characters; no match gives an empty page.
-export const findCharacters = createCommand(
+export const findCharacters = createAction(
 	"characters/find",
 	timeout(8000, retry(load, { times: 3, delay: 300, shouldRetry: isFailure })),
 );
 
 // The episodes of one character, in one request
-export const loadEpisodes = createCommand(
+export const loadEpisodes = createAction(
 	"characters/episodes",
 	timeout(
 		8000,
@@ -59,14 +59,14 @@ const suggest = async (text: string, { signal }: WithSignal) => {
 	return [...names].slice(0, 5);
 };
 
-// createCommand — a call that returns a result, with the handler that does it. The suggestions are
+// createAction — a call that returns a result, with the handler that does it. The suggestions are
 // not cached by React Query: they live for a few key presses and belong to one input.
 // timeout — a suggestion that takes over 4 s is not worth showing
 // latest — a newer text aborts the older request
 // debounce — wait 250 ms of quiet before a request starts
 // There is no retry: a lost suggestion costs nothing, the next key press asks again.
 // bus.emit(suggestCharacters(text)) gives back the names, or undefined when the call was dropped or replaced.
-export const suggestCharacters = createCommand(
+export const suggestCharacters = createAction(
 	"characters/suggest",
 	debounce(250, latest(timeout(4000, suggest))),
 );

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createCommand, createModule, modulePlugin } from "../actions";
+import { createAction, createModule, modulePlugin } from "../actions";
 import { createBus } from "../core/bus";
 import { scopePlugin } from "../scope";
 import { noPayload } from "./test-helpers";
@@ -55,7 +55,7 @@ describe("scope layers against a model", () => {
 			const call = fieldsOf(random, "emit");
 			const seen: unknown[] = [];
 
-			const read = createCommand(
+			const read = createAction(
 				"read",
 				(_payload, ctx) => {
 					seen.push(observe(ctx));

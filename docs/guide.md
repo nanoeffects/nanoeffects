@@ -1,6 +1,6 @@
 # Guide
 
-Climb one step at a time: small bus → policies → effects → commands and modules. Stop when your project has what it needs.
+Climb one step at a time: small bus → policies → effects → handlers and modules. Stop when your project has what it needs.
 
 | Your project | Stop after |
 | ------------ | ---------- |
@@ -115,7 +115,7 @@ bus.emit(userFailed("boom")); // user/failed boom
 ```
 
 - `once(fn, handler)` waits for the first event that `fn` accepts. `off(fn)` removes every handler of `fn`, and `off(fn, handler)` removes one.
-- An action creator or a command still means that one event: only a function with no `type` is a function that picks events.
+- An action creator still means that one event: only a function with no `type` is a function that picks events.
 - The cost: the handler listens to `"*"`, so each event makes one task for each such subscription, also when the function says no, and an event that only such a subscription listens to counts as heard for `onUnhandled`. For a few known events, `on(creator, handler)` is cheaper.
 - It works in any order with the other plugins, `devPlugin` included.
 
@@ -303,7 +303,7 @@ More in [Effects](effects.md).
 
 ## 7. Name events three ways
 
-`emit` and `on` take a string, an object `{ type, payload }` (a Redux action fits), or a function with a `type` property (action creators and commands).
+`emit` and `on` take a string, an object `{ type, payload }` (a Redux action fits), or a function with a `type` property (action creators and actions).
 
 From here on the bus is kept in one file and the events in files named after their domain (`move.js`, `math.js`), as in a real app: the events can then be imported anywhere without importing the bus.
 
@@ -324,10 +324,10 @@ export const moved = createAction("moved");
 
 ```js
 // math.js
-import { createCommand } from "nanoeffects/actions";
+import { createAction } from "nanoeffects/actions";
 
-// createCommand — like an action, but emit runs a handler and returns its result
-export const double = createCommand("math/double", (value) => value * 2);
+// createAction with a handler — emit runs the handler and returns its result
+export const double = createAction("math/double", (value) => value * 2);
 ```
 
 ```js
@@ -344,36 +344,36 @@ bus.on(moved, ({ x }) => console.log(x));
 bus.emit(double(21)); // 42
 ```
 
-Use strings for the plain case. Use objects when other code already builds actions. Use commands when you need a result from `emit`.
+Use strings for the plain case. Use objects when other code already builds actions. Give `createAction` a handler when you need a result from `emit`.
 
-## 8. Register a command handler
+## 8. Bind a handler to an action later
 
-A command may carry its handler, or only be a **contract** (name + types) with the work registered elsewhere — another file, or a fake in a test.
+An action may carry its handler, as `double` above, or get it later from a registry — another file, or a fake in a test. An action with no handler is an event until one is bound.
 
 ```js
 // user.js
-import { createCommand } from "nanoeffects/actions";
+import { createAction } from "nanoeffects/actions";
 
-export const getUser = createCommand("user/get"); // contract — no handler yet
+export const getUser = createAction("user/get"); // no handler yet: an event
 ```
 
 ```js
 // bus.js
 import { createBus } from "nanoeffects";
-import { commandsPlugin } from "nanoeffects/actions";
+import { actionsPlugin } from "nanoeffects/actions";
 
 export const bus = createBus();
-// commandsPlugin — registry of handlers for this bus
-export const commands = bus.use(commandsPlugin());
+// actionsPlugin — registry of handlers for this bus
+export const actions = bus.use(actionsPlugin());
 ```
 
 ```js
-import { bus, commands } from "./bus";
+import { bus, actions } from "./bus";
 import { getUser } from "./user";
 
-bus.emit(getUser("1")); // throws: No handler for command "user/get"
+bus.emit(getUser("1")); // nothing is bound: only an event
 
-const unregister = commands.handle(getUser, (id) => api.user(id));
+const unregister = actions.handle(getUser, (id) => api.user(id));
 const user = await bus.emit(getUser("1"));
 
 unregister();
@@ -383,7 +383,7 @@ Each bus has its own registry. A [module](#9-mount-a-domain-as-a-module) can reg
 
 ## 9. Mount a domain as a module
 
-**Problem.** A feature owns several things on the bus: who answers `getUser`, who listens to `greet`, maybe a command that already carries its handler. With plain `bus.on` / `commands.handle` you must remember every unsubscribe when the feature goes away. Miss one and listeners pile up.
+**Problem.** A feature owns several things on the bus: who answers `getUser`, who listens to `greet`, maybe an action that already carries its handler. With plain `bus.on` / `actions.handle` you must remember every unsubscribe when the feature goes away. Miss one and listeners pile up.
 
 **When.** Domain logic lives on the bus, off the UI, and you need one mount / one unmount for that feature. Skip modules while a few top-level `bus.on` calls are enough.
 
@@ -391,16 +391,16 @@ Each bus has its own registry. A [module](#9-mount-a-domain-as-a-module) can reg
 
 ```js
 // user.js
-import { createCommand } from "nanoeffects/actions";
+import { createAction } from "nanoeffects/actions";
 
-export const getUser = createCommand("user/get"); // contract — no handler yet
+export const getUser = createAction("user/get"); // no handler yet
 ```
 
 ```js
 // math.js
-import { createCommand } from "nanoeffects/actions";
+import { createAction } from "nanoeffects/actions";
 
-export const double = createCommand("math/double", (value) => value * 2); // carries its handler
+export const double = createAction("math/double", (value) => value * 2); // carries its handler
 ```
 
 ```js
@@ -417,7 +417,7 @@ export const greeting = createModule("greeting", (m) => {
   // m.handle — this module answers getUser while mounted
   m.handle(getUser, (id) => api.user(id));
 
-  // m.use — register a command that already has a handler, for this module’s life
+  // m.use — register an action that already has a handler, for this module’s life
   m.use(double);
 });
 ```
@@ -442,8 +442,8 @@ app.unmount(greeting); // greet listener and getUser binding are gone
 ```
 
 - **`m.on`** — same job as `bus.on`, scoped to the module’s lifetime.
-- **`m.handle`** — bind a handler to a contract command; gone on unmount.
-- **`m.use`** — bring a command that already carries a handler (or a sub-module). Prefer `handle` when the handler must die with the feature.
+- **`m.handle`** — bind a handler to an action that has none; gone on unmount.
+- **`m.use`** — bring an action that already carries a handler (or a sub-module). Prefer `handle` when the handler must die with the feature.
 
 Modules also make [hot reload](hmr.md) work. Full API in [Actions](actions.md); a longer recipe in [`examples/modules.ts`](../examples/modules.ts).
 

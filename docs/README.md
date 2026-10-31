@@ -2,9 +2,9 @@
 
 ## Start here
 
-The [Guide](guide.md) is the ladder: small bus → policies for async UI → effects when you need them → commands and modules for domain logic off the UI.
+The [Guide](guide.md) is the ladder: small bus → policies for async UI → effects when you need them → handlers and modules for domain logic off the UI.
 
-Why the library exists, and when to pick it over Redux, Effector or RxJS (SDKs, shared libraries, Module Federation): [Why nanoeffects exists](motivation.md).
+Why the library exists (logic and side effects outside React, Vue and Svelte components, as plain `async` functions), and when to pick it over redux-saga, RxJS, Redux or Effector (including SDKs and Module Federation): [Why nanoeffects exists](motivation.md).
 
 Code for every guide step: [`examples/guide.ts`](../examples/guide.ts) (type-checked and tested).
 
@@ -15,7 +15,7 @@ Code for every guide step: [`examples/guide.ts`](../examples/guide.ts) (type-che
 | Small app / widget (rare races) | [Guide § Create a bus](guide.md#1-create-a-bus) |
 | SPA with async UI | [Policies](policies.md), [Guide § latest](guide.md#3-abort-the-previous-run-with-latest) |
 | Unreliable network / long flows | [Effects](effects.md) — one helper per job, then the rest as reference |
-| Domain logic off the UI | [Actions, commands, modules](actions.md) |
+| Domain logic off the UI | [Actions, handlers, modules](actions.md) |
 | Already on Redux / Zustand / MobX / Pinia | [Stores](stores.md) |
 | A Node server (Fastify) whose work must stop when the client leaves | [Stop work on a server](server.md) |
 | A React form with async checks | [Build a sign-up form in React](react.md) |
@@ -33,7 +33,7 @@ Code for every guide step: [`examples/guide.ts`](../examples/guide.ts) (type-che
 
 - [Policies](policies.md) — `latest`, `leading`, `debounce`, `throttle`, `queue`, `key`
 - [Effects and cancellation](effects.md) — `retry`, `timeout`, `poll`, `take`, `all`, …
-- [Actions, commands, jobs and modules](actions.md)
+- [Actions, jobs and modules](actions.md)
 - [Sign-up form in React](react.md) — one form: races, double submit, retry
 - [nanoeffects in a Vue app](vue.md) — `watchEmitter` and `useEventRef`
 - [nanoeffects in a Svelte app](svelte.md) — `eventStore`

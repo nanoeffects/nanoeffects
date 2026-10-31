@@ -59,7 +59,7 @@ describe("extendBus", () => {
 
 		for (const slot of [
 			"ctx",
-			"commands",
+			"actions",
 			"trace",
 			"addContext",
 			"use",

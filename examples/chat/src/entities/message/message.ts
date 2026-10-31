@@ -1,4 +1,4 @@
-import { createAction, createCommand, createJob } from "nanoeffects/actions";
+import { createAction, createJob } from "nanoeffects/actions";
 import type { Message } from "../../shared/api";
 import { messageStore } from "./message-store";
 
@@ -17,9 +17,9 @@ export const loadHistory = createJob<string, Message[]>("messages/loadHistory");
 // createJob — sending a message; the local id lets the page tell which message an outcome is about
 export const sendMessage = createJob<SendCall, Sent>("messages/send");
 
-// createCommand — an order for this entity, with the handler that does it: mark one message, for
+// createAction — an order for this entity, with the handler that does it: mark one message, for
 // example the one a search result points to. It works whenever it is called; the module binds it
 // with module.use for as long as the module is mounted.
-export const markMessage = createCommand("messages/mark", (messageId: string) =>
+export const markMessage = createAction("messages/mark", (messageId: string) =>
 	messageStore.getState().mark(messageId),
 );

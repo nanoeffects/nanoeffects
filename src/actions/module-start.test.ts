@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { contextPlugin } from "../context";
+import type { Call } from "../core/action-creator";
 import { createBus } from "../core/bus";
 import { effectsPlugin } from "../effects";
 import { matchPlugin } from "../match";
 import type { TestEvents } from "../tests/test-helpers";
 import { delay } from "../utils";
-import { bindHandler, commandsPlugin, createCommand } from "./command";
+import { createAction } from "./action";
+import { actionsPlugin, setHandler } from "./command";
 import { createModule, type ModuleApi, modulePlugin } from "./module";
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -25,7 +27,7 @@ describe("modulePlugin starts on the first use", () => {
 
 	it("is started by each call of the app and by the read of commands", () => {
 		const calls: Array<(app: ModuleApi<TestEvents>) => unknown> = [
-			(app) => app.commands,
+			(app) => app.actions,
 			(app) => app.isMounted(createModule<TestEvents>("x", () => {})),
 			(app) => app.unmount(createModule<TestEvents>("x", () => {})),
 			(app) => app.mount(createModule<TestEvents>("x", () => {})),
@@ -59,7 +61,7 @@ describe("modulePlugin starts on the first use", () => {
 		bus.use(contextPlugin({ store }));
 		bus.use(effectsPlugin({ delay }));
 		bus.use(matchPlugin());
-		app.commands;
+		app.actions;
 		await flush();
 
 		expect(seen).toEqual([store, "function", store, "function"]);
@@ -113,9 +115,9 @@ describe("modulePlugin starts on the first use", () => {
 		expect(Reflect.get(bus, "app")).toBe(app);
 	});
 
-	it("lets a handler bound through app.commands win over the modules", () => {
+	it("lets a handler bound through app.actions win over the modules", () => {
 		const bus = createBus<TestEvents>();
-		const command = createCommand<number, number>("c");
+		const command = createAction<Call<number, number>>("c");
 		const app = bus.use(
 			modulePlugin<TestEvents>([
 				createModule("a", (moduleContext) => {
@@ -123,16 +125,16 @@ describe("modulePlugin starts on the first use", () => {
 				}),
 			]),
 		);
-		app.commands.handle(command, () => 2);
+		app.actions.handle(command, () => 2);
 
 		// the modules are mounted before the handler is bound, so the later one wins
 		expect(bus.emit(command, 0)).toBe(2);
 	});
 
-	it("merges a commandsPlugin used after it", () => {
+	it("merges a actionsPlugin used after it", () => {
 		const bus = createBus<TestEvents>();
-		const mine = createCommand<number, number>("mine");
-		const other = createCommand<number, number>("other");
+		const mine = createAction<Call<number, number>>("mine");
+		const other = createAction<Call<number, number>>("other");
 		const app = bus.use(
 			modulePlugin<TestEvents>([
 				createModule("a", (moduleContext) => {
@@ -140,9 +142,9 @@ describe("modulePlugin starts on the first use", () => {
 				}),
 			]),
 		);
-		bus.use(commandsPlugin<TestEvents>([bindHandler(other, () => 2)]));
+		bus.use(actionsPlugin<TestEvents>([setHandler(other, () => 2)]));
 
-		expect(bus.commands).toBe(app.commands);
+		expect(bus.actions).toBe(app.actions);
 		expect([bus.emit(mine, 0), bus.emit(other, 0)]).toEqual([1, 2]);
 	});
 });

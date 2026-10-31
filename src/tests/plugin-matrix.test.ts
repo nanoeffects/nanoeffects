@@ -1,14 +1,14 @@
 import type { Readable } from "svelte/store";
 import { describe, expect, it } from "vitest";
 import {
-	commandsPlugin,
+	actionsPlugin,
 	createAction,
-	createCommand,
 	createModule,
 	emitterPlugin,
 	modulePlugin,
 } from "../actions";
 import { contextPlugin } from "../context";
+import type { Call } from "../core/action-creator";
 import { type Bus, createBus } from "../core/bus";
 import type { EventMap } from "../core/types";
 import { devPlugin } from "../dev";
@@ -36,7 +36,7 @@ type Name =
 	| "context"
 	| "effects"
 	| "scope"
-	| "commands"
+	| "actions"
 	| "modules"
 	| "emitter"
 	| "match"
@@ -51,7 +51,7 @@ const names: Name[] = [
 	"context",
 	"effects",
 	"scope",
-	"commands",
+	"actions",
 	"modules",
 	"emitter",
 	"match",
@@ -63,7 +63,7 @@ const names: Name[] = [
 	"vue",
 ];
 
-type Registry = ReturnType<ReturnType<typeof commandsPlugin>>;
+type Registry = ReturnType<ReturnType<typeof actionsPlugin>>;
 type App = ReturnType<ReturnType<typeof modulePlugin>>;
 
 // what the module of the probes saw, and the parts the plugins returned
@@ -79,7 +79,7 @@ type Build = {
 		setup: unknown[];
 		predicate: unknown[];
 	};
-	commands?: Registry;
+	actions?: Registry;
 	app?: App;
 	disconnect?: () => void;
 };
@@ -105,7 +105,7 @@ const abortedWith = (ctx: { signal: AbortSignal }, ...before: unknown[]) =>
 const emitWith = (bus: Bus<EventMap>, call: unknown, options: unknown) =>
 	Reflect.apply(bus.emit, bus, [call, options]) as Promise<string>;
 
-const getValue = createCommand<void, number>("probe/value");
+const getValue = createAction<Call<void, number>>("probe/value");
 
 const make = (order: Name[]): Build => {
 	const recorder = createTraceRecorder();
@@ -156,8 +156,8 @@ const make = (order: Name[]): Build => {
 			build.bus.use(effectsPlugin({ delay, race }));
 		} else if (name === "scope") {
 			build.bus.use(scopePlugin());
-		} else if (name === "commands") {
-			build.commands = build.bus.use(commandsPlugin());
+		} else if (name === "actions") {
+			build.actions = build.bus.use(actionsPlugin());
 		} else if (name === "modules") {
 			build.app = build.bus.use(modulePlugin([probeModule]));
 		} else if (name === "emitter") {
@@ -228,7 +228,7 @@ const probes: Probe[] = [
 		id: "a command scope reaches its handler, and emit replaces it",
 		needs: ["scope"],
 		run: ({ bus }) => {
-			const read = createCommand(
+			const read = createAction(
 				"p/scope",
 				(_payload: undefined, ctx) => field(ctx, "api"),
 				{ api: "own" },
@@ -245,7 +245,7 @@ const probes: Probe[] = [
 		id: "a scope and the context of the bus are both on a command",
 		needs: ["scope", "context"],
 		run: ({ bus }) => {
-			const read = createCommand(
+			const read = createAction(
 				"p/both",
 				(_payload: undefined, ctx) => [field(ctx, "api"), storeName(ctx)],
 				{ api: "own" },
@@ -259,7 +259,7 @@ const probes: Probe[] = [
 		needs: ["scope", "effects"],
 		run: ({ bus }) => {
 			const echo = (_ctx: { signal: AbortSignal }, value: number) => value;
-			const read = createCommand(
+			const read = createAction(
 				"p/effect",
 				(_payload: undefined, ctx) => [
 					Reflect.apply(field(ctx, "echo") as (v: number) => number, null, [3]),
@@ -297,7 +297,7 @@ const probes: Probe[] = [
 		run: async ({ bus }) => {
 			const signals: AbortSignal[] = [];
 			const watch = (ctx: { signal: AbortSignal }) => signals.push(ctx.signal);
-			const read = createCommand(
+			const read = createAction(
 				"p/starter-scope",
 				async (_payload: undefined, ctx) => {
 					await all(ctx, {
@@ -314,10 +314,10 @@ const probes: Probe[] = [
 	},
 	{
 		id: "a handler bound in the registry answers",
-		needs: ["commands"],
-		run: ({ bus, commands }) => {
-			const ask = createCommand<void, number>("p/registry");
-			commands?.handle(ask, () => 7);
+		needs: ["actions"],
+		run: ({ bus, actions }) => {
+			const ask = createAction<Call<void, number>>("p/registry");
+			actions?.handle(ask, () => 7);
 
 			return bus.emit(ask()) === 7;
 		},
@@ -404,9 +404,9 @@ const probes: Probe[] = [
 	},
 	{
 		id: "the group of a scope is on the events of a command",
-		needs: ["trace", "commands"],
+		needs: ["trace", "actions"],
 		run: async ({ bus, recorder }) => {
-			const grouped = createCommand(
+			const grouped = createAction(
 				"p/grouped",
 				async (_payload: undefined) => 1,
 				{ traceGroupId: "probe-group" },
@@ -464,7 +464,7 @@ const probes: Probe[] = [
 				(action: { type: string }) => action.type === "p/scoped",
 				(_payload: unknown, ctx: unknown) => seen.push(field(ctx, "api")),
 			]);
-			const read = createCommand("p/scoped", (_payload: undefined) => 1, {
+			const read = createAction("p/scoped", (_payload: undefined) => 1, {
 				api: "own",
 			});
 			bus.emit(read(noPayload));
@@ -476,7 +476,7 @@ const probes: Probe[] = [
 		id: "an outside signal aborts the handler of an emit",
 		needs: ["signal"],
 		run: async ({ bus }) => {
-			const read = createCommand("p/signal", (_payload: undefined, ctx) =>
+			const read = createAction("p/signal", (_payload: undefined, ctx) =>
 				abortedWith(ctx),
 			);
 			const controller = new AbortController();
@@ -492,7 +492,7 @@ const probes: Probe[] = [
 		id: "a signal and a scope share the options of an emit",
 		needs: ["signal", "scope"],
 		run: async ({ bus }) => {
-			const read = createCommand("p/signal-scope", (_payload: undefined, ctx) =>
+			const read = createAction("p/signal-scope", (_payload: undefined, ctx) =>
 				abortedWith(ctx, field(ctx, "api")),
 			);
 			const controller = new AbortController();
@@ -507,10 +507,11 @@ const probes: Probe[] = [
 	},
 	{
 		id: "a signal reaches a handler bound in the registry",
-		needs: ["signal", "commands"],
-		run: async ({ bus, commands }) => {
-			const ask = createCommand<void, Promise<string>>("p/signal-registry");
-			commands?.handle(ask, (_payload, ctx) => abortedWith(ctx));
+		needs: ["signal", "actions"],
+		run: async ({ bus, actions }) => {
+			const ask =
+				createAction<Call<void, Promise<string>>>("p/signal-registry");
+			actions?.handle(ask, (_payload, ctx) => abortedWith(ctx));
 			const controller = new AbortController();
 			const result = emitWith(bus, ask(), { signal: controller.signal });
 			controller.abort();
@@ -723,7 +724,7 @@ const probes: Probe[] = [
 				(action: { type: string }) => action.type === "p/command",
 				(payload: unknown) => seen.push(payload),
 			]);
-			const ask = createCommand("p/command", (value: number) => value * 2);
+			const ask = createAction("p/command", (value: number) => value * 2);
 
 			return bus.emit(ask(4)) === 8 && seen[0] === 4;
 		},
@@ -768,13 +769,13 @@ const probes: Probe[] = [
 	},
 	{
 		id: "a scope applies to a command whose handler is in the registry",
-		needs: ["scope", "commands"],
-		run: ({ bus, commands }) => {
-			const ask = createCommand<void, unknown>("p/registry-scope");
-			const scoped = createCommand("p/registry-scope", (_p: undefined) => 0, {
+		needs: ["scope", "actions"],
+		run: ({ bus, actions }) => {
+			const ask = createAction<Call<void, unknown>>("p/registry-scope");
+			const scoped = createAction("p/registry-scope", (_p: undefined) => 0, {
 				api: "own",
 			});
-			commands?.handle(scoped, (_payload, ctx) => field(ctx, "api"));
+			actions?.handle(scoped, (_payload, ctx) => field(ctx, "api"));
 			void ask;
 
 			return String(bus.emit(scoped(noPayload))) === "own";

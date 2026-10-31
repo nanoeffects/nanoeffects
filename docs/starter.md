@@ -100,7 +100,7 @@ npm create nanoeffects@latest my-app -- --template domains-ts
 
 For a bigger example, a chat in which parts react to each other, see [Build a chat with entities, features, modules and a small server](chat-example.md). It has more layers than `domains-ts`: when domains must react to each other, it keeps them from importing each other by splitting them into entities and features.
 
-The commands, jobs and modules themselves are explained in [Actions, commands, jobs and modules](actions.md). The template keeps found products in a Context provider with one `useEventState`, and the order state in a store of its own: `useEventState` is [not a store](react.md#show-the-last-value-of-an-event-as-state).
+The commands, jobs and modules themselves are explained in [Actions, jobs and modules](actions.md). The template keeps found products in a Context provider with one `useEventState`, and the order state in a store of its own: `useEventState` is [not a store](react.md#show-the-last-value-of-an-event-as-state).
 
 ## Read the files
 

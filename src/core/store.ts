@@ -1,22 +1,26 @@
+import type { DataOf } from "./action-creator";
 import type { EventMap, Keys, Task, UnsubscribeCallback } from "./types";
 
 export const anyEventType = "*";
 type AnyType = "*";
 
 export interface UnsubscribeTask<E extends EventMap> {
-	(task: Task<E[Keys<E>], E>): void;
-	<K extends AnyType>(key: K, task?: Task<E[Keys<E>], E>): void;
-	<K extends Keys<E>>(key: K, task?: Task<E[K], E>): void;
+	(task: Task<DataOf<E[Keys<E>]>, E>): void;
+	<K extends AnyType>(key: K, task?: Task<DataOf<E[Keys<E>]>, E>): void;
+	<K extends Keys<E>>(key: K, task?: Task<DataOf<E[K]>, E>): void;
 }
 
 export type Store<E extends EventMap> = {
 	get: {
-		(key: AnyType): Task<E[Keys<E>], E>[];
-		<K extends Keys<E>>(key: K): Task<E[K], E>[];
+		(key: AnyType): Task<DataOf<E[Keys<E>]>, E>[];
+		<K extends Keys<E>>(key: K): Task<DataOf<E[K]>, E>[];
 	};
 	add: {
-		(key: AnyType, task: Task<E[Keys<E>], E>): UnsubscribeCallback;
-		<K extends Keys<E>>(key: K, task: Task<E[K], E>): UnsubscribeCallback;
+		(key: AnyType, task: Task<DataOf<E[Keys<E>]>, E>): UnsubscribeCallback;
+		<K extends Keys<E>>(
+			key: K,
+			task: Task<DataOf<E[K]>, E>,
+		): UnsubscribeCallback;
 	};
 	remove: UnsubscribeTask<E>;
 	/** Drops every key; lists already handed out by `get` stay as they were. */

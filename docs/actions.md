@@ -1,4 +1,4 @@
-# Actions, commands, jobs and modules
+# Actions, jobs and modules
 
 Use this page when **domain logic lives on the bus**, off the UI: the UI emits and listens; handlers and modules own the work.
 
@@ -10,7 +10,9 @@ A chat with two entities and three features, jobs under policies and effects, an
 
 A whole project with two domains, a job and React as a thin layer: `npm create nanoeffects@latest my-app -- --template domains-ts` (see [Start a project from a template](starter.md#start-with-domains)).
 
-## Return a value from `emit` with a command
+## Return a value from `emit` with a handler
+
+Give `createAction` a handler, and `emit` runs it and returns its result. There is one creator for an event and for an action with work behind it; the handler is the only difference.
 
 The bus lives in one file and its events in another, so any module can import both without a cycle.
 
@@ -24,10 +26,10 @@ export const bus = createBus();
 
 ```js
 // math.js
-import { createCommand } from "nanoeffects/actions";
+import { createAction } from "nanoeffects/actions";
 
-// createCommand — emit runs the handler and returns its result
-export const double = createCommand("math/double", (value) => value * 2);
+// createAction with a handler — emit runs the handler and returns its result
+export const double = createAction("math/double", (value) => value * 2);
 ```
 
 ```js
@@ -37,27 +39,24 @@ import { double } from "./math";
 bus.emit(double(21)); // 42
 ```
 
-## Describe events, commands, and jobs
+## Describe events, handlers and jobs
 
 `nanoeffects/actions` has the pieces to name what a bus does, apart from the code that does it.
 
 ```js
 // user.js
-import { createAction, createCommand, createJob } from "nanoeffects/actions";
+import { createAction, createJob } from "nanoeffects/actions";
 
-// createAction — event with a payload (like RTK createAction)
+// createAction — an event with a payload (like RTK createAction)
 export const userLoaded = createAction("user/loaded");
 export const loadFailed = createAction("user/failed");
 
-// createCommand with a handler — emit returns what the handler returns
-export const getUser = createCommand("user/get", (id, { signal }) => {
+// createAction with a handler — emit returns what the handler returns
+export const getUser = createAction("user/get", (id, { signal }) => {
   return fetchUser(id, { signal });
 });
 
-// createCommand without a handler — a contract; register the work elsewhere
-export const sendMail = createCommand("mail/send");
-
-// createJob — command that also emits success / fail actions
+// createJob — an action with a handler that also emits success / fail actions
 export const loadUser = createJob("user/load", fetchUser, {
   success: userLoaded,
   fail: "user/failed",
@@ -73,57 +72,99 @@ These are the events of the user domain, in a file of their own (`user.js`). The
 - `userLoaded(user)` → `{ type, payload }`
 - `userLoaded.type` — the type string
 - `userLoaded.match(action)` — narrows an action
-- `createAction(type, prepare)` — build the payload from several arguments
+- `createAction(type, handler)` — a function as the second argument is the handler; `bus.emit(action(payload))` tells the listeners, runs the handler as a task and returns its result
+- `createAction(type, { prepare })` — build the payload from several arguments
+- `createAction(type, { handle, prepare, ...scope })` — everything in one object: `handle` and `prepare` are taken out, and every other field is the [scope](scope.md)
 - Works as the event of its type: `bus.emit(userLoaded(user))`, `bus.on(userLoaded, fn)`
 
-### Commands
+A scope goes after a handler as the last argument, `createAction(type, handler, scope)`; `prepare` with a handler goes in that last object: `createAction(type, handler, { prepare, ...scope })`.
 
-Calling a command builds `{ type, payload }` like `createAction`. `bus.emit(command(payload))` (or `bus.emit(command, payload)`) tells the listeners of the command’s type, then runs its handler as a task and returns the result.
+- Wrap the handler in a policy: `createAction("search", latest(fn))`.
 
-- Wrap the handler in a policy: `createCommand("search", latest(fn))`.
-- `command.match(action)` narrows like an action creator’s `match`.
+An action with no handler is an event. Emitting it does not throw, and `onUnhandled` hears about it when nobody listens.
 
-**Where handlers are registered.** The command may carry a handler. The bus can also take handlers from a registry (`commandsPlugin`). A handler bound there wins over the command’s own. Each bus (each test) has its own registry.
+### Bind a handler later
+
+**Problem.** The work belongs to another layer, or a test must replace it. Putting the handler in `createAction` then ties the event file to the work.
+
+**When.** Use the registry when the handler is not known where the action is made. The action can have no handler at all; a handler bound to its type answers it. Each bus (each test) has its own registry.
+
+```js
+// mail.js
+import { createAction } from "nanoeffects/actions";
+
+// createAction without a handler — an event; the work is bound elsewhere
+export const sendMail = createAction("mail/send");
+```
 
 ```js
 // bus.js
 import { createBus } from "nanoeffects";
-import { bindHandler, commandsPlugin } from "nanoeffects/actions";
-import { sendMail } from "./user";
+import { actionsPlugin, setHandler } from "nanoeffects/actions";
+import { sendMail } from "./mail";
 
 export const bus = createBus();
 
-// commandsPlugin — registry of handlers for this bus
-export const commands = bus.use(
-  commandsPlugin([bindHandler(sendMail, smtpSend)]),
+// actionsPlugin — the registry of handlers of this bus; setHandler pairs an action with its work
+export const actions = bus.use(
+  actionsPlugin([setHandler(sendMail, smtpSend)]),
 );
 ```
 
 ```js
-import { commands } from "./bus";
+import { actions } from "./bus";
 import { getUser } from "./user";
 
-// later, e.g. in a test — latest binding wins
-const unbind = commands.handle(getUser, async () => fakeUser);
+// later, e.g. in a test — the latest binding wins, a handler bound here wins over the one in createAction
+const unbind = actions.handle(getUser, async () => fakeUser);
 unbind();
 ```
 
-A command with no handler anywhere throws `No handler for command "..."` from `emit` (the call itself only builds the action).
+A handler bound in the registry makes `bus.emit(sendMail(mail))` run it and return its result, the same as for an action that carries its handler. The listeners of the type are told first. With no handler bound, `sendMail` is an event again.
 
-The registry lives in `nanoeffects/actions`, so a bus without one carries none of that code. Without a registry, `emit` runs the command’s own handler. `bus.use(commandsPlugin())` sets `bus.commands`. A second `commandsPlugin` binds its list in that registry and returns it. There is no `commands` option in `createBus`; assign a custom runner with `bus.commands = { run }`.
+The registry lives in `nanoeffects/actions`, so a bus without one carries none of that code. Without a registry, `emit` runs the handler that the action carries. `bus.use(actionsPlugin())` sets `bus.actions`. A second `actionsPlugin` binds its list in that registry and returns it. There is no `actions` option in `createBus`; assign a custom runner with `bus.actions = { run }`, and add `bound(type)` to it to answer for actions that have no handler of their own.
+
+### Say what a bound handler returns
+
+TypeScript cannot see which handler the registry has, so the type of `emit` for an action without a handler is `void`. Tell it what the bound handler returns with `Call<Payload, Result>`. This is a promise of yours: nothing checks it against the handler.
+
+```ts
+// mail.ts
+import type { Call } from "nanoeffects";
+import { createAction } from "nanoeffects/actions";
+
+// Call — payload Mail, a bound handler answers with a boolean (checker only; nothing runs differently)
+type Mail = { to: string };
+export const sendMail = createAction<Call<Mail, boolean>>("mail/send");
+```
+
+In an event map the same type does the job for string events, and `emit` returns `boolean`:
+
+```ts
+// events.ts
+import type { Call } from "nanoeffects";
+
+// Call in the map — the payload is checked, emit returns the result (checker only)
+export type Events = {
+  "user/getId": Call<void, string>;
+  "user/loaded": { id: string };
+};
+```
+
+On a bus without an event map you can say it where you call: `const id = bus.emit<string>("user/getId")`. A bus with a map takes no such hint, so its names and payloads stay checked.
 
 ### Jobs
 
-`createJob(type, handler, { pending, success, fail, cancel })` makes a command that also sends its outcome as actions, when nobody waits for the result. It returns the command with `loadUser.pending`, `loadUser.success`, `loadUser.fail` and `loadUser.cancel` on it.
+`createJob(type, handler, { pending, success, fail, cancel })` makes an action with a handler that also sends its outcome as actions, when nobody waits for the result. It returns the action with `loadUser.pending`, `loadUser.success`, `loadUser.fail` and `loadUser.cancel` on it.
 
 - When the handler starts, emits `loadUser.pending(payload)`.
 - On success, emits `loadUser.success(result)`.
 - On failure, emits `loadUser.fail(error)`.
 - When the task is aborted before the handler settles, emits `loadUser.cancel(reason)` instead of `success` or `fail`. After `pending`, exactly one of the three follows.
 - `pending` / `success` / `fail` / `cancel` are a string (job makes an action creator) or an existing action creator. Missing ones become `<type>/pending`, `<type>/success`, `<type>/fail` or `<type>/cancel`.
-- `bus.emit(loadUser(id))` returns a promise of the result. Handler errors are always handled: they go to `fail` and the promise resolves with `undefined`. For a result that must reject, use a command.
-- Outcome actions are emitted as the task that ran the job (also for a handler bound with `commands.handle`). `success` and `fail` are not sent after abort; `cancel` is, at the moment of the abort.
-- A missing handler is not an outcome: `emit` throws `No handler for command "..."` and nothing is sent.
+- `bus.emit(loadUser(id))` returns a promise of the result. Handler errors are always handled: they go to `fail` and the promise resolves with `undefined`. For a result that must reject, give `createAction` the handler.
+- Outcome actions are emitted as the task that ran the job (also for a handler bound with `actions.handle`). `success` and `fail` are not sent after abort; `cancel` is, at the moment of the abort.
+- A job without a handler is not an outcome: `emit` throws `No handler for command "..."` and nothing is sent. An action without a handler is an event and does not throw.
 - Calling the job only builds `{ type, payload }`; the handler runs on `emit`.
 - The outcomes are events like any other: with `onUnhandled` set on the bus, it is called for a `pending` or a `cancel` that nobody listens to.
 
@@ -147,7 +188,7 @@ export const bus = createBus();
 // user.js
 import { createJob } from "nanoeffects/actions";
 
-// createJob — a command that also sends pending, success, fail and cancel
+// createJob — an action with a handler that also sends pending, success, fail and cancel
 export const loadUser = createJob("user/load", fetchUser);
 ```
 
@@ -202,18 +243,18 @@ A flag is exact when calls do not overlap, or when `latest` replaces them. If se
 
 ## Mount domains with modules
 
-**Problem.** A domain needs several subscriptions and command bindings. With plain `bus.on` / `commands.handle` you must remember every unsubscribe.
+**Problem.** A domain needs several subscriptions and handler bindings. With plain `bus.on` / `actions.handle` you must remember every unsubscribe.
 
 **When.** You want one mount / one unmount for that domain. Skip modules while a few top-level `bus.on` calls are enough.
 
-`bus.use(modulePlugin(modules))` assembles an app from modules and returns `mount`, `unmount`, `isMounted`, `dispose`, `commands`, and `createModule`: the same as `createModule` below, with the context fields of the bus typed (see [TypeScript](typescript.md)).
+`bus.use(modulePlugin(modules))` assembles an app from modules and returns `mount`, `unmount`, `isMounted`, `dispose`, `actions`, and `createModule`: the same as `createModule` below, with the context fields of the bus typed (see [TypeScript](typescript.md)).
 
 ```js
 // user.js
-import { createCommand } from "nanoeffects/actions";
+import { createAction } from "nanoeffects/actions";
 
-export const getUser = createCommand("user/get");
-export const saveUser = createCommand("user/save", persistUser);
+export const getUser = createAction("user/get");
+export const saveUser = createAction("user/save", persistUser);
 ```
 
 ```js
@@ -250,7 +291,7 @@ import { app } from "./bus";
 import { getUser } from "./user";
 
 const unmount = app.mount(orderModule); // later, e.g. after a lazy import
-app.commands.handle(getUser, fakeUser); // in a test
+app.actions.handle(getUser, fakeUser); // in a test
 app.dispose(); // unmounts every module
 ```
 
@@ -281,37 +322,37 @@ app.unmount(...modules); // also in reverse order
 
 If the `setup` of one module throws, the modules of that call that were already mounted are unmounted again and the error is thrown, so a call mounts all of its modules or none. A module that is mounted already is skipped.
 
-- **Unmounting undoes everything** the module did: subscriptions, bound commands, sub-modules, and background tasks (aborted).
+- **Unmounting undoes everything** the module did: subscriptions, bound handlers, sub-modules, and background tasks (aborted).
 - **A module is known by its name.** Mounting a module whose name is taken replaces the mounted one (see [Hot reload](hmr.md)).
-- **Registry.** If `bus.use(commandsPlugin())` ran first, that registry is used; otherwise the module plugin attaches its own. Either way it is `bus.commands` and `app.commands`.
+- **Registry.** If `bus.use(actionsPlugin())` ran first, that registry is used; otherwise the module plugin attaches its own. Either way it is `bus.actions` and `app.actions`.
 - A disposed app cannot mount modules.
 - **The given modules are mounted at the end of the block that made the app**, or at the first use of the app or the bus if that comes first (the first `bus.emit`, or a call of `mount`, `unmount`, `isMounted`, `dispose`, or the read of `commands`). Nothing needs to use the app: `bus.use(modulePlugin([a, b]))` is enough to start them. The plugins that you use after `modulePlugin` in the same block still reach them, because the modules wait until that block has finished. A plugin used after an `await` can come too late: use every plugin before the first `await`. The `bus.on` calls made in between are held and made right after, so the listeners of a module stay ahead of them. See [using plugins in any order](plugins.md#use-them-in-any-order).
 - **To mount by hand instead**, pass no modules: `modulePlugin()` starts nothing, and `app.mount(...)` starts the modules when you want.
 - Module context = task context plus `handle`, `use`, and `spawn`:
-  - `handle` — give a command a handler (contract, or override).
-  - `use` — bring sub-modules and commands that carry a handler; the returned function undoes that call.
+  - `handle` — give an action a handler (one that has none, or an override).
+  - `use` — bring sub-modules and actions that carry a handler; the returned function undoes that call.
   - `spawn` — background task, aborted on unmount.
-- A command that carries a handler keeps answering after unmount (`use` only tracks registration). Use `handle` for a handler that must live only as long as the module.
+- An action that carries a handler keeps answering after unmount (`use` only tracks registration). Use `handle` for a handler that must live only as long as the module.
 
-## Give a command, an action or a module its own fields
+## Give an action or a module its own fields
 
-A command can need its own client, a module its own logger. Pass a scope, a plain object whose keys go on `ctx` (`$effects` binds functions to the task), as the last argument of `createCommand`, `createAction`, `createModule` and `createJob`, and turn it on with `scopePlugin`:
+An action with a handler can need its own client, a module its own logger. Pass a scope, a plain object whose keys go on `ctx` (`$effects` binds functions to the task), as the last argument of `createAction`, `createAction`, `createModule` and `createJob`, and turn it on with `scopePlugin`:
 
 ```js
 // bus.js
 import { createBus } from "nanoeffects";
 import { scopePlugin } from "nanoeffects/scope";
 
-// scopePlugin — makes the scope of a command work on this bus
+// scopePlugin — makes the scope of an action work on this bus
 export const bus = createBus().use(scopePlugin());
 ```
 
 ```js
 // user.js
-import { createCommand } from "nanoeffects/actions";
+import { createAction } from "nanoeffects/actions";
 
-// the third argument — fields of this command only
-export const getUser = createCommand(
+// the third argument — fields of this action only
+export const getUser = createAction(
   "user/get",
   (id, { api }) => api.getUser(id),
   { api },

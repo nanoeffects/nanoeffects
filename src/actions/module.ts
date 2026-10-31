@@ -9,7 +9,7 @@ import type {
 } from "../core/types";
 import type { Scoped, ScopeSlots } from "../scope/types";
 import { onAbort, report } from "../utils";
-import { type Binding, commandsPlugin } from "./command";
+import { actionsPlugin, type Binding, type LooseHandler } from "./command";
 import { holdListeners } from "./hold";
 import { mountEach } from "./mount-each";
 
@@ -22,6 +22,11 @@ import { mountEach } from "./mount-each";
 export type ModuleContext<E extends EventMap = EventMap> = Context<E> & {
 	/** Binds the handler of a command, or a list of them; undone on unmount. */
 	handle<P, R>(command: Command<P, R>, fn: Task<P, E, R>): UnsubscribeCallback;
+	/** Also an action made without a handler: the handler answers it as it would a command. */
+	handle<A extends { readonly type: string }>(
+		action: A,
+		fn: LooseHandler<A, E>,
+	): UnsubscribeCallback;
 	handle(type: string, fn: Task<never, E, unknown>): UnsubscribeCallback;
 	handle(bindings: readonly Binding<E>[]): UnsubscribeCallback;
 	/**
@@ -60,7 +65,7 @@ export type Module<E extends EventMap = EventMap> = {
  * ```ts
  * export const userModule = createModule<Events>("user", (m) => {
  *   m.handle(getUser, fetchUser);
- *   m.handle([bindHandler(sendMail, smtpSend)]);
+ *   m.handle([setHandler(sendMail, smtpSend)]);
  *   m.use(authModule);
  *
  *   m.on(loginRequested, (user, ctx) => ctx.emit(userLoaded(user)));
@@ -145,7 +150,7 @@ const spawnOn =
 	};
 
 type Registry<E extends EventMap> = ReturnType<
-	ReturnType<typeof commandsPlugin<E>>
+	ReturnType<typeof actionsPlugin<E>>
 >;
 
 /**
@@ -166,7 +171,7 @@ export interface WithApp {
 /** What `modulePlugin` returns. */
 export type ModuleApi<E extends EventMap = EventMap> = {
 	/** The registry of command handlers of the bus: the one it was made with, or the app's own. */
-	commands: Registry<E>;
+	actions: Registry<E>;
 	/**
 	 * Mounts modules, in the order given, and returns the function that unmounts them, last
 	 * mounted first. A module that is mounted already is not run again. If one of them throws,
@@ -193,15 +198,15 @@ export type ModuleApi<E extends EventMap = EventMap> = {
 
 /**
  * The plugin that assembles an app from modules: `bus.use(modulePlugin(modules))`
- * returns `mount`, `unmount`, `isMounted`, `dispose` and `commands` for the
+ * returns `mount`, `unmount`, `isMounted`, `dispose` and `actions` for the
  * modules that come and go, and mounts `modules`, in the order given, on the
  * first use of the app or of the bus: the first `bus.emit`, or the first call
  * of one of its methods. By then every plugin is on the bus, so the plugins can
  * be used in any order. The `on`, `once` and `off` calls made in between are
  * held and made right after the modules, so the listeners of a module stay
  * ahead of them. The bus runs the commands that the modules bind: the registry
- * that the bus has is used (a later `commandsPlugin` binds in it), otherwise the
- * app attaches its own, as `app.commands`. The app is also `bus.app`.
+ * that the bus has is used (a later `actionsPlugin` binds in it), otherwise the
+ * app attaches its own, as `app.actions`. The app is also `bus.app`.
  *
  * A module is known by its `name`: mounting a module whose name is taken
  * replaces the mounted one, which is unmounted first. That is what hot reload
@@ -226,7 +231,7 @@ export type ModuleApi<E extends EventMap = EventMap> = {
  * });
  *
  * bus.emit(getUser, "1");
- * app.commands.handle(getUser, fakeUser); // in a test
+ * app.actions.handle(getUser, fakeUser); // in a test
  * app.dispose();
  * ```
  */
@@ -234,13 +239,13 @@ export const modulePlugin =
 	<E extends EventMap>(modules: readonly Module<E>[] = []) =>
 	(bus: Bus<E> & ScopeSlots & WithApp): ModuleApi<E> => {
 		// the bus runs what it was given; without commands the app attaches its registry
-		const given = bus.commands as Registry<E> | undefined;
-		const registry = given ?? commandsPlugin<E>()(bus);
+		const given = bus.actions as Registry<E> | undefined;
+		const registry = given ?? actionsPlugin<E>()(bus);
 		const commands = {
 			handle: (...args: Parameters<Registry<E>["handle"]>) => {
 				if (!registry.handle) {
 					throw new Error(
-						"modulePlugin: the `commands` of the bus is not a registry from `commandsPlugin()`",
+						"modulePlugin: the `actions` of the bus is not a registry from `actionsPlugin()`",
 					);
 				}
 				return Reflect.apply(registry.handle, null, args);
@@ -390,7 +395,7 @@ export const modulePlugin =
 		}
 
 		const app: ModuleApi<E> = {
-			get commands() {
+			get actions() {
 				start();
 				return registry;
 			},

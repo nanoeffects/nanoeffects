@@ -6,10 +6,10 @@ Names a whole flow in a trace. A `traceGroupId` that a command, a job, an action
 ## Requirements
 
 ### Requirement: A traceGroupId is declared in the scope of a call
-`createCommand`, `createJob` and `createAction` SHALL accept `traceGroupId`, a string, in their scope, and `useEmitter` and `bus.emitter` SHALL accept it in their options. A call with a `traceGroupId` SHALL start its task with that `traceGroupId` when `tracePlugin` is used on the bus; without it the `traceGroupId` of a scope SHALL be ignored. A scope with only a `traceGroupId` SHALL be valid, also for a command whose handler is given later.
+`createJob` and `createAction` (with or without a handler) SHALL accept `traceGroupId`, a string, in their scope, and `useEmitter` and `bus.emitter` SHALL accept it in their options. A call with a `traceGroupId` SHALL start its task with that `traceGroupId` when `tracePlugin` is used on the bus; without it the `traceGroupId` of a scope SHALL be ignored. A scope with only a `traceGroupId` SHALL be valid, also for an action whose handler is given later.
 
 #### Scenario: A command with a group
-- **WHEN** `createCommand("checkout/pay", handler, { traceGroupId: "checkout" })` is emitted on a bus with a tracer and `tracePlugin`
+- **WHEN** `createAction("checkout/pay", handler, { traceGroupId: "checkout" })` is emitted on a bus with a tracer and `tracePlugin`
 - **THEN** the trace events of its task have `traceGroupId: "checkout"`
 
 #### Scenario: An emitter with a group

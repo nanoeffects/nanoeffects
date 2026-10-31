@@ -1,7 +1,9 @@
 import { isPromise, report } from "../utils";
 import type {
 	ActionCreator,
+	DataOf,
 	FreeActionCreator,
+	ResultOf,
 	WithPayload,
 } from "./action-creator";
 import { createTask, currentEmitter, traceRun } from "./context";
@@ -24,7 +26,7 @@ export { anyEventType };
 export type AnyEvent = typeof anyEventType;
 
 export type EventKey<E extends EventMap> = Keys<E>;
-export type EventPayload<E extends EventMap> = E[EventKey<E>];
+export type EventPayload<E extends EventMap> = DataOf<E[EventKey<E>]>;
 export type WithType<K extends string> = { type: K };
 
 /**
@@ -50,7 +52,7 @@ export type Handler<
 > = {
 	[P in K]: {
 		type: P;
-		(payload: E[P]): Response;
+		(payload: DataOf<E[P]>): Response;
 	};
 }[K];
 
@@ -126,16 +128,20 @@ export const commandOf = (
 };
 
 /**
- * What the bus needs to run commands. The implementation, `commandsPlugin` in
- * `nanoeffects/actions`, holds the handlers bound to commands and runs the
- * right one, so a bus without `commands` carries none of that.
+ * What the bus needs to run the handlers of actions. The implementation,
+ * `actionsPlugin` in `nanoeffects/actions`, holds the handlers bound to
+ * actions and runs the right one, so a bus without `actions` carries none of
+ * that. `bound` tells, for an event type, whether a handler is bound to it: an
+ * action with no handler of its own is a command only then. A runner that has
+ * no `bound` runs commands only.
  */
-export interface Commands {
+export interface Actions {
 	run(command: Command, payload: unknown, ctx: unknown): unknown;
+	bound?(type: string): Command | undefined;
 }
 
-// runs a command as it is, when the bus has no `commands` to run it
-const callCommand: Commands["run"] = (command, payload, ctx) =>
+// runs a command as it is, when the bus has no `actions` to run it
+const callCommand: Actions["run"] = (command, payload, ctx) =>
 	Reflect.apply(command, null, [payload, ctx]);
 
 /** Anything `emit` takes as its first argument: an event type, an action or a command. */
@@ -146,7 +152,19 @@ export type Emittable<E extends EventMap> =
 	| EventLike<E>;
 
 export type Emit<E extends EventMap> = {
-	<K extends EventKey<E>>(event: K, ...payload: PayloadOf<E[K]>): void;
+	/**
+	 * On a bus without an event map the caller can say what a handler bound for
+	 * the type returns: `bus.emit<string>("user/getId")`. With a map the parameter
+	 * is `never`, so this form is not taken and no check of names or payloads is lost.
+	 */
+	<R = void>(
+		type: string extends EventKey<E> ? string : never,
+		...payload: unknown[]
+	): R;
+	<K extends EventKey<E>>(
+		event: K,
+		...payload: PayloadOf<DataOf<E[K]>>
+	): ResultOf<E[K]>;
 	/** Before Handler: a command is callable too, and must return its result type. */
 	<P, R>(command: Command<P, R>, ...payload: PayloadOf<P>): R;
 	/** A scope as the second argument replaces context fields for the tasks of this emit; see `scopePlugin`. */
@@ -154,7 +172,7 @@ export type Emit<E extends EventMap> = {
 	<P, R>(call: CommandCall<P, R>, scope?: EmitScope<E>): R;
 	<K extends EventKey<E>, R>(
 		event: Handler<E, R, K>,
-		...payload: PayloadOf<E[K]>
+		...payload: PayloadOf<DataOf<E[K]>>
 	): R;
 	<F>(event: EventLike<E> & WithScope<F>, scope?: EmitScope<E, F>): void;
 	(event: EventLike<E>, scope?: EmitScope<E>): void;
@@ -168,14 +186,14 @@ export type On<E extends EventMap> = {
 	): UnsubscribeCallback;
 	<K extends EventKey<E>>(
 		event: K,
-		fn: Task<E[K], E>,
+		fn: Task<DataOf<E[K]>, E>,
 		options?: ListenerOptions,
 	): UnsubscribeCallback;
 	/** An action creator without a payload type: the payload comes from the event map. */
 	/** The creators and commands that carry a scope come first: the handler sees their fields. */
 	<K extends EventKey<E>, F>(
 		creator: FreeActionCreator<K, F> & WithScope<F>,
-		fn: Task<E[K], WithFields<E, F>>,
+		fn: Task<DataOf<E[K]>, WithFields<E, F>>,
 		options?: ListenerOptions,
 	): UnsubscribeCallback;
 	<P, F>(
@@ -190,7 +208,7 @@ export type On<E extends EventMap> = {
 	): UnsubscribeCallback;
 	<K extends EventKey<E>>(
 		creator: FreeActionCreator<K>,
-		fn: Task<E[K], E>,
+		fn: Task<DataOf<E[K]>, E>,
 		options?: ListenerOptions,
 	): UnsubscribeCallback;
 	/** An action creator: the payload comes from it, so an event map is not needed. */
@@ -207,7 +225,7 @@ export type On<E extends EventMap> = {
 	): UnsubscribeCallback;
 	<K extends EventKey<E>, Event extends { type: K }>(
 		event: Event & { type: K },
-		fn: Task<E[K], E>,
+		fn: Task<DataOf<E[K]>, E>,
 		options?: ListenerOptions,
 	): UnsubscribeCallback;
 };
@@ -218,10 +236,10 @@ export type Off<E extends EventMap> = {
 	(event: AnyEvent): void;
 	(event: AnyEvent, fn: Task<EventPayload<E>, E>): void;
 	<K extends EventKey<E>>(event: K): void;
-	<K extends EventKey<E>>(event: K, fn: Task<E[K], E>): void;
+	<K extends EventKey<E>>(event: K, fn: Task<DataOf<E[K]>, E>): void;
 	<K extends EventKey<E>, Event extends { type: K }>(
 		event: Event & { type: K },
-		fn: Task<E[K], E>,
+		fn: Task<DataOf<E[K]>, E>,
 	): void;
 	<P>(command: Command<P, unknown>, fn?: Task<P, E>): void;
 };
@@ -303,10 +321,10 @@ export interface Bus<E extends EventMap> {
 	 * no list of them. See `modulePlugin` in `nanoeffects/actions`.
 	 */
 	use<R>(plugin: (bus: Bus<E>) => R): R;
-	/** `BusOptions.context` and `.trace`, and `commands`, for what makes tasks of its own, like `modulePlugin`. */
+	/** `BusOptions.context` and `.trace`, and `actions`, for what makes tasks of its own, like `modulePlugin`. */
 	readonly ctx?: ContextOption<E> | undefined;
-	/** What runs the commands; `commandsPlugin` and `modulePlugin` set it. Without one a command runs its own handler. */
-	commands?: Commands | undefined;
+	/** What runs the handlers of actions; `actionsPlugin` and `modulePlugin` set it. Without one a command runs its own handler. */
+	actions?: Actions | undefined;
 	readonly trace?: Tracer | undefined;
 	/** Called with every new task context to add fields to it, for what needs the task, like `effectsPlugin`. Chain to the previous one. */
 	addContext?: ((ctx: object) => void) | undefined;
@@ -325,8 +343,8 @@ export type BusOptions<E extends EventMap> = {
 	onError?: (error: unknown, event: Action<E>) => void;
 	/**
 	 * Called when an event is emitted and nobody listens to it: the usual sign
-	 * of a typo in an event name. Not called for commands, which always have a
-	 * handler to run. Typically a warning in development only.
+	 * of a typo in an event name. Not called for commands, nor for an action with
+	 * a handler bound in `actions`, which always have a handler to run. Typically a warning in development only.
 	 *
 	 * @example
 	 * ```ts
@@ -418,7 +436,11 @@ export const createBus = <Events extends EventMap>(
 		const key = eventKey(event);
 		const data = eventPayload<Events>(event, payload);
 		const action = { type: key, payload: data };
-		const command = commandOf(event);
+		// a registry on the bus may know a handler bound to this type, for an action that has none of its own
+		let command = commandOf(event);
+		if (!command) {
+			command = bus.actions?.bound?.(key);
+		}
 
 		const handlers = [...events.get(key), ...events.get(anyEventType)];
 		// a command always has a handler to run, so only events can go unheard
@@ -436,7 +458,7 @@ export const createBus = <Events extends EventMap>(
 				tracer: options.trace,
 				parent: { ref: currentEmitter() },
 			});
-			const run = bus.commands?.run ?? callCommand;
+			const run = bus.actions?.run ?? callCommand;
 
 			return traceRun(ctx, "command", () => run(command, data, ctx));
 		}

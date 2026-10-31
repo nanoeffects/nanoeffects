@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { createBus } from "../core/bus";
+import { latest } from "../policies";
 import { createAction } from "./action";
+import { carriedBy } from "./carry";
+import { actionsPlugin } from "./command";
 
 type Events = {
 	"counter/added": number;
@@ -70,10 +73,9 @@ describe("createAction", () => {
 
 	describe("prepare", () => {
 		it("builds the payload from the arguments", () => {
-			const renamed = createAction(
-				"user/renamed",
-				(id: string, name: string) => ({ payload: { id, name } }),
-			);
+			const renamed = createAction("user/renamed", {
+				prepare: (id: string, name: string) => ({ payload: { id, name } }),
+			});
 
 			expect(renamed("1", "Ann")).toEqual({
 				type: "user/renamed",
@@ -92,7 +94,7 @@ describe("createAction", () => {
 
 		it("calls prepare each time", () => {
 			const prepare = vi.fn((value: number) => ({ payload: value * 2 }));
-			const doubled = createAction("counter/doubled", prepare);
+			const doubled = createAction("counter/doubled", { prepare });
 			doubled(1);
 			doubled(2);
 
@@ -152,6 +154,168 @@ describe("createAction", () => {
 			bus.emit(reset());
 
 			expect(handler).toHaveBeenCalledTimes(1);
+		});
+	});
+
+	describe("with a handler", () => {
+		it("emit runs the handler and returns its result", () => {
+			const bus = createBus();
+			const double = createAction("math/double", (value: number) => value * 2);
+
+			expect(bus.emit(double(21))).toBe(42);
+		});
+
+		it("calling it builds the action and does not run the handler", () => {
+			const handler = vi.fn((value: number) => value * 2);
+			const double = createAction("math/double", handler);
+
+			expect(double(21)).toEqual({ type: "math/double", payload: 21 });
+			expect(handler).not.toHaveBeenCalled();
+		});
+
+		it("tells the listeners first, then runs the handler", () => {
+			const bus = createBus();
+			const order: string[] = [];
+			const double = createAction("math/double", (value: number) => {
+				order.push("handler");
+				return value * 2;
+			});
+			bus.on(double, () => order.push("listener"));
+			bus.emit(double(1));
+
+			expect(order).toEqual(["listener", "handler"]);
+		});
+
+		it("gives the handler the payload and a task context", () => {
+			const bus = createBus();
+			const seen: unknown[] = [];
+			const probe = createAction("probe", (value: string, ctx) => {
+				seen.push(value, typeof ctx.emit, ctx.signal.aborted);
+			});
+			bus.emit(probe("x"));
+
+			expect(seen).toEqual(["x", "function", false]);
+		});
+
+		it("accepts the handler in the options object", () => {
+			const bus = createBus();
+			const double = createAction("math/double", {
+				handle: (value: number) => value * 2,
+			});
+
+			expect(bus.emit(double(4))).toBe(8);
+		});
+
+		it("works under a policy", async () => {
+			const bus = createBus();
+			const results: string[] = [];
+			const search = createAction(
+				"search",
+				latest(async (query: string, ctx) => {
+					await new Promise((resolve) =>
+						setTimeout(resolve, query === "a" ? 20 : 1),
+					);
+					return ctx.signal.aborted ? "aborted" : query;
+				}),
+			);
+			const first = bus.emit(search("a"));
+			const second = bus.emit(search("b"));
+			results.push(...(await Promise.all([first, second])).map(String));
+
+			expect(results).toEqual(["undefined", "b"]);
+		});
+
+		it("still has type and match", () => {
+			const double = createAction("math/double", (value: number) => value * 2);
+
+			expect(double.type).toBe("math/double");
+			expect(double.match({ type: "math/double", payload: 1 })).toBe(true);
+			expect(double.match({ type: "other" })).toBe(false);
+		});
+	});
+
+	describe("without a handler", () => {
+		it("is an event: onUnhandled hears about it and nothing throws", () => {
+			const onUnhandled = vi.fn();
+			const bus = createBus({ onUnhandled });
+			const loaded = createAction<number>("user/loaded");
+
+			expect(() => bus.emit(loaded(1))).not.toThrow();
+			expect(onUnhandled).toHaveBeenCalledTimes(1);
+		});
+
+		it("runs a handler bound in the registry, without onUnhandled", () => {
+			const onUnhandled = vi.fn();
+			const bus = createBus({ onUnhandled });
+			const actions = bus.use(actionsPlugin());
+			const loaded = createAction<number>("user/loaded");
+			actions.handle(loaded, () => "bound");
+
+			expect(bus.emit(loaded(1))).toBe("bound");
+			expect(onUnhandled).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("the options object", () => {
+		it("takes handle and prepare out and keeps the rest as the scope", () => {
+			const store = { id: 1 };
+			const rename = createAction("user/rename", {
+				handle: (payload: { id: string; name: string }) => payload.name,
+				prepare: (id: string, name: string) => ({ payload: { id, name } }),
+				store,
+			});
+
+			expect(carriedBy(rename)).toEqual({ store });
+			expect(rename("1", "Ann")).toEqual({
+				type: "user/rename",
+				payload: { id: "1", name: "Ann" },
+			});
+		});
+
+		it("a scope without handle or prepare stays as it is", () => {
+			const scope = { store: 1 };
+			const loaded = createAction("user/loaded", scope);
+
+			expect(carriedBy(loaded)).toBe(scope);
+		});
+
+		it("a handler and a third argument with prepare and the scope", () => {
+			const bus = createBus();
+			const rename = createAction(
+				"user/rename",
+				(payload: { id: string; name: string }) =>
+					`${payload.id}:${payload.name}`,
+				{
+					prepare: (id: string, name: string) => ({ payload: { id, name } }),
+					store: 1,
+				},
+			);
+
+			expect(carriedBy(rename)).toEqual({ store: 1 });
+			expect(bus.emit(rename("1", "Ann"))).toBe("1:Ann");
+		});
+
+		it("a scope with another function field stays a scope field", () => {
+			const format = () => "x";
+			const loaded = createAction("user/loaded", { format });
+
+			expect(carriedBy(loaded)).toEqual({ format });
+		});
+
+		it("prepare with a handler: two plain objects are arguments, not a context", () => {
+			const handler = vi.fn();
+			const merge = createAction("merge", {
+				handle: handler,
+				prepare: (left: object, right: object) => ({
+					payload: { ...left, ...right },
+				}),
+			});
+
+			expect(merge({ a: 1 }, { b: 2 })).toEqual({
+				type: "merge",
+				payload: { a: 1, b: 2 },
+			});
+			expect(handler).not.toHaveBeenCalled();
 		});
 	});
 });

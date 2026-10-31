@@ -68,10 +68,9 @@ describe("emitterPlugin", () => {
 
 	it("gives all arguments to a prepare function", () => {
 		const bus = createBus<Events>().use(emitterPlugin());
-		const renamed = createAction(
-			"user/renamed",
-			(id: string, name: string) => ({ payload: { id, name } }),
-		);
+		const renamed = createAction("user/renamed", {
+			prepare: (id: string, name: string) => ({ payload: { id, name } }),
+		});
 		const handler = vi.fn();
 		bus.on(renamed, handler);
 

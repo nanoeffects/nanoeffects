@@ -1,3 +1,4 @@
+import type { DataOf } from "./core/action-creator";
 import type { Bus } from "./core/bus";
 import type { EventMap, Keys } from "./core/types";
 
@@ -23,7 +24,7 @@ export type Observable<T> = Subscribable<T> & {
 
 export type Observe<E extends EventMap> = <K extends Keys<E>>(
 	event: K,
-) => Observable<E[K]>;
+) => Observable<DataOf<E[K]>>;
 
 // the handler for `bus.on`: the observer is a function or an object with `next`
 const listener =
@@ -37,13 +38,13 @@ const listener =
 	};
 
 export const createObserve = <E extends EventMap>(bus: Bus<E>): Observe<E> => {
-	return <K extends Keys<E>>(event: K): Observable<E[K]> => {
+	return <K extends Keys<E>>(event: K): Observable<DataOf<E[K]>> => {
 		return {
-			subscribe: (observer: Observer<E[K]>) => {
+			subscribe: (observer: Observer<DataOf<E[K]>>) => {
 				const unsubscribe = bus.on(event, listener(observer));
 				return { unsubscribe };
 			},
-			[$$observable](): Subscribable<E[K]> {
+			[$$observable](): Subscribable<DataOf<E[K]>> {
 				return this;
 			},
 		};
@@ -71,7 +72,7 @@ export type Source<E extends EventMap> = Pick<Bus<E>, "on" | "emit">;
  * ```
  */
 export class Subject<E extends EventMap, K extends Keys<E>>
-	implements Observable<E[K]>
+	implements Observable<DataOf<E[K]>>
 {
 	readonly source: Source<E>;
 	readonly event: K;
@@ -83,18 +84,18 @@ export class Subject<E extends EventMap, K extends Keys<E>>
 		this.next = this.next.bind(this);
 	}
 
-	subscribe(observer: Observer<E[K]>): { unsubscribe(): void } {
+	subscribe(observer: Observer<DataOf<E[K]>>): { unsubscribe(): void } {
 		const unsubscribe = this.source.on(this.event, listener(observer));
 		return { unsubscribe };
 	}
 
-	next(payload: E[K]): void {
+	next(payload: DataOf<E[K]>): void {
 		// `emit` has many overloads; this call is the one with an event and a payload
-		const emit = this.source.emit as (event: K, payload: E[K]) => void;
+		const emit = this.source.emit as (event: K, payload: DataOf<E[K]>) => void;
 		Reflect.apply(emit, this.source, [this.event, payload]);
 	}
 
-	[$$observable](): Subscribable<E[K]> {
+	[$$observable](): Subscribable<DataOf<E[K]>> {
 		return this;
 	}
 }
