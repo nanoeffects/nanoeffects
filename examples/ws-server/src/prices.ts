@@ -1,4 +1,4 @@
-// The events and commands of the price stream. This file imports no bus.
+// The events and actions of the price stream. This file imports no bus.
 import { createAction } from "nanoeffects/actions";
 import type { Feed } from "./feed";
 import { guardHandler, watchHandler } from "./prices-handlers";
@@ -18,7 +18,7 @@ type Settings = { feed: Feed; tickMs: number; idleMs: number };
 // createAction — a message came in on this socket (the payload is the id of the socket)
 export const heard = createAction<number>("prices/heard");
 
-// createPrices — makes the two commands. Each carries its handler, which uses the settings it is given.
+// createPrices — makes the two actions. Each carries its handler, which uses the settings it is given.
 export const createPrices = ({ feed, tickMs, idleMs }: Settings) => ({
 	watchSymbol: createAction("prices/watch", watchHandler({ feed, tickMs })),
 	guardIdle: createAction("prices/guard", guardHandler({ idleMs })),

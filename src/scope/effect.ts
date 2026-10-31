@@ -19,7 +19,7 @@ export const marked = new WeakSet<object>();
  * ```ts
  * const first = effect(<T>(ctx: WithSignal, items: T[]) => items[0]);
  *
- * const getUser = createCommand(
+ * const getUser = createAction(
  *   "user/get",
  *   (id: string, { first }) => first([id]), // first: <T>(items: T[]) => T
  *   { first },

@@ -11,6 +11,10 @@ import type {
 	// the types a bus needs stay in the root
 	Bus,
 	BusOptions,
+	// @ts-expect-error Command is Handled now
+	Command as RootCommand,
+	// @ts-expect-error CommandCall is HandledCall now
+	CommandCall as RootCommandCall,
 	Context as RootContext,
 	// @ts-expect-error ContextTask is exported from nanoeffects/context
 	ContextTask as RootContextTask,
@@ -516,7 +520,7 @@ describe("results of effects", () => {
 	});
 });
 
-describe("actions, commands and jobs", () => {
+describe("events, actions with a handler and jobs", () => {
 	it("an action creator is an event of its type", () => {
 		const added = createAction<number, "counter/added">("counter/added");
 		expectTypeOf(added(2).payload).toEqualTypeOf<number>();
@@ -528,7 +532,7 @@ describe("actions, commands and jobs", () => {
 		added("2");
 	});
 
-	it("a command gives its result to emit", () => {
+	it("an action gives its result to emit", () => {
 		const getUser = createAction("user/get", async (id: string) => ({
 			id,
 			name: "a",
@@ -539,9 +543,9 @@ describe("actions, commands and jobs", () => {
 		bus.emit(getUser, 1);
 	});
 
-	it("a command without a handler is a typed contract", () => {
+	it("an action without a handler is a typed contract", () => {
 		const sendMail = createAction<Call<{ to: string }, boolean>>("mail/send");
-		// not called: a command without a handler throws when it runs
+		// not called: an action without a handler throws when it runs
 		const send = () => bus.emit(sendMail, { to: "a" });
 		expectTypeOf(send).returns.toEqualTypeOf<boolean>();
 	});
@@ -569,7 +573,7 @@ describe("a bus without an event map", () => {
 		loose.emit("anything", 1);
 	});
 
-	it("takes the payload type from actions and commands", () => {
+	it("takes the payload type from events and actions with a handler", () => {
 		const added = createAction<number, "counter/added">("counter/added");
 		const getUser = createAction("user/get", async (id: string) => ({ id }));
 
@@ -588,7 +592,7 @@ describe("a bus without an event map", () => {
 		}>();
 	});
 
-	it("wrong payloads of actions and commands are still errors", () => {
+	it("wrong payloads of events and actions with a handler are still errors", () => {
 		const added = createAction<number, "counter/added">("counter/added");
 
 		// @ts-expect-error the payload of the action is a number
@@ -780,14 +784,14 @@ describe("effects as Tasks", () => {
 	});
 });
 
-describe("commands on the bus", () => {
+describe("actions on the bus", () => {
 	type Events = { greet: string };
 	const getUser = createAction<Call<string, Promise<User>>>("user/get");
 
 	it("bus.use(actionsPlugin()) takes the events from the bus and binds handlers", () => {
 		const bus = createBus<Events>();
-		const commands = bus.use(actionsPlugin());
-		const unbind = commands.handle(getUser, async (id, ctx) => {
+		const actions = bus.use(actionsPlugin());
+		const unbind = actions.handle(getUser, async (id, ctx) => {
 			expectTypeOf(id).toEqualTypeOf<string>();
 			expectTypeOf(ctx).toEqualTypeOf<Context<Events>>();
 			return { id, name: "a" };
@@ -796,9 +800,9 @@ describe("commands on the bus", () => {
 		expectTypeOf(bus.emit(getUser, "1")).resolves.toEqualTypeOf<User>();
 	});
 
-	it("bindings keep the payload types of their commands", () => {
+	it("bindings keep the payload types of their actions", () => {
 		const bus = createBus<Events>();
-		const commands = bus.use(
+		const actions = bus.use(
 			actionsPlugin([
 				setHandler(getUser, async (id) => {
 					expectTypeOf(id).toEqualTypeOf<string>();
@@ -806,28 +810,28 @@ describe("commands on the bus", () => {
 				}),
 			]),
 		);
-		expectTypeOf(commands.handle).toBeFunction();
+		expectTypeOf(actions.handle).toBeFunction();
 	});
 
-	it("the constructor has no commands option", () => {
+	it("the constructor has no actions option", () => {
 		const wrongCalls = () => {
 			const other = createBus<Events>();
-			// @ts-expect-error commands are attached with bus.use(actionsPlugin())
-			createBus<Events>({ commands: other.use(actionsPlugin()) });
+			// @ts-expect-error actions are attached with bus.use(actionsPlugin())
+			createBus<Events>({ actions: other.use(actionsPlugin()) });
 		};
 		expectTypeOf(wrongCalls).toBeFunction();
 	});
 
-	it("a module brings commands and modules with use, and nothing else", () => {
+	it("a module brings actions and modules with use, and nothing else", () => {
 		const double = createAction("math/double", (value: number) => value * 2);
 		const sub = createModule<Events>("sub", () => {});
 		createModule<Events>("parent", (moduleContext) => {
 			expectTypeOf(
 				moduleContext.use(double, sub),
 			).toEqualTypeOf<UnsubscribeCallback>();
-			// @ts-expect-error a string is neither a command nor a module
+			// @ts-expect-error a string is neither an action nor a module
 			moduleContext.use("math/double");
-			// @ts-expect-error an event is neither a command nor a module
+			// @ts-expect-error an event is neither an action nor a module
 			moduleContext.use({ type: "greet", payload: "x" });
 		});
 	});
@@ -837,21 +841,21 @@ describe("a job", () => {
 	type Item = { id: number };
 	const fetchItem = async (id: string): Promise<Item> => ({ id: Number(id) });
 
-	it("returns the command and two actions, made from strings with the literal types", () => {
-		const command = createJob("item/load", fetchItem, {
+	it("returns the action and two actions, made from strings with the literal types", () => {
+		const action = createJob("item/load", fetchItem, {
 			success: "item/loaded",
 			fail: "item/failed",
 		});
-		const { success: successAction, fail: failAction } = command;
+		const { success: successAction, fail: failAction } = action;
 
-		expectTypeOf(command.type).toEqualTypeOf<"item/load">();
+		expectTypeOf(action.type).toEqualTypeOf<"item/load">();
 		expectTypeOf(successAction.type).toEqualTypeOf<"item/loaded">();
 		expectTypeOf(failAction.type).toEqualTypeOf<"item/failed">();
 		expectTypeOf(successAction({ id: 1 }).payload).toEqualTypeOf<Item>();
 		expectTypeOf(failAction(new Error("x")).payload).toEqualTypeOf<unknown>();
 	});
 
-	it("a command narrows an action with match", () => {
+	it("an action narrows an action with match", () => {
 		const getItem = createAction("item/get", (id: string) => id);
 		const action: { type: string; payload?: unknown } = { type: "item/get" };
 		if (getItem.match(action)) {
@@ -861,8 +865,8 @@ describe("a job", () => {
 	});
 
 	it("makes the missing actions with the types <type>/success and <type>/fail", () => {
-		const command = createJob("item/load", fetchItem);
-		const { success: successAction, fail: failAction } = command;
+		const action = createJob("item/load", fetchItem);
+		const { success: successAction, fail: failAction } = action;
 
 		expectTypeOf(successAction.type).toEqualTypeOf<"item/load/success">();
 		expectTypeOf(failAction.type).toEqualTypeOf<"item/load/fail">();
@@ -870,10 +874,10 @@ describe("a job", () => {
 
 	it("returns a given action creator as it is, with its own type", () => {
 		const loaded = createAction<Item, "item/loaded">("item/loaded");
-		const command = createJob("item/load", fetchItem, {
+		const action = createJob("item/load", fetchItem, {
 			success: loaded,
 		});
-		const { success: successAction } = command;
+		const { success: successAction } = action;
 
 		expectTypeOf(successAction).toEqualTypeOf(loaded);
 	});
@@ -889,8 +893,8 @@ describe("a job", () => {
 	});
 
 	it("makes pending and cancel with the defaults, the payload of the call and the abort reason", () => {
-		const command = createJob("item/load", fetchItem);
-		const { pending: pendingAction, cancel: cancelAction } = command;
+		const action = createJob("item/load", fetchItem);
+		const { pending: pendingAction, cancel: cancelAction } = action;
 
 		expectTypeOf(pendingAction.type).toEqualTypeOf<"item/load/pending">();
 		expectTypeOf(cancelAction.type).toEqualTypeOf<"item/load/cancel">();
@@ -899,25 +903,25 @@ describe("a job", () => {
 	});
 
 	it("makes pending and cancel from strings with the literal types", () => {
-		const command = createJob("item/load", fetchItem, {
+		const action = createJob("item/load", fetchItem, {
 			pending: "item/loading",
 			cancel: "item/cancelled",
 		});
 
-		expectTypeOf(command.pending.type).toEqualTypeOf<"item/loading">();
-		expectTypeOf(command.cancel.type).toEqualTypeOf<"item/cancelled">();
+		expectTypeOf(action.pending.type).toEqualTypeOf<"item/loading">();
+		expectTypeOf(action.cancel.type).toEqualTypeOf<"item/cancelled">();
 	});
 
 	it("returns a given creator for pending and cancel as it is", () => {
 		const loading = createAction<string, "item/loading">("item/loading");
 		const cancelled = createAction<unknown, "item/cancelled">("item/cancelled");
-		const command = createJob("item/load", fetchItem, {
+		const action = createJob("item/load", fetchItem, {
 			pending: loading,
 			cancel: cancelled,
 		});
 
-		expectTypeOf(command.pending).toEqualTypeOf(loading);
-		expectTypeOf(command.cancel).toEqualTypeOf(cancelled);
+		expectTypeOf(action.pending).toEqualTypeOf(loading);
+		expectTypeOf(action.cancel).toEqualTypeOf(cancelled);
 	});
 
 	it("a plain object as the target of pending or cancel is an error", () => {
@@ -1183,7 +1187,7 @@ describe("types of a bus in other files", () => {
 		expectTypeOf<EventsOf<string>>().toBeNever();
 	});
 
-	it("a task with the context of the app gives a command that sees the fields", () => {
+	it("a task with the context of the app gives an action that sees the fields", () => {
 		const read: Task<string, AppEvents, string> = (id, ctx) =>
 			ctx.store.read(id);
 		const readItem = createAction("item/read", read);
@@ -1197,7 +1201,7 @@ describe("types of a bus in other files", () => {
 		expectTypeOf(appBus.emit(readItem("1"))).toEqualTypeOf<string>();
 	});
 
-	it("a command made without the app context sees an empty context", () => {
+	it("an action made without the app context sees an empty context", () => {
 		createAction("item/plain", (_: string, ctx) => {
 			// @ts-expect-error the plain context has no `store`
 			void ctx.store;
@@ -1218,7 +1222,7 @@ describe("types of a bus in other files", () => {
 				expectTypeOf(id).toEqualTypeOf<string>();
 				return ctx.store.read(id);
 			});
-			// @ts-expect-error the command promises a string
+			// @ts-expect-error the action promises a string
 			items.handle(getItem, async () => 1);
 		});
 		expectTypeOf(app.mount(module)).toEqualTypeOf<UnsubscribeCallback>();
@@ -1613,7 +1617,7 @@ describe("scope", () => {
 	const getJson = (_ctx: { signal: AbortSignal }, url: string) =>
 		Promise.resolve(url);
 
-	it("a command handler sees the fields of its scope, before ctx is typed", () => {
+	it("an action handler sees the fields of its scope, before ctx is typed", () => {
 		const first = effect(
 			<T>(_ctx: { signal: AbortSignal }, items: T[]): T | undefined => items[0],
 		);
@@ -1650,7 +1654,7 @@ describe("scope", () => {
 		);
 	});
 
-	it("a command without a scope is typed as before", () => {
+	it("an action without a scope is typed as before", () => {
 		const plain = createAction("plain", (id: string) => id.length);
 		expectTypeOf(plain).parameter(0).toBeString();
 		expectTypeOf(createBus<Events>().emit(plain, "a")).toBeNumber();
@@ -1719,7 +1723,7 @@ describe("scope", () => {
 		bus.emit(getUser("1"), { $effects: { format: (value: number) => value } });
 	});
 
-	it("a field that neither the bus nor the command declares is an error", () => {
+	it("a field that neither the bus nor the action declares is an error", () => {
 		const bus = createBus<Events>();
 		const plain = createAction("plain", () => 1);
 		// @ts-expect-error nothing declares `unknown`, so there is no type to hold it to
@@ -1752,7 +1756,7 @@ describe("scope", () => {
 
 	it("the string form of emit takes no scope", () => {
 		const bus = createBus<Events>();
-		// @ts-expect-error a scope goes with an action or a command call
+		// @ts-expect-error a scope goes with an action or a call of an action with a handler
 		bus.emit("user/loaded", { id: "1", name: "a" }, {});
 	});
 
@@ -1775,7 +1779,7 @@ describe("matchPlugin", () => {
 	};
 	const bus = createBus<Shop>().use(matchPlugin());
 
-	it("keeps the inference of an event name, a creator and a command", () => {
+	it("keeps the inference of an event name, a creator and an action", () => {
 		bus.on("order/placed", (count, ctx) => {
 			expectTypeOf(count).toEqualTypeOf<number>();
 			expectTypeOf(ctx.signal).toEqualTypeOf<AbortSignal>();
@@ -2259,6 +2263,8 @@ describe("the entries: where the types live", () => {
 		expectTypeOf<RootTraceEvent>().toBeAny();
 		expectTypeOf<RootTraceLogger>().toBeAny();
 		expectTypeOf<RootTracer>().toBeAny();
+		expectTypeOf<RootCommand>().toBeAny();
+		expectTypeOf<RootCommandCall>().toBeAny();
 	});
 
 	it("keeps the types a bus needs in the root, and only createBus as a value", () => {

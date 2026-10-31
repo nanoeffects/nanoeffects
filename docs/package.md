@@ -2,24 +2,33 @@
 
 Imports are split so you only load what you use. `createBus` stays small; the rest is another entry.
 
+## Start with these three
+
 | Import | What is in it |
 | ------ | ------------- |
 | `nanoeffects` | `createBus`, the types |
 | `nanoeffects/policies` | `latest`, `leading`, `debounce`, `throttle`, `queue` |
 | `nanoeffects/effects` | `retry`, `timeout`, `poll`, `delay`, `take`, `all`, `allSettled`, `race`, `effectsPlugin` |
-| `nanoeffects/actions` | `createAction`, `createJob`, `createModule`, `modulePlugin`, `actionsPlugin` |
-| `nanoeffects/match` | `matchPlugin`: `on`, `once` and `off` that take a function which picks the events |
-| `nanoeffects/context` | `contextPlugin`: your own fields (a store, a client) on `ctx` of every task, typed from the value |
-| `nanoeffects/signal` | `signalPlugin`: `emit(call, { signal })` ties the tasks of an emit to an outside `AbortSignal` |
-| `nanoeffects/oop` | `Emitter`, `extendBus`, `WithBus`, `On`, `Once`, `disposeBus`: the methods of a bus on a class, with the subscriptions of each instance ended by `dispose()` |
-| `nanoeffects/scope` | `scopePlugin`, `effect`: fields for one action, job, module or `emit` (the types `Scope`, `Effect`) |
-| `nanoeffects/redux` | `createEffectsMiddleware` |
-| `nanoeffects/observable` | `createObserve`, `Subject` |
-| `nanoeffects/react` | `reactPlugin`: adds the `useEmitter` hook to a bus (needs React 18 or newer) |
-| `nanoeffects/svelte` | `sveltePlugin`: adds `eventStore` to a bus (needs Svelte 5 or newer) |
-| `nanoeffects/vue` | `vuePlugin`: adds `watchEmitter` and `useEventRef` to a bus (needs Vue 3.3 or newer) |
-| `nanoeffects/dev` | `devPlugin` (no-op in production) |
-| `nanoeffects/trace` | `createTracer`, the loggers and `tracePlugin` (names for the trace) |
+
+## Add the rest when you need it
+
+Each row is optional. The "when" column says what need brings you to it.
+
+| Import | What is in it | When |
+| ------ | ------------- | ---- |
+| `nanoeffects/actions` | `createAction`, `createJob`, `createModule`, `modulePlugin`, `actionsPlugin` | `emit` must return a result, or domain logic leaves the UI |
+| `nanoeffects/match` | `matchPlugin`: `on`, `once` and `off` that take a function which picks the events | `on` must take a function that picks events |
+| `nanoeffects/context` | `contextPlugin`: your own fields (a store, a client) on `ctx` of every task, typed from the value | a store or client must be on every task |
+| `nanoeffects/signal` | `signalPlugin`: `emit(call, { signal })` ties the tasks of an emit to an outside `AbortSignal` | an outside `AbortSignal` (request, React Query) must stop tasks |
+| `nanoeffects/oop` | `Emitter`, `extendBus`, `WithBus`, `On`, `Once`, `disposeBus`: the methods of a bus on a class, with the subscriptions of each instance ended by `dispose()` | you write classes, not functions |
+| `nanoeffects/scope` | `scopePlugin`, `effect`: fields for one action, job, module or `emit` (the types `Scope`, `Effect`) | one action or module needs its own fields |
+| `nanoeffects/redux` | `createEffectsMiddleware` | you already use Redux |
+| `nanoeffects/observable` | `createObserve`, `Subject` | you need an Observable (RxJS) |
+| `nanoeffects/react` | `reactPlugin`: adds the `useEmitter` hook to a bus (needs React 18 or newer) | React components |
+| `nanoeffects/svelte` | `sveltePlugin`: adds `eventStore` to a bus (needs Svelte 5 or newer) | Svelte components |
+| `nanoeffects/vue` | `vuePlugin`: adds `watchEmitter` and `useEventRef` to a bus (needs Vue 3.3 or newer) | Vue components |
+| `nanoeffects/dev` | `devPlugin` (no-op in production) | you look for leaks in development |
+| `nanoeffects/trace` | `createTracer`, the loggers and `tracePlugin` (names for the trace) | you want to see what ran and why |
 
 The `...Plugin` names above are used with `bus.use`. [Plugins](plugins.md) lists all of them, what each returns, and the order to use them in.
 

@@ -16,7 +16,7 @@ type Held = {
 const isObject = (value: unknown): value is object =>
 	typeof value === "object" && value !== null;
 
-// The event a call is for: an action creator and a command are known by their string `type`, a predicate by itself.
+// The event a call is for: an action creator is known by their string `type`, a predicate by itself.
 const eventOf = (event: unknown) => {
 	if (typeof event === "string") {
 		return event;

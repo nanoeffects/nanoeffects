@@ -2,7 +2,7 @@
 import { createAction, createJob } from "nanoeffects/actions";
 import type { Email } from "./mailer";
 
-// createJob — a command that also sends the outcomes: email/send/pending, /success, /fail, /cancel.
+// createJob — an action that also sends the outcomes: email/send/pending, /success, /fail, /cancel.
 // It has no handler here: the worker binds one.
 export const sendEmail = createJob<Email, void>("email/send");
 

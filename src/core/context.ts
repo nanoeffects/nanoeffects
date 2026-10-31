@@ -12,7 +12,7 @@ type TaskMeta = { tracer: Tracer; ref: TaskRef };
 const metaOf = new WeakMap<object, TaskMeta>();
 
 // The task whose `ctx.emit` is running. Tasks that this emit starts (listeners,
-// commands) become its children in the trace. It is set only for the duration
+// actions) become its children in the trace. It is set only for the duration
 // of the synchronous emit, so a plain `bus.emit` is not linked to anyone.
 let emitter: TaskRef | undefined;
 

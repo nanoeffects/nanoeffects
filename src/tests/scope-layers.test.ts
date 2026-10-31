@@ -46,12 +46,12 @@ describe("scope layers against a model", () => {
 		return result;
 	};
 
-	it("emit beats command beats module beats bus, in any combination", () => {
+	it("emit beats action beats module beats bus, in any combination", () => {
 		for (let seed = 1; seed <= 300; seed++) {
 			const random = generator(seed);
 			const bus = fieldsOf(random, "bus");
 			const module = fieldsOf(random, "module");
-			const command = fieldsOf(random, "command");
+			const action = fieldsOf(random, "action");
 			const call = fieldsOf(random, "emit");
 			const seen: unknown[] = [];
 
@@ -60,7 +60,7 @@ describe("scope layers against a model", () => {
 				(_payload, ctx) => {
 					seen.push(observe(ctx));
 				},
-				{ ...command },
+				{ ...action },
 			);
 			const app = createBus(bus ? { context: bus } : {}).use(scopePlugin());
 			app.use(
@@ -80,10 +80,10 @@ describe("scope layers against a model", () => {
 			// the checker holds an override to the fields a bus declares, and this bus declares none
 			Reflect.apply(app.emit, app, [read(noPayload), { ...call }]);
 
-			// the scope of a command is on the call, and the module wraps the handler it bound
+			// the scope of an action is on the call, and the module wraps the handler it bound
 			expect({ seed, seen: seen[0] }).toEqual({
 				seed,
-				seen: expected([call, command, module, bus]),
+				seen: expected([call, action, module, bus]),
 			});
 		}
 	});

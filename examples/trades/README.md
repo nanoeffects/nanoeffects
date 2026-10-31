@@ -13,7 +13,7 @@ Binance is not available in some regions, for example the US. The same list of f
 [public-streaming-api](https://github.com/conduktor/public-streaming-api), has Coinbase and Kraken;
 they want a subscribe message sent in `onopen`, the rest of the example stays the same.
 
-All the logic is in `src/trades.ts`: one command that carries its handler.
+All the logic is in `src/trades.ts`: one action that carries its handler.
 
 ```ts
 export const watchTrades = createAction(

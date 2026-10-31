@@ -35,7 +35,7 @@ type AnyPredicate = (action: { type: unknown; payload: unknown }) => unknown;
 // one subscription of a predicate: the handler it was given, and how to remove it
 type Subscription = { handler: Handler; remove: () => void };
 
-// An action creator and a command are functions with a string `type`; a predicate has none.
+// An action creator is a function with a string `type`; a predicate has none.
 const isPredicate = (value: unknown): value is AnyPredicate =>
 	typeof value === "function" && typeof Reflect.get(value, "type") !== "string";
 
@@ -47,8 +47,8 @@ const apiOf = <E extends EventMap>(methods: object) => methods as MatchApi<E>;
  * to subscribe to the events that it picks instead of to one named event. The
  * predicate gets `{ type, payload }` of every event; when it returns true the
  * handler runs with the payload and the task context of that event. A type guard
- * narrows the payload of the handler. An action creator or a command, which have
- * a string `type`, keep their meaning. Returns the same bus.
+ * narrows the payload of the handler. An action creator, which has
+ * a string `type`, keeps its meaning. Returns the same bus.
  *
  * The subscription listens to `"*"`, so it runs after the listeners of the event
  * itself, makes a task for every event whether or not the predicate accepts it,

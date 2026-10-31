@@ -48,7 +48,7 @@ import { createAction } from "nanoeffects/actions";
 export const getUser = createAction(
   "user/get",
   (id, { api, cache }) => {
-    // api and cache are on ctx for this command only
+    // api and cache are on ctx for this action only
     return cache.get(id) ?? api.getUser(id);
   },
   { api, cache: new Map() },
@@ -197,7 +197,7 @@ When several places set the same field, the strongest one wins:
 | Strength | Where it is set |
 | -------- | --------------- |
 | 1 (strongest) | the second argument of `emit` |
-| 2 | the scope of the action, command or job |
+| 2 | the scope of the action or job |
 | 3 | the scope of the module that owns the handler |
 | 4 (weakest) | the bus: `createBus({ context })`, `contextPlugin`, `effectsPlugin` |
 

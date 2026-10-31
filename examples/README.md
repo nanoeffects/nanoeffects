@@ -26,13 +26,13 @@ React and TypeScript projects with entities, features and modules, written to sh
 
 | Folder | What is in it | Open |
 | --- | --- | --- |
-| [`chat`](chat) | Rooms, a history under `latest`, a send under `queue` and `retry`, a search across rooms with `allSettled` and `timeout`, and new messages polled with `poll`. One command starts the server and the page. Explained in [Build a chat with entities, features, modules and a small server](../docs/chat-example.md). | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/chat) |
+| [`chat`](chat) | Rooms, a history under `latest`, a send under `queue` and `retry`, a search across rooms with `allSettled` and `timeout`, and new messages polled with `poll`. One action starts the server and the page. Explained in [Build a chat with entities, features, modules and a small server](../docs/chat-example.md). | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/chat) |
 | [`pokedex`](pokedex) | Real requests to PokeAPI from the browser: suggestions from a list of names loaded once, a search with `debounce`, `latest`, `timeout` and a `retry` that does not repeat a 404, abilities loaded together with `allSettled`, and a Random button under `leading`. No server. | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/pokedex) |
-| [`spells`](spells) | The smallest example: a search for spells against PotterAPI in one file, with no domains and no store. One command that carries its handler (`debounce`, `latest`, `timeout`, `retry`) and a counter of calls in flight for "loading". | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/spells) |
+| [`spells`](spells) | The smallest example: a search for spells against PotterAPI in one file, with no domains and no store. One action that carries its handler (`debounce`, `latest`, `timeout`, `retry`) and a counter of calls in flight for "loading". | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/spells) |
 | [`chat-widget`](chat-widget) | A chat for a site behind a launcher button, with a fake bot in the browser. Opening mounts one module (the bot under `queue`, `timeout` and `retry`, the operator polled with `poll`, an `Escape` listener) and closing unmounts it: the request in flight is aborted and nothing is left subscribed. Explained in [Build a chat widget that listens only while it is open](../docs/chat-widget.md). | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/chat-widget) |
 | [`counter`](counter) | The counter of the redux-saga tutorial in two pages with the same buttons: without a store, and with Redux Toolkit and `createEffectsMiddleware`. A delayed increment under `latest`, a cancel with `race` and `take`, and a call that fails under `retry` and shows its error. No network. | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/counter) |
-| [`rickandmorty`](rickandmorty) | A browser for characters with React Query: React Query keeps the cache, the pages and the loading state, and the requests are commands (`timeout`, a `retry` that skips a 404) that get its abort signal through `signalPlugin`. Suggestions under the name box are a command outside React Query (`debounce`, `latest`). No server. | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/rickandmorty) |
-| [`trades`](trades) | A stream, not a request: live trades over a WebSocket (Binance, no key). One command keeps the connection: `retry` opens the socket again after a drop with a growing pause, `latest` closes the old socket when the pair changes, and `throttle` limits how often the list is drawn. No server. | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/trades) |
+| [`rickandmorty`](rickandmorty) | A browser for characters with React Query: React Query keeps the cache, the pages and the loading state, and the requests are actions (`timeout`, a `retry` that skips a 404) that get its abort signal through `signalPlugin`. Suggestions under the name box are an action outside React Query (`debounce`, `latest`). No server. | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/rickandmorty) |
+| [`trades`](trades) | A stream, not a request: live trades over a WebSocket (Binance, no key). One action keeps the connection: `retry` opens the socket again after a drop with a growing pause, `latest` closes the old socket when the pair changes, and `throttle` limits how often the list is drawn. No server. | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/trades) |
 
 ## Backend examples
 
@@ -40,7 +40,7 @@ Three small [Fastify](https://fastify.dev) apps with no database. They need Node
 
 | Folder | What is in it |
 | --- | --- |
-| [`api-server`](api-server) | A server over PokeAPI for a front end. The profile of a pokémon is one command (`timeout`, `retry`, `allSettled`), and a client that closes the connection aborts every request made for it through `signalPlugin`. |
+| [`api-server`](api-server) | A server over PokeAPI for a front end. The profile of a pokémon is one action (`timeout`, `retry`, `allSettled`), and a client that closes the connection aborts every request made for it through `signalPlugin`. |
 | [`job-worker`](job-worker) | A queue worker with a fake mailer: at most three sends at once (`queue`), `retry` and `timeout`, counts that come from the outcomes of a job, and a shutdown that stops intake, waits, then aborts the rest. |
 | [`ws-server`](ws-server) | A WebSocket server with `@fastify/websocket`: one controller for each socket stops everything started for it when the socket closes, a new subscription replaces the old one of the same socket only (`latest` with a `key`), and a silent socket is closed (`race`, `take`, `delay`). |
 
@@ -53,7 +53,7 @@ Each file is one job, written as a short program with comments on every nanoeffe
 | [`search.ts`](search.ts) | A search box that waits for quiet and aborts the older request. | [Policies](../docs/policies.md) |
 | [`backoff.ts`](backoff.ts) | Retry a flaky request with a growing pause. | [Effects](../docs/effects.md#back-off-between-retries) |
 | [`registration-form.ts`](registration-form.ts) | A sign-up form: a username check that does not race, a submit that cannot fire twice. | [React form](../docs/react.md) |
-| [`scope.ts`](scope.ts) | A command with its own effects, and a test that replaces one of them for a single call. | [Scopes](../docs/scope.md) |
+| [`scope.ts`](scope.ts) | An action with its own effects, and a test that replaces one of them for a single call. | [Scopes](../docs/scope.md) |
 | [`modules.ts`](modules.ts) | Domain logic with no UI, mounted and unmounted as one unit. | [Actions](../docs/actions.md) |
 | [`redux.ts`](redux.ts) | Redux Toolkit actions that also reach the bus. | [Stores](../docs/stores.md) |
 | [`guide.ts`](guide.ts) | The code of every step of the guide. | [Guide](../docs/guide.md) |
@@ -64,7 +64,7 @@ Two small projects with several files each, for the typing of a bus and its cont
 
 | Folder | Job | Docs |
 | --- | --- | --- |
-| [`typescript`](typescript) | Name the event map once and use it in modules and commands. | [TypeScript](../docs/typescript.md) |
+| [`typescript`](typescript) | Name the event map once and use it in modules and actions. | [TypeScript](../docs/typescript.md) |
 | [`typescript-context`](typescript-context) | Give `ctx` the fields of your bus (`store`, `api`) and type them from one place. | [TypeScript](../docs/typescript.md#give-ctx-the-fields-of-your-bus) |
 
 ## Copy a recipe

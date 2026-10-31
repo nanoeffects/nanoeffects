@@ -14,6 +14,6 @@ export const abilityModule = createModule("ability", (module) => {
 	module.on(loadAbilities.fail, stopLoading);
 	module.on(loadAbilities.cancel, stopLoading);
 
-	// use — a command that carries its handler: bind it for as long as this module is mounted
+	// use — an action that carries its handler: bind it for as long as this module is mounted
 	module.use(clearAbilities);
 });

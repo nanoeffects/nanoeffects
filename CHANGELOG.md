@@ -2,6 +2,11 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
+## Unreleased
+
+### Breaking
+- The word "command" is gone. The types `Command` and `CommandCall` are `Handled` and `HandledCall`. The trace effect `"command"` is `"action"` (a logger or a recorder that matches `effect === "command"` has to match `"action"`, and so does the label `checkout/pay · action` in Redux DevTools and the performance marks). `MissingHandlerError` says `No handler for action "<type>"`. [Docs](docs/actions.md#pick-the-word-event-action-job-module)
+
 ## 0.28.0
 
 ### Added

@@ -5,7 +5,7 @@ import { createApp } from "../tests/test-helpers";
 import { createTraceRecorder } from "../trace/recorder";
 import { createTracer } from "../trace/tracer";
 import { createAction } from "./action";
-import { setHandler } from "./command";
+import { setHandler } from "./handled";
 import { createModule } from "./module";
 
 type Events = { ping: number; pong: string; job: number };
@@ -48,7 +48,7 @@ describe("createApp", () => {
 		expect(seen).toEqual(["user", false]);
 	});
 
-	it("has a bus that runs the commands bound by the modules", () => {
+	it("has a bus that runs the actions bound by the modules", () => {
 		const getUser = createAction<Call<string, string>>("user/get");
 		const app = createApp<Events>({
 			modules: [
@@ -80,17 +80,17 @@ describe("createApp", () => {
 
 describe("module context", () => {
 	describe("handle", () => {
-		it("binds the handler of a command", () => {
-			const command = createAction<Call<number, number>>("math/double");
+		it("binds the handler of an action", () => {
+			const action = createAction<Call<number, number>>("math/double");
 			const app = createApp<Events>({
 				modules: [
 					createModule("math", (moduleContext) =>
-						moduleContext.handle(command, (value) => value * 2),
+						moduleContext.handle(action, (value) => value * 2),
 					),
 				],
 			});
 
-			expect(app.bus.emit(command, 4)).toBe(8);
+			expect(app.bus.emit(action, 4)).toBe(8);
 		});
 
 		it("binds a list of handlers", () => {
@@ -113,7 +113,7 @@ describe("module context", () => {
 		});
 
 		it("accepts the type as a string", () => {
-			const command = createAction<Call<number, number>>("a/b");
+			const action = createAction<Call<number, number>>("a/b");
 			const app = createApp<Events>({
 				modules: [
 					createModule("m", (moduleContext) =>
@@ -122,69 +122,69 @@ describe("module context", () => {
 				],
 			});
 
-			expect(app.bus.emit(command, 0)).toBe(7);
+			expect(app.bus.emit(action, 0)).toBe(7);
 		});
 
 		it("returns a function that unbinds at once", () => {
-			const command = createAction<number, number>("a/b", (value) => value);
+			const action = createAction<number, number>("a/b", (value) => value);
 			const app = createApp<Events>();
 			let unbind: () => void = () => {};
 			app.mount(
 				createModule("m", (moduleContext) => {
-					unbind = moduleContext.handle(command, () => 99);
+					unbind = moduleContext.handle(action, () => 99);
 				}),
 			);
-			expect(app.bus.emit(command, 1)).toBe(99);
+			expect(app.bus.emit(action, 1)).toBe(99);
 			unbind();
 
-			expect(app.bus.emit(command, 1)).toBe(1);
+			expect(app.bus.emit(action, 1)).toBe(1);
 		});
 
-		it("is undone when the module is unmounted, and the command's own handler is back", () => {
-			const command = createAction<number, number>("a/b", (value) => value);
+		it("is undone when the module is unmounted, and the action's own handler is back", () => {
+			const action = createAction<number, number>("a/b", (value) => value);
 			const app = createApp<Events>();
 			const module = createModule<Events>("m", (moduleContext) =>
-				moduleContext.handle(command, () => 99),
+				moduleContext.handle(action, () => 99),
 			);
 			const unmount = app.mount(module);
-			expect(app.bus.emit(command, 1)).toBe(99);
+			expect(app.bus.emit(action, 1)).toBe(99);
 			unmount();
 
-			expect(app.bus.emit(command, 1)).toBe(1);
+			expect(app.bus.emit(action, 1)).toBe(1);
 		});
 
 		it("the module mounted last wins, and unmounting it brings the other back", () => {
-			const command = createAction<Call<number, string>>("a/b");
+			const action = createAction<Call<number, string>>("a/b");
 			const app = createApp<Events>();
 			app.mount(
 				createModule("first", (moduleContext) =>
-					moduleContext.handle(command, () => "first"),
+					moduleContext.handle(action, () => "first"),
 				),
 			);
 			const unmount = app.mount(
 				createModule("second", (moduleContext) =>
-					moduleContext.handle(command, () => "second"),
+					moduleContext.handle(action, () => "second"),
 				),
 			);
-			expect(app.bus.emit(command, 1)).toBe("second");
+			expect(app.bus.emit(action, 1)).toBe("second");
 			unmount();
 
-			expect(app.bus.emit(command, 1)).toBe("first");
+			expect(app.bus.emit(action, 1)).toBe("first");
 		});
 
 		it("a bound handler gets the payload and a task context", () => {
 			const seen: unknown[] = [];
-			const command = createAction<Call<number, void>>("a/b");
+			const action = createAction<Call<number, void>>("a/b");
 			const app = createApp<Events>({
 				modules: [
 					createModule("m", (moduleContext) =>
-						moduleContext.handle(command, (value, ctx) => {
+						moduleContext.handle(action, (value, ctx) => {
 							seen.push(value, ctx.type);
 						}),
 					),
 				],
 			});
-			app.bus.emit(command, 3);
+			app.bus.emit(action, 3);
 
 			expect(seen).toEqual([3, "a/b"]);
 		});
@@ -618,30 +618,30 @@ describe("modules on the fly", () => {
 
 	it("a module whose setup throws is undone, and the error is thrown from mount", () => {
 		const handler = vi.fn();
-		const command = createAction<number, number>("a/b", (value) => value);
+		const action = createAction<number, number>("a/b", (value) => value);
 		const app = createApp<Events>();
 		const broken = createModule<Events>("broken", (moduleContext) => {
 			moduleContext.on("ping", handler);
-			moduleContext.handle(command, () => 99);
+			moduleContext.handle(action, () => 99);
 			throw new Error("bad setup");
 		});
 
 		expect(() => app.mount(broken)).toThrow("bad setup");
 		app.bus.emit("ping", 1);
 		expect(handler).not.toHaveBeenCalled();
-		expect(app.bus.emit(command, 1)).toBe(1);
+		expect(app.bus.emit(action, 1)).toBe(1);
 		expect(app.isMounted(broken)).toBe(false);
 	});
 
-	it("commands are bound and unbound on the fly through the registry", () => {
-		const command = createAction<Call<number, number>>("a/b");
+	it("actions are bound and unbound on the fly through the registry", () => {
+		const action = createAction<Call<number, number>>("a/b");
 		const app = createApp<Events>();
-		expect(() => app.bus.emit(command(1))).not.toThrow();
-		const unbind = app.actions.handle(command, (value) => value + 1);
-		expect(app.bus.emit(command, 1)).toBe(2);
+		expect(() => app.bus.emit(action(1))).not.toThrow();
+		const unbind = app.actions.handle(action, (value) => value + 1);
+		expect(app.bus.emit(action, 1)).toBe(2);
 		unbind();
 
-		expect(() => app.bus.emit(command(1))).not.toThrow();
+		expect(() => app.bus.emit(action(1))).not.toThrow();
 	});
 
 	describe("dispose", () => {
@@ -717,24 +717,24 @@ describe("modules in the trace", () => {
 		]);
 	});
 
-	it("a command run by the bus is traced with the command type", () => {
+	it("an action run by the bus is traced with the action type", () => {
 		const recorder = createTraceRecorder<Events>();
-		const command = createAction<Call<number, number>>("math/double");
+		const action = createAction<Call<number, number>>("math/double");
 		const app = createApp<Events>({
 			trace: createTracer(recorder),
 			modules: [
 				createModule("math", (moduleContext) =>
-					moduleContext.handle(command, (value) => value * 2),
+					moduleContext.handle(action, (value) => value * 2),
 				),
 			],
 		});
-		app.bus.emit(command, 2);
+		app.bus.emit(action, 2);
 
 		expect(
 			recorder.events.map(
 				(event) => `${event.type}/${event.effect}/${event.phase}`,
 			),
-		).toEqual(["math/double/command/start", "math/double/command/done"]);
+		).toEqual(["math/double/action/start", "math/double/action/done"]);
 	});
 });
 

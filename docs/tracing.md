@@ -101,7 +101,7 @@ The event changes nothing else: the other tasks keep their `parentId`, `rootId` 
 
 ## Show which subscription began a chain
 
-**Problem.** `useEmitter` and `bus.emitter` put an event on the bus from outside any task, such as a render or the callback of a store. In the trace that event has no sign of where it came from. With many such subscriptions it is hard to tell which one started a chain of commands and retries.
+**Problem.** `useEmitter` and `bus.emitter` put an event on the bus from outside any task, such as a render or the callback of a store. In the trace that event has no sign of where it came from. With many such subscriptions it is hard to tell which one started a chain of actions and retries.
 
 **When.** The bus has a tracer and the project has several `useEmitter` or `bus.emitter` calls. The names come from `tracePlugin`: use it on the bus, or the `traceId` is ignored.
 
@@ -129,8 +129,8 @@ In a component, the same option goes in the options of the hook: `useEmitter(nam
 
 ```
 [nanoeffects] Profile · run start
-[nanoeffects]   user/save · command start
-[nanoeffects]   user/save · command done
+[nanoeffects]   user/save · action start
+[nanoeffects]   user/save · action done
 [nanoeffects] Profile · run done
 ```
 
@@ -170,7 +170,7 @@ const pay = createAction("checkout/pay", async () => {}, {
 ```
 
 ```
-[nanoeffects] [checkout] checkout/pay · command start
+[nanoeffects] [checkout] checkout/pay · action start
 ```
 
 The emitters take it too: `useEmitter(cartChanged, cart, { traceId: "Cart", traceGroupId: "checkout" })`. `traceGroupId` works without `scopePlugin`, and needs `tracePlugin`.
@@ -200,7 +200,7 @@ bus.once("name/changed", (name) => console.log(name), { traceId: "auditLog" });
 
 ```
 [nanoeffects] saveNotifier · run start
-[nanoeffects]   user/save · command start
+[nanoeffects]   user/save · action start
 [nanoeffects] saveNotifier · run done
 ```
 

@@ -68,29 +68,29 @@ export type EventLike<E extends EventMap> = {
 }[Keys<E>];
 
 /**
- * Brands `{ type, payload }` from a command call so `emit` can run the command.
+ * Brands `{ type, payload }` from a call of an action with a handler so `emit` can run the action.
  * Not enumerable on the object.
  */
-export const commandCall = Symbol();
+export const handledCall = Symbol();
 
 /**
- * What `command(payload)` returns: an action-shaped value that `emit` runs as
- * that command. A plain `{ type, payload }` without this brand is notify-only.
+ * What `action(payload)` returns: an action-shaped value that `emit` runs as
+ * that action. A plain `{ type, payload }` without this brand is notify-only.
  */
-export type CommandCall<P = unknown, R = unknown> = {
+export type HandledCall<P = unknown, R = unknown> = {
 	type: string;
 	payload: P;
-	readonly [commandCall]: Command<P, R>;
+	readonly [handledCall]: Handled<P, R>;
 };
 
 /**
  * A typed request for a result. Calling it builds `{ type, payload }` like
- * `createAction`; `bus.emit(command(payload))` (or `bus.emit(command, payload)`)
+ * `createAction`; `bus.emit(action(payload))` (or `bus.emit(action, payload)`)
  * runs the handler as a task and returns what it returns. Made by
- * `createCommand` in `nanoeffects/actions`.
+ * `createAction` in `nanoeffects/actions`.
  */
-export type Command<P = never, R = unknown> = {
-	(payload: P): CommandCall<P, R>;
+export type Handled<P = never, R = unknown> = {
+	(payload: P): HandledCall<P, R>;
 	readonly type: string;
 	/** Wraps the handler that really runs, e.g. to route its outcome. */
 	readonly wrap?: (
@@ -98,32 +98,32 @@ export type Command<P = never, R = unknown> = {
 	) => (payload: never, ctx: never) => unknown;
 };
 
-/** Builds a branded command call for `emit`. */
-export const makeCommandCall = <P, R>(
-	command: Command<P, R>,
+/** Builds a branded call of an action with a handler for `emit`. */
+export const makeHandledCall = <P, R>(
+	handled: Handled<P, R>,
 	type: string,
 	payload: P,
-): CommandCall<P, R> => {
-	const action = { type, payload } as CommandCall<P, R>;
-	Object.defineProperty(action, commandCall, {
-		value: command,
+): HandledCall<P, R> => {
+	const action = { type, payload } as HandledCall<P, R>;
+	Object.defineProperty(action, handledCall, {
+		value: handled,
 		enumerable: false,
 	});
 	return action;
 };
 
-/** The command to run for an emit argument, if any. */
-export const commandOf = (
+/** The action to run for an emit argument, if any. */
+export const handledOf = (
 	event: unknown,
-): Command<never, unknown> | undefined => {
+): Handled<never, unknown> | undefined => {
 	if (typeof event === "function") {
 		const loose: unknown = event;
-		return loose as Command<never, unknown>;
+		return loose as Handled<never, unknown>;
 	}
-	if (typeof event === "object" && event !== null && commandCall in event) {
-		const call = event as CommandCall<unknown, unknown>;
-		const loose: unknown = call[commandCall];
-		return loose as Command<never, unknown>;
+	if (typeof event === "object" && event !== null && handledCall in event) {
+		const call = event as HandledCall<unknown, unknown>;
+		const loose: unknown = call[handledCall];
+		return loose as Handled<never, unknown>;
 	}
 };
 
@@ -132,23 +132,23 @@ export const commandOf = (
  * `actionsPlugin` in `nanoeffects/actions`, holds the handlers bound to
  * actions and runs the right one, so a bus without `actions` carries none of
  * that. `bound` tells, for an event type, whether a handler is bound to it: an
- * action with no handler of its own is a command only then. A runner that has
- * no `bound` runs commands only.
+ * action with no handler of its own is an action only then. A runner that has
+ * no `bound` runs actions only.
  */
 export interface Actions {
-	run(command: Command, payload: unknown, ctx: unknown): unknown;
-	bound?(type: string): Command | undefined;
+	run(handled: Handled, payload: unknown, ctx: unknown): unknown;
+	bound?(type: string): Handled | undefined;
 }
 
-// runs a command as it is, when the bus has no `actions` to run it
-const callCommand: Actions["run"] = (command, payload, ctx) =>
-	Reflect.apply(command, null, [payload, ctx]);
+// runs an action as it is, when the bus has no `actions` to run it
+const callHandled: Actions["run"] = (handled, payload, ctx) =>
+	Reflect.apply(handled, null, [payload, ctx]);
 
-/** Anything `emit` takes as its first argument: an event type, an action or a command. */
+/** Anything `emit` takes as its first argument: an event type, an action creator or a call of one. */
 export type Emittable<E extends EventMap> =
 	| EventKey<E>
-	| Command
-	| CommandCall
+	| Handled
+	| HandledCall
 	| EventLike<E>;
 
 export type Emit<E extends EventMap> = {
@@ -165,11 +165,11 @@ export type Emit<E extends EventMap> = {
 		event: K,
 		...payload: PayloadOf<DataOf<E[K]>>
 	): ResultOf<E[K]>;
-	/** Before Handler: a command is callable too, and must return its result type. */
-	<P, R>(command: Command<P, R>, ...payload: PayloadOf<P>): R;
+	/** Before Handler: an action is callable too, and must return its result type. */
+	<P, R>(handled: Handled<P, R>, ...payload: PayloadOf<P>): R;
 	/** A scope as the second argument replaces context fields for the tasks of this emit; see `scopePlugin`. */
-	<P, R, F>(call: CommandCall<P, R> & WithScope<F>, scope?: EmitScope<E, F>): R;
-	<P, R>(call: CommandCall<P, R>, scope?: EmitScope<E>): R;
+	<P, R, F>(call: HandledCall<P, R> & WithScope<F>, scope?: EmitScope<E, F>): R;
+	<P, R>(call: HandledCall<P, R>, scope?: EmitScope<E>): R;
 	<K extends EventKey<E>, R>(
 		event: Handler<E, R, K>,
 		...payload: PayloadOf<DataOf<E[K]>>
@@ -190,7 +190,7 @@ export type On<E extends EventMap> = {
 		options?: ListenerOptions,
 	): UnsubscribeCallback;
 	/** An action creator without a payload type: the payload comes from the event map. */
-	/** The creators and commands that carry a scope come first: the handler sees their fields. */
+	/** The creators and actions that carry a scope come first: the handler sees their fields. */
 	<K extends EventKey<E>, F>(
 		creator: FreeActionCreator<K, F> & WithScope<F>,
 		fn: Task<DataOf<E[K]>, WithFields<E, F>>,
@@ -202,7 +202,7 @@ export type On<E extends EventMap> = {
 		options?: ListenerOptions,
 	): UnsubscribeCallback;
 	<P, F>(
-		command: Command<P, unknown> & WithScope<F>,
+		handled: Handled<P, unknown> & WithScope<F>,
 		fn: Task<P, WithFields<E, F>>,
 		options?: ListenerOptions,
 	): UnsubscribeCallback;
@@ -217,9 +217,9 @@ export type On<E extends EventMap> = {
 		fn: Task<P, E>,
 		options?: ListenerOptions,
 	): UnsubscribeCallback;
-	/** A command: the payload comes from it too. */
+	/** An action: the payload comes from it too. */
 	<P>(
-		command: Command<P, unknown>,
+		handled: Handled<P, unknown>,
 		fn: Task<P, E>,
 		options?: ListenerOptions,
 	): UnsubscribeCallback;
@@ -241,7 +241,7 @@ export type Off<E extends EventMap> = {
 		event: Event & { type: K },
 		fn: Task<DataOf<E[K]>, E>,
 	): void;
-	<P>(command: Command<P, unknown>, fn?: Task<P, E>): void;
+	<P>(handled: Handled<P, unknown>, fn?: Task<P, E>): void;
 };
 
 // only the type of this key is used: it never exists at run time
@@ -341,7 +341,7 @@ export interface Bus<E extends EventMap> {
 	use<R>(plugin: (bus: Bus<E>) => R): R;
 	/** `BusOptions.context` and `.trace`, and `actions`, for what makes tasks of its own, like `modulePlugin`. */
 	readonly ctx?: ContextOption<E> | undefined;
-	/** What runs the handlers of actions; `actionsPlugin` and `modulePlugin` set it. Without one a command runs its own handler. */
+	/** What runs the handlers of actions; `actionsPlugin` and `modulePlugin` set it. Without one an action runs its own handler. */
 	actions?: Actions | undefined;
 	readonly trace?: Tracer | undefined;
 	/** Called with every new task context to add fields to it, for what needs the task, like `effectsPlugin`. Chain to the previous one. */
@@ -361,7 +361,7 @@ export type BusOptions<E extends EventMap> = {
 	onError?: (error: unknown, event: Action<E>) => void;
 	/**
 	 * Called when an event is emitted and nobody listens to it: the usual sign
-	 * of a typo in an event name. Not called for commands, nor for an action with
+	 * of a typo in an event name. Not called for actions, nor for an action with
 	 * a handler bound in `actions`, which always have a handler to run. Typically a warning in development only.
 	 *
 	 * @example
@@ -416,7 +416,7 @@ export const createBus = <Events extends EventMap>(
 		events.remove(eventKey(event), fn);
 	};
 
-	// the context of a task made for an emitted action: one for each handler, one for a command
+	// the context of a task made for an emitted action: one for each handler, one for an action
 	const taskOf = (action: Action<Events>) =>
 		createTask({
 			event: action,
@@ -462,25 +462,25 @@ export const createBus = <Events extends EventMap>(
 		const data = eventPayload<Events>(event, payload);
 		const action = { type: key, payload: data };
 		// a registry on the bus may know a handler bound to this type, for an action that has none of its own
-		let command = commandOf(event);
-		if (!command) {
-			command = bus.actions?.bound?.(key);
+		let handled = handledOf(event);
+		if (!handled) {
+			handled = bus.actions?.bound?.(key);
 		}
 
 		const handlers = [...events.get(key), ...events.get(anyEventType)];
-		// a command always has a handler to run, so only events can go unheard
-		if (handlers.length === 0 && !command) {
+		// an action always has a handler to run, so only events can go unheard
+		if (handlers.length === 0 && !handled) {
 			options.onUnhandled?.(action);
 		}
 		for (const fn of handlers) {
 			callHandler(fn, action);
 		}
 
-		if (command) {
+		if (handled) {
 			const ctx = taskOf(action);
-			const run = bus.actions?.run ?? callCommand;
+			const run = bus.actions?.run ?? callHandled;
 
-			return traceRun(ctx, "command", () => run(command, data, ctx));
+			return traceRun(ctx, "action", () => run(handled, data, ctx));
 		}
 	};
 

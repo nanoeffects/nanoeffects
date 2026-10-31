@@ -8,6 +8,18 @@ Why the library exists (logic and side effects outside React, Vue and Svelte com
 
 Code for every guide step: [`examples/guide.ts`](../examples/guide.ts) (type-checked and tested).
 
+## Start with three imports
+
+Most apps need only these. Everything else is optional; read it when you hit its need.
+
+| Import | Gives you |
+| ------ | --------- |
+| `nanoeffects` | `createBus`: `on`, `emit`, `ctx` |
+| `nanoeffects/policies` | `latest`, `debounce`, ... for races in async UI |
+| `nanoeffects/effects` | `retry`, `timeout`, `poll`, ... for an unreliable network |
+
+The other entries and plugins: [Package entries](package.md) and [Plugins](plugins.md#pick-a-plugin-by-task).
+
 ## Jump by project need
 
 | Project shape | First page |
@@ -40,7 +52,7 @@ Code for every guide step: [`examples/guide.ts`](../examples/guide.ts) (type-che
 - [nanoeffects in a Svelte app](svelte.md) — `eventStore`
 - [Context fields](context.md) — store or client on every task
 - [Use the bus from a class](oop.md) — `extendBus`, `@WithBus`, `@On`, and `dispose()` for the subscriptions of an instance
-- [TypeScript in many files](typescript.md) — keep the types of the bus in commands and modules
+- [TypeScript in many files](typescript.md) — keep the types of the bus in actions and modules
 - [Errors and unheard events](errors.md)
 - [Package entries](package.md) — which import holds what
 - [Stability](stability.md) — which entries are stable, what is breaking, supported versions

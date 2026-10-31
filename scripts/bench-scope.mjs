@@ -41,10 +41,10 @@ const scope = { a: 1, b: { n: 2 }, effects: { delay } };
 }
 {
 	const bus = createBus();
-	const command = createAction("c", () => 1);
-	add("this build, no plugin, command", () => {
+	const handled = createAction("c", () => 1);
+	add("this build, no plugin, action with a handler", () => {
 		for (let i = 0; i < TASKS; i++) {
-			bus.emit(command());
+			bus.emit(handled());
 		}
 	});
 }
@@ -59,28 +59,28 @@ const scope = { a: 1, b: { n: 2 }, effects: { delay } };
 }
 {
 	const bus = createBus().use(scopePlugin());
-	const command = createAction("c", () => 1);
-	add("plugin, command with no scope", () => {
+	const handled = createAction("c", () => 1);
+	add("plugin, action with a handler and no scope", () => {
 		for (let i = 0; i < TASKS; i++) {
-			bus.emit(command());
+			bus.emit(handled());
 		}
 	});
 }
 {
 	const bus = createBus().use(scopePlugin());
-	const command = createAction("c", () => 1, scope);
-	add("plugin, command with a scope of 3 fields", () => {
+	const handled = createAction("c", () => 1, scope);
+	add("plugin, action with a handler and a scope of 3 fields", () => {
 		for (let i = 0; i < TASKS; i++) {
-			bus.emit(command());
+			bus.emit(handled());
 		}
 	});
 }
 {
 	const bus = createBus().use(scopePlugin());
-	const command = createAction("c", () => 1, scope);
-	add("plugin, command + a new scope in each emit", () => {
+	const handled = createAction("c", () => 1, scope);
+	add("plugin, action with a handler + a new scope in each emit", () => {
 		for (let i = 0; i < TASKS; i++) {
-			bus.emit(command(), { a: i });
+			bus.emit(handled(), { a: i });
 		}
 	});
 }
@@ -114,11 +114,11 @@ const deviation = (values) => {
 	return Math.sqrt(mean(values.map((v) => (v - centre) ** 2)));
 };
 
-// the references: a plain emit is compared with no plugin, a command with a command without it
+// the references: a plain emit is compared with no plugin, an action with a handler with one without it
 const reference = (name) =>
 	cases.find((entry) =>
-		name.includes("command") || name.includes("action")
-			? entry.name === "this build, no plugin, command"
+		name.includes("action")
+			? entry.name === "this build, no plugin, action with a handler"
 			: entry.name === "this build, no plugin",
 	);
 
@@ -174,12 +174,12 @@ if (baseline) {
 // does the cost grow with history? batches of 10 000 tasks, time and heap after gc
 if (typeof globalThis.gc === "function") {
 	const bus = createBus().use(scopePlugin());
-	const command = createAction("c", () => 1, scope);
+	const handled = createAction("c", () => 1, scope);
 	const batches = [];
 	for (let batch = 1; batch <= 10; batch++) {
 		const start = performance.now();
 		for (let i = 0; i < 10_000; i++) {
-			bus.emit(command());
+			bus.emit(handled());
 		}
 		const ms = performance.now() - start;
 		globalThis.gc();

@@ -3,12 +3,12 @@ export {
 	createAction,
 	type FreeActionCreator,
 } from "./action";
+export { type EmitterApi, emitterPlugin } from "./emitter";
 export {
 	actionsPlugin,
 	type Binding,
 	setHandler,
-} from "./command";
-export { type EmitterApi, emitterPlugin } from "./emitter";
+} from "./handled";
 export { createJob, type Job } from "./job";
 export {
 	createModule,

@@ -114,9 +114,9 @@ describe("the trace in Chromium", () => {
 		const payEmit = entry("mark", "checkout/pay · emit (done)");
 		expect(entry("mark", "cart/changed · emit (done)")).toBeDefined();
 		expect(payEmit?.detail.traceGroupId).toBe("checkout");
-		// the command is emitted with ctx.emit: the named listener is its parent
+		// the action is emitted with ctx.emit: the named listener is its parent
 		expect(payEmit?.detail.parentId).toBe(saveCart?.detail.id);
-		const pay = entry("measure", "checkout/pay · command (done)");
+		const pay = entry("measure", "checkout/pay · action (done)");
 		expect(pay?.detail).toMatchObject({
 			traceGroupId: "checkout",
 			rootId: saveCart?.detail.id,
@@ -161,7 +161,7 @@ describe("the trace in Chromium", () => {
 
 		// the task of the flow is still traced, only under the type of its event
 		expect(off.actions.map((action) => action.type)).toContain(
-			"checkout/pay/command/done",
+			"checkout/pay/action/done",
 		);
 
 		// reduxDevtools says once what is missing

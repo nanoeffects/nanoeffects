@@ -73,7 +73,7 @@ describe("matchPlugin", () => {
 		expect(order).toEqual(["listener", "predicate one", "predicate two"]);
 	});
 
-	it("keeps an action creator and a command working", () => {
+	it("keeps an action creator with a handler working", () => {
 		const bus = setup();
 		const placed = createAction("order/placed");
 		const double = createAction("math/double", (value: number) => value * 2);
@@ -82,7 +82,7 @@ describe("matchPlugin", () => {
 			seen.push(["creator", value]);
 		});
 		bus.on(double, (value) => {
-			seen.push(["command", value]);
+			seen.push(["action", value]);
 		});
 
 		bus.emit(placed(1));
@@ -90,7 +90,7 @@ describe("matchPlugin", () => {
 
 		expect(seen).toEqual([
 			["creator", 1],
-			["command", 21],
+			["action", 21],
 		]);
 		expect(result).toBe(42);
 	});

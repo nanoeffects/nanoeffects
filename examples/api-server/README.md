@@ -32,7 +32,7 @@ curl localhost:3000/pokemon/pikachu
 The route makes one `AbortController` for each response. When the connection closes before the
 answer is written, it aborts the controller. (The event is `close` of `reply.raw`: `request.raw`
 closes when the request is read, not when the client goes.) The controller's signal goes into
-`bus.emit(loadProfile(name), { signal })`, which `signalPlugin` adds to `emit`. The command's
+`bus.emit(loadProfile(name), { signal })`, which `signalPlugin` adds to `emit`. The action's
 handler passes the signal of its task to every `fetch`, so one abort stops the request for the
 pokémon, the retries, and every ability request.
 
@@ -40,7 +40,7 @@ The files, each with one job:
 
 - `src/bus.ts` — the bus, with `signalPlugin`.
 - `src/upstream.ts` — the PokeAPI client. `fetch` is a parameter, so a test hands in a fake.
-- `src/profile.ts` and `src/profile-handlers.ts` — the command `loadProfile` and its handler:
+- `src/profile.ts` and `src/profile-handlers.ts` — the action `loadProfile` and its handler:
   `timeout` and `retry` for the pokémon, `allSettled` with a `timeout` for each ability.
 - `src/server.ts` — `buildServer`: the Fastify routes, the status of a failure, the disconnect and the shutdown.
 - `src/main.ts` — listens on `PORT` (default 3000) and stops on SIGTERM and SIGINT.

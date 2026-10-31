@@ -43,6 +43,6 @@ export const messageModule = createModule("message", (module) => {
 	module.on(sendMessage.cancel, failEverythingSending);
 
 	module.on(messageReceived, addReceived);
-	// use — a command that carries its handler: bind it for as long as this module is mounted
+	// use — an action that carries its handler: bind it for as long as this module is mounted
 	module.use(markMessage);
 });

@@ -54,6 +54,6 @@ export const goToResult = async (hit: Message, ctx: Context<EventMap>) => {
 		ctx.emit(roomSelected(hit.roomId));
 		await loaded;
 	}
-	// ctx.emit with a command — the message entity marks the message
+	// ctx.emit with an action — the message entity marks the message
 	ctx.emit(markMessage(hit.id));
 };

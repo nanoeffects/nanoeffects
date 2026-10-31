@@ -20,6 +20,6 @@ export const searchModule = createModule("search-messages", (module) => {
 
 	// the open room comes from an event, not from the store of another entity
 	module.on(roomSelected, selectRoom);
-	// use — a command that carries its handler: bind it for as long as this module is mounted
+	// use — an action that carries its handler: bind it for as long as this module is mounted
 	module.use(openResult);
 });

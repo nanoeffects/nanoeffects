@@ -3,7 +3,7 @@ import { createBus } from "../core/bus";
 import { latest } from "../policies";
 import { createAction } from "./action";
 import { carriedBy } from "./carry";
-import { actionsPlugin } from "./command";
+import { actionsPlugin } from "./handled";
 
 type Events = {
 	"counter/added": number;

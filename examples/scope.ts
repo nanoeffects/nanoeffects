@@ -1,4 +1,4 @@
-// A command with its own effects, and a test that replaces one of them for a single call.
+// An action with its own effects, and a test that replaces one of them for a single call.
 import { createBus, type WithSignal } from "nanoeffects";
 import { createAction } from "nanoeffects/actions";
 import { delay, race } from "nanoeffects/effects";
@@ -12,7 +12,7 @@ const fetchUser = (ctx: WithSignal, id: string): Promise<User> =>
 		response.json(),
 	);
 
-// createAction — third argument is the scope: effects of this command only
+// createAction — third argument is the scope: effects of this action only
 export const loadUser = createAction(
 	"user/load",
 	(id: string, { fetchUser, race, delay }) => {

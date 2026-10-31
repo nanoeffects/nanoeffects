@@ -12,7 +12,7 @@ export function App() {
 	const search = useCallback(async (query: string) => {
 		setInFlight((count) => count + 1);
 		try {
-			// bus.emit — run the command and wait for its result
+			// bus.emit — run the action and wait for its result
 			const found = await bus.emit(searchSpells(query));
 
 			// undefined: the call was dropped by the quiet time or replaced by a newer one

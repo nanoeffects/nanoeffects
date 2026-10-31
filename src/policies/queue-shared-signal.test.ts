@@ -15,8 +15,8 @@ describe("queue with one signal for several calls", () => {
 		const outcomes: string[] = [];
 		const send = createJob<number, void>("send");
 		// the handler is bound in the registry, where the job learns from the policy when a call starts
-		const commands = bus.use(actionsPlugin());
-		commands.handle(
+		const actions = bus.use(actionsPlugin());
+		actions.handle(
 			send,
 			queue(
 				(payload: number, { signal }) => {

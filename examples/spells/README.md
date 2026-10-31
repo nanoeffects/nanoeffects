@@ -1,6 +1,6 @@
 # Spells example
 
-The smallest example of a command: a search for Harry Potter spells against
+The smallest example of an action: a search for Harry Potter spells against
 [PotterAPI](https://potterapi-fedeperin.vercel.app), with no domains, no modules and no store.
 
 ```bash
@@ -8,7 +8,7 @@ npm install
 npm run dev
 ```
 
-All the logic is in `src/spells.ts`: one command that carries its handler.
+All the logic is in `src/spells.ts`: one action that carries its handler.
 
 ```ts
 export const searchSpells = createAction(

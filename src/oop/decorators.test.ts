@@ -150,7 +150,7 @@ describe("@On and @Once", () => {
 		expect(handler).not.toHaveBeenCalled();
 	});
 
-	it("take an action creator and a command as the event", () => {
+	it("take an action creator with a handler as the event", () => {
 		const bus = createBus();
 		const userLoaded = createAction<{ id: string }>("user/loaded");
 		const double = createAction<number, number>("double", (value) => value * 2);

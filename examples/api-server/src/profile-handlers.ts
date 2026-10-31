@@ -3,7 +3,7 @@ import { allSettled, retry, timeout } from "nanoeffects/effects";
 import type { Profile, ProfileAbility } from "./profile";
 import { isWorthRetrying, type Upstream } from "./upstream";
 
-// The work of the profile command.
+// The work of the profile action.
 
 export const profileHandler = (upstream: Upstream) => {
 	// One request for the pokémon. It gets the signal from the task, so an abort cancels the request.

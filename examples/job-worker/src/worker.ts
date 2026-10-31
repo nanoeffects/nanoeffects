@@ -113,7 +113,7 @@ export const createWorker = ({
 		return String(lastId);
 	};
 
-	// The shutdown in three steps. It is a command, so its race can use take and delay.
+	// The shutdown in three steps. It is an action, so its race can use take and delay.
 	const stop = createAction("worker/shutdown", async (_: undefined, ctx) => {
 		accepting = false;
 		log("1. not taking new emails");

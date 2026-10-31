@@ -106,7 +106,7 @@ const bus = createBus();
 // modulePlugin — mounts userModule at the end of this block, or at the first use if that is earlier, and returns the app
 const app = bus.use(modulePlugin([userModule]));
 
-app.unmount(userModule); // its listeners, bound commands and tasks are gone
+app.unmount(userModule); // its listeners, bound actions and tasks are gone
 ```
 
 ## Extra plugins
@@ -132,10 +132,10 @@ import { createBus } from "nanoeffects";
 import { createAction } from "nanoeffects/actions";
 import { scopePlugin } from "nanoeffects/scope";
 
-// scopePlugin — makes the scope of a command work on this bus
+// scopePlugin — makes the scope of an action work on this bus
 const bus = createBus().use(scopePlugin());
 
-// the last argument: fields of this command only
+// the last argument: fields of this action only
 const getUser = createAction("user/get", (id, { api }) => api.getUser(id), {
   api,
 });
@@ -153,13 +153,13 @@ import { createBus } from "nanoeffects";
 import { createAction } from "nanoeffects/actions";
 import { signalPlugin } from "nanoeffects/signal";
 
-// signalPlugin — emit takes { signal } for a command, a job or an action
+// signalPlugin — emit takes { signal } for an action, a job or an action
 const bus = createBus().use(signalPlugin());
 
 const getUser = createAction("user/get", (id, { signal }) => api.getUser(id, { signal }));
 
 const controller = new AbortController();
-bus.emit(getUser("1"), { signal: controller.signal }); // runs the command
+bus.emit(getUser("1"), { signal: controller.signal }); // runs the action
 controller.abort(); // ctx.signal of the handler aborts with it
 ```
 
@@ -275,7 +275,7 @@ import { scopePlugin } from "nanoeffects/scope";
 export const bus = createBus()
   .use(contextPlugin({ store })) // ctx.store on every task
   .use(effectsPlugin({ race, all })) // ctx.race and ctx.all, bound to the task
-  .use(scopePlugin()) // scopes for commands, actions, jobs, modules and emit
+  .use(scopePlugin()) // scopes for actions, jobs, modules and emit
   .use(matchPlugin()) // bus.on takes a function that picks the events
   .use(emitterPlugin()); // bus.emitter(creator)
 

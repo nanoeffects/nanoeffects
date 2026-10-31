@@ -28,7 +28,7 @@ const payloadOf = (event: unknown, rest: unknown[]) =>
 /**
  * Names and groups what the trace shows, on a bus that has a tracer:
  *
- * - `traceGroupId` in the scope of a command, a job or an action goes to every
+ * - `traceGroupId` in the scope of an action, a job or an action goes to every
  *   task that the call starts;
  * - `useEmitter` and `bus.emitter` emit from a root task named by their
  *   `traceId`, so a chain says which subscription began it;

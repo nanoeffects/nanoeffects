@@ -7,7 +7,7 @@ import { findProducts, productsLoaded } from "./catalog";
 export const search = debounce(
   300,
   latest(async (query: string, { emit }) => {
-    // emit with a command — runs it and gives back what its handler returned
+    // emit with an action — runs it and gives back what its handler returned
     const found = await emit(findProducts(query));
     // emit with an action — tell the bus the result; nothing is delivered after an abort
     emit(productsLoaded(found));

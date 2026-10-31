@@ -5,7 +5,7 @@ import type { EventMap } from "./types";
 // only the type of this key is used: it carries the context fields of a scope
 declare const scopeFields: unique symbol;
 
-/** What an action creator, a command or a call knows of the scope it was made with: its fields, for the checker. */
+/** What an action creator or a call knows of the scope it was made with: its fields, for the checker. */
 export type WithScope<F> = { readonly [scopeFields]: F };
 
 /** `X`, marked with the scope fields `F` it carries; `X` itself when there are none, so unscoped types stay as they were. */

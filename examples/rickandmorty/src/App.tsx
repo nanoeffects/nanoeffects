@@ -16,7 +16,7 @@ const idOf = (url: string) => Number(url.split("/").at(-1));
 
 function Episodes({ character }: { character: Character }) {
 	const ids = character.episode.map(idOf);
-	// useQuery — the cache and the state; queryFn — the request is a command, and React Query's signal
+	// useQuery — the cache and the state; queryFn — the request is an action, and React Query's signal
 	// goes to bus.emit, so closing the panel cancels it
 	const episodes = useQuery({
 		queryKey: ["episodes", character.id],
@@ -56,7 +56,7 @@ export function App() {
 	const characters = useInfiniteQuery({
 		queryKey: ["characters", filter],
 		initialPageParam: 1,
-		// the request is a command; a new filter changes the key and React Query aborts the old one
+		// the request is an action; a new filter changes the key and React Query aborts the old one
 		queryFn: ({ pageParam, signal }) =>
 			bus.emit(findCharacters({ ...filter, page: pageParam }), { signal }),
 		getNextPageParam: (last, pages) =>
@@ -91,7 +91,7 @@ export function App() {
 			closeSuggestions();
 		}
 
-		// bus.emit — ask the command for names; it waits for quiet and keeps the newest request.
+		// bus.emit — ask the action for names; it waits for quiet and keeps the newest request.
 		// A blank text is sent too: it replaces a call that waits for quiet, and asks for nothing.
 		const names = await bus.emit(suggestCharacters(text));
 
@@ -122,7 +122,7 @@ export function App() {
 		}
 	};
 
-	// a page is undefined only when the call was dropped, which this command never is
+	// a page is undefined only when the call was dropped, which this action never is
 	const pages = characters.data?.pages ?? [];
 	const found = pages.flatMap((page) => page?.results ?? []);
 

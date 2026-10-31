@@ -37,7 +37,7 @@ The action loads a user. It tries the request up to three times, and gives up on
 import { createAction } from "nanoeffects/actions";
 import { retry, timeout } from "nanoeffects/effects";
 
-// createAction — a command with a handler: emit returns what the handler returns
+// createAction — an action with a handler: emit returns what the handler returns
 export const getUser = createAction("user/get", async (id, ctx) => {
   // one try: the request, with the signal of timeout so it can stop it
   const load = ({ signal }) => api.getUser(id, { signal });
@@ -78,7 +78,7 @@ app.get("/users/:id", async (request, reply) => {
   });
 
   try {
-    // emit with { signal } — aborting the controller aborts the command: timeout, retry and the request
+    // emit with { signal } — aborting the controller aborts the action: timeout, retry and the request
     const call = getUser(request.params.id);
     return await bus.emit(call, { signal: controller.signal });
   } catch (error) {
@@ -131,7 +131,7 @@ import { createAction } from "nanoeffects/actions";
 import { poll } from "nanoeffects/effects";
 import { latest } from "nanoeffects/policies";
 
-// createAction — a command with a handler
+// createAction — an action with a handler
 // latest — a new subscription stops the old one; key — but only the old one of the same socket
 export const watchPrices = createAction(
   "prices/watch",

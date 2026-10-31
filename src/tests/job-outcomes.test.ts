@@ -14,7 +14,7 @@ const names = ["pending", "success", "fail", "cancel"] as const;
 // a job whose outcomes are recorded in order, with a counter and a flag of loading
 const setup = () => {
 	const bus = createBus<Events>();
-	const commands = bus.use(actionsPlugin());
+	const actions = bus.use(actionsPlugin());
 	const job = createJob<string, string | undefined>("user/load");
 	const seen: string[] = [];
 	const state = { running: 0, loading: false };
@@ -25,13 +25,13 @@ const setup = () => {
 			state.loading = name === "pending";
 		});
 	}
-	return { bus, commands, job, seen, state };
+	return { bus, actions, job, seen, state };
 };
 
 describe("job outcomes with a bound handler", () => {
-	it("sends pending and then the closing outcome for a handler bound with commands.handle", async () => {
-		const { bus, commands, job, seen } = setup();
-		commands.handle(job, async (id) => id);
+	it("sends pending and then the closing outcome for a handler bound with actions.handle", async () => {
+		const { bus, actions, job, seen } = setup();
+		actions.handle(job, async (id) => id);
 
 		await bus.emit(job("1"));
 
@@ -56,9 +56,9 @@ describe("job outcomes under a policy", () => {
 	});
 
 	it("leading: a dropped call sends nothing and does not clear the flag", async () => {
-		const { bus, commands, job, seen, state } = setup();
+		const { bus, actions, job, seen, state } = setup();
 		const gate = deferred<string>();
-		commands.handle(
+		actions.handle(
 			job,
 			leading(() => gate.promise),
 		);
@@ -76,10 +76,10 @@ describe("job outcomes under a policy", () => {
 	});
 
 	it("latest: a replaced run sends cancel before the next pending", async () => {
-		const { bus, commands, job, seen, state } = setup();
+		const { bus, actions, job, seen, state } = setup();
 		const gates = [deferred<string>(), deferred<string>()];
 		let index = 0;
-		commands.handle(
+		actions.handle(
 			job,
 			latest(async (_id, { signal }) => {
 				const gate = gates[index++];
@@ -103,8 +103,8 @@ describe("job outcomes under a policy", () => {
 	});
 
 	it("debounce: one pending, when the run starts, and none for a call that was replaced", async () => {
-		const { bus, commands, job, seen } = setup();
-		commands.handle(
+		const { bus, actions, job, seen } = setup();
+		actions.handle(
 			job,
 			debounce(100, async (id: string) => id),
 		);
@@ -119,8 +119,8 @@ describe("job outcomes under a policy", () => {
 	});
 
 	it("throttle: a held call that is replaced sends nothing", async () => {
-		const { bus, commands, job, seen } = setup();
-		commands.handle(
+		const { bus, actions, job, seen } = setup();
+		actions.handle(
 			job,
 			throttle(100, (id: string) => id),
 		);
@@ -134,11 +134,11 @@ describe("job outcomes under a policy", () => {
 	});
 
 	it("queue: pending is sent when the call's turn comes", async () => {
-		const { bus, commands, job, seen, state } = setup();
+		const { bus, actions, job, seen, state } = setup();
 		const gate = deferred<string>();
 		const gates = [gate, deferred<string>()];
 		let index = 0;
-		commands.handle(
+		actions.handle(
 			job,
 			queue((_id: string) => gates[index++]?.promise ?? Promise.resolve("")),
 		);
@@ -156,9 +156,9 @@ describe("job outcomes under a policy", () => {
 	});
 
 	it("queue: a call that waits and is dropped by the limit sends nothing", async () => {
-		const { bus, commands, job, seen } = setup();
+		const { bus, actions, job, seen } = setup();
 		const gate = deferred<string>();
-		commands.handle(
+		actions.handle(
 			job,
 			queue((_id: string) => gate.promise, { limit: 0 }),
 		);
@@ -172,10 +172,10 @@ describe("job outcomes under a policy", () => {
 	});
 
 	it("a policy that is wrapped in a function the job cannot see sends pending at the call", async () => {
-		const { bus, commands, job, seen } = setup();
+		const { bus, actions, job, seen } = setup();
 		const gate = deferred<string>();
 		const guarded = leading(() => gate.promise);
-		commands.handle(job, (id, ctx) => guarded(id, ctx));
+		actions.handle(job, (id, ctx) => guarded(id, ctx));
 
 		const first = bus.emit(job("1"));
 		const second = bus.emit(job("2"));
@@ -186,8 +186,8 @@ describe("job outcomes under a policy", () => {
 	});
 
 	it("a counter is exact under every policy", async () => {
-		const { bus, commands, job, state } = setup();
-		commands.handle(
+		const { bus, actions, job, state } = setup();
+		actions.handle(
 			job,
 			latest(async (id: string) => id),
 		);

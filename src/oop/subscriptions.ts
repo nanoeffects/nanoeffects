@@ -18,7 +18,7 @@ const entriesOf = (instance: object) => {
 	return made;
 };
 
-// An action creator and a command are known by their string `type`, a predicate by itself.
+// An action creator is known by their string `type`, a predicate by itself.
 const eventKey = (event: unknown) => {
 	if (typeof event === "string") {
 		return event;

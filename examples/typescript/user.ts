@@ -1,4 +1,4 @@
-// One feature in its own file: a command with its handler, and the module.
+// One feature in its own file: an action with its handler, and the module.
 import { createAction, createModule } from "nanoeffects/actions";
 
 export type User = { id: string; name: string };
@@ -13,7 +13,7 @@ export const getUser = createAction(
 	},
 );
 
-// createModule — m.use binds the handler the command carries, while the module is mounted
+// createModule — m.use binds the handler the action carries, while the module is mounted
 export const userModule = createModule("user", (m) => {
 	m.use(getUser);
 });

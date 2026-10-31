@@ -7,7 +7,7 @@ import { matchPlugin } from "../match";
 import type { TestEvents } from "../tests/test-helpers";
 import { delay } from "../utils";
 import { createAction } from "./action";
-import { actionsPlugin, setHandler } from "./command";
+import { actionsPlugin, setHandler } from "./handled";
 import { createModule, type ModuleApi, modulePlugin } from "./module";
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -25,7 +25,7 @@ describe("modulePlugin starts on the first use", () => {
 		expect(setup).toHaveBeenCalledTimes(1);
 	});
 
-	it("is started by each call of the app and by the read of commands", () => {
+	it("is started by each call of the app and by the read of actions", () => {
 		const calls: Array<(app: ModuleApi<TestEvents>) => unknown> = [
 			(app) => app.actions,
 			(app) => app.isMounted(createModule<TestEvents>("x", () => {})),
@@ -117,18 +117,18 @@ describe("modulePlugin starts on the first use", () => {
 
 	it("lets a handler bound through app.actions win over the modules", () => {
 		const bus = createBus<TestEvents>();
-		const command = createAction<Call<number, number>>("c");
+		const action = createAction<Call<number, number>>("c");
 		const app = bus.use(
 			modulePlugin<TestEvents>([
 				createModule("a", (moduleContext) => {
-					moduleContext.handle(command, () => 1);
+					moduleContext.handle(action, () => 1);
 				}),
 			]),
 		);
-		app.actions.handle(command, () => 2);
+		app.actions.handle(action, () => 2);
 
 		// the modules are mounted before the handler is bound, so the later one wins
-		expect(bus.emit(command, 0)).toBe(2);
+		expect(bus.emit(action, 0)).toBe(2);
 	});
 
 	it("merges a actionsPlugin used after it", () => {

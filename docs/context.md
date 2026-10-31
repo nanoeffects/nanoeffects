@@ -21,7 +21,7 @@ Library fields (`signal`, `emit`, `run`, …) win on name clashes. `context` may
 
 To get `race`, `all`, `take` and the like on every task without passing `ctx`, see [`effectsPlugin`](effects.md#put-selected-effects-on-ctx).
 
-To give fields to **one** command, action, job or module, or to replace them for one `emit`, see [scopes](scope.md).
+To give fields to **one** action, job or module, or to replace them for one `emit`, see [scopes](scope.md).
 
 ## Type the fields (optional)
 

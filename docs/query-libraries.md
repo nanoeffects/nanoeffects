@@ -63,7 +63,7 @@ import { getUser } from "./user";
 export function Profile({ id }) {
   const { isLoading, data, error } = useQuery({
     queryKey: ["user", id],
-    // emit — runs the command; { signal } ties its task to the signal of React Query
+    // emit — runs the action; { signal } ties its task to the signal of React Query
     queryFn: ({ signal }) => bus.emit(getUser(id), { signal }),
   });
 

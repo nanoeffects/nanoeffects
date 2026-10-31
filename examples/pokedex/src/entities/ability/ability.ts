@@ -11,7 +11,7 @@ export const loadAbilities = createJob<string[], AbilityText[]>(
 
 // createAction — an order for this entity, with the handler that does it: empty the abilities.
 // The feature that connects the pokémon to its abilities emits it, so it never writes the store.
-// The module binds the command with module.use for as long as it is mounted.
+// The module binds the action with module.use for as long as it is mounted.
 export const clearAbilities = createAction("abilities/clear", () =>
 	abilityStore.getState().clear(),
 );

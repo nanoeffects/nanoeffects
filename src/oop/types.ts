@@ -1,5 +1,5 @@
 import type { ActionCreator } from "../core/action-creator";
-import type { Command } from "../core/bus";
+import type { Handled } from "../core/bus";
 
 // the parts of a bus that are not methods of an instance: data and hooks for the plugins
 type Slots =
@@ -59,7 +59,7 @@ type Handler<P> = (payload: P, ctx: never) => unknown;
 /**
  * What `@On(event)` and `@Once(event)` return: a method decorator of the
  * language and of `experimentalDecorators`. The payload of the method is
- * checked against the event when the event is an action creator or a command.
+ * checked against the event when the event is an action creator.
  */
 export interface MethodDecorator<P> {
 	(value: Handler<P>, context: ClassMethodDecoratorContext): void;
@@ -71,4 +71,4 @@ export interface MethodDecorator<P> {
 }
 
 /** The events a decorator takes. */
-export type EventOf<P> = ActionCreator<P> | Command<P, unknown>;
+export type EventOf<P> = ActionCreator<P> | Handled<P, unknown>;

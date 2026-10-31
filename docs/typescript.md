@@ -23,7 +23,7 @@ export const getUser = createAction(
   },
 );
 
-// createModule: m.use binds the handler the command carries, while the module is mounted
+// createModule: m.use binds the handler the action carries, while the module is mounted
 export const userModule = createModule("user", (m) => {
   m.use(getUser);
 });

@@ -21,7 +21,7 @@ const setup = (sample?: Parameters<typeof createTracer>[1]) => {
 	return { app, recorder, starts, startOf };
 };
 
-describe("tracing of commands", () => {
+describe("tracing of actions", () => {
 	describe("identity", () => {
 		it("reports the type, the effect and the payload", () => {
 			const { app, startOf } = setup();
@@ -32,7 +32,7 @@ describe("tracing of commands", () => {
 
 			expect(startOf("math/double")).toMatchObject({
 				type: "math/double",
-				effect: "command",
+				effect: "action",
 				phase: "start",
 				payload: 4,
 			});
@@ -69,9 +69,9 @@ describe("tracing of commands", () => {
 
 		it("reports a job with no handler as an error", () => {
 			const { app, recorder } = setup();
-			const command = createJob<number, number>("a/b");
+			const action = createJob<number, number>("a/b");
 			try {
-				app.bus.emit(command, 1);
+				app.bus.emit(action, 1);
 			} catch {}
 			const last = recorder.events.at(-1);
 
@@ -81,36 +81,36 @@ describe("tracing of commands", () => {
 
 		it("reports a bound handler like the default one", () => {
 			const { app, startOf } = setup();
-			const command = createAction<Call<number, number>>("a/b");
-			app.actions.handle(command, (value) => value);
-			app.bus.emit(command, 1);
+			const action = createAction<Call<number, number>>("a/b");
+			app.actions.handle(action, (value) => value);
+			app.bus.emit(action, 1);
 
-			expect(startOf("a/b")?.effect).toBe("command");
+			expect(startOf("a/b")?.effect).toBe("action");
 		});
 
 		it("gives every run its own id", () => {
 			const { app, starts } = setup();
-			const command = createAction("a/b", (value: number) => value);
-			app.bus.emit(command, 1);
-			app.bus.emit(command, 2);
+			const action = createAction("a/b", (value: number) => value);
+			app.bus.emit(action, 1);
+			app.bus.emit(action, 2);
 			const ids = starts().map((event) => event.id);
 
 			expect(new Set(ids).size).toBe(2);
 		});
 
-		it("reports a job as a command run", async () => {
+		it("reports a job as an action run", async () => {
 			const { app, recorder } = setup();
 			const job = createJob("user/load", async () => "x");
 			await app.bus.emit(job, void 0);
 
 			expect(
 				recorder.events.map((event) => `${event.effect}/${event.phase}`),
-			).toEqual(["command/start", "command/done"]);
+			).toEqual(["action/start", "action/done"]);
 		});
 	});
 
 	describe("causality", () => {
-		it("a command emitted with ctx.emit is a child of the command that emitted it", () => {
+		it("an action emitted with ctx.emit is a child of the action that emitted it", () => {
 			const { app, startOf } = setup();
 			const inner = createAction("inner", (value: number) => value + 1);
 			const outer = createAction("outer", (value: number, ctx) =>
@@ -121,7 +121,7 @@ describe("tracing of commands", () => {
 			expect(startOf("inner")?.parentId).toBe(startOf("outer")?.id);
 		});
 
-		it("a root command has no parent", () => {
+		it("a root action has no parent", () => {
 			const { app, startOf } = setup();
 			app.bus.emit(
 				createAction("outer", (value: number) => value),
@@ -146,7 +146,7 @@ describe("tracing of commands", () => {
 			expect(startOf("b")?.parentId).toBe(startOf("a")?.id);
 		});
 
-		it("a command emitted with a plain bus.emit is not linked", () => {
+		it("an action emitted with a plain bus.emit is not linked", () => {
 			const { app, startOf } = setup();
 			const inner = createAction("inner", (value: number) => value);
 			const outer = createAction("outer", (value: number) =>
@@ -200,7 +200,7 @@ describe("tracing of commands", () => {
 			expect(startOf("b")?.parentId).toBe(startOf("outer")?.id);
 		});
 
-		it("a command emitted after the task was aborted is not run", () => {
+		it("an action emitted after the task was aborted is not run", () => {
 			const { app, starts } = setup();
 			const inner = createAction("inner", (value: number) => value);
 			const outer = createAction("outer", (value: number, ctx) => {
@@ -242,7 +242,7 @@ describe("tracing of commands", () => {
 
 			expect(startOf("inner")).toHaveProperty("parentId");
 			const phases = recorder.events
-				.filter((event) => event.effect === "command")
+				.filter((event) => event.effect === "action")
 				.filter((event) => String(event.type) === "user/load")
 				.map((event) => event.phase);
 			expect(phases).toEqual(["start", "cancel"]);
@@ -302,12 +302,12 @@ describe("tracing of commands", () => {
 	});
 
 	describe("modules", () => {
-		it("a command emitted by a module has a parent", () => {
+		it("an action emitted by a module has a parent", () => {
 			const { app, startOf } = setup();
-			const command = createAction("a/b", (value: number) => value);
+			const action = createAction("a/b", (value: number) => value);
 			app.mount(
 				createModule<Events>("m", (moduleContext) =>
-					moduleContext.emit(command, 1),
+					moduleContext.emit(action, 1),
 				),
 			);
 

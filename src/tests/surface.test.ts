@@ -34,8 +34,6 @@ const typeExports: Record<string, string[]> = {
 		"Bus",
 		"BusOptions",
 		"Call",
-		"Command",
-		"CommandCall",
 		"Context",
 		"ContextOf",
 		"ContextOption",
@@ -46,6 +44,8 @@ const typeExports: Record<string, string[]> = {
 		"EventMap",
 		"EventPayload",
 		"EventsOf",
+		"Handled",
+		"HandledCall",
 		"Handler",
 		"HandlerRef",
 		"Keys",
@@ -170,6 +170,13 @@ describe("the public surface", () => {
 
 	it("exports these types from each entry", () => {
 		expect(typeNamesOf()).toEqual(typeExports);
+	}, 60000);
+
+	// the word left with the merge of command into action; a new name that brings it back is a decision
+	it("exports no type named after a command", () => {
+		const names = Object.values(typeNamesOf()).flat();
+
+		expect(names.filter((name) => /Command/.test(name))).toEqual([]);
 	}, 60000);
 
 	describe("the stability page", () => {

@@ -1,4 +1,4 @@
-// The entry: create the bus, mount the modules and call a command.
+// The entry: create the bus, mount the modules and call an action.
 import { createBus } from "nanoeffects";
 import { modulePlugin } from "nanoeffects/actions";
 import { getUser, userModule } from "./user";

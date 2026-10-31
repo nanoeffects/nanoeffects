@@ -84,7 +84,7 @@ describe("scopes do not leak", () => {
 		expect(aliveCount(refs)).toBe(0);
 	});
 
-	it("a scope on a command is held by the command only", async () => {
+	it("a scope on an action is held by the action only", async () => {
 		const refs: Array<WeakRef<object>> = [];
 		const make = () => {
 			const bus = createBus().use(scopePlugin());

@@ -16,7 +16,7 @@ const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 type Fields = { readonly name: string };
 const base: Fields = { name: "bus" };
 const moduleFields: Fields = { name: "module" };
-const commandFields: Fields = { name: "command" };
+const handledFields: Fields = { name: "action" };
 const callFields: Fields = { name: "call" };
 
 const nameOf = (ctx: object) =>
@@ -36,7 +36,7 @@ describe("job scope", () => {
 				return id;
 			},
 			{},
-			{ fields: commandFields },
+			{ fields: handledFields },
 		);
 		bus.on(load.success, (_user, ctx) => {
 			seen.push(["success", nameOf(ctx)]);
@@ -49,10 +49,10 @@ describe("job scope", () => {
 		await bus.emit(load("bad"));
 
 		expect(seen).toEqual([
-			["handler", "command"],
-			["success", "command"],
-			["handler", "command"],
-			["fail", "command"],
+			["handler", "action"],
+			["success", "action"],
+			["handler", "action"],
+			["fail", "action"],
 		]);
 	});
 
@@ -66,7 +66,7 @@ describe("job scope", () => {
 				return "x";
 			},
 			{},
-			{ fields: commandFields },
+			{ fields: handledFields },
 		);
 		bus.on(load.pending, (_id, ctx) => {
 			seen.push(["pending", nameOf(ctx)]);
@@ -78,8 +78,8 @@ describe("job scope", () => {
 		await bus.emit(load("1"));
 
 		expect(seen).toEqual([
-			["pending", "command"],
-			["cancel", "command"],
+			["pending", "action"],
+			["cancel", "action"],
 		]);
 	});
 
@@ -117,7 +117,7 @@ describe("job scope", () => {
 			"user/load",
 			async (id: string) => id,
 			{},
-			{ fields: commandFields },
+			{ fields: handledFields },
 		);
 		bus.on(load.success, (_user, ctx) => {
 			seen.push(nameOf(ctx));
@@ -125,7 +125,7 @@ describe("job scope", () => {
 
 		await bus.emit(load("1"));
 
-		expect(seen).toEqual(["command"]);
+		expect(seen).toEqual(["action"]);
 	});
 
 	it("a job without a scope adds nothing", async () => {
@@ -151,7 +151,7 @@ describe("job scope", () => {
 				return id;
 			},
 			{},
-			{ fields: commandFields },
+			{ fields: handledFields },
 		);
 
 		await bus.emit(load("1"));
@@ -248,14 +248,14 @@ describe("module scope", () => {
 		]);
 	});
 
-	it("the bus, then the module, then the command, then emit", () => {
+	it("the bus, then the module, then the action, then emit", () => {
 		const seen: unknown[] = [];
 		const read = createAction(
 			"read",
 			(_: undefined, ctx) => {
 				seen.push(nameOf(ctx));
 			},
-			{ fields: commandFields },
+			{ fields: handledFields },
 		);
 		const plain = createAction("plain", (_: undefined, ctx) => {
 			seen.push(nameOf(ctx));
@@ -277,7 +277,7 @@ describe("module scope", () => {
 		bus.emit(read(noPayload));
 		bus.emit(read(noPayload), { fields: callFields });
 
-		expect(seen).toEqual(["module", "command", "call"]);
+		expect(seen).toEqual(["module", "action", "call"]);
 	});
 
 	it("unmounting stops the module's handlers, and a new version of the module has its own scope", () => {
@@ -348,7 +348,7 @@ describe("action scope", () => {
 		const bus = createBus();
 		const seen: unknown[] = [];
 		const loaded = createAction("user/loaded", {
-			fields: commandFields,
+			fields: handledFields,
 		});
 		bus.on(loaded, (_user, ctx) => {
 			seen.push(nameOf(ctx));

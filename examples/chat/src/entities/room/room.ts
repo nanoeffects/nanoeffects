@@ -6,5 +6,5 @@ import type { Room } from "../../shared/api";
 // createAction<Payload> — an event with a name and the type of its payload
 export const roomSelected = createAction<string>("rooms/selected");
 
-// createJob — a command that also sends pending, success, fail and cancel
+// createJob — an action that also sends pending, success, fail and cancel
 export const loadRooms = createJob<void, Room[]>("rooms/load");

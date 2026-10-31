@@ -22,7 +22,7 @@ const setup = () => {
 };
 
 describe("traceGroupId", () => {
-	it("is declared in the scope of a command", async () => {
+	it("is declared in the scope of an action", async () => {
 		const { bus, groupsOf } = setup();
 		const pay = createAction("checkout/pay", async (_: undefined) => 1, {
 			traceGroupId: "checkout",
@@ -72,8 +72,8 @@ describe("traceGroupId", () => {
 			{ traceGroupId: "flow" },
 		);
 		bus.actions = {
-			run: (command, payload, ctx) =>
-				Reflect.apply(command, null, [payload, ctx]),
+			run: (action, payload, ctx) =>
+				Reflect.apply(action, null, [payload, ctx]),
 		};
 
 		await bus.emit(outer(noPayload));
@@ -171,7 +171,7 @@ describe("consoleLogger with a group", () => {
 		log({
 			id: 1,
 			type: "checkout/pay",
-			effect: "command",
+			effect: "action",
 			phase: "start",
 			payload: 1,
 			traceGroupId: "checkout",
@@ -179,16 +179,16 @@ describe("consoleLogger with a group", () => {
 		log({
 			id: 2,
 			type: "plain",
-			effect: "command",
+			effect: "action",
 			phase: "start",
 			payload: 2,
 		});
 
 		expect(out.debug.mock.calls[0]?.[0]).toBe(
-			"[nanoeffects] [checkout] checkout/pay · command start",
+			"[nanoeffects] [checkout] checkout/pay · action start",
 		);
 		expect(out.debug.mock.calls[1]?.[0]).toBe(
-			"[nanoeffects] plain · command start",
+			"[nanoeffects] plain · action start",
 		);
 	});
 });
@@ -219,7 +219,7 @@ describe("traceGroupId in a scope", () => {
 		).toBe(true);
 	});
 
-	it("takes a scope for a command whose handler is bound later", () => {
+	it("takes a scope for an action whose handler is bound later", () => {
 		const later = createAction("later", { traceGroupId: "flow" });
 
 		expect(later.type).toBe("later");
@@ -227,7 +227,7 @@ describe("traceGroupId in a scope", () => {
 });
 
 describe("rootId", () => {
-	it("links a command below a listener to the root, though its parentId is the listener", async () => {
+	it("links an action below a listener to the root, though its parentId is the listener", async () => {
 		const recorder = createTraceRecorder();
 		const bus = createBus({ trace: createTracer(recorder) }).use(tracePlugin());
 		const save = createAction("user/save", async (_: undefined) => 1);
@@ -243,10 +243,10 @@ describe("rootId", () => {
 		await Promise.resolve();
 
 		const root = recorder.events.find((event) => event.type === "Profile");
-		const command = recorder.events.find((event) => event.type === "user/save");
+		const action = recorder.events.find((event) => event.type === "user/save");
 		expect(root?.rootId).toBeUndefined();
-		expect(command?.rootId).toBe(root?.id);
-		expect(command?.parentId).not.toBe(root?.id);
+		expect(action?.rootId).toBe(root?.id);
+		expect(action?.parentId).not.toBe(root?.id);
 	});
 
 	it("is the same for tasks of a policy and its runs", async () => {
@@ -258,12 +258,12 @@ describe("rootId", () => {
 
 		await bus.emit(load(noPayload));
 
-		const command = recorder.events.find(
-			(event) => event.type === "load" && event.effect === "command",
+		const action = recorder.events.find(
+			(event) => event.type === "load" && event.effect === "action",
 		);
 		const run = recorder.events.find((event) => event.effect === "run");
-		expect(command?.rootId).toBeUndefined();
-		expect(run?.rootId).toBe(command?.id);
+		expect(action?.rootId).toBeUndefined();
+		expect(run?.rootId).toBe(action?.id);
 	});
 
 	it("is absent from the events of every root task", async () => {

@@ -10,11 +10,11 @@ Rules that generated code often gets wrong:
 - Effects take `ctx` as the first argument: `retry(ctx, fn, options)`, `timeout(ctx, ms, fn)`, `take(ctx, "event")`.
 - Policies wrap a handler: `bus.on("search", latest(async (query, ctx) => { ... }))`.
 - Each part is imported from its own path: `nanoeffects` (`createBus`), `nanoeffects/policies`, `nanoeffects/effects`, `nanoeffects/actions`, `nanoeffects/redux`, `nanoeffects/observable`, `nanoeffects/react` (`reactPlugin`, adds `bus.useEmitter` and `bus.useEventState`; `usePolicy`; needs React), `nanoeffects/svelte` (`sveltePlugin`, adds `bus.eventStore`; needs Svelte), `nanoeffects/vue` (`vuePlugin`, adds `bus.watchEmitter` and `bus.useEventRef`; needs Vue), `nanoeffects/trace` (`createTracer`, loggers, `tracePlugin`), `nanoeffects/dev`.
-- `bus.emit(command(payload))` runs the command's handler and returns its result. Plain events return nothing.
+- `bus.emit(action(payload))` runs the action's handler and returns its result. Plain events return nothing.
 
 ## Start here
 
-- [Guide](docs/guide.md): bus, handler context, policies, effects, commands and modules, step by step
+- [Guide](docs/guide.md): bus, handler context, policies, effects, actions and modules, step by step
 - [Start a project from a template](docs/starter.md): `npm create nanoeffects` makes a Vite project (`vanilla`, `react`, `vue-ts`, `svelte-ts` and others, in JavaScript or TypeScript) with a bus, `debounce` and `latest`
 - [Why nanoeffects exists](docs/motivation.md): logic and side effects outside UI components as plain async functions, no dependencies and no global state for SDKs and Module Federation, and why not redux-saga, RxJS, Redux or Effector
 - [Package entries](docs/package.md): which import holds what
@@ -32,9 +32,9 @@ Rules that generated code often gets wrong:
 
 ## Domain logic and stores
 
-- [Actions, jobs and modules](docs/actions.md): `createAction`, `createAction`, `createJob`, `createModule`
+- [Actions, jobs and modules](docs/actions.md): `createAction` (with or without a handler), `createJob`, `createModule`
 - [Connect Redux, Zustand, MobX, or Pinia](docs/stores.md): the Redux middleware and callbacks of other stores
-- [Use nanoeffects with React Query and SWR](docs/query-libraries.md): call a command from `queryFn` or the SWR fetcher; `signalPlugin` passes the abort of the library to the task
+- [Use nanoeffects with React Query and SWR](docs/query-libraries.md): call an action from `queryFn` or the SWR fetcher; `signalPlugin` passes the abort of the library to the task
 - [Stop work on a server when the client leaves](docs/server.md): one `AbortController` for each request or socket, `signalPlugin`, a clean shutdown, and a queue worker; Fastify examples
 - [Build a sign-up form in React](docs/react.md): a form with a username check, a submit that cannot fire twice, and retry; `useEventState` shows an event as state, `usePolicy` keeps a debounced handler between renders
 - [Build a chat with entities, features, modules and a small server](docs/chat-example.md): rooms, a history under `latest`, a send under `queue` and `retry`, a search with `allSettled` and `timeout`, new messages polled with `poll`
@@ -42,12 +42,12 @@ Rules that generated code often gets wrong:
 - [Use nanoeffects in a Vue app](docs/vue.md): `vuePlugin` adds `watchEmitter` (a value of a component to the bus) and `useEventRef` (an event as a ref)
 - [Use nanoeffects in a Svelte app](docs/svelte.md): `sveltePlugin` adds `eventStore` (an event as a Svelte store)
 - [Context fields](docs/context.md): put a store or client on every task
-- [Scopes](docs/scope.md): fields for one command, action, job, module or `emit`, and a way to replace them in a test
+- [Scopes](docs/scope.md): fields for one action, job, module or `emit`, and a way to replace them in a test
 - [Use the bus from a class](docs/oop.md): `Emitter`, `extendBus`, `@WithBus`, `@On`, `@Once`, and `dispose()` for the subscriptions of an instance
 
 ## TypeScript
 
-- [TypeScript in many files](docs/typescript.md): keep the types of the bus in commands and modules
+- [TypeScript in many files](docs/typescript.md): keep the types of the bus in actions and modules
 
 ## Coming from another library
 

@@ -153,7 +153,7 @@ describe("api-server", () => {
 			vi.useRealTimers();
 		});
 
-		// the command on a bus of its own, so fake timers never touch a socket
+		// the action on a bus of its own, so fake timers never touch a socket
 		const profileOn = (upstream: Upstream) => {
 			const bus = createBus().use(signalPlugin());
 			const loadProfile = createProfile(upstream);

@@ -10,8 +10,22 @@ A chat with two entities and three features, jobs under policies and effects, an
 
 A whole project with two domains, a job and React as a thin layer: `npm create nanoeffects@latest my-app -- --template domains-ts` (see [Start a project from a template](starter.md#start-with-domains)).
 
+## Pick the word: event, action, job, module
+
+Four names, one idea each. Take the first row that fits.
+
+| Word | What it is | Use it when |
+| ---- | ---------- | ----------- |
+| Event | A name and a payload; `createAction("x")` with no handler. | The UI or a handler tells that something happened. |
+| Action with a handler | The same, plus work: `createAction("x", handler)`. `emit` returns the result. | The caller needs a value back. |
+| Job | An action with a handler that also emits `pending`, `success`, `fail` and `cancel`. | The UI shows a loading state. |
+| Module | A group of listeners, handlers and tasks, mounted and unmounted with one call. | One domain must start and stop as a unit. |
+
+Start with events. Add a handler when you need a result, a job when you need a status, a module when you need a unit.
+
 ## On this page
 
+- [Pick the word: event, action, job, module](#pick-the-word-event-action-job-module)
 - [Return a value from `emit` with a handler](#return-a-value-from-emit-with-a-handler)
 - [Describe events, handlers and jobs](#describe-events-handlers-and-jobs)
   - [Actions](#actions)
@@ -176,7 +190,7 @@ On a bus without an event map you can say it where you call: `const id = bus.emi
 - `pending` / `success` / `fail` / `cancel` are a string (job makes an action creator) or an existing action creator. Missing ones become `<type>/pending`, `<type>/success`, `<type>/fail` or `<type>/cancel`.
 - `bus.emit(loadUser(id))` returns a promise of the result. Handler errors are always handled: they go to `fail` and the promise resolves with `undefined`. For a result that must reject, give `createAction` the handler.
 - Outcome actions are emitted as the task that ran the job (also for a handler bound with `actions.handle`). `success` and `fail` are not sent after abort; `cancel` is, at the moment of the abort.
-- A job without a handler is not an outcome: `emit` throws `No handler for command "..."` and nothing is sent. An action without a handler is an event and does not throw.
+- A job without a handler is not an outcome: `emit` throws `No handler for action "..."` and nothing is sent. An action without a handler is an event and does not throw.
 - Calling the job only builds `{ type, payload }`; the handler runs on `emit`.
 - The outcomes are events like any other: with `onUnhandled` set on the bus, it is called for a `pending` or a `cancel` that nobody listens to.
 

@@ -36,13 +36,13 @@ that socket gets its signal, through `signalPlugin`. When the socket closes, the
 and that stops everything started for the socket: the subscription, the idle wait, and what they
 started.
 
-A policy by itself would mix the sockets up: `latest` keeps one call alive for a whole command, so
+A policy by itself would mix the sockets up: `latest` keeps one call alive for a whole action, so
 a subscription on socket A would stop the one on socket B. The `key` option fixes it: `latest(fn,
 { key: (call) => call.socketId })` keeps one running call for each socket.
 
 ## The idle wait
 
-`guardIdle` is a command with a loop. Each round it waits for the first of two things: a message
+`guardIdle` is an action with a loop. Each round it waits for the first of two things: a message
 of its socket (`take` with a `predicate`) or the end of the time (`delay`). The `race` gives each
 starter its own `child`, so the one that loses is stopped. If the time wins, the server closes the
 socket; if a message wins, the wait starts again.
@@ -51,7 +51,7 @@ The files, each with one job:
 
 - `src/bus.ts` — the bus, with `signalPlugin`.
 - `src/feed.ts` — the fake feed: a fixed walk, so a test knows every price.
-- `src/prices.ts` and `src/prices-handlers.ts` — the commands `watchSymbol` and `guardIdle`, and the event `heard`.
+- `src/prices.ts` and `src/prices-handlers.ts` — the actions `watchSymbol` and `guardIdle`, and the event `heard`.
 - `src/server.ts` — `buildServer`: the route `/prices`, a controller for each socket, and the shutdown.
 - `src/main.ts` — listens on `PORT` (default 3000) and stops on SIGTERM and SIGINT.
 

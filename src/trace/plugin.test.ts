@@ -79,7 +79,7 @@ describe("tracePlugin", () => {
 			expect(recorder.events.map((event) => event.effect)).toEqual(["emit"]);
 		});
 
-		it("takes the payload of an action and the type of a command", async () => {
+		it("takes the payload of an action and the type of an action", async () => {
 			const { bus, recorder } = setup();
 			const rename = createAction("rename", async (name: string) => name);
 			await bus.emit(rename("Eva"));
@@ -231,8 +231,8 @@ describe("tracePlugin", () => {
 
 			expect(() => bus.emit("name/changed", "Eva")).toThrow("boom");
 			bus.actions = {
-				run: (command, payload, ctx) =>
-					Reflect.apply(command, null, [payload, ctx]),
+				run: (action, payload, ctx) =>
+					Reflect.apply(action, null, [payload, ctx]),
 			};
 			bus.emit(createAction("later", async (_: undefined) => 1)(noPayload));
 			void grouped;
@@ -243,7 +243,7 @@ describe("tracePlugin", () => {
 	});
 
 	describe("a named listener", () => {
-		it("is a task named by its traceId, and a command it emits is below it", async () => {
+		it("is a task named by its traceId, and an action it emits is below it", async () => {
 			const { bus, recorder } = setup();
 			const save = createAction("user/save", async (_: undefined) => 1);
 			bus.on(
@@ -268,10 +268,10 @@ describe("tracePlugin", () => {
 			const notifier = recorder.events.find(
 				(event) => event.type === "saveNotifier",
 			);
-			const command = recorder.events.find(
+			const action = recorder.events.find(
 				(event) => event.type === "user/save",
 			);
-			expect(command?.parentId).toBe(notifier?.id);
+			expect(action?.parentId).toBe(notifier?.id);
 		});
 
 		it("gives the handler the payload and the same context", () => {

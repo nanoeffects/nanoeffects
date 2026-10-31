@@ -1,4 +1,4 @@
-// The bus of the server. This file imports no command and no handler.
+// The bus of the server. This file imports no action and no handler.
 import { createBus } from "nanoeffects";
 import { signalPlugin } from "nanoeffects/signal";
 

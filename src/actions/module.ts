@@ -1,4 +1,4 @@
-import type { Bus, Command, Context, Emit } from "../core/bus";
+import type { Bus, Context, Emit, Handled } from "../core/bus";
 import { createTask, forkTask } from "../core/context";
 import type { Scope } from "../core/scope-types";
 import type {
@@ -9,20 +9,20 @@ import type {
 } from "../core/types";
 import type { Scoped, ScopeSlots } from "../scope/types";
 import { onAbort, report } from "../utils";
-import { actionsPlugin, type Binding, type LooseHandler } from "./command";
+import { actionsPlugin, type Binding, type LooseHandler } from "./handled";
 import { holdListeners } from "./hold";
 import { mountEach } from "./mount-each";
 
 /**
  * What a module's `setup` gets: the context of the module's task, so `on`,
- * `emit` and `run` work as in a handler, plus `handle` to bind commands, `use`
+ * `emit` and `run` work as in a handler, plus `handle` to bind actions, `use`
  * to mount sub-modules and `spawn` to start a background task. Everything the
  * module does is undone when it is unmounted.
  */
 export type ModuleContext<E extends EventMap = EventMap> = Context<E> & {
-	/** Binds the handler of a command, or a list of them; undone on unmount. */
-	handle<P, R>(command: Command<P, R>, fn: Task<P, E, R>): UnsubscribeCallback;
-	/** Also an action made without a handler: the handler answers it as it would a command. */
+	/** Binds the handler of an action, or a list of them; undone on unmount. */
+	handle<P, R>(handled: Handled<P, R>, fn: Task<P, E, R>): UnsubscribeCallback;
+	/** Also an action made without a handler: the handler answers it as it would one made with a handler. */
 	handle<A extends { readonly type: string }>(
 		action: A,
 		fn: LooseHandler<A, E>,
@@ -30,9 +30,9 @@ export type ModuleContext<E extends EventMap = EventMap> = Context<E> & {
 	handle(type: string, fn: Task<never, E, unknown>): UnsubscribeCallback;
 	handle(bindings: readonly Binding<E>[]): UnsubscribeCallback;
 	/**
-	 * Brings sub-modules and commands, in any order. A sub-module is mounted and
-	 * unmounted with this one. A command is bound to the handler it carries, for
-	 * as long as this module is mounted; a command that answers by itself keeps
+	 * Brings sub-modules and actions, in any order. A sub-module is mounted and
+	 * unmounted with this one. An action is bound to the handler it carries, for
+	 * as long as this module is mounted; an action that answers by itself keeps
 	 * answering after the module is gone, since the handler is its own. The
 	 * returned function undoes just this call, e.g. for what was added later from
 	 * a listener.
@@ -57,7 +57,7 @@ export type Module<E extends EventMap = EventMap> = {
 };
 
 /**
- * Describes one domain of an app: the commands it handles, the events it
+ * Describes one domain of an app: the actions it handles, the events it
  * listens to, its sub-modules and its background tasks. The `name` shows up as
  * the type of the module's tasks in the trace.
  *
@@ -112,14 +112,14 @@ const scopeTask = <E extends EventMap>(
 	}
 };
 
-// the arguments of `commands.handle` with the handlers of a module wrapped
+// the arguments of `actions.handle` with the handlers of a module wrapped
 const fitted = (
 	within: (fn: unknown) => unknown,
 	target: unknown,
 	fn: unknown,
 ) => {
 	if (Array.isArray(target)) {
-		return [target.map(([command, handler]) => [command, within(handler)]), fn];
+		return [target.map(([handled, handler]) => [handled, within(handler)]), fn];
 	}
 	return [target, within(fn)];
 };
@@ -170,7 +170,7 @@ export interface WithApp {
 
 /** What `modulePlugin` returns. */
 export type ModuleApi<E extends EventMap = EventMap> = {
-	/** The registry of command handlers of the bus: the one it was made with, or the app's own. */
+	/** The registry of action handlers of the bus: the one it was made with, or the app's own. */
 	actions: Registry<E>;
 	/**
 	 * Mounts modules, in the order given, and returns the function that unmounts them, last
@@ -204,17 +204,17 @@ export type ModuleApi<E extends EventMap = EventMap> = {
  * of one of its methods. By then every plugin is on the bus, so the plugins can
  * be used in any order. The `on`, `once` and `off` calls made in between are
  * held and made right after the modules, so the listeners of a module stay
- * ahead of them. The bus runs the commands that the modules bind: the registry
+ * ahead of them. The bus runs the actions that the modules bind: the registry
  * that the bus has is used (a later `actionsPlugin` binds in it), otherwise the
  * app attaches its own, as `app.actions`. The app is also `bus.app`.
  *
  * A module is known by its `name`: mounting a module whose name is taken
  * replaces the mounted one, which is unmounted first. That is what hot reload
  * needs (see `docs/hmr.md`): the new version of a module file mounts again and
- * the old version goes away with its subscriptions, commands and tasks.
+ * the old version goes away with its subscriptions, actions and tasks.
  *
  * Unmounting undoes everything the module did: its subscriptions, its bound
- * commands, its sub-modules and its background tasks. `dispose` unmounts them
+ * actions, its sub-modules and its background tasks. `dispose` unmounts them
  * all, and a disposed app cannot mount modules.
  *
  * @example
@@ -238,10 +238,10 @@ export type ModuleApi<E extends EventMap = EventMap> = {
 export const modulePlugin =
 	<E extends EventMap>(modules: readonly Module<E>[] = []) =>
 	(bus: Bus<E> & ScopeSlots & WithApp): ModuleApi<E> => {
-		// the bus runs what it was given; without commands the app attaches its registry
+		// the bus runs what it was given; without actions the app attaches its registry
 		const given = bus.actions as Registry<E> | undefined;
 		const registry = given ?? actionsPlugin<E>()(bus);
-		const commands = {
+		const binder = {
 			handle: (...args: Parameters<Registry<E>["handle"]>) => {
 				if (!registry.handle) {
 					throw new Error(
@@ -288,7 +288,7 @@ export const modulePlugin =
 				const within = fitter(bus, own);
 				const handle = (target: unknown, fn?: unknown): UnsubscribeCallback => {
 					const unbind: UnsubscribeCallback = Reflect.apply(
-						commands.handle,
+						binder.handle,
 						null,
 						fitted(within, target, fn),
 					);
@@ -300,7 +300,7 @@ export const modulePlugin =
 						Module<E> | { readonly type: string; (payload: never): unknown }
 					>
 				) => {
-					// a command (a function) is bound to itself: its own handler answers
+					// an action (a function) is bound to itself: its own handler answers
 					const undos = items.map((item) =>
 						typeof item === "function"
 							? handle(item, item)

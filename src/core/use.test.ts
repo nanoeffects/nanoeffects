@@ -54,7 +54,7 @@ describe("bus.use", () => {
 		expect(order).toEqual(["a", "b"]);
 	});
 
-	it("a plugin sees the context, the trace and the commands of the bus", () => {
+	it("a plugin sees the context, the trace and the actions of the bus", () => {
 		const context = { label: "x" };
 		const bus = createBus<TestEvents>({ context: context as never });
 		const seen = bus.use((given) => ({

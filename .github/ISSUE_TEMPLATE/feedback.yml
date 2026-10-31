@@ -29,7 +29,7 @@ body:
         - nanoeffects (createBus)
         - policies
         - effects
-        - actions (commands, jobs, modules)
+        - actions (actions, jobs, modules)
         - trace
         - React / Vue / Svelte
         - Redux and other stores

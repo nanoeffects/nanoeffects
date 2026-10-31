@@ -1,9 +1,9 @@
 import {
 	type Bus,
-	type CommandCall,
-	commandOf,
 	type Emit,
 	type EventLike,
+	type HandledCall,
+	handledOf,
 } from "../core/bus";
 import type { EmitScope, WithScope } from "../core/scope-types";
 import type { EventMap } from "../core/types";
@@ -18,10 +18,10 @@ export type SignalOption = {
 /** `emit` of a bus with `signalPlugin`: the call forms take `{ signal }` as their second argument. */
 export type SignalEmit<E extends EventMap> = Emit<E> & {
 	<P, R, F>(
-		call: CommandCall<P, R> & WithScope<F>,
+		call: HandledCall<P, R> & WithScope<F>,
 		options: SignalOption & EmitScope<E, F>,
 	): R;
-	<P, R>(call: CommandCall<P, R>, options: SignalOption & EmitScope<E>): R;
+	<P, R>(call: HandledCall<P, R>, options: SignalOption & EmitScope<E>): R;
 	(event: EventLike<E>, options: SignalOption & EmitScope<E>): void;
 };
 
@@ -37,7 +37,7 @@ type Abortable = { abort: (reason?: unknown) => void };
 const isObject = (value: unknown): value is object =>
 	typeof value === "object" && value !== null;
 
-// The signal an emit was given: a call form (an object or a command) takes it as its second argument.
+// The signal an emit was given: a call form (an object or an action) takes it as its second argument.
 const signalOf = (event: unknown, rest: unknown[]) => {
 	const options = rest[0];
 	if (
@@ -62,10 +62,10 @@ const follow = (
 			(target as Abortable).abort(reason);
 		}
 	});
-	// a command that finished has nothing left to abort; an event keeps its link
+	// an action that finished has nothing left to abort; an event keeps its link
 	if (isPromise(result)) {
 		result.then(unlink, unlink);
-	} else if (commandOf(event)) {
+	} else if (handledOf(event)) {
 		unlink();
 	}
 
@@ -78,11 +78,11 @@ const follow = (
  * reason, so a handler, `latest`, `retry` and `timeout` stop as for any abort. It
  * is made for libraries that own the request and give you a signal, such as the
  * `queryFn` of React Query. The tasks that count are those made while the call
- * to `emit` runs (the command or job and the listeners of its type, and their
+ * to `emit` runs (the action or job and the listeners of its type, and their
  * `ctx.run` children); a separate `emit` that a handler makes later is not
  * linked. `emit` returns what it returns without the plugin.
  *
- * For a command or a job the link ends when its promise settles; a handler
+ * For an action or a job the link ends when its promise settles; a handler
  * that returns without a promise is finished with the call, so it is not
  * linked after it. For an event the link stays until the signal aborts, so
  * give each request its own signal.

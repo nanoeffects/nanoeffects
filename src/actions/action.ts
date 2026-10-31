@@ -9,11 +9,11 @@ import type { EventMap, PayloadOf, Task } from "../core/types";
 import type { FieldsOfScope, Scoped } from "../scope/types";
 import { carry } from "./carry";
 import {
-	buildCommand,
-	type MadeCommand,
+	buildHandled,
+	type MadeHandled,
 	type Prepare,
-	type ScopedCommand,
-} from "./command";
+	type ScopedHandled,
+} from "./handled";
 
 export type { ActionCreator, FreeActionCreator };
 
@@ -24,7 +24,7 @@ type Reserved = "handle" | "prepare";
 type Made<P, T extends string> = [P] extends [Free]
 	? FreeActionCreator<T>
 	: [P] extends [Call<infer Q, infer R>]
-		? MadeCommand<Q, R, T>
+		? MadeHandled<Q, R, T>
 		: ActionCreator<P, T>;
 
 // the creator of an action that has a scope: its calls carry the fields of that scope
@@ -35,16 +35,16 @@ type ScopedCreator<P, T extends string, F> = [P] extends [Free]
 // the scope of an options object: everything but `handle` and `prepare`
 type ScopeOf<S> = Omit<S, Reserved>;
 
-// a command whose calls take the arguments of `prepare`
-type PreparedCommand<P, R, T extends string, A extends unknown[], F> = ((
+// an action whose calls take the arguments of `prepare`
+type PreparedHandled<P, R, T extends string, A extends unknown[], F> = ((
 	...args: A
-) => ReturnType<MadeCommand<P, R, T>> & WithScope<F>) &
-	Omit<MadeCommand<P, R, T>, never> &
+) => ReturnType<MadeHandled<P, R, T>> & WithScope<F>) &
+	Omit<MadeHandled<P, R, T>, never> &
 	WithScope<F>;
 
 /**
  * Creates an action creator, as in Redux Toolkit. With a handler it makes a
- * command: `bus.emit(getUser("1"))` runs the handler and returns its result.
+ * action: `bus.emit(getUser("1"))` runs the handler and returns its result.
  *
  * - `createAction("user/loaded")` needs no generics: the payload type comes
  *   from the event map of the bus that the action goes to, and the literal
@@ -95,7 +95,7 @@ export function createAction<
 	R = void,
 	T extends string = string,
 	E extends EventMap = EventMap,
->(type: T, handler: Task<P, E, R>): MadeCommand<P, R, T>;
+>(type: T, handler: Task<P, E, R>): MadeHandled<P, R, T>;
 export function createAction<
 	P,
 	R,
@@ -106,7 +106,7 @@ export function createAction<
 	type: T,
 	handler: Task<P, Scoped<EventMap, ScopeOf<S>>, R>,
 	options: { prepare: (...args: A) => { payload: P } } & S,
-): PreparedCommand<P, R, T, A, FieldsOfScope<EventMap, ScopeOf<S>>>;
+): PreparedHandled<P, R, T, A, FieldsOfScope<EventMap, ScopeOf<S>>>;
 export function createAction<
 	P,
 	R,
@@ -119,7 +119,7 @@ export function createAction<
 		handle: Task<P, Scoped<EventMap, ScopeOf<S>>, R>;
 		prepare: (...args: A) => { payload: P };
 	} & S,
-): PreparedCommand<P, R, T, A, FieldsOfScope<EventMap, ScopeOf<S>>>;
+): PreparedHandled<P, R, T, A, FieldsOfScope<EventMap, ScopeOf<S>>>;
 export function createAction<
 	P,
 	R,
@@ -129,7 +129,7 @@ export function createAction<
 	type: T,
 	handler: Task<P, Scoped<EventMap, S>, R>,
 	scope: S,
-): ScopedCommand<P, R, T, FieldsOfScope<EventMap, S>>;
+): ScopedHandled<P, R, T, FieldsOfScope<EventMap, S>>;
 export function createAction<
 	P,
 	R,
@@ -138,7 +138,7 @@ export function createAction<
 >(
 	type: T,
 	options: { handle: Task<P, Scoped<EventMap, ScopeOf<S>>, R> } & S,
-): ScopedCommand<P, R, T, FieldsOfScope<EventMap, ScopeOf<S>>>;
+): ScopedHandled<P, R, T, FieldsOfScope<EventMap, ScopeOf<S>>>;
 export function createAction<
 	A extends unknown[],
 	P,
@@ -164,7 +164,7 @@ export function createAction(
 	const handler = typeof second === "function" ? second : handle;
 
 	if (handler) {
-		return buildCommand(type, handler, scope, prepare);
+		return buildHandled(type, handler, scope, prepare);
 	}
 
 	const creator = (...args: unknown[]) => {

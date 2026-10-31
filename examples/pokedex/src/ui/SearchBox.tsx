@@ -25,7 +25,7 @@ export function SearchBox() {
 	}
 
 	function close() {
-		// bus.emit with a command — the suggest-pokemon feature closes its list
+		// bus.emit with an action — the suggest-pokemon feature closes its list
 		bus.emit(clearSuggestions());
 		setHighlighted(-1);
 	}

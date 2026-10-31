@@ -16,13 +16,13 @@ const setup = () => {
 };
 
 describe("emitFrom", () => {
-	it("emits from a root task, and a command it emits is its child", async () => {
+	it("emits from a root task, and an action it emits is its child", async () => {
 		const recorder = createTraceRecorder();
 		const bus = createBus({ trace: createTracer(recorder) });
 		const save = createAction("user/save", async (_: undefined) => 1);
 		bus.actions = {
-			run: (command, payload, ctx) =>
-				Reflect.apply(command, null, [payload, ctx]),
+			run: (action, payload, ctx) =>
+				Reflect.apply(action, null, [payload, ctx]),
 		};
 
 		emitFrom(bus, save(noPayload), { traceId: "Profile" });

@@ -190,7 +190,7 @@ describe("signalPlugin", () => {
 	});
 
 	describe("leaks", () => {
-		it("a command that finished keeps nothing on a long-lived signal", async () => {
+		it("an action that finished keeps nothing on a long-lived signal", async () => {
 			const bus = createBus().use(signalPlugin());
 			const refs: Array<WeakRef<object>> = [];
 			const getUser = createAction("user/get", async (id: string, ctx) => {
@@ -206,7 +206,7 @@ describe("signalPlugin", () => {
 			expect(aliveCount(refs)).toBe(0);
 		});
 
-		it("a command with a sync handler too", async () => {
+		it("an action with a sync handler too", async () => {
 			const bus = createBus().use(signalPlugin());
 			const refs: Array<WeakRef<object>> = [];
 			const getUser = createAction("user/get", (id: string, ctx) => {

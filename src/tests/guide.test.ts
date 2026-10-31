@@ -47,7 +47,7 @@ describe("docs/guide.md", () => {
 		expect(await step8()).toEqual(["heard", "heard", "user 1", "heard"]);
 	});
 
-	it("9. a module is undone as a whole, with its commands", () => {
+	it("9. a module is undone as a whole, with its actions", () => {
 		expect(step9()).toEqual(["hello Ada", true, 4]);
 	});
 

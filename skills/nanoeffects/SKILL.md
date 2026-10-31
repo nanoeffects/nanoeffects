@@ -26,7 +26,7 @@ Do not write the setup by hand. `npm create nanoeffects@latest my-app -- --templ
 
 - `vanilla`, `react`: JavaScript, one search handler with `debounce` and `latest`.
 - `vanilla-ts`, `react-ts`: the same apps in TypeScript.
-- `domains-ts`: React and TypeScript with the logic split by domain (commands, a job, modules). Pick it for an app with several features.
+- `domains-ts`: React and TypeScript with the logic split by domain (actions, a job, modules). Pick it for an app with several features.
 
 In an existing project, start from `docs/cancel-stale-requests.md` (races) or `docs/guide.md`.
 
@@ -38,7 +38,7 @@ In an existing project, start from `docs/cancel-stale-requests.md` (races) or `d
 - Effects take `ctx` first: `retry(ctx, fn, options)`, `timeout(ctx, ms, fn)`, `take(ctx, "event")`. The wrapper form is `retry(fn, options)`.
 - Policies wrap a handler: `bus.on("search", latest(async (query, ctx) => { ... }))`.
 - Import each part from its path: `nanoeffects`, `nanoeffects/policies`, `nanoeffects/effects`, `nanoeffects/actions`, `nanoeffects/redux`, `nanoeffects/react`.
-- `bus.emit(command(payload))` returns the command's result. Plain events return nothing.
+- `bus.emit(action(payload))` returns the action's result. Plain events return nothing.
 - The bus keeps no values: an event emitted before a listener exists is lost. `useEventState(event, initial)` (`nanoeffects/react`) is state of one component, not a store. Share a value through a Context provider at the root or a state manager.
 
 ## Where to read more

@@ -99,23 +99,23 @@ const isScope = (value: unknown): value is Scope => isObject(value);
 // `bus.emit` as this file calls it
 type Emitter = (event: unknown, ...rest: unknown[]) => unknown;
 
-// something with a type, as an event is: an action, a command call or a command
+// something with a type, as an event is: an action or a call of one
 type Named = { type: unknown; payload?: unknown };
 const isNamed = (value: unknown): value is Named =>
 	(isObject(value) || typeof value === "function") && "type" in value;
 
-// the event an emit is for: its type, and its payload (a command that is emitted by itself has it as the next argument)
+// the event an emit is for: its type, and its payload (an action that is emitted by itself has it as the next argument)
 const typeOf = (event: unknown) => (isNamed(event) ? event.type : event);
 const payloadOf = (event: unknown, rest: unknown[]) =>
 	isObject(event) && isNamed(event) ? event.payload : rest[0];
 
-// the scope that an action or a command carries
+// the scope that an action carries
 const scopeOf = (event: unknown): Scope | undefined =>
 	isObject(event) || typeof event === "function"
 		? Reflect.get(event, scopeKey)
 		: void 0;
 
-// the layers an emit carries: the scope of its action or command, then the one it was given
+// the layers an emit carries: the scope of its action, then the one it was given
 const layersFor = (event: unknown, rest: unknown[]): Layers | undefined => {
 	const own = scopeOf(event);
 	const explicit = isObject(event) && isScope(rest[0]) ? rest[0] : void 0;
@@ -128,11 +128,11 @@ const layersFor = (event: unknown, rest: unknown[]): Layers | undefined => {
 };
 
 /**
- * Switches scopes on for a bus: the scope given to a command, a job, an
- * action or a module (an object whose keys go on `ctx`, with `$effects` bound to
+ * Switches scopes on for a bus: the scope given to an action, a job
+ * or a module (an object whose keys go on `ctx`, with `$effects` bound to
  * the task), and the second argument of `emit`, put fields on
  * the context of the tasks they are for. A stronger layer replaces a field of
- * the same name: `emit`, then action / command / job, then module, then the bus.
+ * the same name: `emit`, then action / job, then module, then the bus.
  * Fields of the library (`signal`, `emit`, `run`, …) are never replaced. Returns
  * the same bus.
  *
@@ -142,13 +142,13 @@ const layersFor = (event: unknown, rest: unknown[]): Layers | undefined => {
  * @example
  * ```ts
  * import { createBus } from "nanoeffects";
- * import { createCommand } from "nanoeffects/actions";
+ * import { createAction } from "nanoeffects/actions";
  * import { scopePlugin } from "nanoeffects/scope";
  *
  * const bus = createBus().use(scopePlugin()); // scopes work on this bus
  *
- * const getUser = createCommand("user/get", (id: string, { http }) => http.get(id), {
- *   http, // a field of this command only
+ * const getUser = createAction("user/get", (id: string, { http }) => http.get(id), {
+ *   http, // a field of this action only
  * });
  * bus.emit(getUser("1"), { http: fakeHttp }); // this call only
  * ```

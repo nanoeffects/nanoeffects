@@ -91,7 +91,7 @@ describe("BusOptions.context", () => {
 		expect(seen.every((item) => item === store)).toBe(true);
 	});
 
-	it("is in the context of a command handler", async () => {
+	it("is in the context of an action handler", async () => {
 		const read = createAction(
 			"read",
 			(_: undefined, ctx: Context<StoreEvents>) => {

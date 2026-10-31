@@ -54,7 +54,7 @@ export const createHarness = () => {
 /** A payload that is `undefined` at runtime, for events without data. */
 export const noPayload = Reflect.get({}, "none");
 
-/** A bus with `modulePlugin`, and its parts at hand, for tests of modules and commands. */
+/** A bus with `modulePlugin`, and its parts at hand, for tests of modules and actions. */
 export const createApp = <E extends EventMap = EventMap>(
 	options: Omit<BusOptions<E>, "actions"> & {
 		modules?: readonly Module<E>[];

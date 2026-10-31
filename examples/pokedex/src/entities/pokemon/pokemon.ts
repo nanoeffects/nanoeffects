@@ -11,7 +11,7 @@ export const findPokemon = createJob<string, Pokemon>("pokemon/find");
 
 // createAction — an order for this entity, with the handler that does it: search for a pokémon at
 // random. leading drops a second click while the first search runs. The pokemon module binds the
-// command with module.use.
+// action with module.use.
 export const pickRandom = createAction<void, unknown>(
 	"pokemon/pickRandom",
 	leading(async (_: unknown, ctx: Context<EventMap>) => {

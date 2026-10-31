@@ -1,5 +1,5 @@
 import type { Context } from "../core/bus";
-import { makeCommandCall } from "../core/bus";
+import { makeHandledCall } from "../core/bus";
 import { type EmitGate, emitAfterAbort } from "../core/emit-key";
 import {
 	callLifecycle,
@@ -15,10 +15,10 @@ import { type ActionCreator, createAction } from "./action";
 import { beneath, carriedBy, carry } from "./carry";
 import {
 	type CarryingCalls,
-	type MadeCommand,
+	type MadeHandled,
 	MissingHandlerError,
-	makeCommand,
-} from "./command";
+	makeHandled,
+} from "./handled";
 
 // what a given outcome can be besides a string: an action creator, made by `createAction`
 type Creator = {
@@ -79,7 +79,7 @@ const attempt = <T>(fn: () => T): Promise<Awaited<T>> => {
 	}
 };
 
-/** What `createJob` returns: the command of the job, with its four actions as properties. */
+/** What `createJob` returns: the action of the job, with its four outcome creators as properties. */
 export type Job<
 	P,
 	R,
@@ -88,7 +88,7 @@ export type Job<
 	F extends Outcome,
 	PE extends Outcome = `${T}/pending`,
 	CE extends Outcome = `${T}/cancel`,
-> = MadeCommand<P, Promise<Awaited<R> | undefined>, T> & {
+> = MadeHandled<P, Promise<Awaited<R> | undefined>, T> & {
 	/** Made from a string with the payload of the call as its payload, or the creator that was given. */
 	readonly pending: PE extends string ? ActionCreator<P, PE> : PE;
 	/** Made from a string with the result as its payload, or the creator that was given. */
@@ -100,13 +100,13 @@ export type Job<
 };
 
 /**
- * Creates a job: a command whose outcome is sent on as actions. When the
+ * Creates a job: an action whose outcome is sent on as actions. When the
  * handler starts, `job.pending(payload)` is emitted on the bus. When it
  * succeeds, `job.success(result)` follows, and when it fails, `job.fail(error)`.
  * When the task is aborted after it started, `job.cancel(reason)` follows
  * instead. After `pending`, exactly one of the three closes the call. A job is
  * made for the case where nobody waits for the result and the bus carries it
- * on, like `createAsyncThunk` or an effector effect. It returns the command,
+ * on, like `createAsyncThunk` or an effector effect. It returns the action,
  * with the four actions on it.
  *
  * A scope as the last argument, `{ cache, $effects: { race } }`, gives the handler
@@ -120,14 +120,14 @@ export type Job<
  *
  * `bus.emit(job(payload))` returns a promise of the result. An error of the
  * handler always counts as handled: it goes to `job.fail` and the promise
- * resolves with `undefined`; a command is the tool for a result that must reject.
+ * resolves with `undefined`; an action is the tool for a result that must reject.
  * The actions are emitted as the task that ran the job, also for a handler bound
- * with `commands.handle`. Once the task is aborted, `success` and `fail` are
+ * with `actions.handle`. Once the task is aborted, `success` and `fail` are
  * skipped and `cancel` is sent when the handler settles (a handler that never
  * settles sends nothing). A call that does not start, because a policy drops it
  * or it is aborted while it waits in a `queue`, sends none of the four. A
  * missing handler is not an outcome: `emit` throws `MissingHandlerError`.
- * Calling the job builds `{ type, payload }` like a command; it does not run
+ * Calling the job builds `{ type, payload }` like an action; it does not run
  * the handler.
  *
  * @example
@@ -173,7 +173,7 @@ export const createJob = <
 	Promise<Awaited<R> | undefined>,
 	FieldsOfScope<E, X>
 > => {
-	const command = makeCommand<P, R, T, Scoped<E, X>>(type, handler);
+	const handled = makeHandled<P, R, T, Scoped<E, X>>(type, handler);
 	const outcomeOf = (name: keyof typeof outcomes) =>
 		creatorOf(outcomes[name] ?? `${type}/${name}`);
 	const pendingAction = outcomeOf("pending");
@@ -279,18 +279,18 @@ export const createJob = <
 	// with a context the bus is running it; without, build the call for emit
 	function invoke(payload: P, ctx?: Context<E>) {
 		if (typeof ctx === "object") {
-			// without a handler the command throws; `pending` would have no end
+			// without a handler the action throws; `pending` would have no end
 			if (!handler) {
-				return Reflect.apply(command, null, [payload, ctx]);
+				return Reflect.apply(handled, null, [payload, ctx]);
 			}
-			return route(command, payload, ctx, managed);
+			return route(handled, payload, ctx, managed);
 		}
-		return carry(makeCommandCall(job, type, payload), scope);
+		return carry(makeHandledCall(job, type, payload), scope);
 	}
 
 	const made = Object.assign(invoke, {
 		type,
-		match: command.match,
+		match: handled.match,
 		wrap,
 		pending: pendingAction,
 		success: successAction,

@@ -225,7 +225,7 @@ const probes: Probe[] = [
 		},
 	},
 	{
-		id: "a command scope reaches its handler, and emit replaces it",
+		id: "an action scope reaches its handler, and emit replaces it",
 		needs: ["scope"],
 		run: ({ bus }) => {
 			const read = createAction(
@@ -242,7 +242,7 @@ const probes: Probe[] = [
 		},
 	},
 	{
-		id: "a scope and the context of the bus are both on a command",
+		id: "a scope and the context of the bus are both on an action",
 		needs: ["scope", "context"],
 		run: ({ bus }) => {
 			const read = createAction(
@@ -403,7 +403,7 @@ const probes: Probe[] = [
 		},
 	},
 	{
-		id: "the group of a scope is on the events of a command",
+		id: "the group of a scope is on the events of an action",
 		needs: ["trace", "actions"],
 		run: async ({ bus, recorder }) => {
 			const grouped = createAction(
@@ -721,7 +721,7 @@ const probes: Probe[] = [
 		},
 	},
 	{
-		id: "a module binds a handler for a command",
+		id: "a module binds a handler for an action",
 		needs: ["modules"],
 		run: ({ bus }) => bus.emit(getValue()) === 42,
 	},
@@ -743,15 +743,15 @@ const probes: Probe[] = [
 		},
 	},
 	{
-		id: "a predicate is told about an emitted command",
+		id: "a predicate is told about an emitted action",
 		needs: ["match"],
 		run: ({ bus }) => {
 			const seen: unknown[] = [];
 			Reflect.apply(bus.on, bus, [
-				(action: { type: string }) => action.type === "p/command",
+				(action: { type: string }) => action.type === "p/action",
 				(payload: unknown) => seen.push(payload),
 			]);
-			const ask = createAction("p/command", (value: number) => value * 2);
+			const ask = createAction("p/action", (value: number) => value * 2);
 
 			return bus.emit(ask(4)) === 8 && seen[0] === 4;
 		},
@@ -795,7 +795,7 @@ const probes: Probe[] = [
 		},
 	},
 	{
-		id: "a scope applies to a command whose handler is in the registry",
+		id: "a scope applies to an action whose handler is in the registry",
 		needs: ["scope", "actions"],
 		run: ({ bus, actions }) => {
 			const ask = createAction<Call<void, unknown>>("p/registry-scope");

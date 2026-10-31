@@ -14,6 +14,6 @@ export const suggestModule = createModule("suggest-pokemon", (module) => {
 		show(suggestionsFor(text, pokemonIndexStore.getState().names));
 	});
 
-	// use — a command that carries its handler: bind it for as long as this module is mounted
+	// use — an action that carries its handler: bind it for as long as this module is mounted
 	module.use(clearSuggestions);
 });

@@ -55,7 +55,7 @@ describe("scopePlugin", () => {
 		expect(bus.emit(getUser("1"))).toBe(otherCache);
 	});
 
-	describe("command", () => {
+	describe("action", () => {
 		it("gives its fields to the handler and to the listeners of its type", () => {
 			const bus = createBus<CacheBus>().use(scopePlugin());
 			const seen: unknown[] = [];
@@ -290,7 +290,7 @@ describe("scopePlugin", () => {
 	});
 
 	describe("precedence", () => {
-		it("the bus, then the command, then emit", () => {
+		it("the bus, then the action, then emit", () => {
 			const bus = createBus({ context: { cache: { name: "bus" } } }).use(
 				scopePlugin(),
 			);
