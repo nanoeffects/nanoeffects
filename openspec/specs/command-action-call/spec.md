@@ -6,8 +6,8 @@ Calling a command or job builds the same kind of `{ type, payload }` value as `c
 
 ## Requirements
 
-### Requirement: A command call builds an action
-Calling a command (an action made with a handler, and so a job) with a payload SHALL return `{ type, payload }` whose `type` is the command's type and whose `payload` is the argument. It SHALL NOT run the command's handler.
+### Requirement: Calling an action with a handler builds an action
+Calling an action made with a handler (and so a job) with a payload SHALL return `{ type, payload }` whose `type` is the action's type and whose `payload` is the argument. It SHALL NOT run the handler.
 
 #### Scenario: Shape matches createAction
 - **WHEN** `const double = createAction("math/double", (n: number) => n * 2)` and `double(21)` are evaluated
@@ -17,20 +17,20 @@ Calling a command (an action made with a handler, and so a job) with a payload S
 - **WHEN** `createAction<Call<string, User>>("user/get")("1")` is evaluated
 - **THEN** the value is `{ type: "user/get", payload: "1" }` and no error is thrown
 
-### Requirement: Emitting a command call runs the command
-`bus.emit(command(payload))` SHALL notify listeners of the command's type, then run the command (own handler or registry) as a task, and SHALL return the handler's result. A plain `{ type, payload }` that was not produced by calling a command SHALL only notify listeners and SHALL NOT run a command handler.
+### Requirement: Emitting a call of an action with a handler runs the handler
+`bus.emit(action(payload))` SHALL notify listeners of the action's type, then run the handler (its own or the one bound in the registry) as a task, and SHALL return the handler's result. A plain `{ type, payload }` that was not produced by calling such an action SHALL only notify listeners and SHALL NOT run a handler.
 
 #### Scenario: Result through emit
-- **WHEN** `bus.emit(double(21))` is called for a command with a doubling handler
+- **WHEN** `bus.emit(double(21))` is called for an action with a doubling handler
 - **THEN** listeners of `"math/double"` run, the handler runs, and `emit` returns `42`
 
 #### Scenario: Registry wins
-- **WHEN** a handler is bound for the command on the bus and `bus.emit(command(payload))` is called
-- **THEN** the bound handler runs instead of the command's own
+- **WHEN** a handler is bound for the action on the bus and `bus.emit(action(payload))` is called
+- **THEN** the bound handler runs instead of the action's own
 
 #### Scenario: Plain action is not a command run
 - **WHEN** `bus.emit({ type: double.type, payload: 21 })` is called with a plain object
-- **THEN** listeners of that type run and `emit` does not return the command's result as a command run (no handler of the command is invoked as a command)
+- **THEN** listeners of that type run and no handler of the action is invoked as a handler
 
 ### Requirement: An action creator can carry a handler
 `createAction(type, handler, scope?)`, the form `createCommand` had, SHALL return a creator whose calls build `{ type, payload }` like any action creator, and whose emitted calls SHALL run `handler` as a task with a context and return its result, as a command does. Without a handler the creator SHALL stay a plain event.
@@ -47,8 +47,8 @@ Calling a command (an action made with a handler, and so a job) with a payload S
 - **WHEN** `createAction("user/loaded")` is emitted on a bus with `onUnhandled` set and nobody listens
 - **THEN** `onUnhandled` is called, nothing is run and no error is thrown
 
-### Requirement: An action with a handler behaves as a command
-An action creator that carries a handler SHALL be accepted wherever a command is: `bus.emit(creator, payload)`, `actions.handle(creator, fn)`, `setHandler(creator, fn)`, `module.use(creator)` and `module.handle(creator, fn)`, and a handler bound for it in the registry SHALL win over its own. It SHALL have `type` and `match` as before.
+### Requirement: An action with a handler is accepted wherever a handler is bound
+An action creator that carries a handler SHALL be accepted by `bus.emit(creator, payload)`, `actions.handle(creator, fn)`, `setHandler(creator, fn)`, `module.use(creator)` and `module.handle(creator, fn)`, and a handler bound for it in the registry SHALL win over its own. It SHALL have `type` and `match`.
 
 #### Scenario: The registry overrides the handler
 - **WHEN** `actions.handle(double, () => 0)` is called on a bus and `bus.emit(double(21))` follows
@@ -60,7 +60,7 @@ An action creator that carries a handler SHALL be accepted wherever a command is
 
 #### Scenario: A policy wraps the handler
 - **WHEN** the handler is `latest(fn)` and `bus.emit` is called twice before the first settles
-- **THEN** the first call is cancelled and the second returns its result, as for a command
+- **THEN** the first call is cancelled and the second returns its result
 
 ### Requirement: One options object carries handle, prepare and the scope
 `createAction(type, { handle, prepare, ...scope })` SHALL read the function fields `handle` and `prepare` as the handler and the payload builder, and every other field as the scope. A function second argument SHALL be the same as `{ handle }`, and then the third argument SHALL be `{ prepare, ...scope }`. `createAction(type)` SHALL make a plain event.
@@ -103,8 +103,8 @@ A creator with `prepare` SHALL build its call from several arguments, `renamed("
 - **WHEN** a scope has the function field `format`
 - **THEN** it stays a scope field and goes on the context
 
-### Requirement: createCommand is not an entity of its own
-`createCommand` SHALL NOT be exported. What it did SHALL be done by `createAction`: a handler as the second argument, a scope as the last argument, `type`, `match` and the call that carries the command, and a declared result type through `createAction<Call<Payload, Result>>(type)`. An action made without a handler SHALL be an event: emitting it SHALL NOT throw. `MissingHandlerError` SHALL stay for a job that has no handler.
+### Requirement: There is one creator, createAction
+`nanoeffects/actions` SHALL NOT export `createCommand`, and SHALL NOT export a type or function whose name contains `Command`. `createAction` SHALL take a handler as the second argument, a scope as the last argument, and give `type`, `match` and the call that carries the handler; a declared result type is `createAction<Call<Payload, Result>>(type)`. An action made without a handler SHALL be an event: emitting it SHALL NOT throw. `MissingHandlerError` SHALL stay for a job that has no handler.
 
 #### Scenario: A declared result type
 - **WHEN** `const sendMail = createAction<Call<Mail, void>>("mail/send")` is written

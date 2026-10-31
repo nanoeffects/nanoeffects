@@ -5,16 +5,16 @@ Describe a job: a command that sends its outcome on as actions, and what `create
 
 ## Requirements
 
-### Requirement: createJob returns the command and its actions
-`createJob(type, handler, options?)` SHALL return the command of the job, with four properties added: `pending`, the action creator for its start, `success`, the action creator for its success, `fail`, the action creator for its failure, and `cancel`, the action creator for a task that is aborted after it started. It SHALL NOT return a wrapper object. Calling the job SHALL build `{ type, payload }` like any command and SHALL NOT run the handler until emit.
+### Requirement: createJob returns the action of the job and its outcomes
+`createJob(type, handler, options?)` SHALL return the action of the job (an action with a handler), with four properties added: `pending`, the action creator for its start, `success`, the action creator for its success, `fail`, the action creator for its failure, and `cancel`, the action creator for a task that is aborted after it started. It SHALL NOT return a wrapper object. Calling the job SHALL build `{ type, payload }` like any action and SHALL NOT run the handler until emit.
 
 #### Scenario: The three parts
 - **WHEN** `const loadUser = createJob("user/load", fetchUser)` is called
-- **THEN** `loadUser` is a command with the type `user/load`, and `loadUser.pending`, `loadUser.success`, `loadUser.fail` and `loadUser.cancel` are action creators
+- **THEN** `loadUser` is an action with the type `user/load`, and `loadUser.pending`, `loadUser.success`, `loadUser.fail` and `loadUser.cancel` are action creators
 
 #### Scenario: It is emitted as a command
 - **WHEN** `bus.emit(loadUser("1"))` is called
-- **THEN** the handler runs as a task and the promise of the command resolves with its result
+- **THEN** the handler runs as a task and the promise resolves with its result
 
 ### Requirement: Strings make action creators
 When `pending`, `success`, `fail` or `cancel` is a string, the job SHALL make an action creator of that type with `createAction`; the payload of the pending action SHALL be the payload of the call, the payload of the success action the result of the handler, the payload of the fail action the error and the payload of the cancel action the abort reason of the task.
@@ -81,11 +81,11 @@ When the command of a job is emitted, the job SHALL emit `pending(payload)` thro
 - **THEN** nothing breaks and the call runs as before; like `success` and `fail`, they are events, so `onUnhandled` of the bus (a dev diagnostic) is called for each one nobody listens to
 
 ### Requirement: A missing handler is not an outcome
-A job without a handler anywhere SHALL throw `MissingHandlerError` from `emit`, as any command does, and SHALL NOT route it to the fail action.
+A job without a handler anywhere SHALL throw `MissingHandlerError` from `emit`, as any action that must run a handler does, and SHALL NOT route it to the fail action.
 
 #### Scenario: No handler
 - **WHEN** a job made without a handler is emitted and none is registered for it
-- **THEN** `emit` throws `No handler for command "<type>"` and no action is emitted
+- **THEN** `emit` throws `No handler for action "<type>"` and no action is emitted
 
 ### Requirement: Only strings and action creators are targets
 `pending`, `success`, `fail` and `cancel` SHALL be a string or an action creator; a plain action object SHALL be a type error.

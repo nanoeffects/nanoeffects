@@ -27,8 +27,8 @@ Say how the registry of command handlers is connected to a bus: it is attached t
 - **WHEN** `bus.actions = { run }` is assigned and an action with a handler is emitted
 - **THEN** `emit` calls `run` with the action, the payload and the task context
 
-### Requirement: Without a registry a command runs itself
-A bus with no actions set SHALL run an action that carries a handler (a command, including one made by `createAction(type, handler)`) with that handler when it is emitted, as `bus.emit(command(payload))` or the two-argument form, and SHALL throw `MissingHandlerError` for a job that has none.
+### Requirement: Without a registry an action runs its own handler
+A bus with no actions set SHALL run an action that carries a handler (including one made by `createAction(type, handler)`) with that handler when it is emitted, as `bus.emit(action(payload))` or the two-argument form, and SHALL throw `MissingHandlerError` for a job that has none.
 
 #### Scenario: A command that carries a handler
 - **WHEN** a bus has no registry and `bus.emit(double(21))` is called for an action made with a handler
@@ -36,7 +36,7 @@ A bus with no actions set SHALL run an action that carries a handler (a command,
 
 #### Scenario: A contract without a handler
 - **WHEN** a bus has no registry and a job made without a handler is emitted
-- **THEN** it throws `No handler for command "<type>"`
+- **THEN** it throws `No handler for action "<type>"`
 
 ### Requirement: The module plugin uses or attaches the registry
 `bus.use(modulePlugin(modules))` SHALL use the registry that the bus has, and SHALL attach one with `actionsPlugin()` when the bus has none; the registry SHALL be returned as `actions`.
