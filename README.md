@@ -87,21 +87,6 @@ export function SearchBox() {
 }
 ```
 
-## Take dependencies from the context
-
-Put the API client, a store or a logger on every task once. A test passes a fake one.
-
-```js
-import { createBus } from "nanoeffects";
-
-// context — every task gets these fields: the bus is the container for your dependencies
-const bus = createBus({ context: { api } });
-
-bus.on("save", async (draft, ctx) => {
-  await ctx.api.put(draft, { signal: ctx.signal });
-});
-```
-
 ## Load data and await the result
 
 Give an action a handler, and `emit` returns its result. The caller does not import the request.
@@ -122,6 +107,24 @@ const user = await bus.emit(getUser("1"));
 ```
 
 This is one way to load data. If you already use React Query or SWR, keep them: see [Query libraries](docs/query-libraries.md).
+
+## Take dependencies from the context
+
+Put an API client, a store or a logger on every task once. A test passes a fake one. Here the client is an [axios](https://axios-http.com) instance, but any object works.
+
+```js
+import axios from "axios";
+import { createBus } from "nanoeffects";
+
+const api = axios.create({ baseURL: "/api" });
+
+// context — every task gets these fields: the bus is the container for your dependencies
+const bus = createBus({ context: { api } });
+
+bus.on("save", async (draft, ctx) => {
+  await ctx.api.put("/drafts", draft, { signal: ctx.signal });
+});
+```
 
 ## Docs
 
