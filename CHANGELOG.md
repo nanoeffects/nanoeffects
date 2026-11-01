@@ -2,7 +2,7 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
-## 0.30.0
+## 0.30.1
 
 ### Added
 - `graphLogger()` in `nanoeffects/trace` finds event loops while the app runs: handlers that feed each other, a storm of emits from a component, a chain that never ends. It keeps the map of which event leads to which and writes it as Mermaid, Graphviz or JSON, and `devtools: true` sends each loop to Redux DevTools. [Docs](docs/debugging-loops.md)
