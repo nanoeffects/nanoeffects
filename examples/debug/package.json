@@ -19,7 +19,7 @@
 		"run-all": "tsx src/run-all.ts"
 	},
 	"dependencies": {
-		"nanoeffects": "^0.27.0"
+		"nanoeffects": "^0.30.0"
 	},
 	"devDependencies": {
 		"tsx": "^4.0.0",
