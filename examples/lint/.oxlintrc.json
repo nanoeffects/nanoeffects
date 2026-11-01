@@ -1,0 +1,6 @@
+{
+	"jsPlugins": ["./nanoeffects-lint.mjs"],
+	"rules": {
+		"nanoeffects/policy-handler-uses-signal": "warn"
+	}
+}

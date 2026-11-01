@@ -72,26 +72,38 @@ bus.on(
 [nanoeffects] the handler of "search" emitted "results" after its task was aborted, so the emit was dropped. The handler kept running after it was cancelled: pass ctx.signal to the request (fetch(url, { signal: ctx.signal })) or give ctx to an effect (retry(ctx, ...)).
 ```
 
-Проверка живёт только в плагине: ни политики, ни шина не несут для неё кода, а в production `nanoeffects/dev` пуст. Плагин видит обработчики, которые отправляют события; обработчик, который ничего не отправляет, он не видит. Для остального типичный случай линтер находит до запуска кода: обработчик, записанный без параметра `ctx`. В [`examples/lint`](https://github.com/nanoeffects/nanoeffects/tree/main/examples/lint) есть правило для Biome (плагин GritQL) и для ESLint (`no-restricted-syntax`, плагин не нужен); оба проверены на тестовом файле.
+Проверка живёт только в плагине: ни политики, ни шина не несут для неё кода, а в production `nanoeffects/dev` пуст. Плагин видит обработчики, которые отправляют события; обработчик, который ничего не отправляет, он не видит.
 
+Линтер находит ту же ошибку до запуска кода. Правила из [`examples/lint`](https://github.com/nanoeffects/nanoeffects/tree/main/examples/lint) ловят две формы, обе под `latest`, `leading`, `queue`, `debounce` и `throttle`:
+
+- у обработчика **нет параметра `ctx`**: `latest(async (query) => api.search(query))`;
+- обработчик **берёт `ctx`, но теряет сигнал**: `ctx` не используется или используется только для `ctx.emit` и `ctx.on`, как в примере выше. Сигнал сохранён, если вы передали `ctx.signal`, шаблон `{ signal }`, `ctx` в эффект или вызвали `ctx.run`.
+
+Один файл, `nanoeffects-lint.mjs`, — это правило ESLint без зависимостей; его запускают и ESLint, и oxlint (как JS-плагин). Для Biome есть два плагина GritQL. Все они помечают одни и те же вызовы в одном тестовом файле, и репозиторий это проверяет.
+
+<!-- docs-check: skip - файл настройки проекта читателя -->
 ```js
 // eslint.config.mjs
+import nanoeffects from "./nanoeffects-lint.mjs";
+
 export default [
   {
-    rules: {
-      "no-restricted-syntax": [
-        "warn",
-        {
-          // обработчик политики — функция меньше чем с двумя параметрами: ctx нет
-          selector:
-            "CallExpression[callee.name=/^(latest|leading|queue|debounce|throttle)$/] > :matches(ArrowFunctionExpression, FunctionExpression)[params.length<2]",
-          message: "This handler has no ctx parameter, so it cannot pass ctx.signal on.",
-        },
-      ],
-    },
+    files: ["**/*.{js,mjs,cjs,jsx,ts,tsx}"],
+    plugins: { nanoeffects },
+    // предупреждает об обработчике политики без ctx или без передачи сигнала
+    rules: { "nanoeffects/policy-handler-uses-signal": "warn" },
   },
 ];
 ```
+
+```json
+{
+  "jsPlugins": ["./nanoeffects-lint.mjs"],
+  "rules": { "nanoeffects/policy-handler-uses-signal": "warn" }
+}
+```
+
+Второй блок — `.oxlintrc.json`. Для Biome скопируйте два файла `.grit` и перечислите их в `plugins` файла `biome.json`. Правило читает обработчики, записанные на месте: `latest(namedHandler)` оно не проверяет.
 
 ### Импорт в production
 

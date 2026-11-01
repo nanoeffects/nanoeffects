@@ -113,7 +113,7 @@ Written in the style of the other examples (comments on each nanoeffects call, b
 
 - [x] 12.1 Make `reduxDevtools` serialize payloads and errors (with the `serialize` option), `performanceLogger` read errors safely, `createTraceRecorder` get `toJSON()`, and export `safeSerialize` from `nanoeffects/trace`. Verified by `src/trace/serialization.test.ts`: 17 kinds of values through every built-in logger, JSON-safe output, and the `serialize` option.
 - [x] 12.2 Add the `abandoned` check to `devPlugin` (a warning for an emit after an abort) with tests in `src/dev/plugin.test.ts`, and raise the `size-limit` of `dev` to 1.4 kB.
-- [x] 12.3 Add `examples/lint` (Biome GritQL rule, ESLint selector, fixture) and `src/tests/lint-recipes.test.ts` that runs Biome on the fixture.
+- [x] 12.3 Add `examples/lint` (an ESLint/oxlint rule, two Biome GritQL rules, a fixture) for a policy handler with no `ctx` or one that takes `ctx` and loses the signal, and `src/tests/lint-recipes.test.ts` that runs Biome and the plugin (parsed by acorn) on the fixture and compares the lines.
 - [x] 12.4 Document it in `docs/hmr.md` and `docs/tracing.md` (and the Russian pages), and add the `CHANGELOG.md` entries.
 
 ## Workflow follow-up

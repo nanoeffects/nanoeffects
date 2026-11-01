@@ -47,6 +47,9 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^6.1.2
         version: 6.1.2(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.6.1)(terser@5.51.2))
+      acorn:
+        specifier: ^8.19.0
+        version: 8.19.0
       archunit:
         specifier: ^2.5.4
         version: 2.5.4

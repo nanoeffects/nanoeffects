@@ -1,0 +1,41 @@
+language js
+
+// A handler of a policy that takes ctx but never passes the signal on keeps running after it is cancelled.
+or {
+	`latest($fn)`,
+	`leading($fn)`,
+	`queue($fn)`,
+	`debounce($ms, $fn)`,
+	`throttle($ms, $fn)`
+} where {
+	$fn <: or {
+		`async ($first, $ctx) => $body`,
+		`($first, $ctx) => $body`,
+		`async function ($first, $ctx) { $body }`,
+		`function ($first, $ctx) { $body }`
+	},
+	or {
+		// ({ emit }): a pattern that names no member which carries the signal
+		and {
+			$ctx <: r"(?s)^(\{[^}]*\}).*"($props),
+			$props <: not r"(?s).*(?:signal|run|abort|\.\.\.).*"
+		},
+		// ctx: the signal is not read, ctx is not given to a call, and ctx.run and ctx.abort are not used
+		and {
+			$ctx <: r"(?s)^(\w+).*"($id),
+			$body <: not r"(?s).*signal.*",
+			// ctx.run and ctx.abort keep the link; ctx given to a call (an effect) passes the signal on
+			$body <: not contains or {
+				`$id.run`,
+				`$id.abort`,
+				`$f($args)` where { $args <: contains $id },
+				`const $name = $id`
+			}
+		}
+	},
+	register_diagnostic(
+		span = $fn,
+		message = "This handler takes ctx but never passes the signal on (ctx is unused, or used only for emit and on), so it keeps running after the policy cancels it. Pass ctx.signal to the request, or ctx to an effect.",
+		severity = "warn"
+	)
+}

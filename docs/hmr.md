@@ -72,26 +72,38 @@ With `devPlugin`, the second `search` aborts the first call. When the first call
 [nanoeffects] the handler of "search" emitted "results" after its task was aborted, so the emit was dropped. The handler kept running after it was cancelled: pass ctx.signal to the request (fetch(url, { signal: ctx.signal })) or give ctx to an effect (retry(ctx, ...)).
 ```
 
-The check lives in the plugin only: the policies and the bus carry no code for it, and in production `nanoeffects/dev` is empty. It sees the handlers that emit; a handler that never emits is not seen. For the rest, a linter finds the common case before the code runs: a handler written with no `ctx` parameter. [`examples/lint`](https://github.com/nanoeffects/nanoeffects/tree/main/examples/lint) has a rule for Biome (a GritQL plugin) and one for ESLint (`no-restricted-syntax`, no plugin needed), both checked against a fixture.
+The check lives in the plugin only: the policies and the bus carry no code for it, and in production `nanoeffects/dev` is empty. It sees the handlers that emit; a handler that never emits is not seen.
 
+A linter finds the same mistake before the code runs. The rules in [`examples/lint`](https://github.com/nanoeffects/nanoeffects/tree/main/examples/lint) flag two shapes, both under `latest`, `leading`, `queue`, `debounce` and `throttle`:
+
+- the handler has **no `ctx` parameter**: `latest(async (query) => api.search(query))`;
+- the handler **takes `ctx` and loses the signal**: `ctx` is unused, or used only for `ctx.emit` and `ctx.on`, as in the example above. Passing `ctx.signal`, a `{ signal }` pattern, `ctx` to an effect, or using `ctx.run` counts as keeping it.
+
+One file, `nanoeffects-lint.mjs`, is an ESLint rule with no dependency; ESLint and oxlint (as a JS plugin) both run it. Biome has two GritQL plugins. All of them flag the same calls of one test file, which the repository checks.
+
+<!-- docs-check: skip - a config file of the reader's project -->
 ```js
 // eslint.config.mjs
+import nanoeffects from "./nanoeffects-lint.mjs";
+
 export default [
   {
-    rules: {
-      "no-restricted-syntax": [
-        "warn",
-        {
-          // a handler of a policy that is a function with fewer than two parameters: no ctx
-          selector:
-            "CallExpression[callee.name=/^(latest|leading|queue|debounce|throttle)$/] > :matches(ArrowFunctionExpression, FunctionExpression)[params.length<2]",
-          message: "This handler has no ctx parameter, so it cannot pass ctx.signal on.",
-        },
-      ],
-    },
+    files: ["**/*.{js,mjs,cjs,jsx,ts,tsx}"],
+    plugins: { nanoeffects },
+    // warns about a handler of a policy that has no ctx, or does not pass the signal on
+    rules: { "nanoeffects/policy-handler-uses-signal": "warn" },
   },
 ];
 ```
+
+```json
+{
+  "jsPlugins": ["./nanoeffects-lint.mjs"],
+  "rules": { "nanoeffects/policy-handler-uses-signal": "warn" }
+}
+```
+
+The second block is `.oxlintrc.json`. For Biome, copy the two `.grit` files and list them in `plugins` of `biome.json`. A rule reads handlers written in place; `latest(namedHandler)` is not checked.
 
 ### Keep the import in production
 
