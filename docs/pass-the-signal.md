@@ -241,7 +241,7 @@ It counts what a handler does after the cancel. A request that a handler started
 
 ## Prove it with a test
 
-A linter reads code; it cannot know what a function does with the signal. A test can. The idea: replace `fetch` with a server that answers after a moment and stops when the request's signal aborts, run the handler, cancel it in the middle of each step, and list the requests that did not stop.
+A linter reads code; it cannot know what a function does with the signal. A test can. The idea: replace `fetch` with a server that answers when the test lets it and stops when the request's signal aborts, run the handler, cancel it in the middle of each step, and list the requests that did not stop. No timers are involved, so the result does not depend on how fast the machine is.
 
 <!-- docs-check: skip - a test file of the reader's project -->
 ```js
