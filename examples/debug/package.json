@@ -1,0 +1,29 @@
+{
+	"name": "nanoeffects-debug",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"loop-two-handlers": "tsx src/loop-two-handlers.ts",
+		"loop-same-event": "tsx src/loop-same-event.ts",
+		"loop-async": "tsx src/loop-async.ts",
+		"loop-modules": "tsx src/loop-modules.ts",
+		"loop-microtask": "tsx src/loop-microtask.ts",
+		"storm-component": "tsx src/storm-component.ts",
+		"chain-broken": "tsx src/chain-broken.ts",
+		"export-graph": "tsx src/export-graph.ts",
+		"hostile-payloads": "tsx src/hostile-payloads.ts",
+		"clean-flow": "tsx src/clean-flow.ts",
+		"ignore-recursion": "tsx src/ignore-recursion.ts",
+		"failing-handler": "tsx src/failing-handler.ts",
+		"assert-no-cycles": "tsx src/assert-no-cycles.ts",
+		"run-all": "tsx src/run-all.ts"
+	},
+	"dependencies": {
+		"nanoeffects": "^0.27.0"
+	},
+	"devDependencies": {
+		"tsx": "^4.0.0",
+		"typescript": "^5.9.0",
+		"@types/node": "^22.0.0"
+	}
+}

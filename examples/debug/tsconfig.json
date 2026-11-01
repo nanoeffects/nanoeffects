@@ -1,0 +1,18 @@
+{
+	"compilerOptions": {
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"target": "ES2023",
+		"lib": ["ES2023", "ESNext.Disposable", "DOM"],
+		"types": ["node"],
+		"strict": true,
+		"noEmit": true,
+		"paths": {
+			"nanoeffects": ["../../src/index.ts"],
+			"nanoeffects/actions": ["../../src/actions/index.ts"],
+			"nanoeffects/guard": ["../../src/guard/index.ts"],
+			"nanoeffects/trace": ["../../src/trace/index.ts"]
+		}
+	},
+	"include": ["src"]
+}

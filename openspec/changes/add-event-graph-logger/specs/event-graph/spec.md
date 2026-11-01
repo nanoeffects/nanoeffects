@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
-### Requirement: graphLogger is a trace logger from its own entry
-`graphLogger(options?)` from `nanoeffects/graph` SHALL return a trace logger that `createTracer` accepts alone or in a list, like the other loggers. It SHALL need no option, no plugin and no change to `createBus` to work. A throwing method of the logger SHALL NOT break a task, as for every logger.
+### Requirement: graphLogger is a trace logger from the trace entry
+`graphLogger(options?)` from `nanoeffects/trace` SHALL return a trace logger that `createTracer` accepts alone or in a list, like the other loggers. It SHALL need no option, no plugin and no change to `createBus` to work. A throwing method of the logger SHALL NOT break a task, as for every logger.
 
 #### Scenario: Works with no options
 - **WHEN** a bus is made with `createTracer(graphLogger())` and a handler of `a` emits `b` through `ctx.emit`
@@ -64,9 +64,9 @@ The logger SHALL have `toMermaid()`, `toDot()` and `toJSON()`. `toMermaid()` SHA
 - **WHEN** an event type is `say "hi"` or contains `]` or a newline
 - **THEN** `toMermaid()` and `toDot()` output is still valid for its format
 
-#### Scenario: Modules group the nodes
-- **WHEN** `toMermaid({ group: "module" })` is called and the nodes belong to modules
-- **THEN** the nodes of one module are in one subgraph
+#### Scenario: Nodes can be grouped
+- **WHEN** `toMermaid({ group: "prefix" })` is called and the names are `cart/changed` and `total/changed`
+- **THEN** the nodes with the same part before the first `/` are in one subgraph, and `group` can also be a function of the name (the trace does not say which module a name belongs to)
 
 ### Requirement: Payloads and errors are left out unless asked
 Exports SHALL contain names and counts only. `toJSON({ payload: true })` SHALL add the last payload and the last error seen for each node, made safe by the serializer. Without that option no payload and no error object SHALL appear in any export or in a cycle report.
@@ -106,3 +106,18 @@ A getter SHALL NOT be called.
 #### Scenario: Large value
 - **WHEN** a payload is an array of a million items
 - **THEN** the result is cut at `maxSize` with a marker
+
+### Requirement: A named listener can say where it was made
+In development, `devPlugin` MAY record the call site of `bus.on` and `once` (one record for each subscription, not for each call), and `graphLogger` SHALL show it in a report and in `toJSON()` for the nodes that have it. Without `devPlugin`, nodes have no site and nothing else changes. The record SHALL be kept only while the subscription lives.
+
+#### Scenario: With devPlugin
+- **WHEN** `devPlugin` is used and a listener named `recalc` is added in `cart.js` at line 12
+- **THEN** a report that names `recalc` also shows `cart.js:12`
+
+#### Scenario: Without devPlugin
+- **WHEN** `devPlugin` is not used
+- **THEN** reports and exports have no site, and nothing fails
+
+#### Scenario: Unsubscribed
+- **WHEN** a listener is removed
+- **THEN** its record is dropped

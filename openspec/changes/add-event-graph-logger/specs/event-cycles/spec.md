@@ -104,3 +104,91 @@ A bus without `trace`, or a build with tracing off, SHALL run the same as before
 #### Scenario: Notrace build
 - **WHEN** the `notrace` build is used with `createTracer(graphLogger())`
 - **THEN** the logger receives no event and nothing is reported
+
+### Requirement: A task that ends frees its place in every way it can end
+A task that ends with `done`, `error`, `cancel` or `drop` SHALL leave no trace in the chains of the logger. A handler that throws in the middle of a chain SHALL NOT make a later, unrelated chain look like a cycle.
+
+#### Scenario: A throw in the middle
+- **WHEN** a handler of `b` throws while handling a chain `a`, `b`, `c`, and later the same chain runs again and does not loop
+- **THEN** no cycle is reported for the second run
+
+#### Scenario: A cancelled or dropped task
+- **WHEN** a policy cancels or drops a task in the middle of a chain
+- **THEN** the chains started after it are counted from zero
+
+### Requirement: The logger itself neither recurses nor loops
+The logger SHALL find a cycle with a loop over the chain, not by recursion, so a chain thousands of tasks deep does not overflow the stack of the logger. A report SHALL be made without re-entering the logger: when `onCycle`, the console or a DevTools call emits an event on the same bus, the logger SHALL take the events it gets then as part of its normal input, and SHALL NOT report the same path again or recurse into the report. A cycle that ends in a `RangeError` of the app (the stack of the app is full) SHALL have been reported before it.
+
+#### Scenario: A very deep chain
+- **WHEN** a chain of 5 000 tasks, each emitting the next, runs and ends
+- **THEN** the logger does not throw and does not overflow the stack
+
+#### Scenario: A report that emits
+- **WHEN** `onCycle` emits an event on the same bus, and a handler of that event emits the looping event again
+- **THEN** each path is reported once, and the logger does not recurse
+
+#### Scenario: A synchronous loop that overflows the stack
+- **WHEN** three handlers loop synchronously until the app throws `RangeError`
+- **THEN** the cycle was reported before the error
+
+### Requirement: Re-entry and listener changes during an emit are not mistaken for loops
+Subscribing, unsubscribing or replacing a listener while an emit runs SHALL NOT by itself be reported. A listener added during an emit SHALL NOT make the logger count the current emit twice, and a listener that removes itself or another one during the emit SHALL NOT leave counters behind.
+
+#### Scenario: A listener added during an emit
+- **WHEN** a handler of `a` subscribes another listener of `a` and does not emit
+- **THEN** no cycle is reported
+
+#### Scenario: Removed during an emit
+- **WHEN** a handler of `a` removes itself with `off` and emits `b` once
+- **THEN** no cycle is reported and the counters of the chain are dropped when the tasks end
+
+### Requirement: A report says where the chain began and how to break it
+A cycle or storm report SHALL name the root of the chain (the first node, or `outside` for an emit that came from outside any task), the `traceGroupId` when there is one, and one line of advice chosen by the kind of finding: a self loop (emit a different event for the result), a loop between listeners (break it with a condition or a different event), a storm (`equals` of `useEmitter`, `debounce`, a guard), a runaway chain (look for generated event names). The advice SHALL be text only and SHALL NOT depend on the payload.
+
+#### Scenario: The root is named
+- **WHEN** a loop is started by `useEmitter` named `filters` and then runs between two listeners
+- **THEN** the report names `filters` as the root and lists the path
+
+#### Scenario: A self loop has its advice
+- **WHEN** a handler of `x` emits `x` and the cycle is reported
+- **THEN** the report says to emit a different event for the result
+
+### Requirement: A reported path keeps counting
+After a path is reported, each further turn of it SHALL be counted without a new report. `cycles()` SHALL give `{ path, repeats, turns, root }` where `turns` is how many times the loop has gone round so far.
+
+#### Scenario: Turns grow, reports do not
+- **WHEN** a reported loop runs 500 more turns
+- **THEN** `cycles()` shows `turns` of at least 500 for it and no new report was made
+
+### Requirement: A runaway chain is reported by its size
+Besides repeats, the logger SHALL count the tasks that one root started, and when that count passes `maxSteps` (default 5000) it SHALL report a runaway chain once for that root, even if every node on it has a different name. The count SHALL be dropped when the root's chain has ended.
+
+#### Scenario: Generated event names
+- **WHEN** a handler emits `step/${n + 1}` for each `n` without end
+- **THEN** a runaway chain is reported after `maxSteps` tasks, with no repeated node
+
+#### Scenario: A long legitimate chain
+- **WHEN** a root starts 4 000 tasks and ends
+- **THEN** nothing is reported, and the count is dropped
+
+### Requirement: Cycles that no single chain shows are found in the graph
+`cycles()` SHALL also give the strongly connected components of the graph (a node set with a path from each node to every other, or a node that feeds itself), found with an iterative algorithm, so a loop that was seen in pieces over different runs (`a` to `b` in one, `b` to `a` in another) is listed with `source: "graph"`. Such a cycle SHALL NOT be reported through `console.warn` or `onCycle` (it is not a loop that ran), and the exports SHALL mark it as the cycles of a chain.
+
+#### Scenario: Seen in pieces
+- **WHEN** one run emits `a` then `b`, and a later separate run emits `b` then `a`
+- **THEN** `cycles()` lists the component `a`, `b` with `source: "graph"` and no warning was written
+
+#### Scenario: A deep graph
+- **WHEN** the graph is a line of 100 000 nodes
+- **THEN** `cycles()` finishes with no stack overflow and returns nothing
+
+### Requirement: Names and exceptions can be set
+`graphLogger({ name })` SHALL put `name` before every report line and in the label of the DOT and the JSON exports, so a page with several buses is read at a glance. `graphLogger({ ignore })` SHALL take event or listener names (strings or a predicate) that are left out of the repeat count, the runaway count and the storm count; they stay in the graph.
+
+#### Scenario: A name
+- **WHEN** `name: "cart"` is set and a cycle is reported
+- **THEN** the line starts with `cart`
+
+#### Scenario: A legitimate recursion
+- **WHEN** `ignore: ["tree/visit"]` is set and a handler of `tree/visit` emits `tree/visit` for each child ten levels deep
+- **THEN** no cycle is reported, and `tree/visit` is a node with its edge in the graph
