@@ -55,7 +55,11 @@ const loadRule = async () => {
 // the lines the rule reports for a piece of code
 const lintLines = async (
 	source: string,
-	options: { ignore?: string[]; only?: string[] } = {},
+	options: {
+		ignore?: string[];
+		only?: string[];
+		requireContext?: boolean;
+	} = {},
 ) => {
 	const rule = await loadRule();
 	const program = parse(source, {
@@ -116,7 +120,7 @@ describe("examples/lint: the fixture", () => {
 describe("examples/lint: the situations where the signal is hard to pass", () => {
 	const flagged = async (
 		body: string,
-		options?: { ignore?: string[]; only?: string[] },
+		options?: { ignore?: string[]; only?: string[]; requireContext?: boolean },
 	) =>
 		(await lintLines(`latest(async (query, ctx) => {\n${body}\n});`, options))
 			.length;
@@ -371,6 +375,64 @@ describe("examples/lint: the situations where the signal is hard to pass", () =>
 				only: ["api.*"],
 			}),
 		).toBe(1);
+	});
+
+	it("requireContext: a call must go through ctx or be given ctx, also when the signal is passed by hand", async () => {
+		const strict = { requireContext: true };
+
+		expect(
+			await flagged("await fetch(url, { signal: ctx.signal });", strict),
+		).toBe(1);
+		expect(
+			await flagged("await api.search(query, { signal: ctx.signal });", strict),
+		).toBe(1);
+		expect(await flagged("await ctx.fetch(url);", strict)).toBe(0);
+		expect(await flagged("await ctx.http.get(url);", strict)).toBe(0);
+		expect(await flagged("await loadFeed(ctx, query);", strict)).toBe(0);
+		expect(await flagged("await loadFeed(...[ctx, query]);", strict)).toBe(1);
+		expect(
+			await flagged("return retry(ctx, () => ctx.fetch(url));", strict),
+		).toBe(0);
+		expect(
+			await flagged(
+				"return retry(ctx, () => fetch(url, { signal: ctx.signal }));",
+				strict,
+			),
+		).toBe(1);
+		expect(
+			await flagged(
+				"return timeout(ctx, 1000, (child) => child.fetch(url));",
+				strict,
+			),
+		).toBe(0);
+	});
+
+	it("requireContext: each call of Promise.all, a response body and the ignore list", async () => {
+		const strict = { requireContext: true };
+
+		expect(
+			await flagged("await Promise.all([ctx.fetch(a), ctx.fetch(b)]);", strict),
+		).toBe(0);
+		expect(
+			await flagged("await Promise.all([ctx.fetch(a), fetch(b)]);", strict),
+		).toBe(1);
+		expect(
+			await flagged(
+				"const response = await ctx.fetch(url);\nreturn response.json();",
+				strict,
+			),
+		).toBe(0);
+		expect(
+			await flagged("await cache.get(query);", {
+				...strict,
+				ignore: ["cache.get"],
+			}),
+		).toBe(0);
+		expect(await flagged("await cache.get(query);", strict)).toBe(1);
+	});
+
+	it("requireContext is off by default: passing the signal by hand is fine", async () => {
+		expect(await flagged("await fetch(url, { signal: ctx.signal });")).toBe(0);
 	});
 
 	it("does not look into a function that is only declared in the handler", async () => {

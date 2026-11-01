@@ -99,6 +99,7 @@ bus.on("user/open", async (id, ctx) => {
 });
 ```
 
+- `signalFetch` from the same entry is a `fetch` bound to a signal, so `fetch: fromSignal(signalFetch)` gives every handler a `ctx.fetch` that stops with the task. [Bind the signal once](pass-the-signal.md#bind-the-signal-once)
 - `make` runs at the first read, so a handler that never uses `ctx.http` pays nothing for it.
 - A task that `ctx.run` starts builds its own value from its own signal, so aborting the child stops only the child's requests.
 - The field is not copied by `{ ...ctx }` and `Object.keys(ctx)` does not list it. Read `ctx.http` first if you copy a context.

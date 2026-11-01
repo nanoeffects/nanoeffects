@@ -2,6 +2,13 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
+## Unreleased
+
+### Added
+- `signalFetch` in `nanoeffects/signal` is a `fetch` bound to a signal. With `contextPlugin({ fetch: fromSignal(signalFetch) })` every handler has a `ctx.fetch` that stops with its task, so the signal is never passed by hand. [Docs](docs/pass-the-signal.md#bind-the-signal-once)
+- `getLostSignalsCount(bus)` and `getLostSignals(bus)` now count requests too, on Node: `devPlugin` follows the `fetch` calls of each handler and counts one that kept running after its task was cancelled (`kind: "request"`). Turn it off with `requests: false`. [Docs](docs/pass-the-signal.md#count-lost-signals-in-a-test)
+- The lint rule in `examples/lint` takes `requireContext: true`: every call a handler waits for must go through `ctx` or be given `ctx`.
+
 ## 0.30.1
 
 ### Added

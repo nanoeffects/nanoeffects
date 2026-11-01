@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	createAction,
 	createJob,
@@ -922,5 +922,239 @@ describe("getLostSignalsCount", () => {
 
 		expect(await noopGetLostSignals()).toBe(0);
 		expect(await noopLostSignals()).toEqual([]);
+	});
+});
+
+describe("devPlugin: the requests of a handler", () => {
+	type Events = { search: string; results: string };
+
+	// a server that answers when it is told to, and stops when the signal of the request aborts
+	const serve = () => {
+		const calls: Array<{
+			url: string;
+			signal: AbortSignal | undefined;
+			answer: () => void;
+		}> = [];
+		vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+			return new Promise((resolve, reject) => {
+				const signal = init?.signal ?? void 0;
+				calls.push({
+					url: String(input),
+					signal,
+					answer: () => resolve(new Response("[]")),
+				});
+				signal?.addEventListener("abort", () => reject(signal.reason));
+			});
+		});
+
+		return calls;
+	};
+
+	const later = (ms: number) =>
+		new Promise((resolve) => setTimeout(resolve, ms));
+
+	const make = (options: DevOptions<Events> = {}) => {
+		const messages: string[] = [];
+		const bus = createBus<Events>();
+		const disconnect = bus.use(
+			devPlugin({ log: (message) => messages.push(message), ...options }),
+		);
+
+		return { bus, messages, disconnect };
+	};
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it("counts a request with no signal that kept running after the cancel", async () => {
+		serve();
+		const { bus, messages, disconnect } = make();
+		bus.on(
+			"search",
+			latest(async (query: string) => {
+				await fetch(`/api?q=${query}`);
+			}),
+		);
+
+		bus.emit("search", "a");
+		bus.emit("search", "ab");
+
+		expect(await getLostSignals(bus, { wait: 20 })).toEqual([
+			{ kind: "request", handler: "search", event: "/api?q=a" },
+		]);
+		expect(
+			messages.filter((message) => message.includes("kept running")),
+		).toHaveLength(1);
+		disconnect();
+	});
+
+	it("counts nothing when the request gets the signal of the task", async () => {
+		serve();
+		const { bus, disconnect } = make();
+		bus.on(
+			"search",
+			latest(async (query: string, ctx) => {
+				await fetch(`/api?q=${query}`, { signal: ctx.signal }).catch(() => {});
+			}),
+		);
+
+		bus.emit("search", "a");
+		bus.emit("search", "ab");
+
+		expect(await getLostSignalsCount(bus, { wait: 20 })).toBe(0);
+		disconnect();
+	});
+
+	it("counts a request with a signal that is not the task's", async () => {
+		serve();
+		const { bus, disconnect } = make();
+		bus.on(
+			"search",
+			latest(async (query: string) => {
+				await fetch(`/api?q=${query}`, {
+					signal: new AbortController().signal,
+				});
+			}),
+		);
+
+		bus.emit("search", "a");
+		bus.emit("search", "ab");
+
+		expect(await getLostSignalsCount(bus, { wait: 20 })).toBe(1);
+		disconnect();
+	});
+
+	it("counts nothing for a request that finished before the cancel", async () => {
+		const calls = serve();
+		const { bus, disconnect } = make();
+		bus.on(
+			"search",
+			latest(async (query: string) => {
+				await fetch(`/api?q=${query}`);
+			}),
+		);
+
+		bus.emit("search", "a");
+		await later(5);
+		calls[0]?.answer();
+		await later(5);
+		bus.emit("search", "ab");
+
+		expect(await getLostSignalsCount(bus, { wait: 20 })).toBe(0);
+		disconnect();
+	});
+
+	it("follows a request that comes after an await, in a later step", async () => {
+		const calls = serve();
+		const { bus, disconnect } = make();
+		bus.on(
+			"search",
+			latest(async (query: string, ctx) => {
+				await fetch(`/first?q=${query}`, { signal: ctx.signal });
+				await fetch(`/second?q=${query}`);
+			}),
+		);
+
+		bus.emit("search", "a");
+		await later(5);
+		calls[0]?.answer();
+		await later(5);
+		bus.emit("search", "ab");
+
+		expect(
+			(await getLostSignals(bus, { wait: 20 })).map((lost) => lost.event),
+		).toEqual(["/second?q=a"]);
+		disconnect();
+	});
+
+	it("counts a request that a stale handler starts after it was cancelled", async () => {
+		const calls = serve();
+		const { bus, disconnect } = make();
+		bus.on(
+			"search",
+			latest(async (query: string) => {
+				await fetch(`/first?q=${query}`);
+				await fetch(`/late?q=${query}`);
+			}),
+		);
+
+		bus.emit("search", "a");
+		await later(5);
+		bus.emit("search", "ab");
+		calls[0]?.answer();
+
+		expect(
+			(await getLostSignals(bus, { wait: 20 })).map((lost) => lost.event),
+		).toContain("/late?q=a");
+		disconnect();
+	});
+
+	it("does not attribute a request of the caller, made after bus.emit returned", async () => {
+		serve();
+		const { bus, disconnect } = make();
+		bus.on(
+			"search",
+			latest(async () => {
+				await later(5);
+			}),
+		);
+
+		bus.emit("search", "a");
+		void fetch("/from-the-test");
+		bus.emit("search", "ab");
+
+		expect(await getLostSignalsCount(bus, { wait: 20 })).toBe(0);
+		disconnect();
+	});
+
+	it("is off with requests: false", async () => {
+		serve();
+		const { bus, disconnect } = make({ requests: false });
+		const original = globalThis.fetch;
+		bus.on(
+			"search",
+			latest(async (query: string) => {
+				await fetch(`/api?q=${query}`);
+			}),
+		);
+
+		bus.emit("search", "a");
+		bus.emit("search", "ab");
+
+		expect(await getLostSignalsCount(bus, { wait: 20 })).toBe(0);
+		expect(globalThis.fetch).toBe(original);
+		disconnect();
+	});
+
+	it("puts fetch back on disconnect", () => {
+		serve();
+		const before = globalThis.fetch;
+		const { disconnect } = make();
+
+		expect(globalThis.fetch).not.toBe(before);
+		disconnect();
+
+		expect(globalThis.fetch).toBe(before);
+	});
+
+	it("keeps the requests of two buses apart", async () => {
+		serve();
+		const first = make();
+		const second = make();
+		first.bus.on(
+			"search",
+			latest(async (query: string) => {
+				await fetch(`/api?q=${query}`);
+			}),
+		);
+
+		first.bus.emit("search", "a");
+		first.bus.emit("search", "ab");
+
+		expect(await getLostSignalsCount(first.bus, { wait: 20 })).toBe(1);
+		expect(await getLostSignalsCount(second.bus)).toBe(0);
+		second.disconnect();
+		first.disconnect();
 	});
 });

@@ -17,6 +17,8 @@ export type DevOptions<E extends EventMap = EventMap> = {
 	modules?: boolean;
 	/** Warn when a handler emits after its task was aborted, which means it ignored `ctx.signal`. Default `true`. */
 	abandoned?: boolean;
+	/** Follow the `fetch` requests of the handlers, and count the ones that kept running after a cancel. Node only; needs `abandoned`. Default `true`. */
+	requests?: boolean;
 	/** Receives every message. Default: `console.warn` for leaks and `console.info` for modules. */
 	log?: (message: string) => void;
 	/** What `modulePlugin` returned, to report its modules. Without it the app that `modulePlugin` put on the bus is used, in either order of the two plugins. */
@@ -25,11 +27,14 @@ export type DevOptions<E extends EventMap = EventMap> = {
 
 /** One signal that a handler lost: it kept working after its task was aborted. */
 export type LostSignal = {
-	/** `emit`: the handler emitted after the abort (the emit was dropped); `on`: it subscribed after the abort. */
-	kind: "emit" | "on";
+	/**
+	 * `emit`: the handler emitted after the abort (the emit was dropped); `on`: it subscribed after the abort;
+	 * `request`: a `fetch` of the handler was still running after the abort and did not stop (Node only).
+	 */
+	kind: "emit" | "on" | "request";
 	/** The type of the task that was aborted: the event its handler works on. */
 	handler: string;
-	/** The event that was emitted or subscribed to. */
+	/** The event that was emitted or subscribed to, or the url of the request. */
 	event: string;
 };
 

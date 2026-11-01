@@ -101,7 +101,11 @@ describe("public entries", () => {
 	});
 
 	it("signal", () => {
-		expect(Object.keys(signal).sort()).toEqual(["fromSignal", "signalPlugin"]);
+		expect(Object.keys(signal).sort()).toEqual([
+			"fromSignal",
+			"signalFetch",
+			"signalPlugin",
+		]);
 	});
 
 	it("guard", () => {

@@ -5,6 +5,7 @@ import { emitAfterAbort } from "../core/emit-key";
 import { eventKey } from "../core/event";
 import { recordSite } from "../core/site";
 import type { EventMap } from "../core/types";
+import { trackRequests } from "./requests";
 import type { DevPlugin, LostSignal, LostSignalsOptions } from "./types";
 
 const PREFIX = "[nanoeffects]";
@@ -44,6 +45,7 @@ export const devPlugin: DevPlugin =
 			leaks = true,
 			modules = true,
 			abandoned = true,
+			requests = true,
 			app,
 		} = options;
 		const warn = options.log ?? ((message: string) => console.warn(message));
@@ -57,7 +59,7 @@ export const devPlugin: DevPlugin =
 			restores.push(watchApp(bus, app, info));
 		}
 		if (abandoned) {
-			restores.push(watchAbandoned(bus, warn));
+			restores.push(watchAbandoned(bus, warn, requests));
 		}
 
 		return () => {
@@ -167,6 +169,7 @@ type Aborted = {
 	signal: AbortSignal;
 	emit: Emitter;
 	on: Emitter;
+	run: (...args: unknown[]) => unknown;
 };
 
 // Watches `ctx.emit` of every task. An emit after the signal of the task aborted is dropped by the bus,
@@ -174,16 +177,19 @@ type Aborted = {
 const watchAbandoned = <E extends EventMap>(
 	bus: Bus<E>,
 	warn: (message: string) => void,
+	requests: boolean,
 ) => {
 	const previous = bus.addContext;
 	const told = new Set<string>();
 	const lost: LostSignal[] = [];
 	lostOf.set(bus, lost);
+	const tracker = requests ? trackRequests(bus, lost, warn) : null;
 	let active = true;
 
 	const wrapped = (target: object) => {
 		previous?.(target);
 		const task = target as Aborted;
+		tracker?.enter(task);
 		const emitOf = task.emit;
 		task.emit = (event, ...rest) => {
 			// `createJob` opens this gate for its own emit of `cancel`: that one is meant to pass
@@ -230,6 +236,7 @@ const watchAbandoned = <E extends EventMap>(
 
 	return () => {
 		active = false;
+		tracker?.stop();
 		// a wrapper that another plugin put on top since stays, and passes every call through
 		if (bus.addContext === wrapped) {
 			bus.addContext = previous;

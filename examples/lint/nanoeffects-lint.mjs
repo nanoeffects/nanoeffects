@@ -26,6 +26,10 @@
 //     of what to skip);
 //   - `only`: the calls that take a signal, such as `["api.*", "fetch"]` (a list of what to check). Anything else
 //     is left alone. With `only` set, a call that is not on the list is never reported.
+//   - `requireContext`: when `true`, every call that a handler waits for must go through ctx (`ctx.fetch(url)`,
+//     `ctx.http.get(url)`) or be given ctx (`loadFeed(ctx, query)`, `retry(ctx, ...)`). A client that is bound to the
+//     signal with `fromSignal` is the only way to make a request, so the signal cannot be forgotten. Passing
+//     `ctx.signal` by hand to a global `fetch` is then reported too.
 // A trailing `*` matches any name after the dot. A call that matches both lists is skipped. To silence one line
 // use the disable comment of your linter.
 //
@@ -291,6 +295,14 @@ const stepsOf = (fn) => {
 const isContextArgument = (call, contexts) =>
 	call.arguments[0]?.type === "Identifier" && contexts.has(call.arguments[0].name);
 
+// does the call get ctx itself as an argument, or as a spread?
+const givesContext = (call, { contexts }) =>
+	call.arguments.some(
+		(argument) =>
+			(argument.type === "Identifier" && contexts.has(argument.name)) ||
+			(argument.type === "SpreadElement" && argument.argument.type === "Identifier" && contexts.has(argument.argument.name)),
+	);
+
 // a call that runs callbacks with a child context: retry(ctx, ...), timeout(ctx, ...), ctx.run(...)
 const isEffectCall = (call, { contexts }) => {
 	const callee = call.callee;
@@ -536,6 +548,7 @@ const rule = {
 				properties: {
 					ignore: { type: "array", items: { type: "string" } },
 					only: { type: "array", items: { type: "string" } },
+					requireContext: { type: "boolean" },
 				},
 				additionalProperties: false,
 			},
@@ -545,6 +558,8 @@ const rule = {
 				"This handler has no ctx parameter, so it cannot pass ctx.signal to its request and cannot stop when the policy cancels it. Add (value, ctx) and pass ctx.signal on.",
 			lostSignal:
 				"This step waits for a call that does not get the signal, so it keeps running after the policy cancels the handler. Pass { signal: ctx.signal } to it, or ctx to an effect.",
+			useContext:
+				"Make this call through ctx (ctx.fetch, ctx.http) or give it ctx, so the signal is bound once and cannot be forgotten.",
 			ignoredSignal:
 				"This call gets the signal, but the function never uses it, so the request is not cancelled. Pass the signal on inside the function: fetch(url, { signal }).",
 			staleEmit:
@@ -557,6 +572,7 @@ const rule = {
 		const options = context.options?.[0] ?? {};
 		const ignore = options.ignore ?? [];
 		const only = options.only ?? [];
+		const requireContext = options.requireContext === true;
 		// with `only`, a call is checked when its name is on the list; a name that cannot be read is not
 		const isChecked = (call) =>
 			only.length === 0 || call.type === "NewExpression" || matches(calleeText(call.callee), only);
@@ -567,6 +583,9 @@ const rule = {
 		const verdictOf = (step, names) => {
 			if (!isChecked(step) || isExempt(step, names, ignore)) {
 				return null;
+			}
+			if (requireContext && step.type === "CallExpression") {
+				return givesContext(step, names) ? null : "useContext";
 			}
 			const carries = carriesSignal(step, names);
 			if (step.type !== "CallExpression" || !types) {

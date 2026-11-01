@@ -242,7 +242,7 @@
 		{
 			"name": "signal (plugin)",
 			"path": "dist/signal.js",
-			"limit": "0.7 kB"
+			"limit": "0.8 kB"
 		},
 		{
 			"name": "context (plugin)",
@@ -307,7 +307,7 @@
 		{
 			"name": "dev",
 			"path": "dist/dev.js",
-			"limit": "1.6 kB"
+			"limit": "2.2 kB"
 		},
 		{
 			"name": "dev (production)",

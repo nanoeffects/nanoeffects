@@ -7,6 +7,7 @@ A policy such as `latest` cancels an older call by aborting its `ctx.signal`. Th
 ## On this page
 
 - [Know what the signal does](#know-what-the-signal-does)
+- [Bind the signal once](#bind-the-signal-once)
 - [Fix a handler that loses the signal](#fix-a-handler-that-loses-the-signal)
 - [Pass the signal when it is hard](#pass-the-signal-when-it-is-hard)
 - [Turn on the checks](#turn-on-the-checks)
@@ -18,6 +19,44 @@ A policy such as `latest` cancels an older call by aborting its `ctx.signal`. Th
 ## Know what the signal does
 
 `ctx.signal` is an `AbortSignal`. The policy aborts it when the call is cancelled (a newer call of `latest`, a `debounce` that was replaced, an unmounted module). A step stops when you give it the signal: `fetch(url, { signal: ctx.signal })`, `api.search(query, { signal: ctx.signal })`, or the whole `ctx` for an effect, `retry(ctx, ...)`. Everything else keeps running. The bus drops what a cancelled handler emits with `ctx.emit`, so the loss shows up late and quietly.
+
+## Bind the signal once
+
+The surest fix is a handler with no signal in it. Make the client from the signal of the task, once, and the handler calls `ctx.fetch` and cannot forget anything. `signalFetch` is a `fetch` bound to a signal; `fromSignal` builds it for each task.
+
+```js
+// bus.js
+import { createBus } from "nanoeffects";
+import { contextPlugin } from "nanoeffects/context";
+import { fromSignal, signalFetch } from "nanoeffects/signal";
+import axios from "axios";
+
+// fromSignal — ctx.fetch is made from the signal of the task that reads it
+export const bus = createBus().use(
+  contextPlugin({
+    fetch: fromSignal(signalFetch),
+    // your own client too: it is made from the signal of each task
+    http: fromSignal((signal) => axios.create({ signal })),
+  }),
+);
+```
+
+```js
+// search-handlers.js
+import { latest } from "nanoeffects/policies";
+import { bus } from "./bus";
+
+bus.on(
+  "search",
+  latest(async (query, ctx) => {
+    // no signal here: ctx.fetch stops when the policy cancels the handler
+    const response = await ctx.fetch(`/api?q=${query}`);
+    ctx.emit("results", await response.json());
+  }),
+);
+```
+
+A call with a `signal` of its own stops with whichever aborts first. Then make the linter hold the line: with `requireContext: true`, every call that a handler waits for must go through `ctx` or be given `ctx`, so a global `fetch` or `api.search(...)` is an error even when the signal is passed by hand ([turn on the checks](#turn-on-the-checks)).
 
 ## Fix a handler that loses the signal
 
@@ -66,7 +105,7 @@ Each row is a situation where the signal is easy to lose. The right column says 
 | Situation | What to do | Lint | devPlugin |
 | --------- | ---------- | :--: | :-------: |
 | The handler has no `ctx`: `latest(async (query) => ...)` | Take `(query, ctx)` and pass `ctx.signal` | yes | |
-| `ctx` is taken and never used for the request | Pass `{ signal: ctx.signal }` to each request | yes | yes |
+| `ctx` is taken and never used for the request | Pass `{ signal: ctx.signal }` to each request, or bind it once: `ctx.fetch` ([above](#bind-the-signal-once)) | yes | yes |
 | One step passes the signal, another does not | Pass it to every step | yes | yes |
 | The signal is in a variable: `const options = { signal: ctx.signal }` | Nothing, a variable that holds it counts | accepted | |
 | Calls run together: `Promise.all([a(), b()])` | Pass it to each call, not only one | yes | |
@@ -83,6 +122,7 @@ Each row is a situation where the signal is easy to lose. The right column says 
 | A function takes the signal and never uses it: `search(query, options) { return fetch(url); }` | Pass the signal on inside it. Only type information finds this in the linter; a test finds it for sure | types | |
 | The signal is wired by hand: `signal.addEventListener("abort", ...)` | Nothing, the handler is not checked step by step | accepted | |
 | `bus.emit` in a handler | Use `ctx.emit`: only it is dropped after the handler was cancelled | yes | |
+| A request that keeps running after the cancel, on Node | Pass the signal, or use `ctx.fetch` | | yes |
 | Results emitted after the cancel | The handler ignored the signal. Pass it, or check `ctx.signal.aborted` | | yes |
 | `ctx.on` after the cancel | The same | | yes |
 
@@ -155,7 +195,7 @@ export default [
       "nanoeffects/policy-handler-uses-signal": [
         "warn",
         // calls that take no signal and are fine to wait for
-        { ignore: ["cache.get", "storage.*"] },
+        { ignore: ["cache.get", "storage.*"], requireContext: false },
       ],
     },
   },
@@ -178,8 +218,9 @@ bus.use(devPlugin());
 
 ## Choose which calls are checked
 
-The rule cannot tell, from the call alone, whether the function takes a signal. Three ways to tell it:
+The rule cannot tell, from the call alone, whether the function takes a signal. Ways to tell it:
 
+- **`requireContext`** needs no list: set it to `true` when handlers make requests through `ctx` (see [Bind the signal once](#bind-the-signal-once)), and any call that does not go through `ctx` is reported. `ignore` still skips a call.
 - **`ignore`** lists the calls to skip, by name: `ignore: ["cache.get", "storage.*"]`. Use it when most calls take a signal and a few cannot.
 - **`only`** lists the calls to check, by name: `only: ["api.*", "fetch"]`. Anything else is left alone, so a call that is not on the list is never reported. Use it when you know which clients take a signal. A call on both lists is skipped, and a pause that nothing can cancel (`await new Promise(...)`) is reported whatever `only` says.
 - **Type information** needs no list. With `@typescript-eslint/parser` and a `project`, the rule reads the function it calls. A call that does not get the signal is reported only when the function takes one (a parameter typed `AbortSignal`, or an options object with `signal`), so `cache.get(key)` is left alone. A call that passes the signal is reported when the function is in your sources and never uses it: the parameter is unused, or only other options are read from it. A signal forwarded to another function of yours is followed up to three calls deep, and a function from a library is trusted. A callee typed `any` is reported as before.
@@ -237,7 +278,31 @@ test("a newer search leaves no lost signals", async () => {
 
 `getLostSignals(bus)` gives the list instead of the count: `{ kind: "emit" | "on", handler, event }` for each, so a failing test says which handler and which event. Without `devPlugin` (or with `abandoned: false`) it throws and says so. In a production build both functions are empty: the count is 0.
 
-It counts what a handler does after the cancel. A request that a handler started and that the cancel did not stop is not counted unless the handler then emits; the next section finds those.
+On Node (tests, servers) it counts requests too. `devPlugin` follows the `fetch` calls that a handler makes, also after `await`, and counts one with `kind: "request"` when its task was cancelled while the request was still running and the request did not stop: it got no signal, or a signal that is not the task's. You add nothing to the test. In a browser there is no way to tell which task made a request, so only the emits and subscriptions are counted. `requests: false` turns the tracking off.
+
+```js
+import { createBus } from "nanoeffects";
+import { devPlugin, getLostSignals } from "nanoeffects/dev";
+import { latest } from "nanoeffects/policies";
+
+const bus = createBus();
+bus.use(devPlugin({ log: () => {} }));
+
+bus.on(
+  "search",
+  latest(async (query) => {
+    await fetch(`/api?q=${query}`); // no signal
+  }),
+);
+
+bus.emit("search", "a");
+bus.emit("search", "ab");
+
+// [{ kind: "request", handler: "search", event: "/api?q=a" }]
+console.log(await getLostSignals(bus, { wait: 50 }));
+```
+
+A request that finished before the cancel is not counted. For another client (axios, a driver) bind it with `fromSignal`, or stub it in a test as the next section does for `fetch`.
 
 ## Prove it with a test
 
