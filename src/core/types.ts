@@ -84,6 +84,8 @@ export type TaskInfo = {
 	event?: string;
 	/** `true` for the emit event that `tracePlugin` makes, which has no handler of its own. */
 	leaf?: boolean;
+	/** `false` for a task that `ctx.run` or an effect or a policy made inside a handler; `true` for the task of an emit. */
+	emitted?: boolean;
 	traceGroupId?: string;
 };
 

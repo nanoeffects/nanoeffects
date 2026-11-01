@@ -492,6 +492,26 @@ describe("createTracer: the task method of a logger", () => {
 		expect(seen).toEqual([]);
 	});
 
+	it("says whether a task was made by an emit or by ctx.run and the policies", async () => {
+		const { logger, seen } = watched();
+		const bus = createBus<{ a: number; b: number }>({
+			trace: createTracer(logger),
+		});
+		bus.on("a", async (_payload, ctx) => {
+			ctx.emit("b", 1);
+			await ctx.run(async () => {});
+		});
+		bus.on("b", () => {});
+
+		bus.emit("a", 1);
+		await Promise.resolve();
+
+		const byType = (type: string) => seen.filter((info) => info.type === type);
+		// the task of the first emit, then the handler of b (emitted), then the child of ctx.run (not)
+		expect(byType("a").map((info) => info.emitted)).toEqual([true, false]);
+		expect(byType("b").map((info) => info.emitted)).toEqual([true]);
+	});
+
 	it("leaves a plain function logger as it was", () => {
 		const recorder = createTraceRecorder();
 		const tracer = createTracer(recorder);

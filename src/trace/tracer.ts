@@ -1,3 +1,4 @@
+import { currentEmitter } from "../core/context";
 import { combineLoggers } from "../core/logger";
 import { scopeKey } from "../core/scope-key";
 import { callBeingEmitted } from "../core/trace-call";
@@ -42,6 +43,7 @@ type Ref = {
 	// the event a renamed listener handles
 	event?: string | undefined;
 	leaf?: boolean | undefined;
+	emitted: boolean;
 	parentRef?: Ref | undefined;
 	payload: unknown;
 	sampled: boolean;
@@ -104,6 +106,7 @@ export const createTracer = <E = Record<string, unknown>>(
 		if (ref.leaf) {
 			info.leaf = true;
 		}
+		info.emitted = ref.emitted;
 		if (ref.group !== void 0) {
 			info.traceGroupId = ref.group;
 		}
@@ -131,6 +134,8 @@ export const createTracer = <E = Record<string, unknown>>(
 				// kept only for a logger that watches tasks: a chain of refs would hold every ancestor alive
 				parentRef: watchers.length > 0 ? parent : void 0,
 				leaf: event.leaf,
+				// an emit makes its tasks with the emitter as the parent; `ctx.run` and the effects name their own
+				emitted: currentEmitter() === parent,
 				type: event.type,
 				payload: event.payload,
 				sampled: parent?.sampled ?? isSampled(event),

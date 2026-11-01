@@ -329,10 +329,13 @@ export const graphLogger = (options: GraphLoggerOptions = {}): GraphLogger => {
 		} else {
 			warnWithoutPlugin();
 		}
-		const unmatched = !info.leaf && sawLeaf && !takesLeaf(parent, info.type);
+		// a task that `ctx.run` or a policy made inside a handler is the handler again, not a step
+		const viaRun = info.emitted === false;
+		const unmatched =
+			!info.leaf && sawLeaf && !viaRun && !takesLeaf(parent, info.type);
 		// a root task with no emit leaf before it is the root of an emitter (`useEmitter` with a `traceId`), not a `ctx.run` child
 		const origin = unmatched && !parent;
-		const link = makeLink(info, parent, unmatched && !origin);
+		const link = makeLink(info, parent, viaRun || (unmatched && !origin));
 		links.set(info.ref, link);
 		if (!link.inner) {
 			record(info, link, parent, origin);

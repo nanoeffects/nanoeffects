@@ -279,6 +279,5 @@ A payload can be a class instance, a `Map`, a circular object or an `Error`, whi
 
 ## Know the limits
 
-- Without `tracePlugin` a task that `ctx.run` or a policy makes inside a handler can count as a step of the loop. With the plugin it is told apart.
 - A chain that repeats on purpose is reported. List its event in `ignore`.
 - The report is made once for each loop. `turns` in `graph.cycles()` keeps counting.

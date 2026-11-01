@@ -245,8 +245,7 @@ for (const plugin of [true, false]) {
 				bus.emit("a", 0);
 				await settle();
 
-				// without tracePlugin a task that a policy makes inside the handler is counted as a step too
-				expect(findings.length).toBeLessThanOrEqual(plugin ? 1 : 2);
+				expect(findings.length).toBeLessThanOrEqual(1);
 			});
 		}
 
@@ -271,7 +270,7 @@ for (const plugin of [true, false]) {
 			bus.emit("a", 0);
 			await vi.advanceTimersByTimeAsync(5000);
 
-			expect(findings.length).toBeLessThanOrEqual(plugin ? 1 : 2);
+			expect(findings.length).toBeLessThanOrEqual(1);
 		});
 
 		it("reports a loop through a keyed policy", async () => {
@@ -313,7 +312,7 @@ for (const plugin of [true, false]) {
 			bus.emit("a", 0);
 			await settle();
 
-			expect(findings.length).toBeLessThanOrEqual(plugin ? 1 : 2);
+			expect(findings.length).toBeLessThanOrEqual(1);
 			expect(findings.length).toBeGreaterThanOrEqual(1);
 		});
 
