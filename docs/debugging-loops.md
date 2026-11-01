@@ -279,5 +279,40 @@ A payload can be a class instance, a `Map`, a circular object or an `Error`, whi
 
 ## Know the limits
 
-- A chain that repeats on purpose is reported. List its event in `ignore`.
-- The report is made once for each loop. `turns` in `graph.cycles()` keeps counting.
+### Code that repeats on purpose looks like a loop
+
+`graphLogger` calls it a loop when one event stands in a chain three times. Some code does that by design. A handler that walks a tree emits `tree/visit` for every child, so the same event is in the chain once for each level. The logger cannot tell this from a mistake, so it reports it.
+
+Tell it with `ignore`. The event stays in the graph and in the exports, but it is not counted as a repeat, a step, or a storm:
+
+```js
+// graph.js
+import { graphLogger } from "nanoeffects/trace";
+
+export const graph = graphLogger({
+  // tree/visit repeats once for each level of the tree, on purpose
+  ignore: ["tree/visit"],
+});
+```
+
+Do not list an event only to silence a real loop: the report is the point. `ignore` also takes a function of the name, `ignore: (name) => name.startsWith("tree/")`.
+
+### A loop is reported once, and keeps being counted
+
+A loop that runs 500 turns writes one warning, not 500. After the warning, the logger counts the turns quietly. Read the count from `graph.cycles()` to see whether the loop is still going:
+
+```js
+// turns.js
+import { graph } from "./graph";
+
+const [loop] = graph.cycles();
+
+// turns — how many times the loop has gone round since it was found, the first time included
+console.log(loop.path.join(" → "), loop.turns);
+```
+
+Read it twice a moment apart. A number that grew means the loop is still running. The same number means it stopped. To act on the first report in code, use `onCycle`; it is called once too.
+
+### Without tracePlugin the graph is coarser
+
+Without `tracePlugin` the logger sees handlers but not the emits that nobody listens to, and it cannot give a name to a listener. A loop is still found, by event type.
