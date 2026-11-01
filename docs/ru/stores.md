@@ -2,9 +2,9 @@
 
 > **Уровень E.** Сначала прочитайте: [Руководство](guide.md#1-создайте-шину), шаги 1–3.
 
-Эта страница нужна, когда у вас **уже есть стор** и вы хотите async-работу с отменой и политиками рядом с ним. Это не повод выбирать Redux (или любой стор).
+Страница для проектов, где **стор уже есть**, а рядом нужна async-работа с отменой и политиками. Это не причина выбирать Redux или любой другой стор.
 
-Если стора у вас ещё нет, используйте `createBus` из [Руководства](guide.md).
+Стора ещё нет? Берите `createBus` из [Руководства](guide.md).
 
 ## На этой странице
 
@@ -17,17 +17,17 @@
   - [Zustand](#zustand)
   - [Pinia](#pinia)
   - [React: одно значение на несколько компонентов](#react-одно-значение-на-несколько-компонентов)
-  - [Колбэки на каждое изменение](#колбэки-на-каждое-изменение)
+  - [Callbacks на каждое изменение](#callbacks-на-каждое-изменение)
   - [Перестаньте следить за стором](#перестаньте-следить-за-стором)
   - [Меняйте стор из любого обработчика](#меняйте-стор-из-любого-обработчика)
 
 ## Подключите Redux Toolkit к шине
 
-`dispatch` в Redux → редьюсеры обновляют **состояние**. Полноценных **задач** (прервать работу в полёте, `latest` / `debounce` / `queue`, `retry` / `timeout`) он не даёт. Обычно для этого берут thunks, listener middleware из RTK или саги.
+`dispatch` в Redux запускает редьюсеры, и они обновляют **состояние**. Полноценных **задач** (прервать работу в полёте, `latest` / `debounce` / `queue`, `retry` / `timeout`) Redux не даёт. Для них обычно берут thunks, listener middleware из RTK или саги.
 
-`createEffectsMiddleware(bus)` решает ту же задачу: после выполнения редьюсера действие попадает ещё и на шину nanoeffects, которую вы ему передали. Оставьте RTK для состояния; используйте политики и эффекты для async.
+`createEffectsMiddleware(bus)` закрывает эту потребность: после редьюсера action попадает ещё и на переданную шину nanoeffects. Оставьте RTK для состояния, а для async берите политики и эффекты.
 
-Пропустите этот раздел, если вы ещё не на Redux. Рецепт в виде файла, проверяемого типами вместе с проектом: [`examples/redux.ts`](../../examples/redux.ts). Чтобы запустить его, откройте [пример counter](../../examples/counter): `redux.html` — счётчик на Redux Toolkit с этим middleware.
+Если вы не на Redux, пропустите раздел. Рецепт в виде файла, который проверяется типами вместе с проектом: [`examples/redux.ts`](../../examples/redux.ts). Запустить его можно в [примере counter](../../examples/counter): `redux.html` — счётчик на Redux Toolkit с этим middleware.
 
 ```js
 // bus.js
@@ -50,7 +50,7 @@ import { configureStore } from "@reduxjs/toolkit";
 import { createEffectsMiddleware } from "nanoeffects/redux";
 import { bus } from "./bus";
 
-// createEffectsMiddleware — действия попадают на шину после редьюсеров; задачи получают ctx.store
+// createEffectsMiddleware — actions попадают на шину после редьюсеров; задачи получают ctx.store
 const effects = createEffectsMiddleware(bus);
 
 export const store = configureStore({
@@ -75,23 +75,23 @@ bus.on(
 );
 ```
 
-Строковые имена событий (`"user/requested"`) работают так же. Используйте ваши обычные действия RTK (`createSlice` / `createAction`). nanoeffects добавляет middleware и политики; действия RTK она не заменяет.
+Строковые имена событий (`"user/requested"`) работают так же. Используйте ваши обычные actions RTK (`createSlice` / `createAction`). nanoeffects добавляет middleware и политики; actions RTK она не заменяет.
 
 ### Что гарантирует middleware
 
-- **Нет самозацикливания.** Действие, которое обработчик отправляет через `ctx.store` и тип которого совпадает с тем, над которым работает этот обработчик, обратно на шину не попадает. Другие обработчики этого типа его тоже не получают. Более длинных циклов (`a` → `b` → `a`) вам предстоит избегать самим.
-- **Упавший обработчик не ломает `dispatch`.** Если на шине задан `onError`, шина изолирует обработчики. Без него ошибка уходит в `console.error`, как в слушателях RTK. Редьюсеры по-прежнему выбрасывают ошибку вызывающему.
+- **Нет самозацикливания.** Action, который обработчик отправляет через `ctx.store` и тип которого совпадает с тем, над которым работает этот обработчик, обратно на шину не попадает. Другие обработчики этого типа его тоже не получают. Более длинных циклов (`a` → `b` → `a`) вам предстоит избегать самим.
+- **Упавший обработчик не ломает `dispatch`.** Если на шине задан `onError`, шина изолирует обработчики. Без него ошибка уходит в `console.error`, как в listener middleware RTK. Редьюсеры по-прежнему выбрасывают ошибку вызывающему.
 - **`store` доходит до задач, когда middleware установлено**, хотя шина создаётся раньше `configureStore`.
 
-Единственный параметр — `filter`, который не пускает отклонённые действия на шину. Параметры шины (`onError`, `context`, `trace`) идут в `createBus`. Используйте одну шину на один стор. Значения, не являющиеся обычными действиями (thunks), проходят нетронутыми. Ничто здесь не зависит от пакета `redux` во время выполнения.
+Единственный параметр — `filter`, который не пускает отклонённые actions на шину. Параметры шины (`onError`, `context`, `trace`) идут в `createBus`. Используйте одну шину на один стор. Значения, не являющиеся обычными actions (thunks), проходят нетронутыми. Ничто здесь не зависит от пакета `redux` во время выполнения.
 
 ### Покажите, какой dispatch начал цепочку
 
-Если на шине есть трассировщик и `tracePlugin`, каждое отправленное действие попадает на шину из корневой задачи трассировки. Назовите её через `traceId`, а поток соберите в группу через `traceGroupId`: `createEffectsMiddleware(bus, { traceId: "store", traceGroupId: "checkout" })`. Без `traceId` у корня тип действия. Без плагина параметры игнорируются. Подробнее в [Трассировке](tracing.md#покажите-какая-подписка-начала-цепочку).
+Если на шине есть трассировщик и `tracePlugin`, каждый отправленный action попадает на шину из корневой задачи трассировки. Назовите её через `traceId`, а поток соберите в группу через `traceGroupId`: `createEffectsMiddleware(bus, { traceId: "store", traceGroupId: "checkout" })`. Без `traceId` у корня тип action. Без плагина параметры игнорируются. Подробнее в [Трассировке](tracing.md#покажите-какая-подписка-начала-цепочку).
 
 ### Типизируйте `ctx.store` (необязательно)
 
-Только если вы хотите, чтобы TypeScript знал `store` у обработчиков. **В JavaScript это пропустите**: middleware уже кладёт `store` на задачу во время выполнения. Эти строки не связывают стор по всему приложению.
+Нужно, только чтобы TypeScript знал `store` у обработчиков. **В JavaScript пропустите**: middleware уже кладёт `store` на задачу во время выполнения. Эти строки не связывают стор в приложении.
 
 ```ts
 import { createBus, type WithContext } from "nanoeffects";
@@ -115,14 +115,14 @@ const effects = createEffectsMiddleware(bus);
 
 ## Отправляйте события из менеджера состояния
 
-У Zustand, MobX, Jotai, Valtio, Nanostores и Pinia адаптера нет. Redux — другое дело: используйте middleware из первого раздела, оно отправляет действия на шину. Обычный стор работает с шиной в двух направлениях, и оба показаны ниже для каждого стора:
+У Zustand, MobX, Jotai, Valtio, Nanostores и Pinia адаптера нет. Redux — другое дело: middleware из первого раздела отправляет его actions на шину. Остальные сторы работают с шиной в двух направлениях, и ниже оба показаны для каждого стора:
 
-- **Стор запускает событие.** Стор сообщает об изменении колбэком. Вы передаёте ему колбэк `bus.emitter(action)`, и изменение становится событием, которое запускает обработчик.
-- **Событие меняет стор.** Обработчик сообщает результат событием. Слушатель шины берёт стор из `ctx` и меняет его мутацией.
+- **Стор запускает событие.** Стор сообщает об изменении callback. Вы передаёте ему callback `bus.emitter(action)`, и изменение становится событием, которое запускает обработчик.
+- **Событие меняет стор.** Обработчик сообщает результат событием. Подписанный обработчик берёт стор из `ctx` и меняет его мутацией.
 
 Пример — поле поиска. В сторе два поля: `query`, которое печатает пользователь, и `results`, которое заполняет запрос. Изменение `query` запускает поиск с debounce; поиск заканчивается событием, которое записывает `results`.
 
-Писать `(query) => bus.emit(queryChanged(query))` для каждой подписки значит повторять шину и действие. `emitterPlugin` добавляет `bus.emitter(action)`: он возвращает этот колбэк за вас. Действие остаётся обычным `createAction`, так что `bus.emit(queryChanged("nano"))` и `bus.on(queryChanged, …)` работают как раньше.
+Писать `(query) => bus.emit(queryChanged(query))` для каждой подписки значит повторять шину и action. `emitterPlugin` добавляет `bus.emitter(action)`: он возвращает этот callback за вас. Action остаётся обычным `createAction`, так что `bus.emit(queryChanged("nano"))` и `bus.on(queryChanged, …)` работают как раньше.
 
 Шина получает стор как контекст: `contextPlugin({ store })` кладёт его на каждую задачу как `ctx.store` ([Поля контекста](context.md)). Тогда обработчик меняет стор его мутациями и никогда не обращается к стору по имени. Для каждого стора ниже различается только `store.js`. Он экспортирует `store` с теми же тремя членами:
 
@@ -147,7 +147,7 @@ export const bus = createBus()
 // search.js
 import { createAction } from "nanoeffects/actions";
 
-// createAction — обычные создатели действий; вызов лишь строит { type, payload }
+// createAction — обычные action creators; вызов лишь строит { type, payload }
 export const queryChanged = createAction("search/queryChanged");
 export const searchLoaded = createAction("search/loaded");
 ```
@@ -183,7 +183,7 @@ import { bus } from "./bus";
 import { queryChanged } from "./search";
 import { store } from "./store";
 
-// стор → событие: bus.emitter превращает колбэк в emit queryChanged
+// стор → событие: bus.emitter превращает callback в emit queryChanged
 export const stopQuery = store.onQueryChanged(bus.emitter(queryChanged));
 ```
 
@@ -191,7 +191,7 @@ export const stopQuery = store.onQueryChanged(bus.emitter(queryChanged));
 
 ### Nanostores
 
-`action` создаёт именованную мутацию атома. `listen` вызывает колбэк с новым значением; `subscribe` вызвал бы ещё и сразу, с текущим значением, поэтому используйте `listen`.
+`action` создаёт именованную мутацию атома. `listen` вызывает callback с новым значением; `subscribe` вызвал бы ещё и сразу, с текущим значением, поэтому используйте `listen`.
 
 ```js
 // store.js
@@ -204,14 +204,14 @@ export const store = {
   // action — именованная мутация атома
   setQuery: action($query, "setQuery", (target, query) => target.set(query)),
   setResults: action($results, "setResults", (target, items) => target.set(items)),
-  // listen — вызывает колбэк с новым запросом при каждом изменении
+  // listen — вызывает callback с новым запросом при каждом изменении
   onQueryChanged: (callback) => $query.listen(callback),
 };
 ```
 
 ### MobX
 
-`makeAutoObservable` превращает методы класса в действия (actions) — именно там MobX хочет видеть изменения. `reaction` следит за выражением и вызывает колбэк с его значением.
+`makeAutoObservable` превращает методы класса в actions — именно там MobX хочет видеть изменения. `reaction` следит за выражением и вызывает callback с его значением.
 
 <!-- docs-check: fork -->
 
@@ -224,7 +224,7 @@ class SearchStore {
   results = [];
 
   constructor() {
-    makeAutoObservable(this); // методы ниже становятся действиями
+    makeAutoObservable(this); // методы ниже становятся actions
   }
 
   setQuery(query) {
@@ -235,7 +235,7 @@ class SearchStore {
     this.results = items;
   }
 
-  // reaction — следит за выражением и вызывает колбэк с его значением
+  // reaction — следит за выражением и вызывает callback с его значением
   onQueryChanged(callback) {
     return reaction(() => this.query, callback);
   }
@@ -290,7 +290,7 @@ const setResultsAtom = atom(null, (_get, set, items) => set(resultsAtom, items))
 export const store = {
   setQuery: (query) => jotai.set(setQueryAtom, query),
   setResults: (items) => jotai.set(setResultsAtom, items),
-  // sub вызывает колбэк без значения; get его читает
+  // sub вызывает callback без значения; get его читает
   onQueryChanged: (callback) =>
     jotai.sub(queryAtom, () => callback(jotai.get(queryAtom))),
 };
@@ -298,7 +298,7 @@ export const store = {
 
 ### Zustand
 
-С `subscribeWithSelector` селектор выбирает поле, а колбэк вызывается только когда оно меняется. Без селектора Zustand вызывает колбэк при каждом `setState`, со всем состоянием. Мутации — функции в состоянии.
+С `subscribeWithSelector` селектор выбирает поле, а callback вызывается только когда оно меняется. Без селектора Zustand вызывает callback при каждом `setState`, со всем состоянием. Мутации — функции в состоянии.
 
 <!-- docs-check: fork -->
 
@@ -320,14 +320,14 @@ const useSearch = create(
 export const store = {
   setQuery: (query) => useSearch.getState().setQuery(query),
   setResults: (items) => useSearch.getState().setResults(items),
-  // селектор: колбэк получает state.query, только когда оно меняется
+  // селектор: callback получает state.query, только когда оно меняется
   onQueryChanged: (callback) => useSearch.subscribe((state) => state.query, callback),
 };
 ```
 
 ### Pinia
 
-Pinia (стор Vue) хранит реактивные объекты, а её `$subscribe` сообщает о каждой мутации стора, а не об одном поле. Вместо этого следите за одним геттером через `watch` из Vue: он вызывает колбэк с новым значением. Мутации — действия (actions) стора.
+Pinia (стор Vue) хранит реактивные объекты, а её `$subscribe` сообщает о каждой мутации стора, а не об одном поле. Вместо этого следите за одним геттером через `watch` из Vue: он вызывает callback с новым значением. Мутации — actions стора.
 
 <!-- docs-check: fork -->
 
@@ -336,7 +336,7 @@ Pinia (стор Vue) хранит реактивные объекты, а её `
 import { defineStore } from "pinia";
 import { watch } from "vue";
 
-// defineStore — Pinia: состояние и действия одного стора
+// defineStore — Pinia: состояние и actions одного стора
 const useSearch = defineStore("search", {
   state: () => ({ query: "", results: [] }),
   actions: {
@@ -354,7 +354,7 @@ const search = useSearch(); // вызывайте после того, как п
 export const store = {
   setQuery: (query) => search.setQuery(query),
   setResults: (items) => search.setResults(items),
-  // watch — вызывает колбэк с новым запросом, когда меняется search.query
+  // watch — вызывает callback с новым запросом, когда меняется search.query
   onQueryChanged: (callback) => watch(() => search.query, callback),
 };
 ```
@@ -363,7 +363,7 @@ export const store = {
 
 <!-- docs-check: new -->
 
-У значения вашего UI (запрос, фильтр, имя) часто две задачи. Несколько компонентов читают его и перерисовываются при изменении, а шина должна услышать каждое изменение, чтобы запустить обработчик. Рецепты ниже различаются тем, где живёт значение. Выбирайте первый, если обработчику не нужно читать значение.
+У значения UI (запрос, фильтр, имя) часто две роли. Несколько компонентов читают его и перерисовываются при изменении, а шина должна услышать каждое изменение, чтобы запустить обработчик. Рецепты ниже различаются тем, где живёт значение. Если обработчику не нужно читать значение, берите первый.
 
 | Значение живёт в | Когда использовать |
 | --- | --- |
@@ -373,7 +373,7 @@ export const store = {
 
 #### Чистый React: Context, `useEmitter` и `useEventState`
 
-Запись `useEffect(() => bus.emit(...), [value])` выглядит достаточной, но она отправляет событие при монтировании, дважды при монтировании под StrictMode и срабатывает заново, когда функция emit каждый рендер новая. `useEmitter` из `nanoeffects/react` избегает всех трёх. Он отправляет событие после коммита рендера с изменённым значением, никогда при монтировании, и сравнивает через `Object.is`. Нужен React 18 или новее; другим точкам входа пакета React не нужен.
+Записи `useEffect(() => bus.emit(...), [value])` кажется достаточно, но она отправляет событие при монтировании, дважды при монтировании под StrictMode и срабатывает заново, если функция emit новая в каждом рендере. `useEmitter` из `nanoeffects/react` избегает всех трёх проблем. Он отправляет событие после коммита рендера с изменённым значением, не отправляет при монтировании и сравнивает значения через `Object.is`. Нужен React 18 или новее; другим точкам входа пакета React не нужен.
 
 Сначала шина, события и обработчики, каждое в своём файле. `reactPlugin()` добавляет `bus.useEmitter` и `bus.useEventState`, а их деструктуризация даёт обычные хуки, которые вы экспортируете из файла шины:
 
@@ -468,13 +468,13 @@ export function Results() {
 
 - **Провайдер должен смонтироваться первым.** `useEventState` — не стор: шина значений не хранит, поэтому результат, пришедший до монтирования провайдера или после его размонтирования, теряется. Ставьте провайдер в корень. Если значение должно пережить это, держите его в сторе ниже и записывайте в него из обработчика.
 - **Все потребители перерисовываются** при любом изменении значения контекста. Если это медленно, разделите его на два контекста (`query` и `items`).
-- **Новый объект считается изменением.** Для значения, которое пересоздаётся с тем же содержимым, передайте `equals` в параметрах, третьим аргументом, чтобы сказать, когда два значения одинаковы: `useEmitter(profileChanged, profile, { equals: (previous, next) => previous.id === next.id })`. Тот же объект принимает `traceId` и `traceGroupId`, которые называют подписку и поток в [трассировке](tracing.md#покажите-какая-подписка-начала-цепочку).
+- **Новый объект считается изменением.** Если значение пересоздаётся с тем же содержимым, передайте `equals` третьим аргументом, чтобы задать, когда два значения одинаковы: `useEmitter(profileChanged, profile, { equals: (previous, next) => previous.id === next.id })`. Тот же объект принимает `traceId` и `traceGroupId`, которые называют подписку и поток в [трассировке](tracing.md#покажите-какая-подписка-начала-цепочку).
 
 `useEmitter` отправляет событие после рендера, а не в момент `setQuery`. Чтобы отправлять на каждый вызов, даже с тем же значением, вызывайте эмиттер из обработчика события (`bus.emitter(action)`, см. [Zustand](#zustand)).
 
 #### Значение, которое должен читать обработчик
 
-Контекст не виден обработчику шины. Когда обработчику нужно текущее значение, держите значение вне React. Около двенадцати строк `useSyncExternalStore` это делают, а `contextPlugin` отдаёт его каждому обработчику как `ctx.query`:
+Контекст React не виден обработчику шины. Если обработчику нужно текущее значение, держите его вне React. Это делают около двенадцати строк `useSyncExternalStore`, а `contextPlugin` отдаёт значение каждому обработчику как `ctx.query`:
 
 <!-- docs-check: new -->
 
@@ -539,7 +539,7 @@ import { bus } from "./bus";
 import { query } from "./query";
 import { queryChanged, refreshed } from "./search";
 
-// стор → шина: bus.emitter превращает действие в колбэк; одно место, любое число сеттеров
+// стор → шина: bus.emitter превращает action в callback; одно место, любое число сеттеров
 const emitQueryChanged = bus.emitter(queryChanged);
 query.subscribe(() => emitQueryChanged(query.get()));
 
@@ -603,7 +603,7 @@ export function SearchBox() {
 
 #### Не отправляйте события внутри редьюсера `useReducer`
 
-React может запустить редьюсер больше одного раза на один dispatch (дважды в StrictMode), так что `bus.emit` внутри него сработает дважды. Сначала отправьте в редьюсер, затем emit, из одного помощника. Либо держите состояние в редьюсере и передайте его в `useEmitter`, как любое другое значение.
+React может запустить редьюсер больше одного раза на один dispatch (дважды в StrictMode), так что `bus.emit` внутри него сработает дважды. Вызывайте dispatch в редьюсер, а затем emit, из одного помощника. Либо держите состояние в редьюсере и передавайте его в `useEmitter`, как любое другое значение.
 
 <!-- docs-check: new -->
 
@@ -641,7 +641,7 @@ function reducer(state, action) {
 export function Search() {
   const [query, dispatch] = useReducer(reducer, "");
 
-  // send: сначала редьюсер, затем шина (bus.emit принимает действие)
+  // send: сначала редьюсер, затем шина (bus.emit принимает action)
   function send(action) {
     dispatch(action);
     bus.emit(action);
@@ -660,13 +660,13 @@ export function Search() {
 
 Обычный `dispatch` обходит шину, поэтому везде вызывайте `send`.
 
-### Колбэки на каждое изменение
+### Callbacks на каждое изменение
 
-Сторы выше вызывают колбэк, только когда значение изменилось, поэтому эмиттеру не нужно сравнивать значения. Для стора, который вызывает колбэк на каждое изменение, сначала выберите меньшее значение, как это делает Zustand выше.
+Сторы выше вызывают callback, только когда значение изменилось, поэтому эмиттеру не нужно сравнивать значения. Для стора, который вызывает callback на каждое изменение, сначала выберите меньшее значение, как это делает Zustand выше.
 
 ### Перестаньте следить за стором
 
-`connect.js` хранит функцию, которую вернул `onQueryChanged` (`stopQuery`). Вызовите её сами или передайте дальше: `onAbort(ctx, stopQuery)` внутри задачи или `m.signal.addEventListener("abort", stopQuery)` в модуле. Чтобы остановить обратное направление, снимите слушателя `searchLoaded` через `bus.off(searchLoaded, handler)` или зарегистрируйте его в модуле, который снимет его при отключении.
+`connect.js` хранит функцию, которую вернул `onQueryChanged` (`stopQuery`). Вызовите её сами или передайте дальше: `onAbort(ctx, stopQuery)` внутри задачи или `m.signal.addEventListener("abort", stopQuery)` в модуле. Чтобы остановить обратное направление, снимите обработчик `searchLoaded` через `bus.off(searchLoaded, handler)` или зарегистрируйте его в модуле, который снимет его при отключении.
 
 ### Меняйте стор из любого обработчика
 
