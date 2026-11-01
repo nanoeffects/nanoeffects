@@ -13,6 +13,8 @@ import { type Bus, createBus } from "../core/bus";
 import type { EventMap } from "../core/types";
 import { devPlugin } from "../dev";
 import { all, delay, effectsPlugin, race } from "../effects";
+import { graphLogger } from "../graph";
+import { loopGuardPlugin } from "../guard";
 import { matchPlugin } from "../match";
 import { extendBus } from "../oop";
 import { reactPlugin } from "../react";
@@ -43,6 +45,7 @@ type Name =
 	| "signal"
 	| "dev"
 	| "trace"
+	| "guard"
 	| "react"
 	| "svelte"
 	| "vue";
@@ -58,6 +61,7 @@ const names: Name[] = [
 	"signal",
 	"dev",
 	"trace",
+	"guard",
 	"react",
 	"svelte",
 	"vue",
@@ -71,6 +75,9 @@ type Build = {
 	order: Name[];
 	// what the tracer of the bus saw
 	recorder: Recorder;
+	// the graph logger on the same tracer, and the cycles it was told about
+	graph: ReturnType<typeof graphLogger>;
+	cycles: unknown[];
 	bus: Bus<EventMap>;
 	messages: string[];
 	seen: {
@@ -109,10 +116,17 @@ const getValue = createAction<Call<void, number>>("probe/value");
 
 const make = (order: Name[]): Build => {
 	const recorder = createTraceRecorder();
+	const cycles: unknown[] = [];
+	const graph = graphLogger({
+		onCycle: (finding) => cycles.push(finding),
+		console: { warn: () => {} },
+	});
 	const build: Build = {
 		recorder,
+		graph,
+		cycles,
 		order,
-		bus: createBus<EventMap>({ trace: createTracer(recorder) }),
+		bus: createBus<EventMap>({ trace: createTracer([recorder, graph]) }),
 		messages: [],
 		seen: { handler: [], spawn: [], setup: [], predicate: [] },
 	};
@@ -179,6 +193,8 @@ const make = (order: Name[]): Build => {
 			);
 		} else if (name === "trace") {
 			build.bus.use(tracePlugin());
+		} else if (name === "guard") {
+			build.bus.use(loopGuardPlugin({ maxRepeats: 5, report: () => {} }));
 		} else if (name === "react") {
 			build.bus.use(reactPlugin());
 		} else if (name === "svelte") {
@@ -891,6 +907,41 @@ const probes: Probe[] = [
 		},
 	},
 ];
+
+// a handler that emits its own event, to see a loop with every combination of plugins
+const selfLoop = (build: Build, event: string) => {
+	let calls = 0;
+	build.bus.on(
+		event,
+		(_payload: unknown, ctx: { emit: (name: string) => unknown }) => {
+			calls += 1;
+			if (calls < 40) {
+				ctx.emit(event);
+			}
+		},
+	);
+	build.bus.emit(event);
+
+	return calls;
+};
+
+probes.push(
+	{
+		id: "graphLogger finds a loop whatever the other plugins are",
+		needs: [],
+		run: (build) => {
+			selfLoop(build, "probe/loop");
+
+			// a loop guard on the bus cuts the loop before it can be counted three times more than its limit
+			return build.cycles.length === 1;
+		},
+	},
+	{
+		id: "loopGuardPlugin cuts a loop whatever the other plugins are",
+		needs: ["guard"],
+		run: (build) => selfLoop(build, "probe/guarded") === 5,
+	},
+);
 
 const applies = (probe: Probe, order: Name[]) =>
 	probe.needs.every((name) => order.includes(name));

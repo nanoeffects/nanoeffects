@@ -52,6 +52,25 @@ describe("tracePlugin", () => {
 		]);
 	});
 
+	describe("the task of an emit", () => {
+		it("is marked as a leaf for a logger that watches tasks", () => {
+			const leaves: (boolean | undefined)[] = [];
+			const logger = Object.assign(() => {}, {
+				task: (info: { leaf?: boolean }) => {
+					leaves.push(info.leaf);
+				},
+			});
+			const bus = createBus<Events>({ trace: createTracer(logger) });
+			bus.use(tracePlugin());
+			bus.on("other", () => {});
+
+			bus.emit("other", 1);
+
+			// the leaf of the emit, then the task of the handler
+			expect(leaves).toEqual([true, void 0]);
+		});
+	});
+
 	describe("the emit event", () => {
 		const emitEvents = (events: TraceEvent[]) =>
 			events.filter((event) => event.effect === "emit");

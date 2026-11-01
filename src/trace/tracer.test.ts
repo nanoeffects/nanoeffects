@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createBus } from "../core/bus";
+import type { TaskInfo, TraceEvent } from "../core/types";
 import type { TestEvents } from "../tests/test-helpers";
 import { deferred } from "../tests/test-helpers";
 import { createTraceRecorder } from "./recorder";
@@ -432,5 +433,99 @@ describe("createTracer", () => {
 				recorder.events.filter((event) => event.phase === "done"),
 			).toHaveLength(2);
 		});
+	});
+});
+
+describe("createTracer: the task method of a logger", () => {
+	const watched = () => {
+		const seen: TaskInfo[] = [];
+		const logger = Object.assign((_event: TraceEvent) => {}, {
+			task: (info: TaskInfo) => {
+				seen.push({ ...info });
+			},
+		});
+
+		return { logger, seen };
+	};
+
+	it("is called for each task as it is made, with its parent", () => {
+		const { logger, seen } = watched();
+		const tracer = createTracer(logger);
+		const root = tracer.task({ type: "a" });
+		const child = tracer.task({ type: "b" }, root);
+
+		expect(seen.map((info) => [info.id, info.type, info.parent])).toEqual([
+			[1, "a", void 0],
+			[2, "b", root],
+		]);
+		expect(seen[1]?.ref).toBe(child);
+	});
+
+	it("is called again after a rename, with the event the task had before", () => {
+		const { logger, seen } = watched();
+		const tracer = createTracer(logger);
+		const ref = tracer.task({ type: "total/changed" });
+		tracer.rename?.(ref, "syncCart");
+
+		expect(seen.map((info) => [info.type, info.event])).toEqual([
+			["total/changed", void 0],
+			["syncCart", "total/changed"],
+		]);
+		expect(seen[0]?.ref).toBe(seen[1]?.ref);
+	});
+
+	it("marks the emit leaf", () => {
+		const { logger, seen } = watched();
+		const tracer = createTracer(logger);
+		tracer.task({ type: "a", leaf: true });
+		tracer.task({ type: "a" });
+
+		expect(seen.map((info) => info.leaf)).toEqual([true, void 0]);
+	});
+
+	it("is not called for a root that is not sampled, or for the tasks below it", () => {
+		const { logger, seen } = watched();
+		const tracer = createTracer(logger, { sample: 0 });
+		const root = tracer.task({ type: "a" });
+		tracer.task({ type: "b" }, root);
+
+		expect(seen).toEqual([]);
+	});
+
+	it("leaves a plain function logger as it was", () => {
+		const recorder = createTraceRecorder();
+		const tracer = createTracer(recorder);
+		const ref = tracer.task({ type: "a" });
+		tracer.report(ref, "run", "start");
+
+		expect(recorder.events).toHaveLength(1);
+	});
+
+	it("does not let a throwing hook break the task", () => {
+		vi.spyOn(console, "error").mockImplementation(() => {});
+		const logger = Object.assign((_event: TraceEvent) => {}, {
+			task: () => {
+				throw new Error("boom");
+			},
+		});
+		const tracer = createTracer(logger);
+
+		expect(() => tracer.task({ type: "a" })).not.toThrow();
+	});
+
+	it("sees a plain handler and the task it emits, which report no event", () => {
+		const { logger, seen } = watched();
+		const bus = createBus<{ a: number; b: number }>({
+			trace: createTracer(logger),
+		});
+		bus.on("a", (_payload, ctx) => {
+			ctx.emit("b", 1);
+		});
+		bus.on("b", () => {});
+		bus.emit("a", 1);
+
+		const handlerOfA = seen.find((info) => info.type === "a");
+		const taskOfB = seen.find((info) => info.type === "b");
+		expect(taskOfB?.parent).toBe(handlerOfA?.ref);
 	});
 });

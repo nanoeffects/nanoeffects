@@ -106,6 +106,10 @@
 			"types": "./dist/oop.d.ts",
 			"import": "./dist/oop.js"
 		},
+		"./guard": {
+			"types": "./dist/guard.d.ts",
+			"import": "./dist/guard.js"
+		},
 		"./trace": {
 			"types": "./dist/trace.d.ts",
 			"import": "./dist/trace.js"
@@ -245,6 +249,17 @@
 			"limit": "0.4 kB"
 		},
 		{
+			"name": "guard (plugin)",
+			"path": "dist/guard.js",
+			"limit": "1 kB"
+		},
+		{
+			"name": "trace: graphLogger",
+			"path": "dist/trace.js",
+			"import": "{ graphLogger }",
+			"limit": "5 kB"
+		},
+		{
 			"name": "oop (class entry)",
 			"path": "dist/oop.js",
 			"limit": "2.6 kB"
@@ -291,7 +306,7 @@
 		{
 			"name": "dev",
 			"path": "dist/dev.js",
-			"limit": "1 kB"
+			"limit": "1.15 kB"
 		},
 		{
 			"name": "dev (production)",

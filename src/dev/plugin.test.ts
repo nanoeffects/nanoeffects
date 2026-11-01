@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createModule, modulePlugin } from "../actions";
 import { createBus } from "../core/bus";
+import { siteOf } from "../core/site";
 import { matchPlugin } from "../match";
 import type { TestEvents } from "../tests/test-helpers";
 import { devPlugin as noopPlugin } from "./noop";
@@ -557,5 +558,50 @@ describe("devPlugin: the app of the bus", () => {
 		app.mount(createModule<TestEvents>("other", () => {}));
 
 		expect(messages).toEqual(['[nanoeffects] module "user" mounted']);
+	});
+});
+
+describe("devPlugin: where a named listener was made", () => {
+	it("notes the site of a listener with a traceId, and drops it when it is unsubscribed", () => {
+		const bus = createBus<{ a: number }>();
+		bus.use(devPlugin({ log: () => {} }));
+
+		const off = bus.on("a", () => {}, { traceId: "noted" });
+		expect(siteOf("noted")).toContain("plugin.test.ts");
+
+		off();
+		expect(siteOf("noted")).toBeUndefined();
+	});
+
+	it("keeps the note while one of two listeners with the name is still subscribed", () => {
+		const bus = createBus<{ a: number }>();
+		bus.use(devPlugin({ log: () => {} }));
+
+		const first = bus.on("a", () => {}, { traceId: "twice" });
+		const second = bus.on("a", () => {}, { traceId: "twice" });
+		first();
+
+		expect(siteOf("twice")).toBeDefined();
+		second();
+		expect(siteOf("twice")).toBeUndefined();
+	});
+
+	it("notes nothing for a listener with no traceId", () => {
+		const bus = createBus<{ a: number }>();
+		bus.use(devPlugin({ log: () => {} }));
+
+		bus.on("a", () => {});
+
+		expect(siteOf("a")).toBeUndefined();
+	});
+
+	it("notes nothing after disconnect", () => {
+		const bus = createBus<{ a: number }>();
+		const disconnect = bus.use(devPlugin({ log: () => {} }));
+		disconnect();
+
+		bus.on("a", () => {}, { traceId: "late" });
+
+		expect(siteOf("late")).toBeUndefined();
 	});
 });

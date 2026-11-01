@@ -60,9 +60,32 @@ export type TraceEvent<E = Record<string, unknown>> = {
  * Adapters in `nanoeffects/trace` are factories that return one; pass it
  * through `createTracer` to `createBus({ trace })`.
  */
-export type TraceLogger<E = Record<string, unknown>> = (
+export type TraceLogger<E = Record<string, unknown>> = ((
 	event: TraceEvent<E>,
-) => void;
+) => void) & {
+	/**
+	 * Optional: called when a task is made (and again when it is renamed), also for the tasks that
+	 * never report an event, like a plain handler. Not called for a root that is not sampled.
+	 */
+	task?: (task: TaskInfo) => void;
+};
+
+/** What a logger's `task` method gets about one task. */
+export type TaskInfo = {
+	/** Opaque handle of the task; the same one in the call for a rename. Key a `WeakMap` with it. */
+	ref: object;
+	/** Handle of the parent task; absent for a root. */
+	parent?: object;
+	/** The number the events of the task use as `id`. */
+	id: number;
+	/** The type of the task now: the event, or the name of a listener after a rename. */
+	type: string;
+	/** After a rename, the type the task had before it (the event the listener handles). */
+	event?: string;
+	/** `true` for the emit event that `tracePlugin` makes, which has no handler of its own. */
+	leaf?: boolean;
+	traceGroupId?: string;
+};
 
 /** One logger or several; a throwing logger never breaks the task or the others. */
 export type Trace<E = Record<string, unknown>> =

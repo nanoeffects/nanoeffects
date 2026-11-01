@@ -2,8 +2,14 @@ import { combineLoggers } from "../core/logger";
 import { scopeKey } from "../core/scope-key";
 import { callBeingEmitted } from "../core/trace-call";
 import type { Tracer } from "../core/tracer";
-import type { EffectName, Trace, TraceEvent } from "../core/types";
-import { isPromise, onAbort } from "../utils";
+import type {
+	EffectName,
+	TaskInfo,
+	Trace,
+	TraceEvent,
+	TraceLogger,
+} from "../core/types";
+import { isPromise, onAbort, report } from "../utils";
 
 const noop = () => {};
 
@@ -33,6 +39,10 @@ type Ref = {
 	id: number;
 	parent?: number | undefined;
 	type: string;
+	// the event a renamed listener handles
+	event?: string | undefined;
+	leaf?: boolean | undefined;
+	parentRef?: Ref | undefined;
 	payload: unknown;
 	sampled: boolean;
 	group?: string | undefined;
@@ -79,6 +89,32 @@ export const createTracer = <E = Record<string, unknown>>(
 	const log = combineLoggers(loggers);
 	const { filter, sample = 1 } = options;
 	let lastId = 0;
+	// loggers that want to see each task as it is made, also one that never reports an event
+	const watchers = (Array.isArray(loggers) ? loggers : [loggers]).flatMap(
+		(logger: TraceLogger) => (logger.task ? [logger.task] : []),
+	);
+	const announce = (ref: Ref) => {
+		const info: TaskInfo = { ref, id: ref.id, type: ref.type };
+		if (ref.parentRef) {
+			info.parent = ref.parentRef;
+		}
+		if (ref.event !== void 0) {
+			info.event = ref.event;
+		}
+		if (ref.leaf) {
+			info.leaf = true;
+		}
+		if (ref.group !== void 0) {
+			info.traceGroupId = ref.group;
+		}
+		for (const watch of watchers) {
+			try {
+				watch(info);
+			} catch (error) {
+				report("trace logger failed", error);
+			}
+		}
+	};
 
 	// a root task is sampled by `sample`; its children follow it
 	const isSampled = (event: { type: string; payload?: unknown }) =>
@@ -87,18 +123,32 @@ export const createTracer = <E = Record<string, unknown>>(
 			: Math.random() < sample;
 
 	const tracer: Tracer<Ref> = {
-		task: (event, parent) => ({
-			id: ++lastId,
-			root: parent?.root ?? lastId,
-			parent: parent?.id,
-			type: event.type,
-			payload: event.payload,
-			sampled: parent?.sampled ?? isSampled(event),
-			group: groupOf(event) ?? parent?.group,
-		}),
+		task: (event, parent) => {
+			const ref: Ref = {
+				id: ++lastId,
+				root: parent?.root ?? lastId,
+				parent: parent?.id,
+				// kept only for a logger that watches tasks: a chain of refs would hold every ancestor alive
+				parentRef: watchers.length > 0 ? parent : void 0,
+				leaf: event.leaf,
+				type: event.type,
+				payload: event.payload,
+				sampled: parent?.sampled ?? isSampled(event),
+				group: groupOf(event) ?? parent?.group,
+			};
+			if (watchers.length > 0 && ref.sampled) {
+				announce(ref);
+			}
+
+			return ref;
+		},
 
 		rename: (ref, type) => {
+			ref.event ??= ref.type;
 			ref.type = type;
+			if (watchers.length > 0 && ref.sampled) {
+				announce(ref);
+			}
 		},
 
 		report: (ref, effect, phase, error) => {

@@ -64,7 +64,7 @@ export const tracePlugin =
 		const { trace } = bus;
 		const report = (event: unknown, rest: unknown[]) => {
 			const ref = trace.task(
-				{ type: keyOf(event), payload: payloadOf(event, rest) },
+				{ type: keyOf(event), payload: payloadOf(event, rest), leaf: true },
 				currentEmitter(),
 			);
 			trace.report(ref, "emit", "done");

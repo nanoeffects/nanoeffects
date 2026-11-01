@@ -26,6 +26,7 @@ export default defineConfig([
 			svelte: "src/svelte/index.ts",
 			vue: "src/vue/index.ts",
 			trace: "src/trace/index.ts",
+			guard: "src/guard/index.ts",
 			actions: "src/actions/index.ts",
 			redux: "src/store/redux/index.ts",
 			dev: "src/dev/index.ts",

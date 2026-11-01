@@ -16,6 +16,7 @@ export default defineConfig({
 			},
 			{ find: /^nanoeffects\/actions$/, replacement: src("actions/index.ts") },
 			{ find: /^nanoeffects\/trace$/, replacement: src("trace/index.ts") },
+			{ find: /^nanoeffects\/guard$/, replacement: src("guard/index.ts") },
 			{
 				find: /^nanoeffects\/redux$/,
 				replacement: src("store/redux/index.ts"),

@@ -15,7 +15,12 @@ export interface Tracer<Ref extends object = object> {
 	 * `traceGroupId` names the flow the task belongs to; a task without one has its parent’s.
 	 */
 	task(
-		event: { type: string; payload?: unknown; traceGroupId?: string },
+		event: {
+			type: string;
+			payload?: unknown;
+			traceGroupId?: string;
+			leaf?: boolean;
+		},
 		parent?: Ref,
 	): Ref;
 	/** Gives the task another `type`, for a task that is named after it was made (a named listener). A tracer may leave it out. */

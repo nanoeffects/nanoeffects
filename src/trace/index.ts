@@ -2,10 +2,20 @@ export type { Tracer } from "../core/tracer";
 export type {
 	EffectName,
 	Phase,
+	TaskInfo,
 	Trace,
 	TraceEvent,
 	TraceLogger,
 } from "../core/types";
+export {
+	type ExportOptions,
+	type Finding,
+	type GraphLogger,
+	type GraphLoggerOptions,
+	type GraphSnapshot,
+	graphLogger,
+	type JsonOptions,
+} from "../graph";
 export { type ConsoleLoggerOptions, consoleLogger } from "./console";
 export {
 	type PerformanceLoggerOptions,

@@ -2,6 +2,7 @@ import type { ModuleHost, WithApp } from "../actions/module";
 import { mountEach } from "../actions/mount-each";
 import type { Bus } from "../core/bus";
 import { eventKey } from "../core/event";
+import { recordSite } from "../core/site";
 import type { EventMap } from "../core/types";
 import type { DevPlugin } from "./types";
 
@@ -59,6 +60,28 @@ const keyOf = (event: string | { type: string }) =>
 		? "*"
 		: eventKey(event);
 
+// the frame of the code that called `on`, kept for a listener that has a name; it is the fifth line of the stack: Error, callSite, siteOfListener, the wrapper of `on`, then the caller
+const callSite = () => {
+	const lines = new Error().stack?.split("\n") ?? [];
+	const frame = lines[4] ?? "";
+
+	return frame.trim().replace(/^at /, "");
+};
+
+// notes where a named listener was made, and returns the function that drops the note
+const siteOfListener = (args: unknown[]) => {
+	const options: unknown = args[2];
+	const name: unknown =
+		typeof options === "object" && options !== null
+			? Reflect.get(options, "traceId")
+			: void 0;
+	const site = typeof name === "string" ? callSite() : "";
+
+	return typeof name === "string" && site !== ""
+		? recordSite(name, site)
+		: () => {};
+};
+
 // counts the listeners that were added and not unsubscribed, per event
 const watchListeners = <E extends EventMap>(
 	bus: Bus<E>,
@@ -87,11 +110,13 @@ const watchListeners = <E extends EventMap>(
 		}
 
 		const off: () => void = Reflect.apply(original, bus, args);
+		const forgetSite = siteOfListener(args);
 		let removed = false;
 
 		return () => {
 			if (!removed) {
 				removed = true;
+				forgetSite();
 				const left = (counts.get(key) ?? 1) - 1;
 				counts.set(key, left);
 				if (left <= max) {

@@ -4,6 +4,7 @@ import * as actions from "../actions";
 import * as context from "../context";
 import * as dev from "../dev";
 import * as effects from "../effects";
+import * as guard from "../guard";
 import * as match from "../match";
 import * as observable from "../observable";
 import * as oop from "../oop";
@@ -58,6 +59,7 @@ describe("public entries", () => {
 			"consoleLogger",
 			"createTraceRecorder",
 			"createTracer",
+			"graphLogger",
 			"performanceLogger",
 			"reduxDevtools",
 			"tracePlugin",
@@ -99,6 +101,10 @@ describe("public entries", () => {
 
 	it("signal", () => {
 		expect(Object.keys(signal).sort()).toEqual(["fromSignal", "signalPlugin"]);
+	});
+
+	it("guard", () => {
+		expect(Object.keys(guard).sort()).toEqual(["LoopError", "loopGuardPlugin"]);
 	});
 
 	it("oop", () => {

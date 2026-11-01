@@ -87,6 +87,7 @@ import {
 	createTracer,
 	type EffectName,
 	type Phase,
+	type TaskInfo,
 	type Trace,
 	type TraceEvent,
 	type TraceLogger,
@@ -2277,6 +2278,21 @@ describe("the entries: where the types live", () => {
 
 		expectTypeOf(bus).toBeObject();
 		expectTypeOf(loggers).toExtend<Trace>();
+	});
+
+	it("lets a logger watch tasks with a task method, and a plain function is still a logger", () => {
+		const watching: TraceLogger = Object.assign(() => {}, {
+			task: (info: TaskInfo) => {
+				expectTypeOf(info.ref).toBeObject();
+				expectTypeOf(info.id).toBeNumber();
+				expectTypeOf(info.type).toBeString();
+				expectTypeOf(info.event).toEqualTypeOf<string | undefined>();
+			},
+		});
+		const plain: TraceLogger = () => {};
+		const tracer: Tracer = createTracer([watching, plain]);
+
+		expectTypeOf(tracer).toBeObject();
 	});
 
 	it("keeps the type parameter of the logger", () => {
