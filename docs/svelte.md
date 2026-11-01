@@ -80,4 +80,4 @@ bus.on(searchLoaded, (titles) => foundTitles.set(titles));
 ## Where to go next
 
 - The same job for React: [Build a sign-up form in React](react.md); for Vue: [Use nanoeffects in a Vue app](vue.md).
-- A policy in a component (a debounced save): in the script of a component make it once with [`withPolicy`](policies.md#call-a-policy-outside-a-bus); Svelte runs the script once, so it needs no hook.
+- A policy in a component (a debounced save): in the script of a component make it once with [`withPolicy`](policies.md#withpolicy-call-a-policy-outside-a-bus); Svelte runs the script once, so it needs no hook.

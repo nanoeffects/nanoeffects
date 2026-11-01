@@ -6,12 +6,6 @@ Use this page for retry, timeouts, waiting, or parallel work — not as the firs
 
 An abort only raises a flag. Your code decides to stop. Start with `retry` / `timeout` on a handler (see [Guide §5](guide.md#5-add-retry-and-timeout)).
 
-## On this page
-
-- [Effects](#effects)
-- [`retry`](#retry), [`timeout`](#timeout), [`poll`](#poll), [`backoff`](#backoff), [`delay`](#delay), [`cancellable`](#cancellable), [`onAbort`](#onabort), [`ctx.on` and `ctx.off`](#ctxon-and-ctxoff), [`take`](#take), [`all`](#all), [`allSettled`](#allsettled), [`race`](#race), [`effectsPlugin`](#effectsplugin)
-- [Effects outside a task](#effects-outside-a-task)
-
 ## Effects
 
 Every effect below has its own section with its forms, options and an example. `ctx` is the context of the task.
@@ -29,6 +23,7 @@ Every effect below has its own section with its forms, options and an example. `
 - [`allSettled`](#allsettled) — wait for all of them, whatever the outcome.
 - [`race`](#race) — take the first result and cancel the rest.
 - [`effectsPlugin`](#effectsplugin) — short forms of effects: call them without `ctx`.
+- [Effects outside a task](#effects-outside-a-task) — call effects where there is no handler.
 
 ## `retry`
 
@@ -482,7 +477,7 @@ One argument is the short form and two arguments are the form with `ctx`: `all(e
 
 ## `effectsPlugin`
 
-Short forms of effects: `effectsPlugin` puts chosen effects on `ctx`, so a handler calls them without passing `ctx` around. Use it when many handlers call the same helpers, to cut the boilerplate. A handler destructures them like `signal`. Only the effects you pass are imported, so the rest stay out of the bundle ([package entries](package.md)).
+Short forms of effects: `effectsPlugin(effects)` puts chosen effects on `ctx`, so a handler calls them without passing `ctx` around. Use it when many handlers call the same helpers, to cut the boilerplate. A handler destructures them like `signal`. Only the effects you pass are imported, so the rest stay out of the bundle ([package entries](package.md)).
 
 ```js
 import { createBus } from "nanoeffects";

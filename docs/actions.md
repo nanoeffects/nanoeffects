@@ -2,7 +2,22 @@
 
 > **Level D.** Read first: [Guide](guide.md#1-create-a-bus) steps 1 to 6.
 
-When a project has a lot of business logic, you need to split it. One way is to split it by domains, or entities. In a shop, the domains could be products and product categories. Then the code that belongs to the actions of one domain goes into one file (`product.js`), its handlers into another, and the module that mounts them into a third. A domain can then be mounted, replaced or unmounted without touching the others.
+When a project has a lot of business logic, you need to split it. One way is to split it by domains, or entities. In a shop, the domains could be products and product categories. Then the code that belongs to the actions of one domain goes into one file (`product.js`), its handlers into another, and the module that mounts them into a third. A domain can then be mounted, replaced or unmounted without touching the others. For the shop the files could look like this:
+
+```text
+src/
+  bus.js
+  product/
+    product.js
+    product-handlers.js
+    product-module.js
+  category/
+    category.js
+    category-handlers.js
+    category-module.js
+```
+
+The examples below show the content of such files.
 
 If you only need `on` / `emit` or policies, stay in the [Guide](guide.md) until you need a result from `emit` or a mountable domain.
 

@@ -242,7 +242,7 @@ const searchLatest = latest(async (query, { signal }) => {
 bus.on("search", debounce(300, searchLatest));
 ```
 
-Все параметры: [Политики](policies.md). Нет шины? Политика работает и как обычная функция: [Вызов политики вне шины](policies.md#вызов-политики-вне-шины).
+Все параметры: [Политики](policies.md). Нет шины? Политика работает и как обычная функция: [`withPolicy`: вызов политики вне шины](policies.md#withpolicy-вызов-политики-вне-шины).
 
 ## 5. Retry и timeout
 
@@ -523,8 +523,8 @@ const bus = createBus({
 
 | Нужно | Страница |
 | ----- | -------- |
-| Стор или клиент на каждой задаче | [Поля контекста](context.md) |
-| Redux / Zustand / MobX | [Сторы](stores.md) |
+| Store или клиент на каждой задаче | [Поля контекста](context.md) |
+| Redux / Zustand / MobX | [State managers](stores.md) |
 | Наблюдать за задачами | [Трассировка](tracing.md) |
 | Гарантии | [Семантика](semantics.md) |
 | Какой импорт | [Точки входа пакета](package.md) |

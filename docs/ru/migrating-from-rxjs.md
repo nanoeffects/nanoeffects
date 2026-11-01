@@ -35,7 +35,7 @@ nanoeffects не заменяет RxJS, они делят работу: RxJS ф�
 | `firstValueFrom(fromEvent(…))` | [`take(ctx, event)`](effects.md) |
 | `Subject` | `bus.emit` и `bus.on` |
 | `map`, `filter`, `scan`, `combineLatest`, `buffer`, `window`, `share` | остаются в RxJS |
-| `distinctUntilChanged` | проверка в обработчике или в подписке на стор (см. [Сторы](stores.md)) |
+| `distinctUntilChanged` | проверка в обработчике или в подписке на store (см. [State managers](stores.md)) |
 
 Политика и оператор различаются в одном. `switchMap` отбрасывает старый внутренний поток. `latest` прерывает старую задачу через её `signal`, так что `fetch`, получивший сигнал, останавливается. Передавайте сигнал дальше, иначе работа продолжится в фоне.
 
@@ -147,7 +147,7 @@ bus.emit("leave"); // остановка
 
 **Шина → RxJS.** `createObserve(bus)` даёт Observable события ([Observable](observable.md)).
 
-**RxJS → шина.** `bus.emitter(action)` возвращает callback, отправляющий action, так что он годится как аргумент `subscribe` ([Сторы](stores.md) описывают плагин).
+**RxJS → шина.** `bus.emitter(action)` возвращает callback, отправляющий action, так что он годится как аргумент `subscribe` ([State managers](stores.md) описывают плагин).
 
 ```js
 // bus.js

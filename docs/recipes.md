@@ -4,6 +4,37 @@
 
 Each task below starts with the problem, then a short solution. Where the page has more to say, the last line links to it. The tasks go from the simplest to the most involved.
 
+## On this page
+
+- [Events and handlers](#events-and-handlers)
+  - [A handler needs an API client, a store or a logger](#a-handler-needs-an-api-client-a-store-or-a-logger)
+  - [One handler fails, the others must still run](#one-handler-fails-the-others-must-still-run)
+  - [A typo in an event name](#a-typo-in-an-event-name)
+- [Races and repeated actions in the UI](#races-and-repeated-actions-in-the-ui)
+  - [An old response overwrites a new one](#an-old-response-overwrites-a-new-one)
+  - [A search box sends a request on every key](#a-search-box-sends-a-request-on-every-key)
+  - [A second click sends a second request](#a-second-click-sends-a-second-request)
+  - [Messages must go out in order](#messages-must-go-out-in-order)
+  - [A "Delete" button in a list blocks the other rows](#a-delete-button-in-a-list-blocks-the-other-rows)
+- [An unreliable network and long flows](#an-unreliable-network-and-long-flows)
+  - [A request fails sometimes: retry and backoff](#a-request-fails-sometimes-retry-and-backoff)
+  - [A request hangs: timeout](#a-request-hangs-timeout)
+  - [Refresh data every N seconds: poll](#refresh-data-every-n-seconds-poll)
+  - [Wait for another event inside a handler: take](#wait-for-another-event-inside-a-handler-take)
+  - [Load several things at once: all](#load-several-things-at-once-all)
+  - [Take the fastest answer: race](#take-the-fastest-answer-race)
+- [Features and domain logic](#features-and-domain-logic)
+  - [Get the result of emit](#get-the-result-of-emit)
+  - [Group a feature with its handlers: modules](#group-a-feature-with-its-handlers-modules)
+  - [Do not leave subscriptions after a widget closes](#do-not-leave-subscriptions-after-a-widget-closes)
+- [Stop work on a server](#stop-work-on-a-server)
+- [Debugging: what ran and why](#debugging-what-ran-and-why)
+- [Other libraries in the project](#other-libraries-in-the-project)
+- [Classes and TypeScript](#classes-and-typescript)
+  - [Use the bus in a class](#use-the-bus-in-a-class)
+  - [Keep the types of the bus in many files](#keep-the-types-of-the-bus-in-many-files)
+- [Examples of whole apps](#examples-of-whole-apps)
+
 ## Events and handlers
 
 ### A handler needs an API client, a store or a logger
@@ -116,7 +147,7 @@ bus.on(
 bus.on("results", (items) => render(items));
 ```
 
-More: [Cancel stale requests](cancel-stale-requests.md), [Policies](policies.md#abort-the-previous-run), and the component side in [Build a sign-up form in React](react.md).
+More: [Cancel stale requests](cancel-stale-requests.md), [Policies](policies.md#latest-abort-the-previous-run), and the component side in [Build a sign-up form in React](react.md).
 
 ### A search box sends a request on every key
 
@@ -204,7 +235,7 @@ bus.on(
 );
 ```
 
-More: [Policies, `key`](policies.md#isolate-state-by-key).
+More: [Policies, `key`](policies.md#key-isolate-state-by-key).
 
 ## An unreliable network and long flows
 

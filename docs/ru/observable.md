@@ -35,7 +35,7 @@ const subscription = typed$
 
 ## Отправка потока в шину
 
-Проблема: `.subscribe((value) => bus.emit(action(value)))` повторяет шину и action в каждой подписке. `bus.emitter(action)` из `emitterPlugin` возвращает готовый callback для `subscribe`. Он подходит любому источнику с функцией `next`: потоку RxJS, callback стора, DOM-обработчику.
+Проблема: `.subscribe((value) => bus.emit(action(value)))` повторяет шину и action в каждой подписке. `bus.emitter(action)` из `emitterPlugin` возвращает готовый callback для `subscribe`. Он подходит любому источнику с функцией `next`: потоку RxJS, callback store, DOM-обработчику.
 
 ```js
 // bus.js
@@ -230,4 +230,4 @@ bus.on("screen-opened", (_, ctx) => {
 
 - Поток никогда не завершается и не падает: приходят только события. Ошибку вашего подписчика шина обрабатывает, только если задан `onError` ([Ошибки](errors.md)).
 - `observe` обращается к шине при вызове `subscribe`, а не при создании. Создайте его один раз и вызывайте сколько нужно.
-- Операторы, хранящие состояние (`scan`, `buffer`, `window`), живут в RxJS. Шина значений не хранит. Полное разделение работы см. в [nanoeffects рядом с RxJS](migrating-from-rxjs.md).
+- Операторы, хранящие state (`scan`, `buffer`, `window`), живут в RxJS. Шина значений не хранит. Полное разделение работы см. в [nanoeffects рядом с RxJS](migrating-from-rxjs.md).

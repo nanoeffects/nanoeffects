@@ -6,7 +6,7 @@ Use this page when handlers overlap in a SPA (search-as-you-type, double submit,
 
 Start with `latest`. The table and sections below are the rest of the reference.
 
-## Abort the previous run
+## `latest`: abort the previous run
 
 ```js
 import { createBus } from "nanoeffects";
@@ -28,7 +28,7 @@ Pass `signal` to `fetch` (and the like) so the request cancels.
 
 ## Choose a policy
 
-Every policy accepts `key` in its options (see [Isolate state by key](#isolate-state-by-key)).
+Every policy accepts `key` in its options (see [`key`: isolate state by key](#key-isolate-state-by-key)).
 
 | Policy | Overlapping calls |
 | ------ | ----------------- |
@@ -48,11 +48,15 @@ One entry per policy: what it does, and a link to the full recipe.
 
 A newer call aborts the older one and drops its result.
 
-More: [Abort the previous run](#abort-the-previous-run).
+Signature: `latest(fn, options?)`.
+
+More: [`latest`: abort the previous run](#latest-abort-the-previous-run).
 
 ### `leading`
 
 New calls are dropped while a run is going.
+
+Signature: `leading(fn, options?)`.
 
 More: [Prevent a double submit](prevent-double-submit.md).
 
@@ -60,11 +64,15 @@ More: [Prevent a double submit](prevent-double-submit.md).
 
 Runs after a period of quiet.
 
+Signature: `debounce(ms, fn, options?)`.
+
 More: [Configure debounce and throttle](#configure-debounce-and-throttle).
 
 ### `throttle`
 
 At most one run within `ms`.
+
+Signature: `throttle(ms, fn, options?)`.
 
 More: [Configure debounce and throttle](#configure-debounce-and-throttle).
 
@@ -72,15 +80,19 @@ More: [Configure debounce and throttle](#configure-debounce-and-throttle).
 
 Builds a queue of calls: they run one after another, in order.
 
+Signature: `queue(fn, options?)`.
+
 More: [Run calls one after another with `queue`](#run-calls-one-after-another-with-queue).
 
 ### `key`
 
-An option of every policy. It splits the state of the policy by a criterion, for example by id: calls with different keys do not affect each other. `latest(fn, { key: (payload) => payload.id })`.
+An option of every policy. It splits the state of the policy by a property, for example by id: calls with different keys do not affect each other.
 
-More: [Isolate state by key](#isolate-state-by-key).
+Signature: `latest(fn, { key: (payload) => payload.id })`.
 
-To use a policy for your own function with no bus, see [Call a policy outside a bus](#call-a-policy-outside-a-bus).
+More: [`key`: isolate state by key](#key-isolate-state-by-key).
+
+To use a policy for your own function with no bus, see [`withPolicy`: call a policy outside a bus](#withpolicy-call-a-policy-outside-a-bus).
 
 ## Configure debounce and throttle
 
@@ -98,7 +110,7 @@ To use a policy for your own function with no bus, see [Call a policy outside a 
 - `leading: true, trailing: false` — only the first call of a series.
 - Both `false` — nothing runs.
 
-## Isolate state by key
+## `key`: isolate state by key
 
 `key` gives each key its own state. Calls with different keys do not affect each other. Idle keys are dropped, so keys can be unbounded (ids, urls).
 
@@ -157,7 +169,7 @@ Every call returns a promise with the result of its own run. An error rejects on
 - When a running call aborts, its slot is freed at once and its result is dropped.
 - Pass `signal` into what `fn` does. A `fn` that ignores it can overlap with the next run.
 
-## Call a policy outside a bus
+## `withPolicy`: call a policy outside a bus
 
 **Problem.** You want a debounced input handler or a "latest request wins" fetch for your own function, but the code has no bus: a DOM handler, a click callback, a function in a service. A policy needs a context on every call, so `debounce(300, search)("re")` does not work on its own.
 

@@ -282,7 +282,7 @@ export const Search = ({ wait }) => {
 - Write the policy without its callback: `debounce(300)`, not `debounce(300, callback)`. `usePolicy` puts the callback in itself, always the one of the latest render.
 - To combine policies, write a function of the task: `(task) => throttle(100, latest(task))`. Here `task` is the callback that `usePolicy` keeps current; pass it, not your own function.
 - `deps` stay your job: `debounce(wait)` is made again on every render, but only the first one (and the one after `deps` change) is used.
-- Without a React component, use [`withPolicy`](policies.md#call-a-policy-outside-a-bus).
+- Without a React component, use [`withPolicy`](policies.md#withpolicy-call-a-policy-outside-a-bus).
 
 ### Write a policy without its function
 
@@ -312,7 +312,7 @@ const search = wrap(runSearch);
 ## Where to go next
 
 - The policies behind this form: [Policies](policies.md).
-- A policy as a plain function without a bus: [Call a policy outside a bus](policies.md#call-a-policy-outside-a-bus).
+- A policy as a plain function without a bus: [`withPolicy`: call a policy outside a bus](policies.md#withpolicy-call-a-policy-outside-a-bus).
 - `retry`, `timeout` and the other effects: [Effects](effects.md).
 - A state library instead of `useState`: [Stores](stores.md).
 - React Query or SWR instead of your own state: [Use nanoeffects with React Query, SWR and RTK Query](query-libraries.md).

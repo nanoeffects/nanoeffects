@@ -64,7 +64,7 @@ bus.on(
 
 Задачи — обычные `async`-функции. `ctx.signal` заменяет `cancel`: передайте его в `fetch` или в ваш клиент, и запрос остановится.
 
-[Пример counter](../../examples/counter) показывает счётчик, `takeLatest` с `delay`, отмену и падающий вызов. В нём две страницы: без стора и с Redux Toolkit.
+[Пример counter](../../examples/counter) показывает счётчик, `takeLatest` с `delay`, отмену и падающий вызов. В нём две страницы: без store и с Redux Toolkit.
 
 ## Запуск задачи без ожидания
 

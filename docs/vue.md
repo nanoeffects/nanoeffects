@@ -94,5 +94,5 @@ In TypeScript the type of the `ref` comes from the event: with `createAction<str
 ## Where to go next
 
 - The same two jobs for React: [Build a sign-up form in React](react.md).
-- A policy in a component (a debounced save): in `<script setup>` make it once with [`withPolicy`](policies.md#call-a-policy-outside-a-bus); Vue runs the setup once, so it needs no hook.
+- A policy in a component (a debounced save): in `<script setup>` make it once with [`withPolicy`](policies.md#withpolicy-call-a-policy-outside-a-bus); Vue runs the setup once, so it needs no hook.
 - Keep values in Pinia: [Connect Redux, Zustand, MobX, or Pinia](stores.md).

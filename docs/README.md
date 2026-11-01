@@ -22,6 +22,8 @@ bus.on("found", (items) => render(items));
 bus.emit("search", "nano");
 ```
 
+The same example with a UI framework: [React](react.md), [Vue](vue.md), [Svelte](svelte.md). Ready projects: [Start a project from a template](starter.md).
+
 ## Install
 
 ```bash

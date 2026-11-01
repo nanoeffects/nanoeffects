@@ -9,7 +9,7 @@
 - [Подключение плагина](#подключение-плагина)
 - [Плагин по задаче](#плагин-по-задаче)
 - [Основные плагины](#основные-плагины)
-  - [Стор или клиент на каждом обработчике: `contextPlugin`](#стор-или-клиент-на-каждом-обработчике-contextplugin)
+  - [Store или клиент на каждом обработчике: `contextPlugin`](#store-или-клиент-на-каждом-обработчике-contextplugin)
   - [`race` и `delay` без `ctx`: `effectsPlugin`](#race-и-delay-без-ctx-effectsplugin)
   - [Привязка и замена обработчика: `actionsPlugin`](#привязка-и-замена-обработчика-actionsplugin)
   - [Домен как единое целое: `modulePlugin`](#домен-как-единое-целое-moduleplugin)
@@ -18,7 +18,7 @@
   - [Внешний сигнал для emit и подписки: `signalPlugin`](#внешний-сигнал-для-emit-и-подписки-signalplugin)
   - [Имена источника и потока трассировки: `tracePlugin`](#имена-источника-и-потока-трассировки-traceplugin)
   - [Подписка на группу событий: `matchPlugin`](#подписка-на-группу-событий-matchplugin)
-  - [Шина для менеджера состояния: `emitterPlugin`](#шина-для-менеджера-состояния-emitterplugin)
+  - [Шина для state manager: `emitterPlugin`](#шина-для-state-manager-emitterplugin)
   - [Сообщение шине об изменении значения в React: `reactPlugin`](#сообщение-шине-об-изменении-значения-в-react-reactplugin)
   - [Поиск утечек при разработке: `devPlugin`](#поиск-утечек-при-разработке-devplugin)
 - [Все плагины вместе](#все-плагины-вместе)
@@ -38,14 +38,14 @@
 
 | Мне нужно | Использовать |
 | --------- | ------------ |
-| Стор, клиент или логгер на каждом обработчике | [`contextPlugin`](#стор-или-клиент-на-каждом-обработчике-contextplugin) |
+| Store, клиент или логгер на каждом обработчике | [`contextPlugin`](#store-или-клиент-на-каждом-обработчике-contextplugin) |
 | `race`, `all` или `delay` без передачи `ctx` | [`effectsPlugin`](#race-и-delay-без-ctx-effectsplugin) |
 | Тест, который заменяет обработчик | [`actionsPlugin`](#привязка-и-замена-обработчика-actionsplugin) |
 | Один домен, подключаемый и отключаемый как единое целое | [`modulePlugin`](#домен-как-единое-целое-moduleplugin) |
 | Поля только для одного action или модуля | [`scopePlugin`](#собственные-поля-action-scopeplugin) |
 | Задачи, которые останавливаются, когда отменён запрос, сокет или query | [`signalPlugin`](#внешний-сигнал-для-emit-и-подписки-signalplugin) |
 | Одна подписка на группу событий | [`matchPlugin`](#подписка-на-группу-событий-matchplugin) |
-| Callback для менеджера состояния, который отправляет события | [`emitterPlugin`](#шина-для-менеджера-состояния-emitterplugin) |
+| Callback для state manager, который отправляет события | [`emitterPlugin`](#шина-для-state-manager-emitterplugin) |
 | Компонент React, который отправляет своё значение на шину | [`reactPlugin`](#сообщение-шине-об-изменении-значения-в-react-reactplugin) |
 | Имена в трассировке | [`tracePlugin`](#имена-источника-и-потока-трассировки-traceplugin) |
 | Предупреждения об утечках при разработке | [`devPlugin`](#поиск-утечек-при-разработке-devplugin) |
@@ -54,14 +54,14 @@
 
 | Плагин | Что даёт | Импорт | Что возвращает `bus.use` |
 | ------ | -------- | ------ | ------------------------ |
-| [`contextPlugin`](#стор-или-клиент-на-каждом-обработчике-contextplugin) | Ваши собственные поля (стор, клиент, логгер) на `ctx` каждого обработчика. | `nanoeffects` | Ту же шину, типизированную полями |
+| [`contextPlugin`](#store-или-клиент-на-каждом-обработчике-contextplugin) | Ваши собственные поля (store, клиент, логгер) на `ctx` каждого обработчика. | `nanoeffects` | Ту же шину, типизированную полями |
 | [`effectsPlugin`](#race-и-delay-без-ctx-effectsplugin) | `race`, `all`, `delay` и ваши собственные эффекты на `ctx`, вызываемые без передачи `ctx`. | `nanoeffects/effects` | Ту же шину, типизированную эффектами |
 | [`actionsPlugin`](#привязка-и-замена-обработчика-actionsplugin) | Обработчики actions в реестре, чтобы тест мог привязать или заменить один. | `nanoeffects/actions` | Реестр `{ run, handle }` |
 | [`modulePlugin`](#домен-как-единое-целое-moduleplugin) | Модуль: подписки, обработчики и задачи одного домена, подключаемые и отключаемые одним вызовом. | `nanoeffects/actions` | Приложение `{ mount, unmount, isMounted, dispose, actions, createModule }` |
 
-### Стор или клиент на каждом обработчике: `contextPlugin`
+### Store или клиент на каждом обработчике: `contextPlugin`
 
-Каждая задача получает на `ctx` одни и те же поля: стор, API-клиент, логгер. Типы берутся из значений. Подробнее в [Полях контекста](context.md).
+Каждая задача получает на `ctx` одни и те же поля: store, API-клиент, логгер. Типы берутся из значений. Подробнее в [Полях контекста](context.md).
 
 ```js
 import { createBus } from "nanoeffects";
@@ -137,7 +137,7 @@ app.unmount(userModule); // его подписки, привязанные acti
 | [`scopePlugin`](#собственные-поля-action-scopeplugin) | Собственные поля для одного action, задачи или модуля и способ заменить их в одном `emit`. | `nanoeffects/scope` | Ту же шину |
 | [`signalPlugin`](#внешний-сигнал-для-emit-и-подписки-signalplugin) | `emit(call, { signal })`, который прерывает свои задачи, и `on(event, handler, { signal })`, который отписывает обработчик, когда внешний сигнал прерывается. | `nanoeffects/signal` | Ту же шину, типизированную новым `emit` |
 | [`matchPlugin`](#подписка-на-группу-событий-matchplugin) | `on`, который слушает группу событий, выбираемую функцией. | `nanoeffects/match` | Ту же шину, типизированную новыми перегрузками |
-| [`emitterPlugin`](#шина-для-менеджера-состояния-emitterplugin) | Callback, который отправляет action, чтобы отдать его менеджеру состояния. | `nanoeffects/actions` | Ту же шину с `emitter` |
+| [`emitterPlugin`](#шина-для-state-manager-emitterplugin) | Callback, который отправляет action, чтобы отдать его state manager. | `nanoeffects/actions` | Ту же шину с `emitter` |
 | [`tracePlugin`](#имена-источника-и-потока-трассировки-traceplugin) | `traceId` и `traceGroupId` для трассировки: корень эмиттера, поток, именованный обработчик. | `nanoeffects/trace` | Ту же шину |
 | [`reactPlugin`](#сообщение-шине-об-изменении-значения-в-react-reactplugin) | Хук React, который отправляет событие, когда меняется значение компонента. | `nanoeffects/react` | Ту же шину с `useEmitter` |
 | [`devPlugin`](#поиск-утечек-при-разработке-devplugin) | Предупреждения о накапливающихся подписках и сообщения о модулях при разработке. | `nanoeffects/dev` | Функцию, которая его отключает |
@@ -233,9 +233,9 @@ bus.on(
 );
 ```
 
-### Шина для менеджера состояния: `emitterPlugin`
+### Шина для state manager: `emitterPlugin`
 
-`bus.emitter(creator)` — callback, отправляющий action. Менеджер состояния принимает его как callback подписки, так что изменение стора становится событием. Подробнее в [Сторах](stores.md#события-из-менеджера-состояния).
+`bus.emitter(creator)` — callback, отправляющий action. State manager принимает его как callback подписки, так что изменение store становится событием. Подробнее в [Stores](stores.md#события-из-state-manager).
 
 ```js
 import { atom } from "nanostores";
@@ -252,7 +252,7 @@ $name.listen(bus.emitter(nameChanged)); // каждое изменение $name
 
 ### Сообщение шине об изменении значения в React: `reactPlugin`
 
-`useEmitter(event, value, options?)` отправляет событие после коммита рендера с новым значением. Он не отправляет при монтировании и не отправляет дважды под StrictMode. Параметры — `{ equals, traceId, traceGroupId }`; последние два называют эту отправку в [трассировке](tracing.md#какая-подписка-начала-цепочку). Нужен React 18 или новее. Подробнее в [Сторах](stores.md#react-одно-значение-на-несколько-компонентов).
+`useEmitter(event, value, options?)` отправляет событие после коммита рендера с новым значением. Он не отправляет при монтировании и не отправляет дважды под StrictMode. Параметры — `{ equals, traceId, traceGroupId }`; последние два называют эту отправку в [трассировке](tracing.md#какая-подписка-начала-цепочку). Нужен React 18 или новее. Подробнее в [Stores](stores.md#react-одно-значение-на-несколько-компонентов).
 
 ```jsx
 import { useState } from "react";
@@ -348,7 +348,7 @@ export const disconnect = bus.use(devPlugin());
 
 Эти вещи подключаются без `bus.use`:
 
-- `createEffectsMiddleware(bus, { filter })` из `nanoeffects/redux` — middleware Redux для существующей шины. См. [Сторы](stores.md#подключение-redux-toolkit-к-шине).
+- `createEffectsMiddleware(bus, { filter })` из `nanoeffects/redux` — middleware Redux для существующей шины. См. [State managers](stores.md#подключение-redux-toolkit-к-шине).
 - `createBus({ trace })` принимает трассировщик из `nanoeffects/trace`. См. [Трассировку](tracing.md).
 - `extendBus(bus, Base)` из `nanoeffects/oop` даёт классу методы шины, а подписки каждого экземпляра заканчиваются через `dispose()`. Он читает шину как есть, так что сначала подключите плагины. См. [Шина в классе](oop.md).
 - `createObserve(bus)` из `nanoeffects/observable` превращает событие в Observable, а `events(bus, event)` — в цикл `for await`. См. [Observable](observable.md).

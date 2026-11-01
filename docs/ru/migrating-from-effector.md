@@ -2,14 +2,14 @@
 
 > **[Уровень E](README.md#виды-проектов)**: для тех, кто знает Effector. Сначала прочитайте: [Руководство](guide.md#1-создание-шины-событий).
 
-Библиотеки пересекаются в одном: события, запускающие эффекты. Effector ещё и хранит состояние, а nanoeffects — нет. Имена сопоставлены, один эффект показан в обоих вариантах, перечислено то, у чего аналога нет.
+Библиотеки пересекаются в одном: события, запускающие эффекты. Effector ещё и хранит state, а nanoeffects — нет. Имена сопоставлены, один эффект показан в обоих вариантах, перечислено то, у чего аналога нет.
 
 ## На этой странице
 
 - [Разделение работы](#разделение-работы)
 - [Соответствие](#соответствие)
 - [Переписанный эффект](#переписанный-эффект)
-  - [Состояние в Zustand](#состояние-в-zustand)
+  - [State в Zustand](#state-в-zustand)
 - [Переписанная форма](#переписанная-форма)
   - [Запрос вместо лога](#запрос-вместо-лога)
 - [Совместное использование в одном приложении](#совместное-использование-в-одном-приложении)
@@ -19,11 +19,11 @@
 
 | Задача | Использовать |
 | ------ | ------------ |
-| Хранить состояние (`createStore`, `combine`, `restore`) | Effector или любой стор: [Сторы](stores.md) |
-| Выводить состояние из событий (`.on`, `sample` в стор) | Effector или любой стор |
+| Хранить state (`createStore`, `combine`, `restore`) | Effector или любой store: [State managers](stores.md) |
+| Выводить state из событий (`.on`, `sample` в store) | Effector или любой store |
 | Запускать запрос, когда происходит событие, отменять, повторять, ограничивать по времени, трассировать | nanoeffects |
 
-В nanoeffects стора нет. Вместо `createStore` возьмите любой стор, например Zustand: стор и его `set` выполняют работу `createStore` и `.on`. [Сторы](stores.md) показывают, как с шиной работают Zustand, Redux, MobX, Jotai и другие. Если вы оставляете Effector, берите nanoeffects только для эффектов, которые запускает `createEffect`, чтобы управлять перекрывающимися вызовами.
+В nanoeffects store нет. Вместо `createStore` возьмите любой store, например Zustand: store и его `set` выполняют работу `createStore` и `.on`. [State managers](stores.md) показывают, как с шиной работают Zustand, Redux, MobX, Jotai и другие. Если вы оставляете Effector, берите nanoeffects только для эффектов, которые запускает `createEffect`, чтобы управлять перекрывающимися вызовами.
 
 ## Соответствие
 
@@ -33,18 +33,18 @@
 | вызов события `loaded(user)` | `bus.emit("loaded", user)` |
 | `createEffect(handler)` | обработчик: `bus.on(event, handler)` |
 | эффект с `done` и `fail` | [`createJob`](actions.md): отправляет actions успеха и ошибки |
-| `effect.pending` | `job.pending`, `job.success`, `job.fail` и `job.cancel`: выставляйте и сбрасывайте флаг в своём сторе ([Покажите состояние загрузки](actions.md#состояние-работы-job)) |
+| `effect.pending` | `job.pending`, `job.success`, `job.fail` и `job.cancel`: выставляйте и сбрасывайте флаг в своём store ([Покажите state загрузки](actions.md#state-работы-job)) |
 | `sample({ clock, fn, target })` | `bus.on(clock, handler)` и `ctx.emit(target, …)` |
-| `sample({ source: $store, clock })` | прочитать стор из [поля контекста](context.md) в обработчике |
+| `sample({ source: $store, clock })` | прочитать store из [поля контекста](context.md) в обработчике |
 | `sample({ filter })` | `if` в обработчике |
 | `debounce`, `throttle` из patronum | [`debounce`, `throttle`](policies.md) (те же правила, что у lodash, проверены в тестах) |
 | брать только последний вызов эффекта | [`latest`](policies.md) |
 | `attach` | [поле контекста](context.md): обработчик читает его из `ctx` |
 | `fork()` и scope | один `createBus()` на scope |
-| `createStore`, `combine`, `restore` | любой стор, например Zustand, Redux, MobX или Jotai: см. [Сторы](stores.md) |
+| `createStore`, `combine`, `restore` | любой store, например Zustand, Redux, MobX или Jotai: см. [State managers](stores.md) |
 | `watch`, `createWatch` | `bus.on(event, handler)` |
 | `event.prepend(fn)` | функция, которую пишете вы, `(event) => ({ key, value })`; шине ничего не нужно |
-| `useStoreMap({ store, keys, fn })` | селектор вашего стора; с `useState` значение хранит компонент |
+| `useStoreMap({ store, keys, fn })` | селектор вашего store; с `useState` значение хранит компонент |
 | `event.watch((e) => e.preventDefault())` | вызовите `event.preventDefault()` в обработчике `onSubmit` |
 
 ## Переписанный эффект
@@ -80,11 +80,11 @@ const search = latest(async (query, { signal }) => {
 bus.on("query-changed", debounce(300, search)); // debounce: запуск после 300 мс тишины
 ```
 
-Стора (`$items`) здесь нет. Оставьте его в Effector и обновляйте из события `found` или возьмите другой стор. Следующий пример использует Zustand.
+Store (`$items`) здесь нет. Оставьте его в Effector и обновляйте из события `found` или возьмите другой store. Следующий пример использует Zustand.
 
-### Состояние в Zustand
+### State в Zustand
 
-Без Effector `$items` нужно хранить в другом месте. Для этого подходит стор Zustand: `create` заменяет `createStore`, а `setState` — `.on(searchFx.doneData, …)`. Обработчик пишет результат прямо в стор, так что событие `found` не нужно. Компонент читает стор селектором, как раньше `useUnit($items)`.
+Без Effector `$items` нужно хранить в другом месте. Для этого подходит store Zustand: `create` заменяет `createStore`, а `setState` — `.on(searchFx.doneData, …)`. Обработчик пишет результат прямо в store, так что событие `found` не нужно. Компонент читает store селектором, как раньше `useUnit($items)`.
 
 ```js
 // bus.js
@@ -97,7 +97,7 @@ export const bus = createBus(); // шина: только шина
 // search-store.js
 import { create } from "zustand";
 
-// create — Zustand: стор заменяет $items
+// create — Zustand: store заменяет $items
 export const useSearchStore = create(() => ({ items: [] }));
 ```
 
@@ -137,11 +137,11 @@ export function Search() {
 }
 ```
 
-`bus.emit("query-changed", …)` в `onChange` делает работу вызова события `queryChanged`. Чтобы запускать задачу ещё и при изменении стора, см. [Zustand в «Сторах»](stores.md#zustand).
+`bus.emit("query-changed", …)` в `onChange` делает работу вызова события `queryChanged`. Чтобы запускать задачу ещё и при изменении store, см. [Zustand в «Stores»](stores.md#zustand).
 
 ## Переписанная форма
 
-Форма из [рецепта по формам в документации Effector](https://effector.dev/en/recipes/react/forms/) состоит из пяти частей: события изменения поля (`fieldUpdate`), стора значений (`$form`), события отправки (`formSubmitted`), эффекта, который их отправляет (`sendFormFx`), и `sample`, который читает стор при отправке формы. Четыре из них хранят состояние или соединяют юниты. Аналог в nanoeffects есть только у эффекта.
+Форма из [рецепта по формам в документации Effector](https://effector.dev/en/recipes/react/forms/) состоит из пяти частей: события изменения поля (`fieldUpdate`), store значений (`$form`), события отправки (`formSubmitted`), эффекта, который их отправляет (`sendFormFx`), и `sample`, который читает store при отправке формы. Четыре из них хранят state или соединяют юниты. Аналог в nanoeffects есть только у эффекта.
 
 <!-- docs-check: skip - нужен effector, от которого проект не зависит -->
 ```jsx
@@ -195,7 +195,7 @@ formSubmitted.watch((event) => {
 });
 ```
 
-Та же форма с nanoeffects. Значения живут в состоянии React: nanoeffects их не хранит, и любой стор из [Сторов](stores.md) работает так же. Эффект становится обработчиком события отправки. Значения едут в событии, так что `sample` и `source` не нужны. Сначала шина и обработчик, каждый в своём файле:
+Та же форма с nanoeffects. Значения живут в state React: nanoeffects их не хранит, и любой store из [Stores](stores.md) работает так же. Эффект становится обработчиком события отправки. Значения едут в событии, так что `sample` и `source` не нужны. Сначала шина и обработчик, каждый в своём файле:
 
 ```js
 // bus.js
@@ -260,9 +260,9 @@ export function App() {
 }
 ```
 
-`useStoreMap` перерисовывает только то поле, значение которого изменилось. Здесь каждое поле перерисовывается вместе с формой, что нормально для небольшой формы. Если это важно, возьмите селектор вашего стора (он есть у Zustand и Jotai).
+`useStoreMap` перерисовывает только то поле, значение которого изменилось. Здесь каждое поле перерисовывается вместе с формой, что нормально для небольшой формы. Если это важно, возьмите селектор вашего store (он есть у Zustand и Jotai).
 
-Если значения живут в сторе вне React, передайте стор обработчикам через `createBus({ context: { store } })` ([Поля контекста](context.md)) и читайте его в обработчике, как `sample` читал `$form`.
+Если значения живут в store вне React, передайте store обработчикам через `createBus({ context: { store } })` ([Поля контекста](context.md)) и читайте его в обработчике, как `sample` читал `$form`.
 
 ### Запрос вместо лога
 
@@ -288,7 +288,7 @@ bus.on(
 
 ## Совместное использование в одном приложении
 
-Оставьте сторы Effector и запускайте эффекты на шине. Стор обращается к шине через `bus.emitter`, а обработчик возвращает результат событием, которое слушает стор.
+Оставьте stores Effector и запускайте эффекты на шине. Store обращается к шине через `bus.emitter`, а обработчик возвращает результат событием, которое слушает store.
 
 ```js
 // bus.js
@@ -316,7 +316,7 @@ const found = createEvent(); // Effector: результат возвращае�
 const $items = createStore([]).on(found, (_, items) => items);
 const $query = createStore("");
 
-// watch вызывает callback на каждое изменение стора; bus.emitter превращает его в emit
+// watch вызывает callback на каждое изменение store; bus.emitter превращает его в emit
 $query.watch(bus.emitter(queryChanged));
 
 bus.on(
@@ -330,10 +330,10 @@ bus.on(
 
 ## Отличия
 
-- **Нет состояния.** Нет `createStore`, `combine`, `restore`, `$store.map`. Шина хранит только подписки. Для состояния возьмите стор вроде Zustand ([Сторы](stores.md)).
-- **`pending` — action, а не стор.** `createJob` отправляет `pending`, когда стартует обработчик, и `success`, `fail` или `cancel`, когда он заканчивается; флаг вы храните в своём сторе ([Покажите состояние загрузки](actions.md#состояние-работы-job)). Политики сообщают задаче, поэтому флаг следует и за `latest`, `leading`, `debounce`, `throttle` и `queue`; в разделе по ссылке выше сказано, когда вместо флага нужен счётчик. Выполняющуюся задачу видно и через [Трассировку](tracing.md).
+- **Нет state.** Нет `createStore`, `combine`, `restore`, `$store.map`. Шина хранит только подписки. Для state возьмите store вроде Zustand ([State managers](stores.md)).
+- **`pending` — action, а не store.** `createJob` отправляет `pending`, когда стартует обработчик, и `success`, `fail` или `cancel`, когда он заканчивается; флаг вы храните в своём store ([Покажите state загрузки](actions.md#state-работы-job)). Политики сообщают задаче, поэтому флаг следует и за `latest`, `leading`, `debounce`, `throttle` и `queue`; в разделе по ссылке выше сказано, когда вместо флага нужен счётчик. Выполняющуюся задачу видно и через [Трассировку](tracing.md).
 - **Отмена — инструмент по умолчанию.** Эффект Effector выполняет каждый вызов до конца. Здесь `latest` и `ctx.signal` останавливают то, что больше не нужно.
 - **События сопоставляются по имени, а не по идентичности.** Событие — это строка или action creator из `createAction`, а не юнит, который вы импортируете и вызываете. Два модуля договариваются об имени.
 - **Нет графа.** `sample` и `forward` строят статический граф. Шина подписывает обработчики во время выполнения, а порядок вызова — порядок `on`.
-- **Данные передаются в событии.** `sample({ source })` читает стор в момент clock. Здесь отправитель кладёт значения в событие (`bus.emit("form/submitted", form)`), либо обработчик читает стор из [поля контекста](context.md).
+- **Данные передаются в событии.** `sample({ source })` читает store в момент clock. Здесь отправитель кладёт значения в событие (`bus.emit("form/submitted", form)`), либо обработчик читает store из [поля контекста](context.md).
 - **Scope — это шины.** `fork()` превращается в `createBus()` на каждый scope (тест, запрос на backend).

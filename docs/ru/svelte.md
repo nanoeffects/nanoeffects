@@ -8,7 +8,7 @@
 
 ## Плагин на шине
 
-**Проблема.** Компонент Svelte читает значение через `$store`, а событие шины — не стор. Без помощи компонент пишет свой `readable` и `bus.on` и должен не забыть отписаться. Эти строки копируются в каждый компонент.
+**Проблема.** Компонент Svelte читает значение через `$store`, а событие шины — не store. Без помощи компонент пишет свой `readable` и `bus.on` и должен не забыть отписаться. Эти строки копируются в каждый компонент.
 
 **Когда.** Компонент показывает payload события, например результат поиска.
 
@@ -29,7 +29,7 @@ export const { eventStore } = bus; // свободная функция: она 
 
 <!-- docs-check: continue -->
 
-`eventStore(event, initial)` возвращает стор Svelte. Сначала его значение — `initial`, затем — payload каждого `event`. В компоненте `$found` читает стор, а Svelte сам подписывается и отписывается. Если payload — функция, стор сохраняет её, а не вызывает.
+`eventStore(event, initial)` возвращает store Svelte. Сначала его значение — `initial`, затем — payload каждого `event`. В компоненте `$found` читает store, а Svelte сам подписывается и отписывается. Если payload — функция, store сохраняет её, а не вызывает.
 
 ```js
 // search.js
@@ -45,7 +45,7 @@ export const searchLoaded = createAction("search/loaded");
   import { eventStore } from "./bus";
   import { searchLoaded } from "./search";
 
-  // eventStore — как стор из [], но значение устанавливает searchLoaded
+  // eventStore — как store из [], но значение устанавливает searchLoaded
   const found = eventStore(searchLoaded, []);
 </script>
 
@@ -56,13 +56,13 @@ export const searchLoaded = createAction("search/loaded");
 </ul>
 ```
 
-В TypeScript тип стора берётся из события: для `createAction<string[]>("search/loaded")` это `Readable<string[]>`, а для события без типа payload он берётся из `initial`.
+В TypeScript тип store берётся из события: для `createAction<string[]>("search/loaded")` это `Readable<string[]>`, а для события без типа payload он берётся из `initial`.
 
 Чтобы отправить значение в шину, вызовите `bus.emit` из обработчика события, например `oninput`. При монтировании компонента ничего не отправляется, поэтому для этого направления функция плагина не нужна.
 
-### Это не стор приложения
+### Это не store приложения
 
-Стор слушает шину, только пока его кто-то читает: первый `$found` запускает прослушивание, последний останавливает. Шина значений не хранит, поэтому событие, пришедшее без читателей, теряется, а компонент, смонтированный позже, начинает с `initial`. Чтобы сохранить значение для будущих компонентов, держите его в собственном сторе и записывайте туда из обработчика события:
+Store слушает шину, только пока его кто-то читает: первый `$found` запускает прослушивание, последний останавливает. Шина значений не хранит, поэтому событие, пришедшее без читателей, теряется, а компонент, смонтированный позже, начинает с `initial`. Чтобы сохранить значение для будущих компонентов, держите его в собственном store и записывайте туда из обработчика события:
 
 ```js
 // found-store.js
@@ -70,9 +70,9 @@ import { writable } from "svelte/store";
 import { bus } from "./bus";
 import { searchLoaded } from "./search";
 
-// writable — стор Svelte, который вы держите на всё приложение
+// writable — store Svelte, который вы держите на всё приложение
 export const foundTitles = writable([]);
 
-// bus.on — копировать каждый searchLoaded в стор, открыт компонент или нет
+// bus.on — копировать каждый searchLoaded в store, открыт компонент или нет
 bus.on(searchLoaded, (titles) => foundTitles.set(titles));
 ```

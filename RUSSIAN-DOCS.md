@@ -58,6 +58,10 @@ The file is `recipes.md`, the title is «Типовые задачи» (English:
 
 ## Words
 
+- Write `store`, `state` and `state manager` in English everywhere, never «стор», «хранилище», «состояние» (as the state of an app), «менеджер состояния» or «стейт-менеджер». Do not decline them («в store», «state manager'а» is wrong: rewrite the sentence).
+- Every entry of a reference (a policy, an effect, a plugin) names its signature: `retry(fn, options?)`. Do not drop a signature to shorten the text.
+- The heading of a section that is about one API name begins with it: «`key`: разделение state по ключу», «`withPolicy`: вызов политики вне шины».
+- A long page of common tasks has a table of contents («На этой странице») because GitHub does not show one.
 - Write `payload` in English everywhere, never «нагрузка» (except «под нагрузкой» in the sense of load on a server). Do not decline it.
 - Say «action» where older text said «событие» for something made with `createAction`: one term, not two. A plain event name that is a string stays «событие».
 - `Promise` stays in English in Russian text, never «промис». Do not decline it (`Promise`, not «Promise-а»).

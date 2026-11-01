@@ -22,6 +22,8 @@ bus.on("found", (items) => render(items));
 bus.emit("search", "nano");
 ```
 
+Тот же пример с UI-фреймворком: [React](react.md), [Vue](vue.md), [Svelte](svelte.md). Готовые проекты: [Проект из шаблона](starter.md).
+
 ## Установка
 
 ```bash
@@ -47,7 +49,7 @@ npm create nanoeffects@latest my-app
 | **B** | SPA с async UI: поиск, отправка сообщений, размонтирование компонентов | [Политики](policies.md), [Руководство](guide.md#3-прерывание-предыдущих-запусков) |
 | **C** | Сложная бизнес-логика | [Эффекты](effects.md), [Руководство](guide.md#5-retry-и-timeout) |
 | **D** | Доменная логика вне UI | [Actions, jobs и модули](actions.md), [Руководство](guide.md#7-способы-отправки-событий) |
-| **E** | Готовое приложение на Redux, Zustand, MobX или Pinia, либо библиотека данных | [Сторы](stores.md), [Библиотеки запросов](query-libraries.md) |
+| **E** | Готовое приложение на Redux, Zustand, MobX или Pinia, либо библиотека данных | [State managers](stores.md), [Библиотеки запросов](query-libraries.md) |
 | **F** | Платформа, SDK или долгоживущее приложение | [Трассировка](tracing.md), [Hot reload](hmr.md), [Семантика](semantics.md) |
 
 ## Справочник

@@ -21,7 +21,7 @@ export const sidebar: SidebarItem[] = [
 		],
 	},
 	{
-		text: "Working with async code",
+		text: "Working with async",
 		collapsed: true,
 		items: [
 			{ text: "Cancel stale requests", link: "/cancel-stale-requests" },
@@ -45,25 +45,26 @@ export const sidebar: SidebarItem[] = [
 	},
 	{
 		text: "Effects",
+		link: "/effects",
 		collapsed: true,
 		items: [
+			...nested("effects", [
+				"retry",
+				"timeout",
+				"poll",
+				"backoff",
+				"delay",
+				"cancellable",
+				"onAbort",
+				"take",
+				"all",
+				"allSettled",
+				"race",
+				"effectsPlugin",
+			]),
 			{
-				text: "Effects and cancellation",
-				link: "/effects",
-				items: nested("effects", [
-					"retry",
-					"timeout",
-					"poll",
-					"backoff",
-					"delay",
-					"cancellable",
-					"onAbort",
-					"take",
-					"all",
-					"allSettled",
-					"race",
-					"effectsPlugin",
-				]),
+				text: "Effects outside a task",
+				link: "/effects#effects-outside-a-task",
 			},
 		],
 	},
@@ -87,21 +88,30 @@ export const sidebar: SidebarItem[] = [
 			{ text: "React", link: "/react" },
 			{ text: "Vue", link: "/vue" },
 			{ text: "Svelte", link: "/svelte" },
+			{ text: "Observable", link: "/observable" },
 		],
 	},
 	{
-		text: "Libraries and stores",
+		text: "State managers",
+		collapsed: true,
+		items: [{ text: "Redux, Zustand, MobX, Pinia", link: "/stores" }],
+	},
+	{
+		text: "Requests",
 		collapsed: true,
 		items: [
-			{ text: "Redux, Zustand, MobX, Pinia", link: "/stores" },
-			{ text: "React Query, SWR, RTK Query", link: "/query-libraries" },
-			{ text: "Observables (RxJS bridge)", link: "/observable" },
+			{
+				text: "React Query, SWR, RTK Query, Axios",
+				link: "/query-libraries",
+			},
 		],
 	},
 	{
 		text: "Servers",
 		collapsed: true,
-		items: [{ text: "Stop work when the client leaves", link: "/server" }],
+		items: [
+			{ text: "Stop work on a server when the client leaves", link: "/server" },
+		],
 	},
 	{
 		text: "Migrating from",
@@ -132,7 +142,7 @@ const russian: Record<string, string> = {
 	"Start from a template": "Проект из шаблона",
 	"Why nanoeffects": "Зачем нужна библиотека",
 	"Package entries": "Точки входа пакета",
-	"Working with async code": "Работа с асинхронностью",
+	"Working with async": "Работа с асинхронностью",
 	"Cancel stale requests": "Отмена устаревших запросов",
 	"Pause between requests": "Пауза между запросами",
 	"Prevent a double submit": "Защита от повторной отправки",
@@ -149,12 +159,13 @@ const russian: Record<string, string> = {
 	"Chat example": "Пример: чат",
 	"Chat widget": "Пример: виджет чата",
 	Ecosystem: "Экосистема",
-	"Libraries and stores": "Библиотеки и сторы",
+	Requests: "Запросы",
+	"Effects outside a task": "Эффекты вне задачи",
 	"Redux, Zustand, MobX, Pinia": "Redux, Zustand, MobX, Pinia",
-	"React Query, SWR, RTK Query": "React Query, SWR, RTK Query",
-	"Observables (RxJS bridge)": "Observable (мост к RxJS)",
+	Observable: "Observable",
 	Servers: "Backend",
-	"Stop work when the client leaves": "Остановка работы, когда клиент ушёл",
+	"Stop work on a server when the client leaves":
+		"Остановка работы на backend, когда клиент ушёл",
 	"Migrating from": "Переход с других библиотек",
 	"mitt, nanoevents, EventEmitter": "mitt, nanoevents, EventEmitter",
 	Reference: "Справочник",
@@ -164,15 +175,25 @@ const russian: Record<string, string> = {
 	"Hot reload and dev diagnostics": "Hot reload и диагностика",
 };
 
+// the heading of a Russian page has its own id, so a link to a section needs the Russian one
+const russianAnchors: Record<string, string> = {
+	"effects-outside-a-task": "эффекты-вне-задачи",
+};
+
+const localLink = (link: string) => {
+	const [path = "", anchor] = link.split("#");
+	const local =
+		anchor === void 0 ? path : `${path}#${russianAnchors[anchor] ?? anchor}`;
+	return local.startsWith("/") ? `/ru${local}` : local;
+};
+
 const localize = (items: SidebarItem[]): SidebarItem[] =>
 	items.map((item) => {
 		const { text, link, items: children, ...rest } = item;
 		return {
 			...rest,
 			text: russian[text] ?? text,
-			...(link === void 0
-				? {}
-				: { link: link.startsWith("/") ? `/ru${link}` : link }),
+			...(link === void 0 ? {} : { link: localLink(link) }),
 			...(children === void 0 ? {} : { items: localize(children) }),
 		};
 	});

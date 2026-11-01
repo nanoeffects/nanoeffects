@@ -56,7 +56,7 @@ npm run dev
 npm create nanoeffects@latest my-app -- --template react
 ```
 
-В шаблонах `react` `useEventState` хранит найденные элементы в компоненте. Это не глобальный стор: другой компонент получит свою копию. Чтобы делить значение между компонентами, возьмите менеджер состояния: [Сторы](stores.md).
+В шаблонах `react` `useEventState` хранит найденные элементы в компоненте. Это не глобальный store: другой компонент получит свою копию. Чтобы делить значение между компонентами, возьмите state manager: [State managers](stores.md).
 
 TypeScript-шаблоны — те же приложения с теми же файлами в `.ts` и `.tsx`. События создаёт `createAction<Payload>`, поэтому обработчики и `useEventState` берут типы из событий, и аннотации в компоненте не нужны. Перед сборкой `npm run build` проверяет типы (`tsc --noEmit`).
 
@@ -66,7 +66,7 @@ npm create nanoeffects@latest my-app -- --template react-ts
 
 ### Начало с Vue
 
-`vue-ts` — приложение поиска из `react-ts` на Vue 3 с `<script setup lang="ts">`. Шина использует `vuePlugin` из `nanoeffects/vue`: `watchEmitter` отправляет запрос в шину при его изменении, а `useEventRef` хранит результат поиска в `ref`. Как и `useEventState` в React, `useEventRef` — [не стор](vue.md#это-не-стор). Значение, общее для нескольких компонентов, храните в сторе, например в Pinia.
+`vue-ts` — приложение поиска из `react-ts` на Vue 3 с `<script setup lang="ts">`. Шина использует `vuePlugin` из `nanoeffects/vue`: `watchEmitter` отправляет запрос в шину при его изменении, а `useEventRef` хранит результат поиска в `ref`. Как и `useEventState` в React, `useEventRef` — [не store](vue.md#это-не-store). Значение, общее для нескольких компонентов, храните в store, например в Pinia.
 
 ```bash
 npm create nanoeffects@latest my-app -- --template vue-ts
@@ -76,7 +76,7 @@ npm create nanoeffects@latest my-app -- --template vue-ts
 
 ### Начало со Svelte
 
-`svelte-ts` — приложение поиска из `react-ts` на Svelte 5. Шина использует `sveltePlugin` из `nanoeffects/svelte`: `eventStore` превращает событие в стор Svelte. В компоненте `$found` читает его, а Svelte сам подписывается и отписывается. Запрос уходит в шину из обработчика `oninput`, поэтому при монтировании компонента ничего не отправляется. Стор слушает, только пока его что-то читает, и [не является стором приложения](svelte.md#это-не-стор-приложения). Значение, общее для нескольких компонентов, храните в своём сторе.
+`svelte-ts` — приложение поиска из `react-ts` на Svelte 5. Шина использует `sveltePlugin` из `nanoeffects/svelte`: `eventStore` превращает событие в store Svelte. В компоненте `$found` читает его, а Svelte сам подписывается и отписывается. Запрос уходит в шину из обработчика `oninput`, поэтому при монтировании компонента ничего не отправляется. Store слушает, только пока его что-то читает, и [не является store приложения](svelte.md#это-не-store-приложения). Значение, общее для нескольких компонентов, храните в своём store.
 
 ```bash
 npm create nanoeffects@latest my-app -- --template svelte-ts
@@ -97,12 +97,12 @@ npm create nanoeffects@latest my-app -- --template domains-ts
 | `src/bus.ts` | Создаёт шину. Не импортирует ни события, ни домены. |
 | `src/app.ts` | Подключает домены через `modulePlugin`. |
 | `src/domains/catalog/` | Поиск товаров: `catalog.ts` (события и action с обработчиком), `catalog-handlers.ts` (`debounce` и `latest`), `catalog-module.ts`. |
-| `src/domains/checkout/` | Оформление заказа: `checkout.ts` (job), `checkout-handlers.ts` (`leading` и `retry`), `checkout-store.ts` (состояние, записываемое из исходов задачи), `checkout-module.ts`. |
+| `src/domains/checkout/` | Оформление заказа: `checkout.ts` (job), `checkout-handlers.ts` (`leading` и `retry`), `checkout-store.ts` (state, записываемое из исходов задачи), `checkout-module.ts`. |
 | `src/ui/` | Компоненты. Ни один из них не вызывает поддельный backend из `src/api.ts`. |
 
 Пример побольше — чат, где части реагируют друг на друга, — в [Чат с сущностями, фичами, модулями и небольшим backend](chat-example.md). Слоёв там больше, чем в `domains-ts`. Когда домены должны реагировать друг на друга, чат делит их на сущности и фичи, и домены не импортируют друг друга.
 
-Actions, jobs и модули объясняет страница [Actions, jobs и модули](actions.md). Шаблон хранит найденные товары в провайдере Context с одним `useEventState`, а состояние заказа — в отдельном сторе, потому что `useEventState` — [не стор](react.md#последнее-значение-события-как-состояние).
+Actions, jobs и модули объясняет страница [Actions, jobs и модули](actions.md). Шаблон хранит найденные товары в провайдере Context с одним `useEventState`, а state заказа — в отдельном store, потому что `useEventState` — [не store](react.md#последнее-значение-события-как-state).
 
 ## Файлы
 
