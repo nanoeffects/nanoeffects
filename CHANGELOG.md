@@ -2,7 +2,7 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
-## Unreleased
+## 0.31.1
 
 ### Added
 - The lint rule in `examples/lint` also reports work that is only started and not awaited (a `setTimeout`, a `.then` with no `return`, a listener), leaves `Promise.resolve` alone, and with type information reads overloads, class methods, generics, interfaces and rest lists. Tested on a TypeScript fixture and with ESLint 9. [Docs](docs/pass-the-signal.md)

@@ -1,6 +1,6 @@
 {
 	"name": "nanoeffects",
-	"version": "0.31.0",
+	"version": "0.31.1",
 	"description": "Business logic and side effects outside UI components, as plain async functions. Tiny, no dependencies.",
 	"keywords": [
 		"event-bus",
