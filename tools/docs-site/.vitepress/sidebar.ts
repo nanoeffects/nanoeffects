@@ -167,7 +167,7 @@ const russian: Record<string, string> = {
 	Semantics: "Семантика",
 	Plugins: "Плагины",
 	"Trace tasks": "Трассировка задач",
-	"Hot reload and dev diagnostics": "Горячая перезагрузка и диагностика",
+	"Hot reload and dev diagnostics": "Hot reload и диагностика",
 	Stability: "Стабильность",
 };
 
