@@ -109,6 +109,13 @@ Written in the style of the other examples (comments on each nanoeffects call, b
 - [x] 11.2 Run `pnpm verify` and fix what it finds.
 - [x] 11.3 Run the fuzz and matrix tests 20 times in a loop (`for i in $(seq 20); do pnpm vitest run src/tests/event-cycles; done`) to check there is no flake from timers or ordering.
 
+## 12. Serialization of the loggers, the signal check and the lint rules
+
+- [x] 12.1 Make `reduxDevtools` serialize payloads and errors (with the `serialize` option), `performanceLogger` read errors safely, `createTraceRecorder` get `toJSON()`, and export `safeSerialize` from `nanoeffects/trace`. Verified by `src/trace/serialization.test.ts`: 17 kinds of values through every built-in logger, JSON-safe output, and the `serialize` option.
+- [x] 12.2 Add the `abandoned` check to `devPlugin` (a warning for an emit after an abort) with tests in `src/dev/plugin.test.ts`, and raise the `size-limit` of `dev` to 1.4 kB.
+- [x] 12.3 Add `examples/lint` (Biome GritQL rule, ESLint selector, fixture) and `src/tests/lint-recipes.test.ts` that runs Biome on the fixture.
+- [x] 12.4 Document it in `docs/hmr.md` and `docs/tracing.md` (and the Russian pages), and add the `CHANGELOG.md` entries.
+
 ## Workflow follow-up
 
 - Archive the change (`/opsx:archive`) after review, so the deltas move into `openspec/specs/`.

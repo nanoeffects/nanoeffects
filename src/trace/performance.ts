@@ -1,4 +1,5 @@
 import type { TraceLogger } from "../core/types";
+import { safeSerialize } from "../graph/serialize";
 
 /** The part of the User Timing API the logger uses. */
 export type PerformanceLike = {
@@ -13,6 +14,16 @@ export type PerformanceLike = {
 export type PerformanceLoggerOptions = {
 	/** Defaults to `globalThis.performance`. */
 	performance?: PerformanceLike;
+};
+
+// String(error) throws for an object with no prototype or a throwing toString: an error is read as text safely
+const textOf = (error: unknown) => {
+	if (error instanceof Error) {
+		return `${error.name}: ${error.message}`;
+	}
+	const plain = safeSerialize(error);
+
+	return typeof plain === "string" ? plain : JSON.stringify(plain);
 };
 
 /**
@@ -57,7 +68,7 @@ export const performanceLogger = (
 			...(rootId !== void 0 && { rootId }),
 			...(traceGroupId !== void 0 && { traceGroupId }),
 			phase,
-			...(phase === "error" && { error: String(error) }),
+			...(phase === "error" && { error: textOf(error) }),
 		};
 		const start = startedAt.get(id);
 		startedAt.delete(id);

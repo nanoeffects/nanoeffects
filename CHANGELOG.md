@@ -9,6 +9,8 @@ How to read an entry: **Breaking** needs a change in your code or setup, **Chang
 - `loopGuardPlugin` in `nanoeffects/guard` cuts a loop: it refuses the emit that would repeat one event too often, make a chain too long, or come from outside too fast. It needs no tracer. [Docs](docs/loop-guard.md)
 - A trace logger can have a `task` method, which `createTracer` calls for every task as it is made, also for a plain handler that reports no event. [Docs](docs/tracing.md#find-loops-with-graphlogger)
 - `devPlugin` notes where a named listener was made, and a loop report shows it. [Docs](docs/hmr.md#report-leaks-with-devplugin)
+- `devPlugin` warns when a handler emits after its task was aborted, which means it ignored `ctx.signal` (a `latest` handler that never passed the signal to its request). Turn it off with `abandoned: false`. A linter finds the common case before the code runs: a Biome rule and an ESLint rule in `examples/lint`. [Docs](docs/hmr.md#find-a-handler-that-ignores-the-signal)
+- `safeSerialize` in `nanoeffects/trace` makes any value plain data. `reduxDevtools` now uses it for payloads and errors, so a circular object, a `Map` or a class instance cannot break the extension (the `serialize` option changes or turns this off), and `recorder.toJSON()` gives plain events. [Docs](docs/tracing.md#send-safe-data-to-a-tool)
 - Runnable debugging examples: `examples/debug` and a page with Redux DevTools, `examples/debug-playground`.
 
 ## 0.29.0

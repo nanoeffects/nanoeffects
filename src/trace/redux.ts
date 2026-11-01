@@ -1,4 +1,5 @@
 import type { EffectName, Phase, TraceEvent, TraceLogger } from "../core/types";
+import { safeSerialize } from "../graph/serialize";
 
 type ReduxConnection = {
 	init: (state: unknown) => void;
@@ -62,6 +63,13 @@ export type ReduxDevtoolsOptions = {
 	payload?: PayloadMode;
 	/** The number of actions that DevTools keeps; its own default is 50. */
 	maxAge?: number;
+	/**
+	 * Makes the payload and the error of an action plain data before they reach the extension. The default
+	 * keeps any value safe: an `Error`, a `Map`, a class instance, a circular object, a function. Pass your
+	 * own function to change what is sent, or `false` to send values as they are (the extension then
+	 * serializes them, and can fail on a circular one).
+	 */
+	serialize?: false | ((value: unknown) => unknown);
 };
 
 export type ReduxDevtoolsState = {
@@ -127,6 +135,10 @@ export const reduxDevtools = (
 	const { starts = false, depth: shownDepth = 0, maxAge } = options;
 	const showsStage = stagesOf(options.policies);
 	const mode = options.payload ?? "essential";
+	const plain =
+		options.serialize === false
+			? (value: unknown) => value
+			: (options.serialize ?? ((value: unknown) => safeSerialize(value)));
 	const connection = extension.connect({
 		name: options.name ?? "nanoeffects",
 		...(maxAge !== void 0 && { maxAge }),
@@ -191,7 +203,7 @@ export const reduxDevtools = (
 			(mode === "essential" &&
 				(event.effect === "emit" || endsWithoutResult.has(event.phase)));
 
-		return carries ? { ...rest, payload } : rest;
+		return carries ? { ...rest, payload: plain(payload) } : rest;
 	};
 
 	const sendStage = (event: TraceEvent, error: unknown) => {
@@ -201,7 +213,7 @@ export const reduxDevtools = (
 				type: `${event.type}/${event.effect}/${event.phase}`,
 				event: event.type,
 				...(event.phase === "error" && {
-					error: error instanceof Error ? error.message : error,
+					error: error instanceof Error ? error.message : plain(error),
 				}),
 			},
 			snapshot(),

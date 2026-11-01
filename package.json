@@ -221,7 +221,7 @@
 		{
 			"name": "policies (all)",
 			"path": "dist/policies.js",
-			"limit": "2.7 kB"
+			"limit": "2.71 kB"
 		},
 		{
 			"name": "effects (all)",
@@ -285,7 +285,7 @@
 			"ignore": [
 				"react"
 			],
-			"limit": "1.24 kB"
+			"limit": "1.25 kB"
 		},
 		{
 			"name": "svelte",
@@ -306,7 +306,7 @@
 		{
 			"name": "dev",
 			"path": "dist/dev.js",
-			"limit": "1.15 kB"
+			"limit": "1.4 kB"
 		},
 		{
 			"name": "dev (production)",

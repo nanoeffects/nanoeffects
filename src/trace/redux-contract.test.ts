@@ -121,49 +121,71 @@ describe("reduxDevtools against the contract of the extension", () => {
 		expect(states.every((state) => !state.includes("xxxx"))).toBe(true);
 	});
 
-	it("passes the payload as it is: serializing it is the job of the extension", async () => {
+	it("makes a circular payload plain before the extension gets it, and serialize: false sends it as it is", async () => {
 		const cyclic: Record<string, unknown> = { name: "loop" };
 		cyclic.self = cyclic;
-		const sent: unknown[] = [];
-		const extension: ReduxExtension = {
-			connect: () => ({ init: () => {}, send: (action) => sent.push(action) }),
-		};
-		const bus = createBus<Events>({
-			trace: createTracer(reduxDevtools({ extension })),
-		}).use(tracePlugin());
-		bus.emit("search", cyclic);
+		const run = (serialize?: false) => {
+			const sent: unknown[] = [];
+			const extension: ReduxExtension = {
+				connect: () => ({
+					init: () => {},
+					send: (action) => sent.push(action),
+				}),
+			};
+			const bus = createBus<Events>({
+				trace: createTracer(
+					reduxDevtools({
+						extension,
+						...(serialize === false && { serialize }),
+					}),
+				),
+			}).use(tracePlugin());
+			bus.emit("search", cyclic);
 
-		expect(sent).toHaveLength(1);
-		expect((sent[0] as { payload: unknown }).payload).toBe(cyclic);
+			return sent;
+		};
+
+		const plain = run();
+		const raw = run(false);
+
+		expect(plain).toHaveLength(1);
+		expect((plain[0] as { payload: unknown }).payload).toEqual({
+			name: "loop",
+			self: "[Circular]",
+		});
+		expect(() => JSON.stringify(plain)).not.toThrow();
+		expect((raw[0] as { payload: unknown }).payload).toBe(cyclic);
 	});
 
-	it("a payload the serializer cannot handle never breaks the handler or the emit", async () => {
+	it("a payload that is hard to serialize never breaks the handler or the emit, and is shown", async () => {
 		const cyclic: Record<string, unknown> = { name: "loop" };
 		cyclic.self = cyclic;
 		const failures = vi.spyOn(console, "error").mockImplementation(() => {});
 		try {
-			const { bus, seen } = setup({ policies: true });
+			const { bus, seen, received } = setup({ policies: true });
 
 			expect(() => bus.emit("search", cyclic)).not.toThrow();
 			await settle();
 
 			expect(seen).toEqual([cyclic]);
-			expect(failures).toHaveBeenCalled();
+			expect(failures).not.toHaveBeenCalled();
+			expect(received.length).toBeGreaterThan(0);
 		} finally {
 			failures.mockRestore();
 		}
 	});
 
-	it("a BigInt payload is reported by the logger failure path, not thrown", async () => {
+	it("a BigInt payload is shown as text, not thrown and not reported as a failure", async () => {
 		const failures = vi.spyOn(console, "error").mockImplementation(() => {});
 		try {
-			const { bus, seen } = setup();
+			const { bus, seen, received } = setup();
 
 			expect(() => bus.emit("search", 10n)).not.toThrow();
 			await settle();
 
 			expect(seen).toEqual([10n]);
-			expect(failures).toHaveBeenCalled();
+			expect(failures).not.toHaveBeenCalled();
+			expect(JSON.parse(received[0]?.action ?? "{}").payload).toBe("10n");
 		} finally {
 			failures.mockRestore();
 		}

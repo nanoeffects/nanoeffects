@@ -20,6 +20,7 @@ Tracing is optional. A bus works the same without it, and it costs almost nothin
   - [Keep the last events for an incident](#keep-the-last-events-for-an-incident)
   - [Configure Redux DevTools](#configure-redux-devtools)
   - [Find loops with `graphLogger`](#find-loops-with-graphlogger)
+  - [Send safe data to a tool](#send-safe-data-to-a-tool)
   - [Write your own logger](#write-your-own-logger)
 - [Drop tracing from a build](#drop-tracing-from-a-build)
 
@@ -405,6 +406,35 @@ export const bus = createBus({ trace }).use(tracePlugin());
 ```
 
 It reports a node that is in one chain three times, a storm of emits from outside any handler, and a chain that starts too many tasks. It writes to `console.warn`, or to `onCycle`, or to Redux DevTools with `devtools: true`. Nothing is stopped: to cut a loop use [`loopGuardPlugin`](loop-guard.md). The full walk-through, with scenarios you can run, is [Find and cut event loops](debugging-loops.md).
+
+### Send safe data to a tool
+
+A payload or an error can be anything: a class instance, a `Map`, a circular object, a function, an `Error` with a `cause`. A tool that gets such a value as it is can fail or show nothing. The built-in loggers make sure that what leaves your process is plain data:
+
+| Logger | What it does with a payload and an error |
+| ------ | ---------------------------------------- |
+| `reduxDevtools()` | Makes both plain data with `safeSerialize` before the extension gets them. An `Error` is sent as its message. `serialize` changes this. |
+| `performanceLogger()` | Sends ids and the phase; an error is text. A payload is not sent. |
+| `consoleLogger()` | Passes the value to `console`, which prints any value and keeps it open for you to inspect. |
+| `createTraceRecorder()` | Keeps the events as they are. `recorder.toJSON()` and `JSON.stringify(recorder)` give plain data. |
+| `graphLogger()` | Exports no payload unless you ask, and then makes it plain. |
+
+`safeSerialize(value)` is exported for your own logger. It never throws and never loops: an `Error` keeps its name, message, stack and cause, a cycle becomes `"[Circular]"`, a `Map` becomes `{ $map }`, a `Set` becomes `{ $set }`, an instance of a class keeps its own fields and its name as `$class`, and a getter is never called. A value that is too deep or too big is cut.
+
+```js
+import { createTracer, reduxDevtools, safeSerialize } from "nanoeffects/trace";
+
+const trace = createTracer(
+  reduxDevtools({
+    name: "app",
+    // serialize — runs on every payload and error before the extension gets it;
+    // hide a secret first, then make the rest plain
+    serialize: (value) => safeSerialize(value, { maxDepth: 4 }),
+  }),
+);
+```
+
+`serialize: false` sends values as they are, which is faster and can fail on a circular one.
 
 ### Write your own logger
 

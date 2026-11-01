@@ -16,6 +16,11 @@ export {
 	graphLogger,
 	type JsonOptions,
 } from "../graph";
+export {
+	type JsonValue,
+	type SerializeOptions,
+	safeSerialize,
+} from "../graph/serialize";
 export { type ConsoleLoggerOptions, consoleLogger } from "./console";
 export {
 	type PerformanceLoggerOptions,

@@ -1,4 +1,5 @@
 import type { TraceEvent, TraceLogger } from "../core/types";
+import { type JsonValue, safeSerialize } from "../graph/serialize";
 
 export type Recorder<E = Record<string, unknown>> = TraceLogger<E> & {
 	/**
@@ -7,6 +8,11 @@ export type Recorder<E = Record<string, unknown>> = TraceLogger<E> & {
 	 */
 	readonly events: TraceEvent<E>[];
 	clear: () => void;
+	/**
+	 * The events as plain data that `JSON.stringify` takes: the payload and the error are made safe, so a
+	 * circular object, an `Error`, a `Map` or a class instance cannot break it. `JSON.stringify(recorder)` uses it.
+	 */
+	toJSON: () => JsonValue[];
 };
 
 /**
@@ -66,7 +72,13 @@ export const createTraceRecorder = <E = Record<string, unknown>>(
 		return events;
 	};
 
-	const recorder = Object.assign(record, { clear, events: buffer });
+	const toJSON = () => {
+		const events = limit > 0 ? snapshot() : buffer;
+
+		return events.map((event) => safeSerialize(event));
+	};
+
+	const recorder = Object.assign(record, { clear, events: buffer, toJSON });
 	if (limit > 0) {
 		Object.defineProperty(recorder, "events", { get: snapshot });
 	}

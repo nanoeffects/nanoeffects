@@ -17,6 +17,8 @@ Handlers are opaque functions, so the map of "event A leads to event B" can only
 - An internal safe serializer for `toJSON({ payload: true })` and for the cycle report: `Error` (name, message, stack, cause), circular references, `Map` and `Set`, class instances, functions, `bigint`, `symbol`, DOM nodes, depth and size limits, getters never called. Payloads are left out of exports by default.
 - Docs: a section in `docs/tracing.md` (and the Russian page), an entry in `docs/plugins.md`/`docs/package.md` tables and in `llms.txt`, an example under `examples/`, a `CHANGELOG.md` entry.
 
+- Every built-in logger is checked against values that are not plain data. `reduxDevtools` makes payloads and errors plain (the `serialize` option changes this), `performanceLogger` reads errors safely, the recorder gets `toJSON()`, and `safeSerialize` is exported from `nanoeffects/trace`.
+- `devPlugin` warns when a handler emits after its task was aborted (it ignored `ctx.signal`), and `examples/lint` has a Biome and an ESLint rule for a policy handler with no `ctx` parameter.
 - A group of reproducible debugging examples: `examples/debug` (runnable scenarios with fixed output: each loop shape, a storm, a clean flow, hostile payloads, exports to files) and `examples/debug-playground` (a page with a button for each loop, Redux DevTools and a drawn graph), tested so they do not rot, and a how-to page `docs/debugging-loops.md`.
 - A second, opt-in entry `nanoeffects/guard` with `loopGuardPlugin(options?)`: a bus plugin that cuts a loop at run time. It refuses an emit when the same event repeats `maxRepeats` times in a chain (default 50) or the chain passes `maxDepth` (default 1000), by dropping it (default) or throwing a `LoopError`, always with a report; `maxPerSecond` limits emits that come from outside any task. It needs no tracer, so it is usable in production as a safety net. It uses `bus.addContext` and wraps `ctx.emit` and `bus.emit` only, so `createBus` does not change.
 
@@ -29,10 +31,11 @@ Not in this change: aborting the whole chain through its root signal (needs a ho
 - `event-cycles`: detection of event cycles and storms from the same logger, and how they are reported (console, `onCycle`, Redux DevTools).
 
 - `debug-examples`: the folder of runnable debugging scenarios, the browser playground, their tests and the how-to page.
+- `trace-serialization`: what the built-in loggers hand to tools outside the process, and `safeSerialize`.
 - `loop-guard`: the opt-in plugin that cuts a looping chain, its limits, actions and reports.
 
 ### Modified Capabilities
-- `dev-diagnostics`: `devPlugin` can record the call site of each subscription, for the reports of the graph logger.
+- `dev-diagnostics`: `devPlugin` can record the call site of each subscription, and warns about a handler that emits after it was aborted.
 - `trace-types`: a logger may watch tasks as they are made through an optional `task` method. Events and `Tracer` do not change, and `tracePlugin` stays optional.
 
 ## Impact

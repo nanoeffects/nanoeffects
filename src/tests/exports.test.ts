@@ -62,6 +62,7 @@ describe("public entries", () => {
 			"graphLogger",
 			"performanceLogger",
 			"reduxDevtools",
+			"safeSerialize",
 			"tracePlugin",
 		]);
 	});
