@@ -79,7 +79,7 @@ A client that must stop with the task, such as an `axios` instance, goes in as `
 
 ### Use `race` and `delay` without `ctx`: `effectsPlugin`
 
-Effects such as `race`, `all`, `take` and `delay` are bound to the task, so a handler calls `race({ … })` and not `race(ctx, { … })`. Your own functions that take `{ signal }` first work too. More in [Effects](effects.md#put-selected-effects-on-ctx).
+Effects such as `race`, `all`, `take` and `delay` are bound to the task, so a handler calls `race({ … })` and not `race(ctx, { … })`. Your own functions that take `{ signal }` first work too. More in [Effects](effects.md#effectsplugin).
 
 ```js
 import { createBus } from "nanoeffects";
@@ -118,7 +118,7 @@ const user = await bus.emit(getUser("1")); // { id: "1" }
 
 ### Mount a domain as one unit: `modulePlugin`
 
-A module groups the listeners, the bound handlers and the background tasks of one domain, and ends all of them when it is unmounted. It also makes [hot reload](hmr.md) work. More in [Modules](actions.md#mount-domains-with-modules).
+A module groups the listeners, the bound handlers and the background tasks of one domain, and ends all of them when it is unmounted. It also makes [hot reload](hmr.md) work. More in [Modules](actions.md#modules).
 
 ```js
 import { createBus } from "nanoeffects";

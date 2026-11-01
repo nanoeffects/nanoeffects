@@ -128,7 +128,7 @@ import { createAction } from "nanoeffects/actions";
 export const userLoaded = createAction("user/loaded");
 ```
 
-Send it from the handler with `ctx.emit(userLoaded(user))`. Do not replace the action with `createJob` here: a job handles the error itself and resolves with `undefined`, so React Query would never see the failure. Use a job when nothing waits for the result and the app shows a loading state from the bus, see [Show a loading state with a job](actions.md#show-a-loading-state-with-a-job).
+Send it from the handler with `ctx.emit(userLoaded(user))`. Do not replace the action with `createJob` here: a job handles the error itself and resolves with `undefined`, so React Query would never see the failure. Use a job when nothing waits for the result and the app shows a loading state from the bus, see [Show a loading state with a job](actions.md#the-state-of-a-job).
 
 ## Call it from RTK Query
 

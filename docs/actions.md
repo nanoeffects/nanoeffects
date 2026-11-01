@@ -2,7 +2,7 @@
 
 > **Level D.** Read first: [Guide](guide.md#1-create-a-bus) steps 1 to 6.
 
-Use this page when **domain logic lives on the bus**, off the UI: the UI emits and listens; handlers and modules own the work.
+When a project has a lot of business logic, you need to split it. One way is to split it by domains, or entities. In a shop, the domains could be products and product categories. Then the code that belongs to the actions of one domain goes into one file (`product.js`), its handlers into another, and the module that mounts them into a third. A domain can then be mounted, replaced or unmounted without touching the others.
 
 If you only need `on` / `emit` or policies, stay in the [Guide](guide.md) until you need a result from `emit` or a mountable domain.
 
@@ -12,37 +12,37 @@ A chat with two entities and three features, jobs under policies and effects, an
 
 A whole project with two domains, a job and React as a thin layer: `npm create nanoeffects@latest my-app -- --template domains-ts` (see [Start a project from a template](starter.md#start-with-domains)).
 
-## Pick the word: event, action, job, module
+## Action, job and module
 
-Four names, one idea each. Take the first row that fits.
+Four forms, one idea each. Take the first row that fits.
 
-| Word | What it is | Use it when |
+| Form | What it is | Use it when |
 | ---- | ---------- | ----------- |
-| Event | A name and a payload; `createAction("x")` with no handler. | The UI or a handler tells that something happened. |
-| Action with a handler | The same, plus work: `createAction("x", handler)`. `emit` returns the result. | The caller needs a value back. |
-| Job | An action with a handler that also emits `pending`, `success`, `fail` and `cancel`. | The UI shows a loading state. |
-| Module | A group of listeners, handlers and tasks, mounted and unmounted with one call. | One domain must start and stop as a unit. |
+| `createAction(type)` | An action with no handler: a name and a payload. | The UI or a handler tells that something happened. |
+| `createAction(type, handler)` | An action with a handler: `emit` runs the handler and returns its result. | You want the result of the handler from `emit`. |
+| `createJob(type, handler)` | An action with a handler that returns its result as the actions `success` and `fail`, and also sends `pending` and `cancel`. | You want the result of the work of a handler and, if you need it, to subscribe to the state of that work. |
+| `createModule(name, setup)` | A group of actions and jobs with their handlers, mounted and unmounted with one call. | One domain must start and stop as a unit. |
 
-Start with events. Add a handler when you need a result, a job when you need a status, a module when you need a unit.
+Start with actions. Add a handler when you need a result, a job when you need a status, a module when you need a unit.
 
 ## On this page
 
-- [Pick the word: event, action, job, module](#pick-the-word-event-action-job-module)
-- [Return a value from `emit` with a handler](#return-a-value-from-emit-with-a-handler)
-- [Describe events, handlers and jobs](#describe-events-handlers-and-jobs)
+- [Action, job and module](#action-job-and-module)
+- [Get the result of `emit`](#get-the-result-of-emit)
+- [Actions, handlers and jobs](#actions-handlers-and-jobs)
   - [Actions](#actions)
   - [Bind a handler later](#bind-a-handler-later)
-  - [Say what a bound handler returns](#say-what-a-bound-handler-returns)
+  - [The result type of a bound handler](#the-result-type-of-a-bound-handler)
   - [Jobs](#jobs)
-- [Show a loading state with a job](#show-a-loading-state-with-a-job)
-- [Mount domains with modules](#mount-domains-with-modules)
-- [Give an action or a module its own fields](#give-an-action-or-a-module-its-own-fields)
+- [The state of a job](#the-state-of-a-job)
+- [Modules](#modules)
+- [Extend the context of actions and modules](#extend-the-context-of-actions-and-modules)
 
-## Return a value from `emit` with a handler
+## Get the result of `emit`
 
-Give `createAction` a handler, and `emit` runs it and returns its result. There is one creator for an event and for an action with work behind it; the handler is the only difference.
+When you want an answer from a handler at the `emit` call, give `createAction` the handler. A handler is a function `(payload, ctx) => result` that runs when the action is emitted. `emit` runs it and returns its result. There is one creator for an action with and without a handler; the handler is the only difference.
 
-The bus lives in one file and its events in another, so any module can import both without a cycle.
+The bus lives in one file and its actions in another, so any module can import both without a cycle.
 
 ```js
 // bus.js
@@ -67,7 +67,7 @@ import { double } from "./math";
 bus.emit(double(21)); // 42
 ```
 
-## Describe events, handlers and jobs
+## Actions, handlers and jobs
 
 `nanoeffects/actions` has the pieces to name what a bus does, apart from the code that does it.
 
@@ -152,7 +152,7 @@ A handler bound in the registry makes `bus.emit(sendMail(mail))` run it and retu
 
 The registry lives in `nanoeffects/actions`, so a bus without one carries none of that code. Without a registry, `emit` runs the handler that the action carries. `bus.use(actionsPlugin())` sets `bus.actions`. A second `actionsPlugin` binds its list in that registry and returns it. There is no `actions` option in `createBus`; assign a custom runner with `bus.actions = { run }`, and add `bound(type)` to it to answer for actions that have no handler of their own.
 
-### Say what a bound handler returns
+### The result type of a bound handler
 
 TypeScript cannot see which handler the registry has, so the type of `emit` for an action without a handler is `void`. Tell it what the bound handler returns with `Call<Payload, Result>`. This is a promise of yours: nothing checks it against the handler.
 
@@ -196,7 +196,7 @@ On a bus without an event map you can say it where you call: `const id = bus.emi
 - Calling the job only builds `{ type, payload }`; the handler runs on `emit`.
 - The outcomes are events like any other: with `onUnhandled` set on the bus, it is called for a `pending` or a `cancel` that nobody listens to.
 
-## Show a loading state with a job
+## The state of a job
 
 **Problem.** A spinner needs a flag that is `true` while a request runs. Setting it by hand in the handler (`loading = true`, then `try` / `finally`) breaks when the task is aborted: `ctx.emit` does nothing after an abort, so a flag that is cleared through the bus stays `true`.
 
@@ -269,7 +269,7 @@ bus.emit(loadUser("1"));
 
 A flag is exact when calls do not overlap, or when `latest` replaces them. If several runs can go at once (`queue` with `concurrency` above 1, or a job without a policy called many times), keep a counter: add one on `pending` and take one off on `success`, `fail` and `cancel`. A policy that you write yourself, or that you hide in your own function, does not report to the job; `pending` is then sent at the call, as for a job with no policy.
 
-## Mount domains with modules
+## Modules
 
 **Problem.** A domain needs several subscriptions and handler bindings. With plain `bus.on` / `actions.handle` you must remember every unsubscribe.
 
@@ -362,7 +362,7 @@ If the `setup` of one module throws, the modules of that call that were already 
   - `spawn` — background task, aborted on unmount.
 - An action that carries a handler keeps answering after unmount (`use` only tracks registration). Use `handle` for a handler that must live only as long as the module.
 
-## Give an action or a module its own fields
+## Extend the context of actions and modules
 
 An action with a handler can need its own client, a module its own logger. Pass a scope, a plain object whose keys go on `ctx` (`$effects` binds functions to the task), as the last argument of `createAction`, `createModule` and `createJob`, and turn it on with `scopePlugin`:
 

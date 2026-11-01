@@ -57,7 +57,7 @@ Phases:
 - `cancel` — aborted after it started (superseded by `latest`, parent aborted, lost a `race`).
 - `drop` — never started (`leading` while busy, a `throttle` call replaced by a newer one, a `debounce` call replaced before its delay ended).
 
-`all` and `race` are traced when you pass them the handler `ctx`: the group is one task; every starter is a child `run` task.
+`all` and `race` are traced when you pass them the handler `ctx`: the group is one task; every function of the group is a child `run` task.
 
 ```js
 import { createBus } from "nanoeffects";

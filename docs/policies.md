@@ -42,81 +42,60 @@ Each policy has a short entry in [Look up a policy](#look-up-a-policy).
 
 ## Look up a policy
 
-One entry per policy: what it does, its signature, and the section with the full recipe.
+One entry per policy: what it does, and a link to the full recipe.
 
 ### `latest`
 
-A newer call aborts the older one and drops its result. `latest(fn, options?)`. Full recipe: [Abort the previous run](#abort-the-previous-run).
+A newer call aborts the older one and drops its result.
+
+More: [Abort the previous run](#abort-the-previous-run).
 
 ### `leading`
 
-New calls are dropped while a run is going. `leading(fn, options?)`. Use it to prevent a double submit: [Prevent a double submit](prevent-double-submit.md).
+New calls are dropped while a run is going.
+
+More: [Prevent a double submit](prevent-double-submit.md).
 
 ### `debounce`
 
-Runs after `ms` of quiet. `debounce(ms, fn, options?)`. Options (`leading`, `trailing`): [Configure debounce and throttle](#configure-debounce-and-throttle).
+Runs after a period of quiet.
+
+More: [Configure debounce and throttle](#configure-debounce-and-throttle).
 
 ### `throttle`
 
-At most one run per `ms`. `throttle(ms, fn, options?)`. Options: [Configure debounce and throttle](#configure-debounce-and-throttle).
+At most one run within `ms`.
+
+More: [Configure debounce and throttle](#configure-debounce-and-throttle).
 
 ### `queue`
 
-Calls run one after another, in order. `queue(fn, options?)`, with `concurrency` to run several at once. Full recipe: [Run calls one after another with `queue`](#run-calls-one-after-another-with-queue).
+Builds a queue of calls: they run one after another, in order.
+
+More: [Run calls one after another with `queue`](#run-calls-one-after-another-with-queue).
 
 ### `key`
 
-An option of every policy: each key gets its own state, so calls with different keys do not affect each other. `latest(fn, { key: (payload) => payload.id })`. Full recipe: [Isolate state by key](#isolate-state-by-key).
+An option of every policy. It splits the state of the policy by a criterion, for example by id: calls with different keys do not affect each other. `latest(fn, { key: (payload) => payload.id })`.
 
-### `withPolicy`
+More: [Isolate state by key](#isolate-state-by-key).
 
-Turns a policy into a plain function that needs no bus. `withPolicy(debounce(300, fn))`. Full recipe: [Use a policy without a bus](#use-a-policy-without-a-bus).
-
-## Call a policy without its function
-
-**Problem.** Some code builds the function for you and only asks which policy to use, as [`usePolicy`](react.md#keep-a-debounced-handler-between-renders) does. If you must pass your own function there, it is easy to pass the wrong one.
-
-**When.** You pass a policy to `usePolicy`. With a bus, `withPolicy` or your own code, call the policy with its function as above.
-
-Leave the function out and the policy returns a wrapper. The wrapper takes a function and gives back the same policy as the direct call:
-
-```js
-import { debounce } from "nanoeffects/policies";
-
-const runSearch = async (query) => {
-  await api.search(query);
-};
-
-// debounce(300) — no function yet: returns a wrapper
-const wrap = debounce(300);
-
-// the wrapper takes the function; same as debounce(300, runSearch)
-const search = wrap(runSearch);
-```
-
-- It works for `latest()`, `leading()`, `debounce(ms)`, `throttle(ms)` and `queue()`, with the options as the last argument: `queue({ concurrency: 2 })`, `debounce(300, { leading: true })`.
-- Each time you apply a wrapper to a function, you get a new policy with its own state.
-- To combine policies, nest them as before: `throttle(100, latest(fn))`.
-- With `key`, annotate the payload of the key function in TypeScript: `latest({ key: (user: User) => user.id })`. Without the annotation the wrapper cannot know the payload type.
+To use a policy for your own function with no bus, see [Call a policy outside a bus](#call-a-policy-outside-a-bus).
 
 ## Configure debounce and throttle
 
-`debounce` and `throttle` take `leading` and `trailing`. Behavior matches lodash (and patronum); tests compare random call sequences to lodash itself.
+`debounce` and `throttle` take two options, `leading` and `trailing`. They decide which call of a series runs. `leading` runs the first call of the series at once. `trailing` runs the last call at the end of the series. Both functions are built on the same algorithm as in lodash (and patronum) and behave exactly like them.
 
-**Throttle** (`throttle(ms, fn)`):
+**Throttle** (`throttle(ms, fn)`) runs a call at once if it has been idle for at least `ms`, holds the calls that come within `ms`, and runs the last of them when the window closes. Under a steady stream it runs every `ms`.
 
-- Default `leading: true`, `trailing: true`.
-- A call when the throttle is idle (at least `ms` after the previous call and run) runs at once.
-- Calls made while it waits are held; the latest runs when the window closes.
-- Under a steady stream it runs every `ms`.
-- `leading: false` — even the first call waits for the end of its window.
-- `trailing: false` — drop calls made during a window.
+- `leading` — run the first call of a series at once. It is `true` by default. With `false`, even the first call waits for the end of its window.
+- `trailing` — run the last held call when the window closes. It is `true` by default. With `false`, calls made during a window are dropped.
 
-**Debounce** (`debounce(ms, fn)`):
+**Debounce** (`debounce(ms, fn)`) runs the last call of a series after `ms` of quiet.
 
-- Default `trailing: true` — run the last call after `ms` of quiet.
-- `leading: true` — also run the first call of a burst at once; the trailing run happens only if more calls follow.
-- `leading: true, trailing: false` — only the first call of a burst.
+- `trailing` — run the last call after `ms` of quiet. It is `true` by default.
+- `leading` — also run the first call of a series at once. It is `false` by default. The closing run then happens only if more calls follow.
+- `leading: true, trailing: false` — only the first call of a series.
 - Both `false` — nothing runs.
 
 ## Isolate state by key
@@ -178,35 +157,35 @@ Every call returns a promise with the result of its own run. An error rejects on
 - When a running call aborts, its slot is freed at once and its result is dropped.
 - Pass `signal` into what `fn` does. A `fn` that ignores it can overlap with the next run.
 
-## Use a policy without a bus
+## Call a policy outside a bus
 
-**Problem.** You want a debounced input handler or a "latest request wins" fetch, but your code has no bus. A policy needs a context on every call, so `debounce(300, search)("re")` does not work on its own.
+**Problem.** You want a debounced input handler or a "latest request wins" fetch for your own function, but the code has no bus: a DOM handler, a click callback, a function in a service. A policy needs a context on every call, so `debounce(300, search)("re")` does not work on its own.
 
-**When.** One component or module needs a policy and nothing else from the library. If you already have a bus, `bus.on(event, policy)` is simpler.
+**When.** One input, button or function needs a policy and nothing else from the library. If you already have a bus, `bus.on(event, policy)` is simpler. In a React component use [`usePolicy`](react.md#keep-a-debounced-handler-between-renders), which also keeps the function between renders.
 
-`withPolicy` takes the result of any policy and returns a plain function. It needs no bus and no context argument, and it keeps the state of the policy between calls.
+`withPolicy` takes a policy and returns a plain function. The function needs no bus and no context argument, and it keeps the state of the policy between calls.
 
 ```js
 import { debounce, withPolicy } from "nanoeffects/policies";
 
+const input = document.querySelector("#search");
+
 // debounce — waits for 300 ms of quiet, then runs the callback
 const policy = debounce(300, async (query, { signal }) => {
-  await api.search(query, { signal });
+  const items = await api.search(query, { signal });
+  render(items);
 });
 
 // withPolicy — a plain function: no bus, no context argument
-const onChange = withPolicy(policy);
+const onInput = withPolicy(policy);
 
-onChange("re");
-onChange("redux"); // only this call runs, 300 ms after it
+input.addEventListener("input", (event) => onInput(event.target.value));
 
-// cancel — drops a pending call and aborts a running one
-onChange.cancel();
+// cancel — drops a pending call and aborts a running request, for example when the page closes
+window.addEventListener("pagehide", () => onInput.cancel());
 ```
 
 - The callback has the same `(payload, ctx)` shape as for a bus. `ctx.signal`, `ctx.abort` and `ctx.run` work. `ctx.emit` and `ctx.on` do nothing, because there is no bus.
 - Every call returns a promise with the result. A call the policy drops resolves with `undefined`.
 - `cancel()` aborts every call that has not finished. Calls made after it work again.
-- Where `Symbol.dispose` exists, `using onChange = withPolicy(policy)` calls `cancel()` at the end of the scope.
-
-In a React component, use [`usePolicy`](react.md#keep-a-debounced-handler-between-renders) instead: it keeps the function between renders.
+- Where `Symbol.dispose` exists, `using onInput = withPolicy(policy)` calls `cancel()` at the end of the scope.

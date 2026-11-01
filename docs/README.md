@@ -1,43 +1,64 @@
 # Documentation
 
-Read the docs from the level of your project and stop when it has what it needs. Each level adds one idea. A page says at its top which level it is for and what to read first.
+nanoeffects moves business logic and side effects out of UI components into plain `async` functions. Policies (`latest`, `debounce`, `queue`) and effects (`retry`, `timeout`, `poll`) handle races, retries and cancellation.
 
-New here? Do these three things, in order:
+```js
+import { createBus } from "nanoeffects";
+import { latest } from "nanoeffects/policies";
 
-1. **Decide.** Read the [README](../README.md) (two minutes): what the library is for, how to install it, a first working example. [Why nanoeffects exists](motivation.md) says when not to use it.
-2. **Start.** Run the first example, or make a project with `npm create nanoeffects@latest my-app` ([Start a project from a template](starter.md)).
-3. **Climb.** Follow the [Guide](guide.md) step by step, or look up your case in the [Recipes](recipes.md).
+const bus = createBus(); // event bus
+
+// The search logic lives outside the component; latest aborts the previous request
+bus.on(
+  "search",
+  latest(async (query, { signal }) => {
+    const items = await api.search(query, { signal });
+    bus.emit("found", items);
+  }),
+);
+
+// The component only listens for the result and sends events
+bus.on("found", (items) => render(items));
+bus.emit("search", "nano");
+```
+
+## Install
+
+```bash
+npm install nanoeffects
+```
+
+To start a new project from a template ([Start a project from a template](starter.md)):
+
+```bash
+npm create nanoeffects@latest my-app
+```
+
+## Where to start
+
+1. Follow the [Guide](guide.md#1-create-a-bus): from the first bus to modules.
+2. Common async UI problems (stale responses, double clicks, retries) are in [Common tasks](recipes.md).
 
 ## The ladder, from A to F
 
+Read the docs from the level of your project and stop when it has what it needs. Each level adds one idea. A page says at its top which level it is for and what to read first.
+
 | Level | Your project | You can stop here when | Read |
 | ----- | ------------ | ---------------------- | ---- |
-| **A** | A small app, widget or prototype with rare races | Events and handlers do the job | [Guide](guide.md#1-create-a-bus) steps 1 and 2 |
-| **B** | A SPA with async UI: search, submit, leaving a page | A newer request must replace an older one | [Policies](policies.md), [Guide](guide.md#3-abort-the-previous-run-with-latest) steps 3 and 4 |
-| **C** | An unreliable network or a long flow | Retries, timeouts and waiting are handled | [Effects](effects.md), [Guide](guide.md#5-add-retry-and-timeout) steps 5 and 6 |
-| **D** | Domain logic that must live off the UI | Features are actions and modules, not components | [Actions, jobs and modules](actions.md), [Guide](guide.md#7-name-events-three-ways) steps 7 to 9 |
+| **A** | A small app, widget or MVP with rare races | Events and handlers do the job | [Guide](guide.md#1-create-a-bus) |
+| **B** | A SPA with async UI: search, sending messages, unmounting components | A newer request must replace an older one | [Policies](policies.md), [Guide](guide.md#3-abort-the-previous-run-with-latest) |
+| **C** | Complex business logic | Retries, timeouts and waiting are handled | [Effects](effects.md), [Guide](guide.md#5-add-retry-and-timeout) |
+| **D** | Domain logic that must live off the UI | Features are actions and modules, not components | [Actions, jobs and modules](actions.md), [Guide](guide.md#7-name-events-three-ways) |
 | **E** | An existing Redux, Zustand, MobX or Pinia app, or a data library | The bus runs the async work next to your store | [Stores](stores.md), [Query libraries](query-libraries.md) |
-| **F** | A platform, an SDK or a long-lived app | You can see what ran, reload modules, rely on the rules | [Tracing](tracing.md), [Hot reload](hmr.md), [Semantics](semantics.md), [Stability](stability.md) |
+| **F** | A platform, an SDK or a long-lived app | You can see what ran and reload modules | [Tracing](tracing.md), [Hot reload](hmr.md), [Semantics](semantics.md) |
 
 A small app never needs level B or higher. Move up when the first problem of that level appears, not before.
-
-## Start with three imports
-
-Most apps need only these. Everything else is optional; read it when you hit its need.
-
-| Import | Gives you |
-| ------ | --------- |
-| `nanoeffects` | `createBus`: `on`, `emit`, `ctx` |
-| `nanoeffects/policies` | `latest`, `debounce`, ... for races in async UI |
-| `nanoeffects/effects` | `retry`, `timeout`, `poll`, ... for an unreliable network |
-
-The other entries and plugins: [Package entries](package.md) and [Plugins](plugins.md#pick-a-plugin-by-task).
 
 Code for every guide step: [`examples/guide.ts`](../examples/guide.ts) (type-checked and tested).
 
 ## Jump by need
 
-For a problem, start from [Recipes](recipes.md). For a project shape:
+For a problem, start from [Common tasks](recipes.md). For a project shape:
 
 | Project shape | First page |
 | ------------- | ---------- |
@@ -52,7 +73,7 @@ For a problem, start from [Recipes](recipes.md). For a project shape:
 | A Vue app | [Use nanoeffects in a Vue app](vue.md) |
 | A Svelte app | [Use nanoeffects in a Svelte app](svelte.md) |
 | Old responses overwrite new ones | [Cancel stale requests](cancel-stale-requests.md) |
-| Debounced input that must also cancel the old request | [Debounce and abort](debounce-and-abort.md) |
+| Debounced input that must also cancel the old request | [Pause between requests](debounce-and-abort.md) |
 | A second click sends a second request | [Prevent a double submit](prevent-double-submit.md) |
 | Using mitt, nanoevents or EventEmitter | [Coming from mitt](migrating-from-mitt.md) |
 | Moving from redux-saga | [Coming from redux-saga](migrating-from-saga.md) |
@@ -64,7 +85,6 @@ For a problem, start from [Recipes](recipes.md). For a project shape:
 Look these up when you need the exact rule.
 
 - [Package entries](package.md): which import holds what
-- [Stability](stability.md): which entries are stable, what is breaking, supported versions
 - [Plugins](plugins.md): every plugin of a bus, what it returns, and the order to use them in
 - [Semantics](semantics.md): the exact rules of emit, abort and ordering
 - [Tracing](tracing.md): loggers, Redux DevTools, `notrace`

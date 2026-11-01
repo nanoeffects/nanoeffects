@@ -8,4 +8,4 @@ Include the version, what an attacker can do, and the smallest code that shows i
 
 ## Supported versions
 
-Fixes go into the latest release. See [Stability](docs/stability.md) for what each version promises.
+Fixes go into the latest release.

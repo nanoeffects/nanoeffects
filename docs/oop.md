@@ -9,7 +9,7 @@ Use this page when **your domain logic lives in classes**: a service, a store or
 | every `new Service()` to be an independent emitter | `extends Emitter` |
 | the instances to share a bus, or to use plugins | `extends extendBus(bus)` |
 
-If your logic is plain functions, stay with [modules](actions.md#mount-domains-with-modules): a module is the same idea without a class.
+If your logic is plain functions, stay with [modules](actions.md#modules): a module is the same idea without a class.
 
 ## On this page
 

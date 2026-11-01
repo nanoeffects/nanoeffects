@@ -5,7 +5,7 @@ How to read an entry: **Breaking** needs a change in your code or setup, **Chang
 ## 0.29.0
 
 ### Breaking
-- The word "command" is gone. The types `Command` and `CommandCall` are `Handled` and `HandledCall`. The trace effect `"command"` is `"action"` (a logger or a recorder that matches `effect === "command"` has to match `"action"`, and so does the label `checkout/pay · action` in Redux DevTools and the performance marks). `MissingHandlerError` says `No handler for action "<type>"`. [Docs](docs/actions.md#pick-the-word-event-action-job-module)
+- The word "command" is gone. The types `Command` and `CommandCall` are `Handled` and `HandledCall`. The trace effect `"command"` is `"action"` (a logger or a recorder that matches `effect === "command"` has to match `"action"`, and so does the label `checkout/pay · action` in Redux DevTools and the performance marks). `MissingHandlerError` says `No handler for action "<type>"`. [Docs](docs/actions.md#action-job-and-module)
 
 ### Added
 - `bus.on(event, handler, { signal })` and `bus.once` remove the listener when the signal aborts, as `addEventListener` does. Needs `signalPlugin`. [Docs](docs/plugins.md#tie-an-emit-or-a-listener-to-an-outside-signal-signalplugin)
@@ -31,9 +31,9 @@ How to read an entry: **Breaking** needs a change in your code or setup, **Chang
 - `handle` and `prepare` are reserved function fields in the scope object of `createAction`: a scope with a function field of one of these names has to rename it.
 
 ### Added
-- `createAction` takes a handler, like `createCommand` did, so `bus.emit(getUser("1"))` runs it and returns the result. Everything fits in one object, `createAction(type, { handle, prepare, ...scope })`. [Docs](docs/actions.md#return-a-value-from-emit-with-a-handler)
+- `createAction` takes a handler, like `createCommand` did, so `bus.emit(getUser("1"))` runs it and returns the result. Everything fits in one object, `createAction(type, { handle, prepare, ...scope })`. [Docs](docs/actions.md#get-the-result-of-emit)
 - A handler bound in the registry (`actions.handle(action, fn)`, `setHandler`) answers any action, also one made without a handler, and an action with a bound handler does not reach `onUnhandled`. [Docs](docs/actions.md#bind-a-handler-later)
-- The result type of a string `emit`: `bus.emit<string>("user/getId")` on a bus without an event map, and `Call<Payload, Result>` in an event map (`Call` is a type only). [Docs](docs/actions.md#say-what-a-bound-handler-returns)
+- The result type of a string `emit`: `bus.emit<string>("user/getId")` on a bus without an event map, and `Call<Payload, Result>` in an event map (`Call` is a type only). [Docs](docs/actions.md#the-result-type-of-a-bound-handler)
 
 ## 0.26.0
 
@@ -95,13 +95,13 @@ How to read an entry: **Breaking** needs a change in your code or setup, **Chang
 ## 0.20.0
 
 ### Changed
-- The modules given to `modulePlugin([...])` are mounted at the end of the synchronous block that made the app, not only at the first use of the app or the bus, so an app that uses nothing at start still mounts them. Pass no modules and call `app.mount` to mount when you want. [Docs](docs/actions.md#mount-domains-with-modules)
+- The modules given to `modulePlugin([...])` are mounted at the end of the synchronous block that made the app, not only at the first use of the app or the bus, so an app that uses nothing at start still mounts them. Pass no modules and call `app.mount` to mount when you want. [Docs](docs/actions.md#modules)
 
 ### Added
 - `nanoeffects/vue`: `vuePlugin` adds `watchEmitter` (emit when a ref changes) and `useEventRef` (the last payload of an event as a ref) to a bus. [Docs](docs/vue.md)
 - `WithSignal`, the type of an object that has the `signal` of a task (`{ signal: AbortSignal }`), is exported from `nanoeffects`. [Docs](docs/typescript.md#type-a-function-that-takes-the-signal)
 - `npm create nanoeffects@latest my-app -- --template vue-ts` makes the search app in Vue 3 and TypeScript, with `watchEmitter` and `useEventRef` from `nanoeffects/vue`. [Docs](docs/starter.md#start-with-vue)
-- `app.mount(a, b, c)` and `app.unmount(a, b)` take any number of modules. They are mounted in order and undone in reverse order, and a call that fails leaves none of its modules mounted. [Docs](docs/actions.md#mount-domains-with-modules)
+- `app.mount(a, b, c)` and `app.unmount(a, b)` take any number of modules. They are mounted in order and undone in reverse order, and a call that fails leaves none of its modules mounted. [Docs](docs/actions.md#modules)
 - A chat example with domains, modules and a small Fastify server that fails on a known schedule, and a page that explains it. [Docs](docs/chat-example.md)
 
 ## 0.19.1

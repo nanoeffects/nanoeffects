@@ -15,18 +15,17 @@ Rules that generated code often gets wrong:
 ## Start here
 
 - [Guide](docs/guide.md): bus, handler context, policies, effects, actions and modules, step by step
-- [Recipes](docs/recipes.md): find the page for your problem (a race, a double submit, a flaky network, a store, a framework), simplest first
+- [Common tasks](docs/recipes.md): the problem, a short solution and a link for each common task (a race, a double submit, a flaky network, a store, a framework), simplest first
 - [Start a project from a template](docs/starter.md): `npm create nanoeffects` makes a Vite project (`vanilla`, `react`, `vue-ts`, `svelte-ts` and others, in JavaScript or TypeScript) with a bus, `debounce` and `latest`
-- [Why nanoeffects exists](docs/motivation.md): logic and side effects outside UI components as plain async functions, no dependencies and no global state for SDKs and Module Federation, and why not redux-saga, RxJS, Redux or Effector
+- [Why nanoeffects exists](docs/motivation.md): logic and side effects outside UI components as plain async functions, DI by context, and no dependencies and no global state for micro-frontends and Module Federation
 - [Package entries](docs/package.md): which import holds what
-- [Stability](docs/stability.md): which entries are stable or unstable, what a breaking change is, the supported Node, TypeScript and framework versions, the call forms that stay
 - [Plugins](docs/plugins.md): every plugin of a bus, what `bus.use` returns, and the order to use them in
 
 ## Async UI and unreliable networks
 
 - [Policies](docs/policies.md): `latest`, `leading`, `debounce`, `throttle`, `queue`, and `key`; `withPolicy` makes one a plain function without a bus
 - [Cancel stale requests and fix race conditions](docs/cancel-stale-requests.md): an older response overwrites a newer one; `latest`, `debounce`, `retry`, `timeout` in one recipe
-- [Debounce a request and abort the previous one](docs/debounce-and-abort.md): `debounce` outside, `latest` inside, and when to use `throttle`
+- [Pause between requests](docs/debounce-and-abort.md): `debounce` outside, `latest` inside, and when to use `throttle`
 - [Prevent a double submit](docs/prevent-double-submit.md): `leading`, one run per item with `key`, retry only on network errors
 - [Effects and cancellation](docs/effects.md): `retry`, `timeout`, `poll`, `take`, `all`, `race`, `backoff`
 - [Errors and unheard events](docs/errors.md): `onError`, `onUnhandled`

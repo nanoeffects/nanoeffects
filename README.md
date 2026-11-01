@@ -13,7 +13,7 @@ Move business logic and side effects out of React, Vue and Svelte components int
 npm install nanoeffects
 ```
 
-`pnpm add nanoeffects` and `yarn add nanoeffects` work the same. The package is ESM only (use `import`, not `require`), has no dependencies and includes its types. It runs on Node 18 or newer and in any bundler: [supported versions](docs/stability.md#check-the-supported-versions).
+`pnpm add nanoeffects` and `yarn add nanoeffects` work the same. The package is ESM only (use `import`, not `require`), has no dependencies and includes its types. It runs on Node 18 or newer and in any bundler.
 
 New project: `npm create nanoeffects@latest my-app` ([Docs](docs/starter.md)). Try it first: [playground](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/playground) in your browser, no install.
 

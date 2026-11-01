@@ -12,7 +12,7 @@ describe("repositoryLink", () => {
 		expect(repositoryLink("../README.md", "guide.md")).toBe(
 			`${repository}/blob/main/README.md`,
 		);
-		expect(repositoryLink("../CHANGELOG.md", "stability.md")).toBe(
+		expect(repositoryLink("../CHANGELOG.md", "effects.md")).toBe(
 			`${repository}/blob/main/CHANGELOG.md`,
 		);
 		expect(repositoryLink("../examples/guide.ts", "guide.md")).toBe(

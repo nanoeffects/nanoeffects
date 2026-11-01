@@ -24,7 +24,7 @@ Runnable code for every step: [`examples/guide.ts`](../examples/guide.ts).
 - [5. Add retry and timeout](#5-add-retry-and-timeout)
 - [6. Run work in parallel or wait for an event](#6-run-work-in-parallel-or-wait-for-an-event)
 - [7. Name events three ways](#7-name-events-three-ways)
-- [8. Bind a handler to an action later](#8-bind-a-handler-to-an-action-later)
+- [8. Replace a handler on the fly](#8-replace-a-handler-on-the-fly)
 - [9. Mount a domain as a module](#9-mount-a-domain-as-a-module)
 - [10. Add types when you want checking (optional)](#10-add-types-when-you-want-checking-optional)
 - [11. Isolate errors and warn on typos](#11-isolate-errors-and-warn-on-typos)
@@ -243,7 +243,7 @@ const searchLatest = latest(async (query, { signal }) => {
 bus.on("search", debounce(300, searchLatest));
 ```
 
-Full options: [Policies](policies.md). No bus? A policy also works as a plain function: [Use a policy without a bus](policies.md#use-a-policy-without-a-bus).
+Full options: [Policies](policies.md). No bus? A policy also works as a plain function: [Call a policy outside a bus](policies.md#call-a-policy-outside-a-bus).
 
 ## 5. Add retry and timeout
 
@@ -298,7 +298,7 @@ import { all, delay, race, take } from "nanoeffects/effects";
 const bus = createBus();
 
 // all — run together; one failure cancels the rest
-// child — the context of that starter: it has the `signal`, so the request stops with the group
+// child — the context of that request: it has the `signal`, so the request stops with the group
 bus.on("search", async (id, ctx) => {
   const { user, posts } = await all(ctx, {
     user: (child) => api.user(id, child),
@@ -373,9 +373,11 @@ bus.emit(double(21)); // 42
 
 Use strings for the plain case. Use objects when other code already builds actions. Give `createAction` a handler when you need a result from `emit`.
 
-## 8. Bind a handler to an action later
+## 8. Replace a handler on the fly
 
-An action may carry its handler, as `double` above, or get it later from a registry — another file, or a fake in a test. An action with no handler is an event until one is bound.
+**Problem.** The handler of an action is in the file of the feature, but a test needs a fake, or another layer owns the work. If the handler sits in `createAction`, the event file is tied to the work.
+
+**What to do.** Create the action without a handler: it is an event. Bind the real handler with `setHandler` when the bus is made. Later, `actions.handle` binds a newer handler that wins until you remove it.
 
 ```js
 // user.js
@@ -387,26 +389,32 @@ export const getUser = createAction("user/get"); // no handler yet: an event
 ```js
 // bus.js
 import { createBus } from "nanoeffects";
-import { actionsPlugin } from "nanoeffects/actions";
+import { actionsPlugin, setHandler } from "nanoeffects/actions";
+import { getUser } from "./user";
 
 export const bus = createBus();
-// actionsPlugin — registry of handlers for this bus
-export const actions = bus.use(actionsPlugin());
+
+// setHandler — binds the real handler to the action
+const realUser = setHandler(getUser, (id) => api.user(id));
+
+// actionsPlugin — the registry of bound handlers of this bus
+export const actions = bus.use(actionsPlugin([realUser]));
 ```
 
 ```js
 import { bus, actions } from "./bus";
 import { getUser } from "./user";
 
-bus.emit(getUser("1")); // nothing is bound: only an event
+const user = await bus.emit(getUser("1")); // the real handler answers
 
-const unregister = actions.handle(getUser, (id) => api.user(id));
-const user = await bus.emit(getUser("1"));
+// actions.handle — a newer binding wins, for example a fake in a test
+const restore = actions.handle(getUser, (id) => ({ id, name: "test" }));
+const fake = await bus.emit(getUser("1")); // the fake answers
 
-unregister();
+restore(); // the real handler answers again
 ```
 
-Each bus has its own registry. A [module](#9-mount-a-domain-as-a-module) can register handlers and remove them on unmount. More in [Actions](actions.md).
+Each bus has its own registry. A [module](#9-mount-a-domain-as-a-module) can bind handlers and remove them on unmount. More in [Actions](actions.md#bind-a-handler-later).
 
 ## 9. Mount a domain as a module
 

@@ -96,7 +96,7 @@ bus.on(
 );
 ```
 
-Backoff between tries: [Back off between retries](effects.md#back-off-between-retries).
+Backoff between tries: [`backoff`](effects.md#backoff).
 
 ## Guard a handler when you have no bus
 

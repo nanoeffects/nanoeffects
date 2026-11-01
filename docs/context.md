@@ -21,7 +21,7 @@ Here `store` is your own object: a store, an API client, a logger, anything. Tha
 
 Library fields (`signal`, `emit`, `run`, …) win on name clashes. `context` may be a function `(task) => fields` when the value depends on the task.
 
-To get `race`, `all`, `take` and the like on every task without passing `ctx`, see [`effectsPlugin`](effects.md#put-selected-effects-on-ctx).
+To get `race`, `all`, `take` and the like on every task without passing `ctx`, see [`effectsPlugin`](effects.md#effectsplugin).
 
 To give fields to **one** action, job or module, or to replace them for one `emit`, see [scopes](scope.md).
 

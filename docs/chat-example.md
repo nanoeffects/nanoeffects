@@ -90,7 +90,7 @@ import { latest } from "nanoeffects/policies";
 export const fetchHistory = latest((roomId, { signal }) => api.loadHistory(roomId, { signal }));
 ```
 
-The module gives the job its work and keeps the state from the outcomes, so an aborted load clears the flag too (see [Show a loading state with a job](actions.md#show-a-loading-state-with-a-job)):
+The module gives the job its work and keeps the state from the outcomes, so an aborted load clears the flag too (see [Show a loading state with a job](actions.md#the-state-of-a-job)):
 
 ```js
 // message-module.js

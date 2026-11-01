@@ -7,6 +7,7 @@ import {
 	createAction,
 	createModule,
 	modulePlugin,
+	setHandler,
 } from "nanoeffects/actions";
 import { all, retry, take, timeout } from "nanoeffects/effects";
 import { debounce, latest, queue, throttle } from "nanoeffects/policies";
@@ -182,28 +183,31 @@ export const step7 = () => {
 	return seen;
 };
 
-// 8. Bind a handler to an action later
+// 8. Replace a handler on the fly
 const getUser = createAction<Call<string, Promise<User>>>("user/get");
 
 export const step8 = async () => {
 	const seen: string[] = [];
 	const bus = createBus<Events>();
-	const actions = bus.use(actionsPlugin());
+	const actions = bus.use(
+		actionsPlugin([
+			setHandler(getUser, async (id) => ({ id, name: `user ${id}` })),
+		]),
+	);
 
-	bus.on(getUser, () => {
-		seen.push("heard");
-	});
-	bus.emit(getUser("1")); // nothing is bound: only the listener runs
-
-	const unregister = actions.handle(getUser, async (id) => ({
-		id,
-		name: `user ${id}`,
-	}));
 	const user = await bus.emit(getUser("1"));
 	seen.push(user.name);
 
-	unregister();
-	bus.emit(getUser("1")); // unbound again: only the listener runs
+	const restore = actions.handle(getUser, async (id) => ({
+		id,
+		name: `fake ${id}`,
+	}));
+	const fake = await bus.emit(getUser("1"));
+	seen.push(fake.name);
+
+	restore();
+	const again = await bus.emit(getUser("1"));
+	seen.push(again.name);
 
 	return seen;
 };

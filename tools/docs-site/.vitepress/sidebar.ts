@@ -14,40 +14,34 @@ export const sidebar: SidebarItem[] = [
 		text: "Start",
 		items: [
 			{ text: "Guide", link: "/guide" },
-			{ text: "Recipes", link: "/recipes" },
+			{ text: "Common tasks", link: "/recipes" },
 			{ text: "Start from a template", link: "/starter" },
 			{ text: "Why nanoeffects", link: "/motivation" },
 			{ text: "Package entries", link: "/package" },
 		],
 	},
 	{
-		text: "Async UI recipes",
+		text: "Working with async code",
 		collapsed: true,
 		items: [
 			{ text: "Cancel stale requests", link: "/cancel-stale-requests" },
-			{ text: "Debounce and abort", link: "/debounce-and-abort" },
+			{ text: "Pause between requests", link: "/debounce-and-abort" },
 			{ text: "Prevent a double submit", link: "/prevent-double-submit" },
 			{ text: "Errors and unheard events", link: "/errors" },
 		],
 	},
 	{
 		text: "Policies",
+		link: "/policies",
 		collapsed: true,
-		items: [
-			{
-				text: "Policies",
-				link: "/policies",
-				items: nested("policies", [
-					"latest",
-					"leading",
-					"debounce",
-					"throttle",
-					"queue",
-					"key",
-					"withPolicy",
-				]),
-			},
-		],
+		items: nested("policies", [
+			"latest",
+			"leading",
+			"debounce",
+			"throttle",
+			"queue",
+			"key",
+		]),
 	},
 	{
 		text: "Effects",
@@ -63,6 +57,7 @@ export const sidebar: SidebarItem[] = [
 					"backoff",
 					"delay",
 					"cancellable",
+					"onAbort",
 					"take",
 					"all",
 					"allSettled",
@@ -86,7 +81,7 @@ export const sidebar: SidebarItem[] = [
 		],
 	},
 	{
-		text: "Frameworks",
+		text: "Ecosystem",
 		collapsed: true,
 		items: [
 			{ text: "React", link: "/react" },
@@ -126,7 +121,6 @@ export const sidebar: SidebarItem[] = [
 			{ text: "Plugins", link: "/plugins" },
 			{ text: "Trace tasks", link: "/tracing" },
 			{ text: "Hot reload and dev diagnostics", link: "/hmr" },
-			{ text: "Stability", link: "/stability" },
 		],
 	},
 ];
@@ -134,13 +128,13 @@ export const sidebar: SidebarItem[] = [
 const russian: Record<string, string> = {
 	Start: "Начало",
 	Guide: "Руководство",
-	Recipes: "Рецепты",
+	"Common tasks": "Типовые задачи",
 	"Start from a template": "Проект из шаблона",
 	"Why nanoeffects": "Зачем нужна библиотека",
 	"Package entries": "Точки входа пакета",
-	"Async UI recipes": "Рецепты для async UI",
+	"Working with async code": "Работа с асинхронностью",
 	"Cancel stale requests": "Отмена устаревших запросов",
-	"Debounce and abort": "Debounce и отмена",
+	"Pause between requests": "Пауза между запросами",
 	"Prevent a double submit": "Защита от повторной отправки",
 	"Errors and unheard events": "Ошибки и события без подписчиков",
 	Policies: "Политики",
@@ -154,7 +148,7 @@ const russian: Record<string, string> = {
 	"TypeScript in many files": "TypeScript в нескольких файлах",
 	"Chat example": "Пример: чат",
 	"Chat widget": "Пример: виджет чата",
-	Frameworks: "Фреймворки",
+	Ecosystem: "Экосистема",
 	"Libraries and stores": "Библиотеки и сторы",
 	"Redux, Zustand, MobX, Pinia": "Redux, Zustand, MobX, Pinia",
 	"React Query, SWR, RTK Query": "React Query, SWR, RTK Query",
@@ -168,7 +162,6 @@ const russian: Record<string, string> = {
 	Plugins: "Плагины",
 	"Trace tasks": "Трассировка задач",
 	"Hot reload and dev diagnostics": "Hot reload и диагностика",
-	Stability: "Стабильность",
 };
 
 const localize = (items: SidebarItem[]): SidebarItem[] =>

@@ -31,7 +31,3 @@ Commits follow [Conventional Commits](https://www.conventionalcommits.org/) in E
 ## Where things are
 
 [AGENTS.md](AGENTS.md) explains the layout, the decisions that are easy to undo by mistake, and the documentation rules. Read the part you are changing before you start. Changes to behavior or the public API are planned in `openspec/`; the maintainer will say if yours needs it.
-
-## What is stable
-
-[Stability](docs/stability.md) lists which entries are stable. An unstable entry can change in a minor release.

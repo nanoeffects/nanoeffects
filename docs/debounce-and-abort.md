@@ -1,4 +1,4 @@
-# Debounce a request and abort the previous one
+# Pause between requests
 
 > **Level B.** Read first: [Policies](policies.md).
 

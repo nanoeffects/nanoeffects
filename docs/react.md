@@ -2,31 +2,33 @@
 
 > **Level B.** Read first: [Guide](guide.md#1-create-a-bus) steps 1 to 3.
 
-Use this page when a React screen starts requests on user input and you need them not to race: a username check while typing, a submit button, a flaky network. It builds one registration form. The bus lives outside React; the component only subscribes to it.
+The task is a registration form. While the user types a name, the form asks the backend whether it is free, and the "Sign up" button submits the form. That makes the requests race: the answer to an old input can arrive after the answer to a new one and show a wrong result. This page shows how to solve it with nanoeffects. The bus lives outside React; the component only subscribes to it.
+
+Steps 1 and 2 are required, step 3 is not. The last two sections are extra.
 
 You need a React project and `nanoeffects` installed. The form talks to your own client, `api` below: replace it with your requests.
 
 ## On this page
 
-- [See what goes wrong without a bus](#see-what-goes-wrong-without-a-bus)
-- [Wire the bus once](#wire-the-bus-once)
-- [Connect the form](#connect-the-form)
-- [Stop running work when the form closes](#stop-running-work-when-the-form-closes)
+- [Problems of the form without a bus](#problems-of-the-form-without-a-bus)
+- [1. The bus and the handlers](#1-the-bus-and-the-handlers)
+- [2. The form component](#2-the-form-component)
+- [3. Stop requests when the form closes](#3-stop-requests-when-the-form-closes)
 - [Show the last value of an event as state](#show-the-last-value-of-an-event-as-state)
 - [Keep a debounced handler between renders](#keep-a-debounced-handler-between-renders)
 - [Where to go next](#where-to-go-next)
 
-## See what goes wrong without a bus
+## Problems of the form without a bus
 
 A registration form has three problems that `useEffect` and `fetch` leave to you:
 
-- **A stale answer.** The user types `ann`, then `anna`. The answer for `ann` arrives last and says the name is free, although `anna` is taken.
+- **A race in the name check.** The user types `ann`, then `anna`, and every input sends a "is the name free" request. The answer for `ann` arrives last and says the name is free, although `anna` is taken.
 - **A double submit.** A second click on "Sign up" sends a second request while the first one is running.
 - **A flaky network.** One failed request should be retried, but a "name is taken" answer should not.
 
 Each has a policy or an effect: `latest`, `leading`, `retry`. They live in one place, outside the component.
 
-## Wire the bus once
+## 1. The bus and the handlers
 
 Keep the bus in a file of its own, and the handlers of the form in another. Create the bus once, outside any component: a bus created in the body of a component would be a new bus, without subscribers, on every render.
 
@@ -83,7 +85,7 @@ bus.on(
 
 The handlers know nothing about React. A test can emit `username/typed` and read `username/checked` without rendering anything: the same wiring is tested in [`examples/registration-form.ts`](../examples/registration-form.ts) and `src/tests/registration-form.test.ts`.
 
-## Connect the form
+## 2. The form component
 
 <!-- docs-check: continue -->
 
@@ -154,11 +156,11 @@ The `disabled` button is only for the look. The form stays correct without it: `
 
 In development, React StrictMode runs the effect twice (subscribe, unsubscribe, subscribe). That is safe here, because the cleanup removes exactly what the effect added.
 
-## Stop running work when the form closes
+## 3. Stop requests when the form closes
 
 <!-- docs-check: continue -->
 
-Unsubscribing stops the component from hearing results, but a request that has started keeps running. To cancel it, the component emits `form/closed` when it unmounts, and each handler that should stop listens for it with `ctx.on`:
+This step is optional. Unsubscribing stops the component from hearing results, but a request that has started keeps running. To cancel it, the component emits `form/closed` when it unmounts, and each handler that should stop listens for it with `ctx.on`:
 
 ```js
 import { latest } from "nanoeffects/policies";
@@ -280,12 +282,37 @@ export const Search = ({ wait }) => {
 - Write the policy without its callback: `debounce(300)`, not `debounce(300, callback)`. `usePolicy` puts the callback in itself, always the one of the latest render.
 - To combine policies, write a function of the task: `(task) => throttle(100, latest(task))`. Here `task` is the callback that `usePolicy` keeps current; pass it, not your own function.
 - `deps` stay your job: `debounce(wait)` is made again on every render, but only the first one (and the one after `deps` change) is used.
-- Without a React component, use [`withPolicy`](policies.md#use-a-policy-without-a-bus).
+- Without a React component, use [`withPolicy`](policies.md#call-a-policy-outside-a-bus).
+
+### Write a policy without its function
+
+**Problem.** `usePolicy` puts the callback of the latest render into the policy itself, so it needs a policy that has no function yet. If you passed your own function there, it would be easy to pass the wrong one.
+
+Leave the function out and the policy returns a wrapper. The wrapper takes a function and gives back the same policy as the direct call:
+
+```js
+import { debounce } from "nanoeffects/policies";
+
+const runSearch = async (query) => {
+  await api.search(query);
+};
+
+// debounce(300) — no function yet: returns a wrapper
+const wrap = debounce(300);
+
+// the wrapper takes the function; same as debounce(300, runSearch)
+const search = wrap(runSearch);
+```
+
+- It works for `latest()`, `leading()`, `debounce(ms)`, `throttle(ms)` and `queue()`, with the options as the last argument: `queue({ concurrency: 2 })`, `debounce(300, { leading: true })`.
+- Each time you apply a wrapper to a function, you get a new policy with its own state.
+- To combine policies, nest them: `throttle(100, latest(fn))`.
+- With `key`, annotate the payload of the key function in TypeScript: `latest({ key: (user: User) => user.id })`. Without the annotation the wrapper cannot know the payload type.
 
 ## Where to go next
 
 - The policies behind this form: [Policies](policies.md).
-- A policy as a plain function without a bus: [Use a policy without a bus](policies.md#use-a-policy-without-a-bus).
+- A policy as a plain function without a bus: [Call a policy outside a bus](policies.md#call-a-policy-outside-a-bus).
 - `retry`, `timeout` and the other effects: [Effects](effects.md).
 - A state library instead of `useState`: [Stores](stores.md).
 - React Query or SWR instead of your own state: [Use nanoeffects with React Query, SWR and RTK Query](query-libraries.md).
