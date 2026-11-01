@@ -11,7 +11,6 @@ The first three playgrounds are the same search box: type fast and only one requ
 | [`playground`](playground) | Plain DOM and `main.ts`. The smallest setup; the page lists the requests, so the abort is visible. | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/playground) |
 | [`playground-react`](playground-react) | The same search in a React component, with the bus outside React. Every task is printed to the browser console. | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/playground-react) |
 | [`playground-devtools`](playground-devtools) | The same search with its emits and the calls a policy stopped sent to Redux DevTools. Redux DevTools is a browser extension: open the preview in its own tab and pick the instance named `search playground` in its list. | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/playground-devtools) |
-
 | [`debug-playground`](debug-playground) | A page with a button for each shape of loop: the report of `graphLogger`, the graph drawn with the cycle in red, a `cycle/detected` action in Redux DevTools, and a switch for `loopGuardPlugin`. Open the preview in its own tab and pick the instance named `debug playground`. | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/debug-playground) |
 
 To run one on your machine:
