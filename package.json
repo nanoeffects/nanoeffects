@@ -307,7 +307,7 @@
 		{
 			"name": "dev",
 			"path": "dist/dev.js",
-			"limit": "1.4 kB"
+			"limit": "1.6 kB"
 		},
 		{
 			"name": "dev (production)",

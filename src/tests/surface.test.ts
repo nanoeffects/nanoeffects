@@ -138,7 +138,7 @@ const typeExports: Record<string, string[]> = {
 	react: ["ReactApi"],
 	svelte: ["SvelteApi"],
 	vue: ["VueApi"],
-	dev: ["DevOptions", "DevPlugin"],
+	dev: ["DevOptions", "DevPlugin", "LostSignal", "LostSignalsOptions"],
 };
 
 const typeNamesOf = (): Record<string, string[]> => {

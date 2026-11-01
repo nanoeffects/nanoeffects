@@ -11,6 +11,7 @@ A policy such as `latest` cancels an older call by aborting its `ctx.signal`. Th
 - [Pass the signal when it is hard](#pass-the-signal-when-it-is-hard)
 - [Turn on the checks](#turn-on-the-checks)
 - [Choose which calls are checked](#choose-which-calls-are-checked)
+- [Count lost signals in a test](#count-lost-signals-in-a-test)
 - [Prove it with a test](#prove-it-with-a-test)
 - [Know what the checks cannot see](#know-what-the-checks-cannot-see)
 
@@ -201,6 +202,42 @@ export default [
 ```
 
 oxlint and Biome do not give a rule type information, so they use the syntax and the lists. The type-aware mode needs the `typescript` package with the compiler API (version 5 today; the native version 7 has none), as `@typescript-eslint/parser` does.
+
+## Count lost signals in a test
+
+`getLostSignals(bus)` from `nanoeffects/dev` returns how many signals the handlers of a bus lost: each emit or `ctx.on` that a handler made after its task was cancelled. The bus needs `devPlugin`. Run the flow the way a user would, cancel it, and check that the count is 0:
+
+```js
+import { createBus } from "nanoeffects";
+import { devPlugin, getLostSignals, lostSignals } from "nanoeffects/dev";
+import { latest } from "nanoeffects/policies";
+import { expect, test } from "vitest";
+
+test("a newer search leaves no lost signals", async () => {
+  const bus = createBus();
+  // devPlugin — records every emit that a cancelled handler made; log hides its warnings in the test
+  bus.use(devPlugin({ log: () => {} }));
+  bus.on(
+    "search",
+    latest(async (query, ctx) => {
+      const items = await api.search(query, { signal: ctx.signal });
+      ctx.emit("results", items);
+    }),
+  );
+
+  bus.emit("search", "a");
+  bus.emit("search", "ab"); // cancels the first call
+
+  // wait — how long to let the handlers finish before counting, in ms
+  const count = await getLostSignals(bus, { wait: 50 });
+
+  expect(count).toBe(0);
+});
+```
+
+`lostSignals(bus)` gives the list instead of the count: `{ kind: "emit" | "on", handler, event }` for each, so a failing test says which handler and which event. Without `devPlugin` (or with `abandoned: false`) it throws and says so. In a production build both functions are empty: the count is 0.
+
+It counts what a handler does after the cancel. A request that a handler started and that the cancel did not stop is not counted unless the handler then emits; the next section finds those.
 
 ## Prove it with a test
 

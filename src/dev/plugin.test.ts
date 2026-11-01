@@ -10,8 +10,12 @@ import { siteOf } from "../core/site";
 import { matchPlugin } from "../match";
 import { latest } from "../policies";
 import type { TestEvents } from "../tests/test-helpers";
-import { devPlugin as noopPlugin } from "./noop";
-import { devPlugin } from "./plugin";
+import {
+	getLostSignals as noopGetLostSignals,
+	lostSignals as noopLostSignals,
+	devPlugin as noopPlugin,
+} from "./noop";
+import { devPlugin, getLostSignals, lostSignals } from "./plugin";
 import type { DevOptions } from "./types";
 
 const setup = (options: DevOptions<TestEvents> = {}) => {
@@ -777,5 +781,146 @@ describe("devPlugin: a handler that ignores the signal", () => {
 		bus.use(noopPlugin());
 
 		expect(bus.addContext).toBe(original);
+	});
+});
+
+describe("getLostSignals", () => {
+	type Events = { search: string; results: string; other: number };
+
+	const make = (options: DevOptions<Events> = {}) => {
+		const bus = createBus<Events>();
+		bus.use(devPlugin({ log: () => {}, ...options }));
+
+		return bus;
+	};
+
+	const later = (ms: number) =>
+		new Promise((resolve) => setTimeout(resolve, ms));
+
+	it("counts the emits that handlers made after they were cancelled", async () => {
+		const bus = make();
+		bus.on(
+			"search",
+			latest(async (query: string, ctx) => {
+				// the request ignores ctx.signal, so it runs to the end after the abort
+				await later(10);
+				ctx.emit("results", query);
+			}),
+		);
+
+		bus.emit("search", "a");
+		bus.emit("search", "ab");
+		bus.emit("search", "abc");
+
+		expect(await getLostSignals(bus, { wait: 40 })).toBe(2);
+	});
+
+	it("counts nothing for a handler that stops with its signal", async () => {
+		const bus = make();
+		bus.on(
+			"search",
+			latest(async (query: string, ctx) => {
+				await later(10);
+				if (!ctx.signal.aborted) {
+					ctx.emit("results", query);
+				}
+			}),
+		);
+
+		bus.emit("search", "a");
+		bus.emit("search", "ab");
+
+		expect(await getLostSignals(bus, { wait: 40 })).toBe(0);
+	});
+
+	it("lists what was lost: the kind, the handler and the event", async () => {
+		const bus = make();
+		bus.on(
+			"search",
+			latest(async (_query: string, ctx) => {
+				await later(10);
+				ctx.emit("results", "late");
+				ctx.on("other", () => {});
+			}),
+		);
+
+		bus.emit("search", "a");
+		bus.emit("search", "ab");
+
+		expect(await lostSignals(bus, { wait: 40 })).toEqual([
+			{ kind: "emit", handler: "search", event: "results" },
+			{ kind: "on", handler: "search", event: "other" },
+		]);
+	});
+
+	it("counts a lost emit every time, while the warning is written once", async () => {
+		const messages: string[] = [];
+		const bus = make({ log: (message) => messages.push(message) });
+		bus.on(
+			"search",
+			latest(async (_query: string, ctx) => {
+				await later(10);
+				ctx.emit("results", "one");
+				ctx.emit("results", "two");
+			}),
+		);
+
+		bus.emit("search", "a");
+		bus.emit("search", "ab");
+
+		expect(await getLostSignals(bus, { wait: 40 })).toBe(2);
+		expect(
+			messages.filter((message) => message.includes("aborted")),
+		).toHaveLength(1);
+	});
+
+	it("is 0 when nothing was cancelled", async () => {
+		const bus = make();
+		bus.on(
+			"search",
+			latest(async (query: string, ctx) => {
+				await later(5);
+				ctx.emit("results", query);
+			}),
+		);
+
+		bus.emit("search", "a");
+
+		expect(await getLostSignals(bus, { wait: 30 })).toBe(0);
+	});
+
+	it("says what to do when the bus has no devPlugin, or the check is off", async () => {
+		await expect(getLostSignals(createBus<Events>())).rejects.toThrow(
+			"devPlugin",
+		);
+		await expect(getLostSignals(make({ abandoned: false }))).rejects.toThrow(
+			"devPlugin",
+		);
+	});
+
+	it("keeps counting separately for each bus", async () => {
+		const first = make();
+		const second = make();
+		first.on(
+			"search",
+			latest(async (_query: string, ctx) => {
+				await later(10);
+				ctx.emit("results", "late");
+			}),
+		);
+
+		first.emit("search", "a");
+		first.emit("search", "ab");
+
+		expect(await getLostSignals(first, { wait: 40 })).toBe(1);
+		expect(await getLostSignals(second)).toBe(0);
+	});
+
+	it("the production build counts nothing", async () => {
+		const bus = createBus<Events>();
+		bus.use(noopPlugin());
+
+		expect(await noopGetLostSignals()).toBe(0);
+		expect(await noopLostSignals()).toEqual([]);
 	});
 });

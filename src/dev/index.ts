@@ -1,2 +1,7 @@
-export { devPlugin } from "./plugin";
-export type { DevOptions, DevPlugin } from "./types";
+export { devPlugin, getLostSignals, lostSignals } from "./plugin";
+export type {
+	DevOptions,
+	DevPlugin,
+	LostSignal,
+	LostSignalsOptions,
+} from "./types";

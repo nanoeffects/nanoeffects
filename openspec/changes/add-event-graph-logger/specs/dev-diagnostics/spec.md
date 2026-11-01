@@ -38,6 +38,14 @@ With `devPlugin` used, the bus SHALL warn once for each pair of handler type and
 - **WHEN** `createJob` emits its `cancel` for an aborted call
 - **THEN** nothing is reported
 
+#### Scenario: A test counts what was lost
+- **WHEN** a test cancels a handler that emits after the cancel and calls `getLostSignals(bus, { wait })`
+- **THEN** it resolves with the number of such emits and `ctx.on` calls, every one counted though the warning is written once, and `lostSignals(bus)` lists `{ kind, handler, event }` for each
+
+#### Scenario: No tracking on the bus
+- **WHEN** `getLostSignals` is called on a bus with no `devPlugin`, or with `abandoned: false`
+- **THEN** it rejects with a message that says to use `devPlugin`
+
 #### Scenario: Off, disconnected and production
 - **WHEN** `abandoned: false` is set, or the plugin is disconnected, or the production build is used
 - **THEN** nothing is reported and `bus.addContext` is as it was

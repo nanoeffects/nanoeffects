@@ -132,6 +132,10 @@ describe("public entries", () => {
 	});
 
 	it("dev", () => {
-		expect(Object.keys(dev).sort()).toEqual(["devPlugin"]);
+		expect(Object.keys(dev).sort()).toEqual([
+			"devPlugin",
+			"getLostSignals",
+			"lostSignals",
+		]);
 	});
 });

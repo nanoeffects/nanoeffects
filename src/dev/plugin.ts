@@ -5,7 +5,7 @@ import { emitAfterAbort } from "../core/emit-key";
 import { eventKey } from "../core/event";
 import { recordSite } from "../core/site";
 import type { EventMap } from "../core/types";
-import type { DevPlugin } from "./types";
+import type { DevPlugin, LostSignal, LostSignalsOptions } from "./types";
 
 const PREFIX = "[nanoeffects]";
 
@@ -159,6 +159,9 @@ const nameOf = (event: unknown) =>
 		? event
 		: String(Reflect.get(Object(event), "type"));
 
+// what each bus with the check noted, for `getLostSignals`
+const lostOf = new WeakMap<object, LostSignal[]>();
+
 type Aborted = {
 	type: string;
 	signal: AbortSignal;
@@ -174,6 +177,8 @@ const watchAbandoned = <E extends EventMap>(
 ) => {
 	const previous = bus.addContext;
 	const told = new Set<string>();
+	const lost: LostSignal[] = [];
+	lostOf.set(bus, lost);
 	let active = true;
 
 	const wrapped = (target: object) => {
@@ -185,7 +190,11 @@ const watchAbandoned = <E extends EventMap>(
 			const gate = Reflect.get(target, emitAfterAbort);
 			const name = nameOf(event);
 			const key = `${task.type}\u0000${name}`;
-			if (active && task.signal.aborted && gate !== true && !told.has(key)) {
+			const isLost = active && task.signal.aborted && gate !== true;
+			if (isLost) {
+				lost.push({ kind: "emit", handler: task.type, event: name });
+			}
+			if (isLost && !told.has(key)) {
 				told.add(key);
 				warn(
 					`${PREFIX} the handler of "${task.type}" emitted "${name}" after its task was aborted, so the emit was dropped. ` +
@@ -201,7 +210,11 @@ const watchAbandoned = <E extends EventMap>(
 		task.on = (event, ...rest) => {
 			const name = nameOf(event);
 			const key = `${task.type}\u0000on\u0000${name}`;
-			if (active && task.signal.aborted && !told.has(key)) {
+			const isLost = active && task.signal.aborted;
+			if (isLost) {
+				lost.push({ kind: "on", handler: task.type, event: name });
+			}
+			if (isLost && !told.has(key)) {
 				told.add(key);
 				warn(
 					`${PREFIX} the handler of "${task.type}" subscribed to "${name}" after its task was aborted, so the subscription was dropped. ` +
@@ -308,3 +321,42 @@ const watchModules = (app: ModuleHost, info: (message: string) => void) => {
 		app.unmount = unmount;
 	};
 };
+
+/**
+ * The signals that handlers of a bus lost so far, for a test: every emit or `ctx.on` that a handler made after
+ * its task was aborted (the bus drops it), which means the handler kept working after it was cancelled. The bus
+ * needs `devPlugin` with `abandoned` on. It waits one turn of the event loop first (`wait` for longer), so handlers
+ * that are finishing are counted.
+ *
+ * @example
+ * ```ts
+ * const bus = createBus<Events>();
+ * bus.use(devPlugin({ log: () => {} }));
+ * bus.on("search", latest(searchHandler));
+ *
+ * bus.emit("search", "a");
+ * bus.emit("search", "ab"); // cancels the first call
+ *
+ * expect(await getLostSignals(bus, { wait: 50 })).toBe(0);
+ * ```
+ */
+export const lostSignals = async (
+	bus: object,
+	options: LostSignalsOptions = {},
+): Promise<LostSignal[]> => {
+	const lost = lostOf.get(bus);
+	if (!lost) {
+		throw new Error(
+			"getLostSignals: the bus has no devPlugin, or devPlugin has `abandoned: false`. Use bus.use(devPlugin()) before the test.",
+		);
+	}
+	await new Promise((resolve) => setTimeout(resolve, options.wait ?? 0));
+
+	return [...lost];
+};
+
+/** The number of signals that handlers of a bus lost so far: see `lostSignals` for the list. */
+export const getLostSignals = async (
+	bus: object,
+	options: LostSignalsOptions = {},
+) => (await lostSignals(bus, options)).length;

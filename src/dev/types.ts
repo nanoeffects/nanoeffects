@@ -23,6 +23,22 @@ export type DevOptions<E extends EventMap = EventMap> = {
 	app?: ReportedApp<E>;
 };
 
+/** One signal that a handler lost: it kept working after its task was aborted. */
+export type LostSignal = {
+	/** `emit`: the handler emitted after the abort (the emit was dropped); `on`: it subscribed after the abort. */
+	kind: "emit" | "on";
+	/** The type of the task that was aborted: the event its handler works on. */
+	handler: string;
+	/** The event that was emitted or subscribed to. */
+	event: string;
+};
+
+/** What `getLostSignals` takes. */
+export type LostSignalsOptions = {
+	/** How long to wait, in ms, before counting, so handlers that are still running can finish. Default 0: one turn of the event loop. */
+	wait?: number;
+};
+
 /** A plugin that connects the diagnostics to a bus; the function it returns disconnects them. */
 export type DevPlugin = <E extends EventMap>(
 	options?: DevOptions<E>,
