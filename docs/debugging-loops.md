@@ -16,6 +16,7 @@ A loop is two handlers that emit each other's events, or one handler that emits 
 - [Cut a loop at run time](#cut-a-loop-at-run-time)
 - [Fail a test on a loop](#fail-a-test-on-a-loop)
 - [Export the graph and the payloads](#export-the-graph-and-the-payloads)
+- [Know how a loop is found](#know-how-a-loop-is-found)
 - [Know the limits](#know-the-limits)
 
 ## Start from the symptom
@@ -276,6 +277,32 @@ console.log(JSON.stringify(data));
 ```
 
 A payload can be a class instance, a `Map`, a circular object or an `Error`, which a plain `JSON.stringify` cannot take. The exports make them plain JSON: an `Error` keeps its name, message, stack and cause, a cycle becomes `"[Circular]"`, a `Map` becomes `{ "$map": [...] }`, and an instance of a class keeps its own fields and its name as `$class`. Getters are never called, and a value that is too deep or too big is cut.
+
+## Know how a loop is found
+
+`graphLogger` finds loops in two ways. They give two kinds of finding in `graph.cycles()`, told apart by `source`:
+
+| | `source: "chain"` | `source: "graph"` |
+| - | ----------------- | ----------------- |
+| What it reads | One real run: the chain of tasks that led to the current one | Every edge seen so far, from all runs |
+| The rule | The same node is in the chain `repeats` times (3 by default) | A strongly connected component of the graph (Tarjan): several nodes that reach each other, or a node that feeds itself |
+| What you get | A warning, `onCycle`, DevTools, and the path | A line in `cycles()` and red edges in the exports; no warning |
+| It finds | A loop that really went round | A loop that could: `a` leads to `b` in one run and `b` to `a` in another |
+| It is wrong about | A recursion that ends looks like a loop after three turns | Every recursion looks like a cycle, since an event that feeds itself is a cycle of one node |
+
+So the graph is searched, and the search is exact (no heuristic): `source: "graph"` is a real cycle of the edges. What no tool can decide is whether a cycle ever ends. A tree walk that emits `tree/visit` for each child is a cycle in the graph and in the chain, and it ends. The only evidence that separates a loop from such a recursion is how often it repeats, which is why the chain finding has a threshold (`repeats`) and why you tell the logger about recursion on purpose with `ignore` ([below](#code-that-repeats-on-purpose-looks-like-a-loop)). For a loop that must be stopped, not found, use [`loopGuardPlugin`](loop-guard.md): it cuts a chain at a limit and does not need to decide.
+
+```js
+// source.js
+import { graphLogger } from "nanoeffects/trace";
+
+const graph = graphLogger();
+
+for (const cycle of graph.cycles()) {
+  // "chain": it ran as one chain (and was reported); "graph": the edges of different runs close it
+  console.log(cycle.source, cycle.path.join(" → "));
+}
+```
 
 ## Know the limits
 

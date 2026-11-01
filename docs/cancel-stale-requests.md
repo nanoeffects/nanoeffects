@@ -47,6 +47,8 @@ bus.on("results", (items) => render(items));
 
 What to replace: `api.search` is your own request function. It must accept `{ signal }` and give it to `fetch`. Without it, `latest` still ignores the old result, but the request keeps running.
 
+To make the mistake impossible, bind the signal once: `contextPlugin({ fetch: fromSignal(signalFetch) })` gives every handler a `ctx.fetch` that stops with the handler ([how](pass-the-signal.md#bind-the-signal-once)). To find the requests that already forget it, use `devPlugin` while you develop, and `getLostSignalsCount(bus)` in a test ([how](pass-the-signal.md#count-lost-signals-in-a-test)).
+
 Result: `emit("search", "ab")` followed by `emit("search", "abc")` shows only the results for `abc`, and the request for `ab` is cancelled.
 
 ## Wait for a pause in typing

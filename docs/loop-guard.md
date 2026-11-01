@@ -12,6 +12,7 @@ Use it as a safety net, also in production. It needs no tracer and changes nothi
 - [Choose what happens at the limit](#choose-what-happens-at-the-limit)
 - [Limit the emits that come from outside](#limit-the-emits-that-come-from-outside)
 - [Leave a recursion out](#leave-a-recursion-out)
+- [Know what it costs](#know-what-it-costs)
 - [Know what it does not do](#know-what-it-does-not-do)
 
 ## Cut a loop
@@ -101,6 +102,18 @@ export const bus = createBus().use(
   }),
 );
 ```
+
+## Know what it costs
+
+The plugin gives every task a small record and wraps its `emit` and `run`, so the cost is the same for each emit and does not grow with the length of the chain. On a laptop, measured with `node --expose-gc scripts/bench-guard.mjs`:
+
+| Case | Without the plugin | With the plugin | Extra for each task |
+| ---- | ------------------ | --------------- | ------------------- |
+| A handler, no chain (100 000 emits) | 15 ms | 38 ms | about 230 ns |
+| A chain of 5 events | 18 ms (20 000 chains) | 44 ms | about the same |
+| A chain of 200 events, limits not reached | 36 ms (1 000 chains) | 163 ms | about 0.6 µs |
+
+A chain of 200 events costs the same whether the check walks the chain (`maxRepeats` 50) or not (`maxRepeats` 500), so the walk over the chain is not what you pay for. Around 230 ns to 0.6 µs for each task is small beside a handler that calls the network, and it is a few percent of a core at 100 000 tasks a second. The numbers depend on the machine; run the script on yours if the emit is on a hot path.
 
 ## Know what it does not do
 

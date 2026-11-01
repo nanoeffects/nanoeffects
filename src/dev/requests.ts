@@ -26,8 +26,8 @@ type Host = {
 // AsyncLocalStorage comes from `process.getBuiltinModule`, not from an import, so a bundler for the browser has
 // nothing to resolve; where there is none (a browser, an old Node) the requests are not followed
 const createStorage = (): Storage | null => {
-	const host: Host = globalThis;
-	const builtin = host.process?.getBuiltinModule;
+	const node = Reflect.get(globalThis, "process") as Host["process"];
+	const builtin = node?.getBuiltinModule;
 	const loaded = builtin?.("node:async_hooks");
 	const make = (loaded as { AsyncLocalStorage?: new () => Storage } | undefined)
 		?.AsyncLocalStorage;

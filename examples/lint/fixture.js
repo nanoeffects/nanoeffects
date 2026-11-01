@@ -120,3 +120,31 @@ latest(async (query, ctx) => {
 
 // fine: a handler that is not written in place cannot be read by a rule
 latest(namedHandler);
+
+// flagged by the plugin: work that is started and not awaited runs after the handler returned
+latest(async (query, ctx) => {
+	setTimeout(() => api.refresh(query), 1000);
+});
+latest(async (query, ctx) => {
+	api.search(query).then((items) => ctx.emit("results", items));
+});
+latest(async (query, ctx) => {
+	stream.on("data", (chunk) => buffer.push(chunk));
+});
+
+// fine: the callback checks the signal, the signal goes to what starts it, or it is a method of ctx
+latest(async (query, ctx) => {
+	setTimeout(() => {
+		if (!ctx.signal.aborted) {
+			api.refresh(query, { signal: ctx.signal });
+		}
+	}, 1000);
+});
+latest(async (query, ctx) => {
+	api.search(query, { signal: ctx.signal }).then((items) => ctx.emit("results", items));
+});
+latest(async (query, ctx) => {
+	ctx.on("chunk", (chunk) => buffer.push(chunk));
+	window.addEventListener("online", () => retryNow(), { signal: ctx.signal });
+	await Promise.resolve();
+});

@@ -21,7 +21,7 @@ Each row is optional. The "when" column says what need brings you to it.
 | `nanoeffects/actions` | `createAction`, `createJob`, `createModule`, `modulePlugin`, `actionsPlugin` | `emit` must return a result, or domain logic leaves the UI |
 | `nanoeffects/match` | `matchPlugin`: `on`, `once` and `off` that take a function which picks the events | `on` must take a function that picks events |
 | `nanoeffects/context` | `contextPlugin`: your own fields (a store, a client) on `ctx` of every task, typed from the value | a store or client must be on every task |
-| `nanoeffects/signal` | `signalPlugin`: `emit(call, { signal })` ties the tasks of an emit to an outside `AbortSignal` | an outside `AbortSignal` (request, React Query) must stop tasks |
+| `nanoeffects/signal` | `signalPlugin`: `emit(call, { signal })` ties the tasks of an emit to an outside `AbortSignal`; `fromSignal` and `signalFetch`: a client or a `fetch` made from the signal of each task | an outside `AbortSignal` (request, React Query) must stop tasks, or a handler must not pass the signal by hand |
 | `nanoeffects/oop` | `Emitter`, `extendBus`, `WithBus`, `On`, `Once`, `disposeBus`: the methods of a bus on a class, with the subscriptions of each instance ended by `dispose()` | you write classes, not functions |
 | `nanoeffects/scope` | `scopePlugin`, `effect`: fields for one action, job, module or `emit` (the types `Scope`, `Effect`) | one action or module needs its own fields |
 | `nanoeffects/redux` | `createEffectsMiddleware` | you already use Redux |
@@ -29,7 +29,7 @@ Each row is optional. The "when" column says what need brings you to it.
 | `nanoeffects/react` | `reactPlugin`: adds the `useEmitter` hook to a bus (needs React 18 or newer) | React components |
 | `nanoeffects/svelte` | `sveltePlugin`: adds `eventStore` to a bus (needs Svelte 5 or newer) | Svelte components |
 | `nanoeffects/vue` | `vuePlugin`: adds `watchEmitter` and `useEventRef` to a bus (needs Vue 3.3 or newer) | Vue components |
-| `nanoeffects/dev` | `devPlugin` (no-op in production) | you look for leaks in development |
+| `nanoeffects/dev` | `devPlugin` (no-op in production), `getLostSignalsCount` and `getLostSignals` for tests | you look for leaks and lost signals in development and in tests |
 | `nanoeffects/trace` | `createTracer`, the loggers (`graphLogger` finds event loops) and `tracePlugin` (names for the trace) | you want to see what ran and why |
 | `nanoeffects/guard` | `loopGuardPlugin`: refuses the emit that would pass a limit of a chain | a loop must not take the app down |
 

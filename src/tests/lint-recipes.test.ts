@@ -20,6 +20,8 @@ const deeperSteps = [32, 37, 41, 45, 48, 51, 54, 57, 61];
 const biomeMisses = [32, 37, 41, 48, 51, 57, 61];
 // bus.emit in a handler: both the Biome rule and the plugin catch it
 const staleEmit = [67];
+// work that is started and not awaited: a timer, a then, a listener (the plugin only)
+const deferred = [126, 129, 132];
 
 const biomeLines = () => {
 	// Biome writes its diagnostics to stderr or stdout depending on the version; read both
@@ -110,9 +112,13 @@ describe("examples/lint: the fixture", () => {
 		const source = readFileSync(join(folder, "fixture.js"), "utf8");
 
 		expect(await lintLines(source)).toEqual(
-			[...noContext, ...directSteps, ...deeperSteps, ...staleEmit].sort(
-				(a, b) => a - b,
-			),
+			[
+				...noContext,
+				...directSteps,
+				...deeperSteps,
+				...staleEmit,
+				...deferred,
+			].sort((a, b) => a - b),
 		);
 	});
 });
@@ -120,7 +126,12 @@ describe("examples/lint: the fixture", () => {
 describe("examples/lint: the situations where the signal is hard to pass", () => {
 	const flagged = async (
 		body: string,
-		options?: { ignore?: string[]; only?: string[]; requireContext?: boolean },
+		options?: {
+			ignore?: string[];
+			only?: string[];
+			requireContext?: boolean;
+			deferred?: boolean;
+		},
 	) =>
 		(await lintLines(`latest(async (query, ctx) => {\n${body}\n});`, options))
 			.length;
@@ -435,6 +446,64 @@ describe("examples/lint: the situations where the signal is hard to pass", () =>
 		expect(await flagged("await fetch(url, { signal: ctx.signal });")).toBe(0);
 	});
 
+	it("flags work that is started and not awaited: a timer, a then, a listener", async () => {
+		expect(await flagged("setTimeout(() => api.refresh(query), 1000);")).toBe(
+			1,
+		);
+		expect(await flagged("setInterval(() => api.refresh(query), 1000);")).toBe(
+			1,
+		);
+		expect(
+			await flagged(
+				"api.search(query).then((items) => ctx.emit('results', items));",
+			),
+		).toBe(1);
+		expect(
+			await flagged("stream.on('data', (chunk) => buffer.push(chunk));"),
+		).toBe(1);
+		expect(
+			await flagged("window.addEventListener('online', () => retryNow());"),
+		).toBe(1);
+	});
+
+	it("accepts that work when the callback checks the signal, or the signal goes to what starts it", async () => {
+		expect(
+			await flagged(
+				"setTimeout(() => {\nif (!ctx.signal.aborted) {\napi.refresh(query);\n}\n}, 1000);",
+			),
+		).toBe(0);
+		expect(
+			await flagged(
+				"api.search(query, { signal: ctx.signal }).then((items) => ctx.emit('results', items));",
+			),
+		).toBe(0);
+		expect(
+			await flagged(
+				"window.addEventListener('online', () => retryNow(), { signal: ctx.signal });",
+			),
+		).toBe(0);
+		expect(
+			await flagged("ctx.on('chunk', (chunk) => buffer.push(chunk));"),
+		).toBe(0);
+		expect(
+			await flagged("setTimeout(() => ctx.signal.throwIfAborted(), 10);"),
+		).toBe(0);
+	});
+
+	it("deferred: false turns that check off", async () => {
+		expect(
+			await flagged("setTimeout(() => api.refresh(query), 1000);", {
+				deferred: false,
+			}),
+		).toBe(0);
+	});
+
+	it("leaves a promise that is already settled alone", async () => {
+		expect(await flagged("await Promise.resolve();")).toBe(0);
+		expect(await flagged("await Promise.reject(new Error('x'));")).toBe(0);
+		expect(await flagged("return Promise.resolve(query);")).toBe(0);
+	});
+
 	it("does not look into a function that is only declared in the handler", async () => {
 		expect(
 			await flagged(
@@ -600,5 +669,123 @@ describe("examples/lint: with type information", () => {
 		expect(lines.map((line) => text[line - 1]?.trim())).toContain(
 			"const cached = await cacheGet(query);",
 		);
+	});
+});
+
+// The same rule on TypeScript: generics, overloads, classes, interfaces, rest lists and lib types. acorn cannot read
+// TypeScript, so the file is transpiled to JavaScript (types erased, calls kept in the same order) and each call of
+// acorn is matched to the call of TypeScript that has the same number in the file.
+describe("examples/lint: with type information, on TypeScript", () => {
+	const typedTsLines = async () => {
+		const ts = (await import("typescript-5")).default;
+		const file = join(folder, "typed-fixture.ts");
+		const source = readFileSync(file, "utf8");
+		const program = ts.createProgram([file], {
+			noEmit: true,
+			strict: true,
+			target: ts.ScriptTarget.ES2022,
+			lib: ["lib.es2022.d.ts", "lib.dom.d.ts"],
+		});
+		const sourceFile = program.getSourceFile(file);
+		const tsCalls: Array<import("typescript-5").CallExpression> = [];
+		const collect = (node: import("typescript-5").Node) => {
+			if (ts.isCallExpression(node)) {
+				tsCalls.push(node);
+			}
+			ts.forEachChild(node, collect);
+		};
+		if (sourceFile) {
+			collect(sourceFile);
+		}
+		const javascript = ts.transpileModule(source, {
+			compilerOptions: {
+				target: ts.ScriptTarget.ES2022,
+				module: ts.ModuleKind.ESNext,
+			},
+		}).outputText;
+		const tree = parse(javascript, {
+			ecmaVersion: "latest",
+			sourceType: "module",
+			locations: true,
+		});
+		const esCalls: unknown[] = [];
+		const gather = (node: unknown) => {
+			if (!node || typeof node !== "object") {
+				return;
+			}
+			if ((node as { type?: string }).type === "CallExpression") {
+				esCalls.push(node);
+			}
+			for (const child of Object.values(node)) {
+				if (Array.isArray(child)) {
+					child.forEach(gather);
+				} else {
+					gather(child);
+				}
+			}
+		};
+		gather(tree);
+		const index = new Map<
+			unknown,
+			import("typescript-5").CallExpression | undefined
+		>();
+		for (const [position, node] of esCalls.entries()) {
+			index.set(node, tsCalls[position]);
+		}
+
+		const rule = await loadRule();
+		const reports: Report[] = [];
+		const visitor =
+			rule?.create({
+				report: (report: Report) => reports.push(report),
+				options: [{}],
+				settings: { nanoeffects: { typescript: ts } },
+				sourceCode: {
+					parserServices: {
+						program,
+						esTreeNodeToTSNodeMap: { get: (node: unknown) => index.get(node) },
+					},
+				},
+			}) ?? {};
+		for (const node of esCalls) {
+			visitor.CallExpression?.(node);
+		}
+		const text = source.split("\n");
+
+		return {
+			counts: [esCalls.length, tsCalls.length],
+			named: reports.map((report) => {
+				const found = index.get(report.node as unknown);
+				const line =
+					found && sourceFile
+						? sourceFile.getLineAndCharacterOfPosition(found.getStart()).line
+						: -1;
+
+				return `${report.messageId}: ${text[line]?.trim()}`;
+			}),
+		};
+	};
+
+	it("reports the calls the types say are wrong, and leaves the others alone", async () => {
+		const { counts, named } = await typedTsLines();
+
+		expect(counts[0]).toBe(counts[1]);
+		expect(named).toEqual([
+			// the function takes a signal and the call does not pass it
+			"lostSignal: latest(async (query, ctx) => api.search(query));",
+			"lostSignal: latest(async (query, ctx) => http.get(query));",
+			"lostSignal: latest(async (query, ctx) => request(query));",
+			"lostSignal: latest(async (query, ctx) => fetcher(query));",
+			"lostSignal: latest(async (query, ctx) => viaRest(query));",
+			"lostSignal: latest(async (query, ctx) => nullable(query, null));",
+			"lostSignal: latest(async (query, ctx) => load(1));",
+			"lostSignal: latest(async (query, ctx) => mapped(query, { map: (raw) => raw }));",
+			"lostSignal: latest(async (query, ctx) => unknownApi.search(query));",
+			// the signal is passed and the function drops it
+			"ignoredSignal: latest(async (query, ctx) => api.searchDrops(query, { signal: ctx.signal }));",
+			"ignoredSignal: latest(async (query, ctx) => mappedDrops(query, { signal: ctx.signal, map: (raw) => raw }));",
+			"ignoredSignal: latest(async (query, ctx) => loadDrops(1, { signal: ctx.signal }));",
+			"ignoredSignal: latest(async (query, ctx) => onlyRetries(query, { signal: ctx.signal }));",
+		]);
 	});
 });

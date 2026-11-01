@@ -15,6 +15,11 @@
 //   - the callbacks of effects (`retry`, `timeout`, `poll`, `all`, `race`, `take`) and of `ctx.run`: the steps
 //     inside a callback need the signal too, from `ctx.signal` or from the child context the callback gets.
 //
+// The rule also reports work that is only started: a callback given to `setTimeout`, `setInterval`, `.then`, or to
+// a listener (`stream.on("data", ...)`, `addEventListener`) that the handler does not await. It runs after the
+// handler returned, so it can run after the policy cancelled it. It is fine when the callback checks
+// `signal.aborted` or the call gets the signal (`addEventListener("abort", cb, { signal })`).
+//
 // A step is not reported when it is a call on ctx (`ctx.emit`), reads the body of a response (`.json()`: the
 // signal of the request covers it), matches `ignore` (see below), or carries the signal anywhere in its
 // arguments: an identifier `signal`, `ctx.signal`, a name that was set from them (`const options = { signal }`),
@@ -59,6 +64,20 @@ const combinators = new Set(["all", "allSettled", "race", "any"]);
 const skipped = new Set(["parent", "loc", "range", "start", "end", "tokens", "comments"]);
 // reading the body of a response is stopped by the signal of the request
 const bodyReaders = new Set(["json", "text", "blob", "arrayBuffer", "formData", "clone"]);
+
+const timers = new Set(["setTimeout", "setInterval"]);
+const thens = new Set(["then", "catch", "finally"]);
+const listeners = new Set(["on", "once", "addEventListener"]);
+
+// is the callee `ctx.on`, `ctx.signal.addEventListener`: a method of the context, which the task removes on abort
+const isOnContext = (callee, { contexts, signals }) => {
+	let root = callee;
+	while (root.type === "MemberExpression") {
+		root = root.object;
+	}
+
+	return root.type === "Identifier" && (contexts.has(root.name) || signals.has(root.name));
+};
 
 const isFunction = (node) =>
 	node?.type === "ArrowFunctionExpression" ||
@@ -295,6 +314,16 @@ const stepsOf = (fn) => {
 const isContextArgument = (call, contexts) =>
 	call.arguments[0]?.type === "Identifier" && contexts.has(call.arguments[0].name);
 
+// does the callback read `aborted` or call `throwIfAborted` on some signal?
+const checksAbort = (callback) => {
+	let checks = false;
+	walkAll(callback.body, (node) => {
+		checks = checks || (node.type === "MemberExpression" && !node.computed && ["aborted", "throwIfAborted"].includes(node.property.name));
+	});
+
+	return checks;
+};
+
 // does the call get ctx itself as an argument, or as a spread?
 const givesContext = (call, { contexts }) =>
 	call.arguments.some(
@@ -344,7 +373,8 @@ const callbacksOf = (call) => {
 
 // is a call on ctx itself (ctx.emit) or a read of a response body: no signal of its own is needed
 const isExempt = (call, { contexts }, ignore) => {
-	if (matches(calleeText(call.callee), ignore)) {
+	// a promise that is already settled: there is nothing to cancel
+	if (matches(calleeText(call.callee), [...ignore, "Promise.resolve", "Promise.reject"])) {
 		return true;
 	}
 	const callee = call.callee;
@@ -422,8 +452,13 @@ const identifiersNamed = (ts, root, name) => {
 };
 
 // the declaration of a function that is in your sources, with a body to read
-const readableDeclaration = (ts, program, signature) => {
-	const declaration = signature?.declaration;
+const readableDeclaration = (ts, program, checker, signature, call) => {
+	let declaration = signature?.declaration;
+	// an overload has no body: the implementation is another declaration of the same function or method
+	if (declaration && ts.isFunctionLike(declaration) && !declaration.body) {
+		const symbol = call ? checker.getSymbolAtLocation(call.expression.name ?? call.expression) : null;
+		declaration = symbol?.declarations?.find((item) => ts.isFunctionLike(item) && item.body) ?? declaration;
+	}
 	const file = declaration?.getSourceFile();
 	const readable =
 		declaration &&
@@ -485,13 +520,33 @@ const forwardedUsage = (ts, program, checker, call, index, depth) => {
 		return "unknown";
 	}
 	const signature = checker.getResolvedSignature(call);
-	const declaration = readableDeclaration(ts, program, signature);
+	const declaration = readableDeclaration(ts, program, checker, signature, call);
 	const parameter = declaration?.parameters[index];
 	if (!parameter) {
 		return "unknown";
 	}
 
 	return parameterUsage(ts, program, checker, parameter, declaration.body, depth + 1);
+};
+
+// does one signature take a signal: a parameter typed AbortSignal, or an object with `signal`, also in a rest list
+const signatureAccepts = (ts, checker, signature, at) => {
+	let answer = "no";
+	for (const parameter of signature.getParameters()) {
+		const type = checker.getTypeOfSymbolAtLocation(parameter, at);
+		const isRest = parameter.valueDeclaration?.dotDotDotToken;
+		const isTuple = checker.isTupleType?.(type);
+		const members = isTuple ? checker.getTypeArguments(type) : isRest ? [checker.getIndexTypeOfType(type, ts.IndexKind.Number) ?? type] : [type];
+		for (const member of members) {
+			const result = typeCarries(ts, member);
+			if (result === "yes") {
+				return "yes";
+			}
+			answer = result === "unknown" ? "unknown" : answer;
+		}
+	}
+
+	return answer;
 };
 
 // the answers of the type checker about a call, for the rule
@@ -509,15 +564,19 @@ const typeProvider = (context, carriesIn) => {
 		// does the function take a signal? "yes", "no", or "unknown" when the types do not say
 		accepts(call) {
 			const tsCall = tsNodeOf(call);
-			const signature = tsCall ? checker.getResolvedSignature(tsCall) : null;
-			if (!signature?.declaration) {
+			if (!tsCall) {
+				return "unknown";
+			}
+			// every overload counts: the call may not use the one that takes a signal, but the function does
+			const resolved = checker.getResolvedSignature(tsCall);
+			const calleeType = checker.getTypeAtLocation(tsCall.expression);
+			const signatures = [resolved, ...calleeType.getCallSignatures()].filter((signature) => signature?.declaration);
+			if (signatures.length === 0) {
 				return "unknown";
 			}
 			let answer = "no";
-			for (const parameter of signature.getParameters()) {
-				const type = checker.getTypeOfSymbolAtLocation(parameter, tsCall);
-				const isRest = parameter.valueDeclaration?.dotDotDotToken;
-				const result = typeCarries(ts, isRest ? (checker.getIndexTypeOfType(type, ts.IndexKind.Number) ?? type) : type);
+			for (const signature of signatures) {
+				const result = signatureAccepts(ts, checker, signature, tsCall);
 				if (result === "yes") {
 					return "yes";
 				}
@@ -549,6 +608,7 @@ const rule = {
 					ignore: { type: "array", items: { type: "string" } },
 					only: { type: "array", items: { type: "string" } },
 					requireContext: { type: "boolean" },
+					deferred: { type: "boolean" },
 				},
 				additionalProperties: false,
 			},
@@ -562,6 +622,8 @@ const rule = {
 				"Make this call through ctx (ctx.fetch, ctx.http) or give it ctx, so the signal is bound once and cannot be forgotten.",
 			ignoredSignal:
 				"This call gets the signal, but the function never uses it, so the request is not cancelled. Pass the signal on inside the function: fetch(url, { signal }).",
+			deferred:
+				"This callback runs after the handler returned, so it can run after the policy cancelled it. Check ctx.signal.aborted in it, or pass the signal to what starts it.",
 			staleEmit:
 				"This emit is not dropped when the policy cancels the handler, so a stale call still delivers its result. Use ctx.emit.",
 			lostWait:
@@ -643,6 +705,31 @@ const rule = {
 			}
 		};
 
+		// work that is started and not awaited: a timer, a then, a listener
+		const checkDeferred = (handler, names) => {
+			walk(
+				handler.body,
+				(node) => {
+					const call = node.type === "ExpressionStatement" ? unwrap(node.expression) : null;
+					const callback = call?.type === "CallExpression" ? call.arguments.find(isFunction) : null;
+					if (!callback) {
+						return;
+					}
+					const callee = call.callee;
+					const method = callee.type === "MemberExpression" ? callee.property.name : "";
+					const isTimer = callee.type === "Identifier" && timers.has(callee.name);
+					const isThen = thens.has(method);
+					const isListener = listeners.has(method) && !isOnContext(callee, names);
+					if (!(isTimer || isThen || isListener) || carriesSignal(call, names) || checksAbort(callback)) {
+						return;
+					}
+					context.report({ node: call, messageId: "deferred" });
+				},
+				null,
+				true,
+			);
+		};
+
 		// `bus.emit(...)` and `store.emit(...)` in a handler: only ctx.emit is dropped after an abort
 		const checkEmits = (handler, names) => {
 			walkAll(handler.body, (node) => {
@@ -677,6 +764,9 @@ const rule = {
 				const names = namesOf(handler, base, 1);
 				check(handler, names);
 				checkEmits(handler, names);
+				if (options.deferred !== false) {
+					checkDeferred(handler, names);
+				}
 			},
 		};
 	},

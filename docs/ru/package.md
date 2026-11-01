@@ -17,7 +17,7 @@
 | `nanoeffects/actions` | `createAction`, `createJob`, `createModule`, `modulePlugin`, `actionsPlugin` | `emit` должен вернуть результат или доменная логика уходит из UI |
 | `nanoeffects/match` | `matchPlugin`: `on`, `once` и `off` принимают функцию-фильтр вместо имени события | подписываться нужно по условию, а не по имени |
 | `nanoeffects/context` | `contextPlugin`: ваши собственные поля (store, клиент) на `ctx` каждой задачи, с типами по значению | store или клиент должен быть на каждой задаче |
-| `nanoeffects/signal` | `signalPlugin`: `emit(call, { signal })` привязывает задачи этого `emit` к внешнему `AbortSignal` | внешний `AbortSignal` (запрос, React Query) должен останавливать задачи |
+| `nanoeffects/signal` | `signalPlugin`: `emit(call, { signal })` привязывает задачи этого `emit` к внешнему `AbortSignal`; `fromSignal` и `signalFetch`: клиент или `fetch`, созданный из сигнала каждой задачи | внешний `AbortSignal` (запрос, React Query) должен останавливать задачи или обработчик не должен передавать сигнал вручную |
 | `nanoeffects/oop` | `Emitter`, `extendBus`, `WithBus`, `On`, `Once`, `disposeBus`: методы шины на классе, подписки каждого экземпляра заканчиваются через `dispose()` | вы пишете классы, а не функции |
 | `nanoeffects/scope` | `scopePlugin`, `effect`: поля для одного action, задачи, модуля или `emit` (типы `Scope`, `Effect`) | одному action или модулю нужны свои поля |
 | `nanoeffects/redux` | `createEffectsMiddleware` | вы уже используете Redux |
@@ -25,7 +25,7 @@
 | `nanoeffects/react` | `reactPlugin`: добавляет хук `useEmitter` на шину (нужен React 18 или новее) | компоненты React |
 | `nanoeffects/svelte` | `sveltePlugin`: добавляет `eventStore` на шину (нужен Svelte 5 или новее) | компоненты Svelte |
 | `nanoeffects/vue` | `vuePlugin`: добавляет `watchEmitter` и `useEventRef` на шину (нужен Vue 3.3 или новее) | компоненты Vue |
-| `nanoeffects/dev` | `devPlugin` (в production ничего не делает) | нужно находить утечки подписок при разработке |
+| `nanoeffects/dev` | `devPlugin` (в production ничего не делает), `getLostSignalsCount` и `getLostSignals` для тестов | нужно находить утечки подписок и потерянные сигналы при разработке и в тестах |
 | `nanoeffects/trace` | `createTracer`, логгеры (`graphLogger` находит циклы событий) и `tracePlugin` (имена для трассировки) | нужно видеть, что выполнилось и почему |
 | `nanoeffects/guard` | `loopGuardPlugin`: отклоняет emit, который превысил бы предел цепочки | цикл не должен ронять приложение |
 

@@ -2,6 +2,13 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
+## Unreleased
+
+### Added
+- The lint rule in `examples/lint` also reports work that is only started and not awaited (a `setTimeout`, a `.then` with no `return`, a listener), leaves `Promise.resolve` alone, and with type information reads overloads, class methods, generics, interfaces and rest lists. Tested on a TypeScript fixture and with ESLint 9. [Docs](docs/pass-the-signal.md)
+- The templates of `create-nanoeffects` use `devPlugin`, so a new project warns about a handler that keeps working after it was cancelled.
+- `scripts/bench-guard.mjs` measures the cost of `loopGuardPlugin` (about 230 ns for each task). [Docs](docs/loop-guard.md#know-what-it-costs)
+
 ## 0.31.0
 
 ### Added
