@@ -40,10 +40,58 @@ bus.use(devPlugin());
 - **Накопившиеся подписки.** Если на одно событие подписано и не отписано больше `maxListeners` подписок (по умолчанию `10`), выходит одно предупреждение с названием события и числом. Счёт следит за функцией, которую возвращает `on`; `bus.off(event, fn)` он не видит.
 - **Модули.** Для приложения `modulePlugin` (или параметра `app`) он логирует `module "user" mounted`, `replaced` (подключён модуль с тем же именем) и `unmounted`. В лог попадает только то, что идёт через `app.mount` и `app.unmount`; подмодули не попадают.
 - **Где создана именованная подписка.** Для подписки с `traceId` он запоминает файл и строку вызова `bus.on`, пока подписка жива. [`graphLogger`](debugging-loops.md#чтение-отчёта) показывает это в отчёте о цикле, и вы сразу открываете обработчик, который замыкает цикл.
-- **Параметры.** `leaks: false` и `modules: false` отключают диагностику; `maxListeners` задаёт предел; `log` получает сообщения вместо консоли.
+- **Обработчики, которые игнорируют сигнал.** Если обработчик отправляет событие после того, как его задачу прервали (новый вызов `latest`, размонтированный модуль), шина отбрасывает этот emit. Тогда плагин один раз предупреждает, называя обработчик и событие: обработчик не остановился при отмене, обычно потому что `ctx.signal` не дошёл до запроса. [Подробнее](#поиск-обработчика-который-игнорирует-сигнал)
+- **Параметры.** `abandoned: false`, `leaks: false` и `modules: false` отключают диагностику; `maxListeners` задаёт предел; `log` получает сообщения вместо консоли.
 - **Отключение.** `bus.use(devPlugin(...))` возвращает функцию, которая останавливает диагностику и возвращает `bus.on` и `app.mount` на место.
 
 Поведение он не меняет: он оборачивает `bus.on`, `app.mount` и `app.unmount` и добавляет сообщения.
+
+### Поиск обработчика, который игнорирует сигнал
+
+Политика вроде `latest` отменяет старый вызов, прерывая его `ctx.signal`. Обработчик, который не передал сигнал в запрос, продолжает работать, и его результат приходит позже нового. Политика отбрасывает этот результат, поэтому ничего не выглядит неправильно, пока обработчик не сделает с результатом что-то ещё.
+
+```js
+import { createBus } from "nanoeffects";
+import { latest } from "nanoeffects/policies";
+
+const bus = createBus();
+
+bus.on(
+  "search",
+  latest(async (query, ctx) => {
+    // сигнал не передан, поэтому старый запрос не отменяется
+    const items = await fetch(`/api?q=${query}`).then((response) => response.json());
+    ctx.emit("results", items);
+  }),
+);
+```
+
+С `devPlugin` второй `search` прерывает первый вызов. Когда первый вызов затем отправляет `results`, шина отбрасывает emit, а плагин один раз предупреждает:
+
+```text
+[nanoeffects] the handler of "search" emitted "results" after its task was aborted, so the emit was dropped. The handler kept running after it was cancelled: pass ctx.signal to the request (fetch(url, { signal: ctx.signal })) or give ctx to an effect (retry(ctx, ...)).
+```
+
+Проверка живёт только в плагине: ни политики, ни шина не несут для неё кода, а в production `nanoeffects/dev` пуст. Плагин видит обработчики, которые отправляют события; обработчик, который ничего не отправляет, он не видит. Для остального типичный случай линтер находит до запуска кода: обработчик, записанный без параметра `ctx`. В [`examples/lint`](https://github.com/nanoeffects/nanoeffects/tree/main/examples/lint) есть правило для Biome (плагин GritQL) и для ESLint (`no-restricted-syntax`, плагин не нужен); оба проверены на тестовом файле.
+
+```js
+// eslint.config.mjs
+export default [
+  {
+    rules: {
+      "no-restricted-syntax": [
+        "warn",
+        {
+          // обработчик политики — функция меньше чем с двумя параметрами: ctx нет
+          selector:
+            "CallExpression[callee.name=/^(latest|leading|queue|debounce|throttle)$/] > :matches(ArrowFunctionExpression, FunctionExpression)[params.length<2]",
+          message: "This handler has no ctx parameter, so it cannot pass ctx.signal on.",
+        },
+      ],
+    },
+  },
+];
+```
 
 ### Импорт в production
 

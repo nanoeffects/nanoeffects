@@ -1,6 +1,7 @@
 import type { ModuleHost, WithApp } from "../actions/module";
 import { mountEach } from "../actions/mount-each";
 import type { Bus } from "../core/bus";
+import { emitAfterAbort } from "../core/emit-key";
 import { eventKey } from "../core/event";
 import { recordSite } from "../core/site";
 import type { EventMap } from "../core/types";
@@ -17,6 +18,10 @@ const PREFIX = "[nanoeffects]";
  *   the count: a file that was reloaded and subscribes again, or an
  *   unsubscribe that is never called. The count follows the function that `on`
  *   returns; `bus.off(event, fn)` is not seen.
+ * - **Handlers that ignore the signal.** When a handler emits after its task was aborted (a newer
+ *   call of `latest`, an unmounted module), the emit is dropped, and one warning names the handler
+ *   and the event: the handler did not stop when it was cancelled, usually because `ctx.signal` was
+ *   never given to the request. Nothing is added to the policies; the check is this plugin's.
  * - **Modules.** It reports a module that is mounted, replaced by name and
  *   unmounted, for the app that `modulePlugin` returned: the `app` option, or
  *   else the one `modulePlugin` put on the bus, whichever plugin was used first.
@@ -34,7 +39,13 @@ const PREFIX = "[nanoeffects]";
 export const devPlugin: DevPlugin =
 	(options = {}) =>
 	(bus) => {
-		const { maxListeners = 10, leaks = true, modules = true, app } = options;
+		const {
+			maxListeners = 10,
+			leaks = true,
+			modules = true,
+			abandoned = true,
+			app,
+		} = options;
 		const warn = options.log ?? ((message: string) => console.warn(message));
 		const info = options.log ?? ((message: string) => console.info(message));
 		const restores: Array<() => void> = [];
@@ -44,6 +55,9 @@ export const devPlugin: DevPlugin =
 		}
 		if (modules) {
 			restores.push(watchApp(bus, app, info));
+		}
+		if (abandoned) {
+			restores.push(watchAbandoned(bus, warn));
 		}
 
 		return () => {
@@ -133,6 +147,64 @@ const watchListeners = <E extends EventMap>(
 		// a wrapper that another plugin put on top since stays, and passes every call through
 		if (bus.on === wrapped) {
 			bus.on = original;
+		}
+	};
+};
+
+type Emitter = (event: unknown, ...rest: unknown[]) => unknown;
+
+// an event is a string, or an object, a creator or an action that has a `type`
+const nameOf = (event: unknown) =>
+	typeof event === "string"
+		? event
+		: String(Reflect.get(Object(event), "type"));
+
+// an event is a string, or an object, a creator or an action that has a `type`
+const _nameOf = (event: unknown) =>
+	typeof event === "string"
+		? event
+		: String(Reflect.get(Object(event), "type"));
+type Aborted = { type: string; signal: AbortSignal; emit: Emitter };
+
+// Watches `ctx.emit` of every task. An emit after the signal of the task aborted is dropped by the bus,
+// so a handler that does it kept working after it was cancelled: it did not use `ctx.signal`.
+const watchAbandoned = <E extends EventMap>(
+	bus: Bus<E>,
+	warn: (message: string) => void,
+) => {
+	const previous = bus.addContext;
+	const told = new Set<string>();
+	let active = true;
+
+	const wrapped = (target: object) => {
+		previous?.(target);
+		const task = target as Aborted;
+		const emitOf = task.emit;
+		task.emit = (event, ...rest) => {
+			// `createJob` opens this gate for its own emit of `cancel`: that one is meant to pass
+			const gate = Reflect.get(target, emitAfterAbort);
+			const name = nameOf(event);
+			const key = `${task.type}\u0000${name}`;
+			if (active && task.signal.aborted && gate !== true && !told.has(key)) {
+				told.add(key);
+				warn(
+					`${PREFIX} the handler of "${task.type}" emitted "${name}" after its task was aborted, so the emit was dropped. ` +
+						"The handler kept running after it was cancelled: pass ctx.signal to the request (fetch(url, { signal: ctx.signal })) " +
+						"or give ctx to an effect (retry(ctx, ...)).",
+				);
+			}
+
+			return emitOf(event, ...rest);
+		};
+	};
+
+	bus.addContext = wrapped;
+
+	return () => {
+		active = false;
+		// a wrapper that another plugin put on top since stays, and passes every call through
+		if (bus.addContext === wrapped) {
+			bus.addContext = previous;
 		}
 	};
 };

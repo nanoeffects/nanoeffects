@@ -15,6 +15,8 @@ export type DevOptions<E extends EventMap = EventMap> = {
 	leaks?: boolean;
 	/** Report the modules of `app` that are mounted, replaced and unmounted. Default `true`. */
 	modules?: boolean;
+	/** Warn when a handler emits after its task was aborted, which means it ignored `ctx.signal`. Default `true`. */
+	abandoned?: boolean;
 	/** Receives every message. Default: `console.warn` for leaks and `console.info` for modules. */
 	log?: (message: string) => void;
 	/** What `modulePlugin` returned, to report its modules. Without it the app that `modulePlugin` put on the bus is used, in either order of the two plugins. */

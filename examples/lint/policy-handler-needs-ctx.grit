@@ -1,0 +1,25 @@
+language js
+
+// A handler of a policy that has no ctx parameter cannot reach ctx.signal,
+// so it cannot pass the signal to its request and cannot stop when it is cancelled.
+or {
+	`latest($fn)`,
+	`leading($fn)`,
+	`queue($fn)`,
+	`debounce($ms, $fn)`,
+	`throttle($ms, $fn)`
+} where {
+	$fn <: or {
+		`async ($params) => $body`,
+		`($params) => $body`,
+		`async function ($params) { $body }`,
+		`function ($params) { $body }`
+	},
+	// a parameter list with a comma has the second parameter, the context
+	$params <: not r".*,.*",
+	register_diagnostic(
+		span = $fn,
+		message = "This handler has no ctx parameter, so it cannot pass ctx.signal to its request and cannot stop when the policy cancels it. Add (value, ctx) and pass ctx.signal on.",
+		severity = "warn"
+	)
+}

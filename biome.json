@@ -7,7 +7,7 @@
 	},
 	"files": {
 		"ignoreUnknown": false,
-		"includes": ["**", "!lint", "!packages/*/templates"]
+		"includes": ["**", "!lint", "!examples/lint", "!packages/*/templates"]
 	},
 	"formatter": {
 		"enabled": true,

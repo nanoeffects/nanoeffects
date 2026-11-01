@@ -1,8 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
-import { createModule, modulePlugin } from "../actions";
+import {
+	createAction,
+	createJob,
+	createModule,
+	modulePlugin,
+} from "../actions";
 import { createBus } from "../core/bus";
 import { siteOf } from "../core/site";
 import { matchPlugin } from "../match";
+import { latest } from "../policies";
 import type { TestEvents } from "../tests/test-helpers";
 import { devPlugin as noopPlugin } from "./noop";
 import { devPlugin } from "./plugin";
@@ -603,5 +609,152 @@ describe("devPlugin: where a named listener was made", () => {
 		bus.on("a", () => {}, { traceId: "late" });
 
 		expect(siteOf("late")).toBeUndefined();
+	});
+});
+
+describe("devPlugin: a handler that ignores the signal", () => {
+	type Events = { search: string; results: string; other: number };
+
+	const make = (options: DevOptions<Events> = {}) => {
+		const messages: string[] = [];
+		const bus = createBus<Events>();
+		const disconnect = bus.use(
+			devPlugin({ log: (message) => messages.push(message), ...options }),
+		);
+
+		return { bus, messages, disconnect };
+	};
+
+	const later = (ms: number) =>
+		new Promise((resolve) => setTimeout(resolve, ms));
+
+	it("warns once when a latest handler emits after a newer call aborted it", async () => {
+		const { bus, messages } = make();
+		bus.on(
+			"search",
+			latest(async (query: string, ctx) => {
+				// the request ignores ctx.signal, so it runs to the end after the abort
+				await later(10);
+				ctx.emit("results", query);
+			}),
+		);
+
+		bus.emit("search", "a");
+		bus.emit("search", "ab");
+		bus.emit("search", "abc");
+		await later(40);
+
+		const warnings = messages.filter((message) =>
+			message.includes("after its task was aborted"),
+		);
+		expect(warnings).toHaveLength(1);
+		expect(warnings[0]).toContain('"search"');
+		expect(warnings[0]).toContain('"results"');
+		expect(warnings[0]).toContain("ctx.signal");
+	});
+
+	it("is quiet when the handler stops with its signal", async () => {
+		const { bus, messages } = make();
+		bus.on(
+			"search",
+			latest(async (query: string, ctx) => {
+				await later(10);
+				if (ctx.signal.aborted) {
+					return;
+				}
+				ctx.emit("results", query);
+			}),
+		);
+
+		bus.emit("search", "a");
+		bus.emit("search", "ab");
+		await later(40);
+
+		expect(messages.filter((message) => message.includes("aborted"))).toEqual(
+			[],
+		);
+	});
+
+	it("is quiet for a handler that was not aborted", async () => {
+		const { bus, messages } = make();
+		bus.on(
+			"search",
+			latest(async (query: string, ctx) => {
+				await later(5);
+				ctx.emit("results", query);
+			}),
+		);
+
+		bus.emit("search", "a");
+		await later(30);
+
+		expect(messages).toEqual([]);
+	});
+
+	it("is off with abandoned: false", async () => {
+		const { bus, messages } = make({ abandoned: false });
+		bus.on(
+			"search",
+			latest(async (query: string, ctx) => {
+				await later(10);
+				ctx.emit("results", query);
+			}),
+		);
+
+		bus.emit("search", "a");
+		bus.emit("search", "ab");
+		await later(40);
+
+		expect(messages).toEqual([]);
+	});
+
+	it("does not warn for the cancel that createJob emits itself", async () => {
+		const { bus, messages } = make();
+		const cancel = createAction<number>("work/cancel");
+		const work = createJob(
+			"work",
+			async (_n: number, ctx) => {
+				await later(20);
+				return ctx.signal.aborted;
+			},
+			{ cancel },
+		);
+		bus.on(work, () => {});
+
+		const first = bus.emit(work(1));
+		bus.emit(work(2));
+		await Promise.allSettled([first]);
+		await later(40);
+
+		expect(messages.filter((message) => message.includes("aborted"))).toEqual(
+			[],
+		);
+	});
+
+	it("stops after disconnect", async () => {
+		const { bus, messages, disconnect } = make();
+		bus.on(
+			"search",
+			latest(async (query: string, ctx) => {
+				await later(10);
+				ctx.emit("results", query);
+			}),
+		);
+		disconnect();
+
+		bus.emit("search", "a");
+		bus.emit("search", "ab");
+		await later(40);
+
+		expect(messages).toEqual([]);
+	});
+
+	it("the production build does nothing", () => {
+		const bus = createBus<Events>();
+		const original = bus.addContext;
+
+		bus.use(noopPlugin());
+
+		expect(bus.addContext).toBe(original);
 	});
 });
