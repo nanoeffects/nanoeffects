@@ -81,6 +81,24 @@ for (const plugin of [true, false]) {
 			});
 		}
 
+		it("reports a loop closed by the second listener of an event", () => {
+			const { bus, findings } = rig(plugin);
+			bus.on("a", () => {});
+			bus.on("a", (round, ctx) => {
+				if (round < 30) {
+					ctx.emit("b", round + 1);
+				}
+			});
+			bus.on("b", () => {});
+			bus.on("b", (round, ctx) => {
+				ctx.emit("a", round);
+			});
+
+			bus.emit("a", 0);
+
+			expect(findings).toHaveLength(1);
+		});
+
 		it("is quiet for a diamond", () => {
 			const { bus, findings } = rig(plugin);
 			bus.on("a", (_r, ctx) => {

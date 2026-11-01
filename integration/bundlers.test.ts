@@ -130,6 +130,29 @@ beforeAll(() => {
 			return { untouched };
 		};`,
 	);
+	// finds a loop with the graph logger and cuts one with the guard
+	writeFileSync(
+		join(app, "loops.js"),
+		`import { createBus } from "nanoeffects";
+		import { loopGuardPlugin } from "nanoeffects/guard";
+		import { createTracer, graphLogger, tracePlugin } from "nanoeffects/trace";
+		export const run = async () => {
+			const found = [];
+			const graph = graphLogger({ onCycle: (finding) => found.push(finding.path.join(">")) });
+			const looping = createBus({ trace: createTracer(graph) }).use(tracePlugin());
+			looping.on("a", (round, ctx) => { if (round < 20) ctx.emit("b", round + 1); });
+			looping.on("b", (round, ctx) => { ctx.emit("a", round); });
+			looping.emit("a", 0);
+
+			const cut = [];
+			const guarded = createBus().use(loopGuardPlugin({ maxRepeats: 5, report: (finding) => cut.push(finding.limit) }));
+			let calls = 0;
+			guarded.on("x", (_round, ctx) => { calls += 1; ctx.emit("x", 0); });
+			guarded.emit("x", 0);
+
+			return { found, mermaid: graph.toMermaid().split("\\n")[0], cut, calls };
+		};`,
+	);
 	// the same without the entries that have no notrace build: for the size comparison
 	writeFileSync(
 		join(app, "core.js"),
@@ -249,6 +272,37 @@ describe("Vite", () => {
 		expect(core).not.toContain("Timed out after");
 		expect(core).not.toContain("@@observable");
 		expect(core).not.toContain("queue");
+	});
+});
+
+const loopsExpected = {
+	found: ["a>b>a"],
+	mermaid: "flowchart LR",
+	cut: ["repeats"],
+	calls: 5,
+};
+
+describe("the loop tools in a bundle", () => {
+	it("Vite: graphLogger finds a loop and loopGuardPlugin cuts one", async () => {
+		const file = await viteBundle("loops.js", "loops");
+
+		expect(await (await importBundle(file)).run()).toEqual(loopsExpected);
+	});
+
+	it("webpack: graphLogger finds a loop and loopGuardPlugin cuts one", async () => {
+		const file = await webpackBundle("loops.js", "loops");
+
+		expect(await runCommonJs(file)).toEqual(loopsExpected);
+	});
+
+	it("a bundle that does not import them has none of their code (tree shaking)", async () => {
+		const core = readFileSync(
+			await viteBundle("core.js", "shake-loops"),
+			"utf8",
+		);
+
+		expect(core).not.toContain("cycle/detected");
+		expect(core).not.toContain("loop guard");
 	});
 });
 

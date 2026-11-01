@@ -264,16 +264,11 @@ export const graphLogger = (options: GraphLoggerOptions = {}): GraphLogger => {
 		}));
 	};
 
-	// the handler of the emit that the last leaf made, as opposed to a task made by `ctx.run` or a policy
+	// a handler of the emit that the last leaf made, as opposed to a task made by `ctx.run` or a policy
 	const takesLeaf = (parent: Link | undefined, type: string) => {
 		const leaf = lastLeaf;
-		if (leaf && leaf.parent === parent && leaf.type === type) {
-			lastLeaf = void 0;
-
-			return true;
-		}
-
-		return false;
+		// every listener of the emit matches the same leaf, so it is not used up by the first one
+		return leaf !== void 0 && leaf.parent === parent && leaf.type === type;
 	};
 
 	const makeLink = (

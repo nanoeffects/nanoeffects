@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createBus } from "../core/bus";
+import { aliveCount, settleGarbage } from "../tests/test-helpers";
 import {
 	type LimitFinding,
 	LoopError,
@@ -389,5 +390,25 @@ describe("loopGuardPlugin: memory", () => {
 		});
 		bus.emit("c", 0);
 		expect(calls).toBe(1);
+	});
+});
+
+describe("loopGuardPlugin: nothing is kept for a finished chain", () => {
+	it("lets the contexts of finished chains be collected", async () => {
+		const { bus } = setup();
+		const seen: WeakRef<object>[] = [];
+		bus.on("a", (_round, ctx) => {
+			seen.push(new WeakRef(ctx));
+			ctx.emit("b", 0);
+		});
+		bus.on("b", () => {});
+
+		for (let round = 0; round < 200; round += 1) {
+			bus.emit("a", round);
+		}
+		await settleGarbage();
+
+		// the records are in a WeakMap by context, so a finished chain is not held
+		expect(aliveCount(seen)).toBeLessThan(20);
 	});
 });

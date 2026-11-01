@@ -4,8 +4,10 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { createBus } from "../core/bus";
 import { type Finding, graphLogger } from "../graph";
+import { loopGuardPlugin } from "../guard";
 import { sveltePlugin } from "../svelte";
 import { createTracer, tracePlugin } from "../trace";
+import { vuePlugin } from "../vue";
 import { reactPlugin } from "./plugin";
 
 // Loops that go through components: an emit from an effect has no parent task, so a loop through a
@@ -279,6 +281,88 @@ describe("loops through components", () => {
 		bus.emit("value", 0);
 		stop();
 
+		expect(findings).toHaveLength(1);
+	});
+
+	it("useEventState whose event is emitted again by a handler is a cycle", () => {
+		const { bus, findings } = rig();
+		bus.on("name", (round, ctx) => {
+			if (round < 30) {
+				ctx.emit("name2", round + 1);
+			}
+		});
+		bus.on("name2", (round, ctx) => {
+			ctx.emit("name", round);
+		});
+		const Component = () => {
+			const [value] = bus.useEventState("name", 0);
+
+			return createElement("span", null, value);
+		};
+
+		mountComponent(Component);
+		act(() => {
+			bus.emit("name", 0);
+		});
+
+		expect(findings).toHaveLength(1);
+	});
+
+	it("maxPerSecond of the guard cuts a component that emits on every render, and it still renders", () => {
+		let now = 0;
+		const reports: string[] = [];
+		const bus = createBus<Events>()
+			.use(
+				loopGuardPlugin({
+					maxPerSecond: 20,
+					now: () => now,
+					report: (finding) => reports.push(finding.limit),
+				}),
+			)
+			.use(reactPlugin());
+		let handled = 0;
+		let set: (value: number) => void = () => {};
+		bus.on("count", (value) => {
+			handled += 1;
+			if (value < 200) {
+				set(value + 1);
+			}
+		});
+		const Component = () => {
+			const [count, setCount] = useState(0);
+			set = setCount;
+			bus.useEmitter("count", count);
+
+			return createElement("span", null, count);
+		};
+
+		mountComponent(Component);
+		now = 1;
+		act(() => set(1));
+
+		expect(handled).toBe(20);
+		expect(reports).toEqual(["storm"]);
+	});
+
+	it("a loop through the useEventRef of the vue plugin is reported too", () => {
+		const findings: Finding[] = [];
+		const graph = graphLogger({
+			onCycle: (finding) => findings.push(finding),
+			console: { warn: vi.fn() },
+		});
+		const bus = createBus<Events>({ trace: createTracer(graph) })
+			.use(tracePlugin())
+			.use(vuePlugin());
+		const value = bus.useEventRef("value", 0);
+		bus.on("value", (round, ctx) => {
+			if (round < 30) {
+				ctx.emit("value", round + 1);
+			}
+		});
+
+		bus.emit("value", 0);
+
+		expect(value.value).toBeGreaterThan(0);
 		expect(findings).toHaveLength(1);
 	});
 });

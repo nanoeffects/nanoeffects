@@ -18,7 +18,7 @@ Every group lands its own tests and docs. `pnpm format && pnpm tsgo && pnpm chec
 - [x] 3.1 Implement `graphLogger()` in `src/graph/logger.ts` with nodes, edges and counts from trace events (names from `traceId` or `type`, event-to-listener edges from `event`) through the `task` hook, with the records in a `WeakMap` by `ref`. Verify with `logger.test.ts`: the spec scenarios of `event-graph` (counted edges, named listeners, emit with no listener, sampled events, no growth after 10 000 runs, `clear()`).
 - [x] 3.2 Implement `toMermaid`, `toDot`, `toJSON` (with `group` as `"prefix"` or a function, and `payload: true`) in `src/graph/export.ts`. Verify with `export.test.ts`: snapshot of a small graph in each format, awkward names (quotes, brackets, newline, unicode, an empty string, a very long name), cycle edges marked, no payload by default (a "password" payload does not appear), and `JSON.stringify(toJSON())` never throws. Parse the Mermaid output with the mermaid package if it is already a dev dependency of the docs site; otherwise check the structure by pattern.
 - [x] 3.3 Record the call site of `bus.on` and `once` in `devPlugin` (one record for each subscription, dropped on unsubscribe, none in the production no-op) and show it in reports and `toJSON()`. Verify with `src/dev/plugin.test.ts` and `logger.test.ts` (with and without `devPlugin`, unsubscribed, plugin order).
-- [ ] 3.4 Document `graphLogger` in `docs/tracing.md` (section "Find loops and map the events", JS first, comments on each library call) and in the Russian page; docs:check must pass (`pnpm docs:check`).
+- [x] 3.4 Document `graphLogger` in `docs/tracing.md` (section "Find loops and map the events", JS first, comments on each library call) and in the Russian page; docs:check must pass (`pnpm docs:check`).
 
 ## 4. Cycle and storm detection
 
@@ -60,16 +60,16 @@ One test per report, named after it, with the link in a comment, in the style of
 - [x] 6.11 Cleanup that triggers the thing it cleans ([vue#6538](https://github.com/vuejs/core/issues/6538), open): a component whose unmount cleanup emits an event, a handler of which causes a re-mount, whose cleanup emits again. Reported as a cycle or a storm; stops after the component is gone.
 - [x] 6.12 An external event closes the loop ([TanStack Query#2868](https://github.com/TanStack/query/issues/2868), closed): `window` `focus` handler emits `refetch`, whose handler triggers a new `focus` (an alert or a dispatched event). A storm from outside any task, reported with the type of the event and not as a chain; `traceGroupId` joins the roots when it is set.
 - [x] 6.13 Synchronous chains that overflow the stack and listener changes during an emit (Node `EventEmitter` three-event chains, [expo#28149](https://github.com/expo/expo/pull/28149), the `nextgen-events` fix): a loop of three sync events overflows the stack and the report comes first; unsubscribing inside the unsubscribe path; a listener that removes itself or others during an emit; the same chain broken with `queueMicrotask`/`setTimeout` (reported across the gap).
-- [ ] 6.14 Add a short "known loops" table to the docs (the shape, how the report looks, how to break it: a different event for the result, `equals`, a guard flag, `latest`) in `docs/tracing.md` and the Russian page; `pnpm docs:check` passes.
+- [x] 6.14 Add a short "known loops" table to the docs (the shape, how the report looks, how to break it: a different event for the result, `equals`, a guard flag, `latest`) in `docs/tracing.md` and the Russian page; `pnpm docs:check` passes.
 
 ## 7. Loop guard (`src/guard/`)
 
 - [x] 7.1 Implement `loopGuardPlugin` in `src/guard/plugin.ts` (records in a `WeakMap`, wrapped `ctx.emit` through `bus.addContext` chained to the previous one, wrapped `bus.emit` for roots, `maxRepeats`, `maxDepth`, `ignore`, `onLimit`, `report`, `LoopError`) and `src/guard/index.ts` (re-exports only). Add the `./guard` export in `package.json`, the entry in `tsdown.config.ts` and a `size-limit` item. Verify with `plugin.test.ts`: every scenario of `loop-guard` for limits, actions and reports.
 - [x] 7.2 Tests that a loop really ends (`src/tests/loop-guard.test.ts`): a synchronous loop (no `RangeError`), a loop through `await Promise.resolve()` that would never yield (use a bounded harness: the test fails if more than `maxRepeats + 1` runs happen), a `setTimeout` loop with fake timers, a loop through `latest`, `queue` and `retry`, through an action and a job, through a module, with generated names (`maxDepth`), and a loop that starts from `bus.emit` outside a task.
 - [x] 7.3 Tests that nothing else is cut (`loop-guard.isolation.test.ts`): an unrelated chain running at the same time, a fresh root after the cut, a legitimate chain of 10 repeats and one of 300 different events, `ignore` for a recursion, the same results and order as a bus without the plugin when no limit is reached (run the existing flow and scenario tests with the plugin used).
-- [ ] 7.4 Tests for `maxPerSecond` with fake timers (500 emits in a second, the window resets, off by default) and for the component storm in `src/react/` (a `useEmitter` that emits on every render is cut after the limit and the component still renders).
-- [ ] 7.5 Add `loopGuardPlugin` and a loop probe to `src/tests/plugin-matrix.test.ts` (all orders), and a leak test (100 000 short chains leave no record) and a cost test with `scripts/bench-*.mjs` in the style of `scripts/bench-scope.mjs`: emits per second with and without the plugin below the limits, recorded in the design.
-- [ ] 7.6 Document it in a new page `docs/loop-guard.md` (level F: the problem, when to use it, `bus.use(loopGuardPlugin(...))`, what `drop` and `throw` mean, that the state can be half done, the options), in `docs/plugins.md` (tables) and `docs/package.md`, `llms.txt`, `tools/docs-site/sidebar.ts`, and the Russian page; `pnpm docs:check`, `pnpm llms:check` and the docs-site test pass.
+- [x] 7.4 Tests for `maxPerSecond` with fake timers (500 emits in a second, the window resets, off by default) and for the component storm in `src/react/` (a `useEmitter` that emits on every render is cut after the limit and the component still renders).
+- [x] 7.5 Add `loopGuardPlugin` and a loop probe to `src/tests/plugin-matrix.test.ts` (all orders), and a leak test (100 000 short chains leave no record) and a cost test with `scripts/bench-*.mjs` in the style of `scripts/bench-scope.mjs`: emits per second with and without the plugin below the limits, recorded in the design.
+- [x] 7.6 Document it in a new page `docs/loop-guard.md` (level F: the problem, when to use it, `bus.use(loopGuardPlugin(...))`, what `drop` and `throw` mean, that the state can be half done, the options), in `docs/plugins.md` (tables) and `docs/package.md`, `llms.txt`, `tools/docs-site/sidebar.ts`, and the Russian page; `pnpm docs:check`, `pnpm llms:check` and the docs-site test pass.
 
 ## 8. Component tests (`src/react/event-cycles.test.ts`, happy-dom)
 
@@ -80,34 +80,34 @@ Use `reactPlugin` and the existing patterns of `src/react/plugin.test.ts`. Each 
 - [x] 8.3 A component that subscribes inside an event handler or during render (the wrong place): subscriptions pile up; the test pins what the graph and the reports show, so a regression is seen.
 - [x] 8.4 StrictMode double mount: the loop is reported once, not twice, and a double subscription does not look like a repeat.
 - [x] 8.5 Two components share one bus: component A emits, component B reacts and emits to A (a cycle through two components, no handler on the bus in between); the chain is broken at the component, so assert that it is seen as a storm and that `traceGroupId` joins the roots.
-- [ ] 8.6 `useEventState` and `usePolicy` with a loop through a policy; Vue and Svelte get one smoke test each (`vuePlugin`, `sveltePlugin`) that a loop through `useEventRef`/`eventStore` is reported.
-- [ ] 8.7 Verify the documented React recipe in `docs/tracing.md` runs as written (a docs-check block plus the test above that mirrors it).
+- [x] 8.6 `useEventState` and `usePolicy` with a loop through a policy; Vue and Svelte get one smoke test each (`vuePlugin`, `sveltePlugin`) that a loop through `useEventRef`/`eventStore` is reported.
+- [x] 8.7 Verify the documented React recipe in `docs/tracing.md` runs as written (a docs-check block plus the test above that mirrors it).
 
 ## 9. Reproducible debugging examples (`examples/debug`, `examples/debug-playground`)
 
 Written in the style of the other examples (comments on each nanoeffects call, bus/events/handlers in separate files, JS-shaped code, checker types quarantined). Depends on groups 3, 4 and 7.
 
-- [ ] 9.1 Create `examples/debug` with `package.json` (one `npm run <name>` per scenario, a `run-all`), the shared `bus.ts` helpers, and a `README.md` with the table of scenarios (command, what it shows, what to look at, expected output). Verify `pnpm tsgo` and `pnpm check` cover the folder.
+- [x] 9.1 Create `examples/debug` with `package.json` (one `npm run <name>` per scenario, a `run-all`), the shared `bus.ts` helpers, and a `README.md` with the table of scenarios (command, what it shows, what to look at, expected output). Verify `pnpm tsgo` and `pnpm check` cover the folder.
 - [x] 9.2 Loop scenarios, each with `run()` and a printed result: `loop-two-handlers` (cart and total), `loop-same-event` (a result with the name of its trigger, with the advice line shown), `loop-async` (`await` and a timer on a controlled clock), `loop-modules` (two modules, `toMermaid({ group: "module" })`), `loop-microtask` (with and without `loopGuardPlugin`; without it the scenario uses a bounded harness so the terminal never hangs).
 - [x] 9.3 Storm and outside-emit scenarios: `storm-component` (a simulated render loop without a DOM, `maxPerSecond` on and off) and `chain-broken` (the `bus.emit` inside a handler case that task 5.4 pins).
 - [x] 9.4 Data scenarios: `export-graph` (runs a small app flow, writes `out/graph.mmd`, `out/graph.dot`, `out/graph.json`, git-ignores `out/`), `hostile-payloads` (a class instance, a `Map`, a circular object and an `Error` through `toJSON({ payload: true })`), `clean-flow` (diamond and fan-out, reported clean), `ignore-recursion` (a tree walk with `ignore`), `failing-handler` (a throw in the middle of a chain, no false cycle after).
 - [x] 9.5 `assert-no-cycles` scenario: the CI recipe, a vitest-style test file that runs a flow and fails on `graph.cycles()` (shown in the README as the way to guard an app).
 - [ ] 9.6 Create `examples/debug-playground` (Vite, own `package.json` with the published package, as `playground-devtools`): a button for each loop, a toggle for the guard, `graphLogger({ devtools: true, name: "debug playground" })`, `reduxDevtools`, the report area and the drawn Mermaid graph. Verify it builds and, in the browser harness of `integration/` with a stubbed extension, that a button yields a `cycle/detected` action and the page stays responsive with the guard on; check it by hand with the real extension and put what to look at into its README.
-- [ ] 9.7 `src/tests/debug-examples.test.ts`: import every scenario, call `run()`, assert paths, report counts, clean results, valid exports (Mermaid starts with `flowchart`, DOT parses by pattern, JSON round-trips) and that two runs give equal output. Add both folders to `examples/README.md`, `tools/docs-site` if examples are listed there, and `llms.txt` if examples are linked.
-- [ ] 9.8 Write `docs/debugging-loops.md` (level F, how-to, begins with the symptoms; code blocks quote the scenarios) and its Russian page, add it to `docs/plugins.md`, `docs/package.md`, `llms.txt` and `tools/docs-site/sidebar.ts`. Verify `pnpm docs:check`, `pnpm llms:check` and the docs-site tests.
+- [x] 9.7 `src/tests/debug-examples.test.ts`: import every scenario, call `run()`, assert paths, report counts, clean results, valid exports (Mermaid starts with `flowchart`, DOT parses by pattern, JSON round-trips) and that two runs give equal output. Add both folders to `examples/README.md`, `tools/docs-site` if examples are listed there, and `llms.txt` if examples are linked.
+- [x] 9.8 Write `docs/debugging-loops.md` (level F, how-to, begins with the symptoms; code blocks quote the scenarios) and its Russian page, add it to `docs/plugins.md`, `docs/package.md`, `llms.txt` and `tools/docs-site/sidebar.ts`. Verify `pnpm docs:check`, `pnpm llms:check` and the docs-site tests.
 
 ## 10. Integration and docs
 
 - [ ] 10.1 Add a check to `integration/` with the packed package: `nanoeffects/trace` imported by Vite and webpack, tree-shaken when unused (the `createBus` bundle does not contain it), and in the browser harness a loop reaches `console.warn` and Redux DevTools (`devtools: true` with a stubbed extension).
-- [ ] 10.2 Add `examples/event-graph.ts`: a small cart with the two-handler loop, the report, `toMermaid()` and `findCycles`-style assertion via `graph.cycles()` (type-checked by `pnpm tsgo`).
-- [ ] 10.3 Add the entry to the tables of `docs/package.md` and `docs/plugins.md` (pick a plugin by task), to `llms.txt` (`pnpm llms:check`) and to `tools/docs-site/sidebar.ts` if a page is added; mirror every change in `docs/ru/` (`pnpm docs:check` compares the code blocks).
-- [ ] 10.4 Write the `CHANGELOG.md` entry under `Unreleased` (### Added: `graphLogger` in `nanoeffects/trace`, `nanoeffects/guard`, the `task` method of trace loggers), in the style of the release notes.
+- [x] 10.2 Add `examples/event-graph.ts`: a small cart with the two-handler loop, the report, `toMermaid()` and `findCycles`-style assertion via `graph.cycles()` (type-checked by `pnpm tsgo`).
+- [x] 10.3 Add the entry to the tables of `docs/package.md` and `docs/plugins.md` (pick a plugin by task), to `llms.txt` (`pnpm llms:check`) and to `tools/docs-site/sidebar.ts` if a page is added; mirror every change in `docs/ru/` (`pnpm docs:check` compares the code blocks).
+- [x] 10.4 Write the `CHANGELOG.md` entry under `Unreleased` (### Added: `graphLogger` in `nanoeffects/trace`, `nanoeffects/guard`, the `task` method of trace loggers), in the style of the release notes.
 
 ## 11. Final checks
 
-- [ ] 11.1 Run the production smoke: `pnpm smoke` (Node 18–24 build has no dev dependency on the entry) and `pnpm size`; compare `createBus` with the numbers of 1.2.
-- [ ] 11.2 Run `pnpm verify` and fix what it finds.
-- [ ] 11.3 Run the fuzz and matrix tests 20 times in a loop (`for i in $(seq 20); do pnpm vitest run src/tests/event-cycles; done`) to check there is no flake from timers or ordering.
+- [x] 11.1 Run the production smoke: `pnpm smoke` (Node 18–24 build has no dev dependency on the entry) and `pnpm size`; compare `createBus` with the numbers of 1.2.
+- [x] 11.2 Run `pnpm verify` and fix what it finds.
+- [x] 11.3 Run the fuzz and matrix tests 20 times in a loop (`for i in $(seq 20); do pnpm vitest run src/tests/event-cycles; done`) to check there is no flake from timers or ordering.
 
 ## Workflow follow-up
 
