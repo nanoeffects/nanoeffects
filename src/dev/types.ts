@@ -33,7 +33,7 @@ export type LostSignal = {
 	event: string;
 };
 
-/** What `getLostSignals` takes. */
+/** What `getLostSignalsCount` takes. */
 export type LostSignalsOptions = {
 	/** How long to wait, in ms, before counting, so handlers that are still running can finish. Default 0: one turn of the event loop. */
 	wait?: number;

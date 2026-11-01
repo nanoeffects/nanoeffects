@@ -39,11 +39,11 @@ With `devPlugin` used, the bus SHALL warn once for each pair of handler type and
 - **THEN** nothing is reported
 
 #### Scenario: A test counts what was lost
-- **WHEN** a test cancels a handler that emits after the cancel and calls `getLostSignals(bus, { wait })`
-- **THEN** it resolves with the number of such emits and `ctx.on` calls, every one counted though the warning is written once, and `lostSignals(bus)` lists `{ kind, handler, event }` for each
+- **WHEN** a test cancels a handler that emits after the cancel and calls `getLostSignalsCount(bus, { wait })`
+- **THEN** it resolves with the number of such emits and `ctx.on` calls, every one counted though the warning is written once, and `getLostSignals(bus)` lists `{ kind, handler, event }` for each
 
 #### Scenario: No tracking on the bus
-- **WHEN** `getLostSignals` is called on a bus with no `devPlugin`, or with `abandoned: false`
+- **WHEN** `getLostSignalsCount` is called on a bus with no `devPlugin`, or with `abandoned: false`
 - **THEN** it rejects with a message that says to use `devPlugin`
 
 #### Scenario: Off, disconnected and production

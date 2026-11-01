@@ -135,7 +135,7 @@ describe("public entries", () => {
 		expect(Object.keys(dev).sort()).toEqual([
 			"devPlugin",
 			"getLostSignals",
-			"lostSignals",
+			"getLostSignalsCount",
 		]);
 	});
 });

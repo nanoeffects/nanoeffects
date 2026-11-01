@@ -205,11 +205,11 @@ oxlint и Biome не дают правилу информацию о типах,
 
 ## Подсчёт потерянных сигналов в тесте
 
-`getLostSignals(bus)` из `nanoeffects/dev` возвращает, сколько сигналов потеряли обработчики шины: каждый emit или `ctx.on`, который обработчик сделал после отмены своей задачи. Шине нужен `devPlugin`. Запустите сценарий так, как это сделал бы пользователь, отмените его и проверьте, что счётчик равен 0:
+`getLostSignalsCount(bus)` из `nanoeffects/dev` возвращает, сколько сигналов потеряли обработчики шины: каждый emit или `ctx.on`, который обработчик сделал после отмены своей задачи. Шине нужен `devPlugin`. Запустите сценарий так, как это сделал бы пользователь, отмените его и проверьте, что счётчик равен 0:
 
 ```js
 import { createBus } from "nanoeffects";
-import { devPlugin, getLostSignals, lostSignals } from "nanoeffects/dev";
+import { devPlugin, getLostSignalsCount, getLostSignals } from "nanoeffects/dev";
 import { latest } from "nanoeffects/policies";
 import { expect, test } from "vitest";
 
@@ -229,13 +229,13 @@ test("a newer search leaves no lost signals", async () => {
   bus.emit("search", "ab"); // отменяет первый вызов
 
   // wait — сколько мс ждать, пока обработчики закончат, прежде чем считать
-  const count = await getLostSignals(bus, { wait: 50 });
+  const count = await getLostSignalsCount(bus, { wait: 50 });
 
   expect(count).toBe(0);
 });
 ```
 
-`lostSignals(bus)` возвращает не число, а список: `{ kind: "emit" | "on", handler, event }` для каждого, так что упавший тест называет обработчик и событие. Без `devPlugin` (или с `abandoned: false`) функция бросает ошибку и говорит об этом. В production-сборке обе функции пусты: счётчик равен 0.
+`getLostSignals(bus)` возвращает не число, а список: `{ kind: "emit" | "on", handler, event }` для каждого, так что упавший тест называет обработчик и событие. Без `devPlugin` (или с `abandoned: false`) функция бросает ошибку и говорит об этом. В production-сборке обе функции пусты: счётчик равен 0.
 
 Считается то, что обработчик делает после отмены. Запрос, который обработчик начал и который отмена не остановила, не считается, пока обработчик потом ничего не отправит; такие запросы находит следующий раздел.
 

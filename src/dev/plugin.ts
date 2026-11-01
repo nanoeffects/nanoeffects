@@ -159,7 +159,7 @@ const nameOf = (event: unknown) =>
 		? event
 		: String(Reflect.get(Object(event), "type"));
 
-// what each bus with the check noted, for `getLostSignals`
+// what each bus with the check noted, for `getLostSignalsCount`
 const lostOf = new WeakMap<object, LostSignal[]>();
 
 type Aborted = {
@@ -337,17 +337,17 @@ const watchModules = (app: ModuleHost, info: (message: string) => void) => {
  * bus.emit("search", "a");
  * bus.emit("search", "ab"); // cancels the first call
  *
- * expect(await getLostSignals(bus, { wait: 50 })).toBe(0);
+ * expect(await getLostSignalsCount(bus, { wait: 50 })).toBe(0);
  * ```
  */
-export const lostSignals = async (
+export const getLostSignals = async (
 	bus: object,
 	options: LostSignalsOptions = {},
 ): Promise<LostSignal[]> => {
 	const lost = lostOf.get(bus);
 	if (!lost) {
 		throw new Error(
-			"getLostSignals: the bus has no devPlugin, or devPlugin has `abandoned: false`. Use bus.use(devPlugin()) before the test.",
+			"getLostSignalsCount: the bus has no devPlugin, or devPlugin has `abandoned: false`. Use bus.use(devPlugin()) before the test.",
 		);
 	}
 	await new Promise((resolve) => setTimeout(resolve, options.wait ?? 0));
@@ -355,8 +355,8 @@ export const lostSignals = async (
 	return [...lost];
 };
 
-/** The number of signals that handlers of a bus lost so far: see `lostSignals` for the list. */
-export const getLostSignals = async (
+/** The number of signals that handlers of a bus lost so far: see `getLostSignals` for the list. */
+export const getLostSignalsCount = async (
 	bus: object,
 	options: LostSignalsOptions = {},
-) => (await lostSignals(bus, options)).length;
+) => (await getLostSignals(bus, options)).length;

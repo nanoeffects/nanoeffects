@@ -1,4 +1,4 @@
-export { devPlugin, getLostSignals, lostSignals } from "./plugin";
+export { devPlugin, getLostSignals, getLostSignalsCount } from "./plugin";
 export type {
 	DevOptions,
 	DevPlugin,
