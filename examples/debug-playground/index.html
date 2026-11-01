@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>nanoeffects: find a loop</title>
+		<style>
+			body { font-family: system-ui, sans-serif; max-width: 48rem; margin: 2rem auto; padding: 0 1rem; }
+			button { margin: 0 0.5rem 0.5rem 0; padding: 0.4rem 0.8rem; font-size: 1rem; }
+			pre { background: #f4f4f4; padding: 0.75rem; overflow: auto; white-space: pre-wrap; }
+			label { display: inline-block; margin-bottom: 0.75rem; }
+		</style>
+	</head>
+	<body>
+		<h1>Find a loop</h1>
+		<p>
+			Each button starts a loop that ends by itself after a few dozen turns. The report appears below, the graph is
+			drawn with the cycle in red, and the same finding goes to Redux DevTools as a <code>cycle/detected</code> action.
+			Redux DevTools is a browser extension: open this preview in its own tab, then pick the instance named
+			<b>debug playground</b>.
+		</p>
+		<label><input id="guard" type="checkbox" /> Turn the loop guard on (cuts a loop after 20 repeats)</label>
+		<div>
+			<button type="button" id="two">Two handlers</button>
+			<button type="button" id="same">Same event</button>
+			<button type="button" id="async">Across await</button>
+			<button type="button" id="microtask">Microtasks</button>
+			<button type="button" id="storm">Component storm</button>
+			<button type="button" id="clear">Clear the graph</button>
+		</div>
+		<h2>Report</h2>
+		<pre id="report">Press a button.</pre>
+		<h2>Graph</h2>
+		<div id="graph"></div>
+		<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+		<script type="module" src="./main.ts"></script>
+	</body>
+</html>

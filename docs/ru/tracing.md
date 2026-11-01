@@ -19,6 +19,7 @@
   - [Сокращение объёма в production](#сокращение-объёма-в-production)
   - [Последние события на случай инцидента](#последние-события-на-случай-инцидента)
   - [Настройка Redux DevTools](#настройка-redux-devtools)
+  - [Поиск циклов через `graphLogger`](#поиск-циклов-через-graphlogger)
   - [Собственный логгер](#собственный-логгер)
 - [Удаление трассировки из сборки](#удаление-трассировки-из-сборки)
 
@@ -248,6 +249,7 @@ const bus = createBus({
 | `reduxDevtools()` | Отправляет emit в Redux DevTools, а с `policies` — стадии обработчиков как `type/effect/phase`; state — `{ running }` |
 | `consoleLogger()` | Печатает по одной строке на фазу, с отступом по глубине задачи |
 | `performanceLogger()` | Измерения User Timing для панели Performance браузера |
+| `graphLogger()` | Строит карту того, какое событие к какому ведёт, находит циклы во время работы приложения и записывает карту как Mermaid, Graphviz или JSON ([см. ниже](#поиск-циклов-через-graphlogger)) |
 | `createTraceRecorder()` | Хранит события в `recorder.events`: все — для тестов, либо с `{ capacity }` последние N ([см. ниже](#последние-события-на-случай-инцидента)) |
 
 ### Сокращение объёма в production
@@ -380,6 +382,29 @@ reduxDevtools({
 ```
 
 При двух быстрых emit `search` и обработчике `latest` список по умолчанию — `search`, `search`. С `policies: true` к нему добавляются стадии `latest` каждого вызова, например `search/latest/cancel` для первого.
+
+### Поиск циклов через `graphLogger`
+
+Два обработчика, которые отправляют события друг друга, не остановятся сами. `graphLogger` — логгер, который находит такой цикл во время работы приложения, один раз пишет о нём отчёт и хранит карту событий, чтобы её можно было нарисовать.
+
+```js
+// bus.js
+import { createBus } from "nanoeffects";
+import { createTracer, graphLogger, tracePlugin } from "nanoeffects/trace";
+
+// graphLogger — карта событий и поиск циклов в одном логгере
+export const graph = graphLogger({ name: "app" });
+
+// createTracer — передаёт логгеру каждую задачу шины
+const trace = createTracer(graph);
+
+// tracePlugin — тоже сообщает о каждом emit; логгер работает и без него, но карта грубее
+export const bus = createBus({ trace }).use(tracePlugin());
+
+// graph.cycles() перечисляет найденные циклы; graph.toMermaid() рисует карту
+```
+
+Он сообщает об узле, который стоит в одной цепочке три раза, о шторме emit вне обработчиков и о цепочке, которая запускает слишком много задач. Отчёт идёт в `console.warn`, в `onCycle` или, с `devtools: true`, в Redux DevTools. Ничего не останавливается: чтобы оборвать цикл, используйте [`loopGuardPlugin`](loop-guard.md). Полный разбор со сценариями, которые можно запустить, — [Поиск и обрыв циклов событий](debugging-loops.md).
 
 ### Собственный логгер
 

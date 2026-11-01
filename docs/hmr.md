@@ -39,6 +39,7 @@ bus.use(devPlugin());
 
 - **Listeners that pile up.** When more than `maxListeners` (default `10`) listeners of one event were added and not unsubscribed, one warning names the event and the count. The count follows the function that `on` returns; `bus.off(event, fn)` is not seen.
 - **Modules.** For the app of `modulePlugin` (or the `app` option) it logs `module "user" mounted`, `replaced` when a module of the same name was mounted, and `unmounted`. Only what goes through `app.mount` and `app.unmount` is reported, not sub-modules.
+- **Where a named listener was made.** For a listener with a `traceId`, it notes the file and the line of the `bus.on` call, while the listener is subscribed. [`graphLogger`](debugging-loops.md#read-a-report) shows it in a loop report, so you can open the handler that closes the loop.
 - **Options.** `leaks: false` and `modules: false` switch a diagnostic off; `maxListeners` sets the limit; `log` receives the messages instead of the console.
 - **Disconnect.** `bus.use(devPlugin(...))` returns the function that stops the diagnostics and puts `bus.on` and `app.mount` back.
 

@@ -9,7 +9,7 @@ Rules that generated code often gets wrong:
 - A handler gets the payload and a task context: `(payload, ctx)`. The context has `signal`, `emit`, `on`, `run`. Pass `ctx.signal` to `fetch`.
 - Effects take `ctx` as the first argument: `retry(ctx, fn, options)`, `timeout(ctx, ms, fn)`, `take(ctx, "event")`.
 - Policies wrap a handler: `bus.on("search", latest(async (query, ctx) => { ... }))`.
-- Each part is imported from its own path: `nanoeffects` (`createBus`), `nanoeffects/policies`, `nanoeffects/effects`, `nanoeffects/actions`, `nanoeffects/redux`, `nanoeffects/observable`, `nanoeffects/react` (`reactPlugin`, adds `bus.useEmitter` and `bus.useEventState`; `usePolicy`; needs React), `nanoeffects/svelte` (`sveltePlugin`, adds `bus.eventStore`; needs Svelte), `nanoeffects/vue` (`vuePlugin`, adds `bus.watchEmitter` and `bus.useEventRef`; needs Vue), `nanoeffects/trace` (`createTracer`, loggers, `tracePlugin`), `nanoeffects/dev`.
+- Each part is imported from its own path: `nanoeffects` (`createBus`), `nanoeffects/policies`, `nanoeffects/effects`, `nanoeffects/actions`, `nanoeffects/redux`, `nanoeffects/observable`, `nanoeffects/react` (`reactPlugin`, adds `bus.useEmitter` and `bus.useEventState`; `usePolicy`; needs React), `nanoeffects/svelte` (`sveltePlugin`, adds `bus.eventStore`; needs Svelte), `nanoeffects/vue` (`vuePlugin`, adds `bus.watchEmitter` and `bus.useEventRef`; needs Vue), `nanoeffects/trace` (`createTracer`, loggers, `graphLogger`, `tracePlugin`), `nanoeffects/guard` (`loopGuardPlugin`), `nanoeffects/dev`.
 - `bus.emit(action(payload))` runs the action's handler and returns its result. Plain events return nothing.
 
 ## Start here
@@ -59,6 +59,8 @@ Rules that generated code often gets wrong:
 ## Reference
 
 - [Semantics](docs/semantics.md): exact rules of emit, abort and ordering
-- [Trace tasks](docs/tracing.md): loggers, Redux DevTools, the `notrace` build
+- [Trace tasks](docs/tracing.md): loggers, Redux DevTools, `graphLogger`, the `notrace` build
+- [Find and cut event loops](docs/debugging-loops.md): symptoms, `graphLogger`, the graph as Mermaid, Graphviz or JSON, Redux DevTools
+- [Cut a loop with loopGuardPlugin](docs/loop-guard.md): limits on repeats, depth and emits from outside
 - [Turn events into Observables](docs/observable.md): `createObserve`, `Subject`, `events` (an event as a `for await` loop)
 - [Hot reload and development diagnostics](docs/hmr.md): `devPlugin`

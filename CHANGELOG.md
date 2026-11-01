@@ -2,6 +2,15 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
+## Unreleased
+
+### Added
+- `graphLogger()` in `nanoeffects/trace` finds event loops while the app runs: handlers that feed each other, a storm of emits from a component, a chain that never ends. It keeps the map of which event leads to which and writes it as Mermaid, Graphviz or JSON, and `devtools: true` sends each loop to Redux DevTools. [Docs](docs/debugging-loops.md)
+- `loopGuardPlugin` in `nanoeffects/guard` cuts a loop: it refuses the emit that would repeat one event too often, make a chain too long, or come from outside too fast. It needs no tracer. [Docs](docs/loop-guard.md)
+- A trace logger can have a `task` method, which `createTracer` calls for every task as it is made, also for a plain handler that reports no event. [Docs](docs/tracing.md#find-loops-with-graphlogger)
+- `devPlugin` notes where a named listener was made, and a loop report shows it. [Docs](docs/hmr.md#report-leaks-with-devplugin)
+- Runnable debugging examples: `examples/debug` and a page with Redux DevTools, `examples/debug-playground`.
+
 ## 0.29.0
 
 ### Breaking

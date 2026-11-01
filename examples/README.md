@@ -4,13 +4,15 @@ Run nanoeffects in a browser tab, or read a small recipe for one job. Start with
 
 ## Try it in the browser
 
-All three playgrounds are the same search box: type fast and only one request starts (`debounce`); type again while a request runs and the older one is aborted (`latest`). No install: StackBlitz runs them.
+The first three playgrounds are the same search box: type fast and only one request starts (`debounce`); type again while a request runs and the older one is aborted (`latest`). No install: StackBlitz runs them.
 
 | Playground | What is in it | Open |
 | --- | --- | --- |
 | [`playground`](playground) | Plain DOM and `main.ts`. The smallest setup; the page lists the requests, so the abort is visible. | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/playground) |
 | [`playground-react`](playground-react) | The same search in a React component, with the bus outside React. Every task is printed to the browser console. | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/playground-react) |
 | [`playground-devtools`](playground-devtools) | The same search with its emits and the calls a policy stopped sent to Redux DevTools. Redux DevTools is a browser extension: open the preview in its own tab and pick the instance named `search playground` in its list. | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/playground-devtools) |
+
+| [`debug-playground`](debug-playground) | A page with a button for each shape of loop: the report of `graphLogger`, the graph drawn with the cycle in red, a `cycle/detected` action in Redux DevTools, and a switch for `loopGuardPlugin`. Open the preview in its own tab and pick the instance named `debug playground`. | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/debug-playground) |
 
 To run one on your machine:
 
@@ -33,6 +35,10 @@ React and TypeScript projects with entities, features and modules, written to sh
 | [`counter`](counter) | The counter of the redux-saga tutorial in two pages with the same buttons: without a store, and with Redux Toolkit and `createEffectsMiddleware`. A delayed increment under `latest`, a cancel with `race` and `take`, and a call that fails under `retry` and shows its error. No network. | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/counter) |
 | [`rickandmorty`](rickandmorty) | A browser for characters with React Query: React Query keeps the cache, the pages and the loading state, and the requests are actions (`timeout`, a `retry` that skips a 404) that get its abort signal through `signalPlugin`. Suggestions under the name box are an action outside React Query (`debounce`, `latest`). No server. | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/rickandmorty) |
 | [`trades`](trades) | A stream, not a request: live trades over a WebSocket (Binance, no key). One action keeps the connection: `retry` opens the socket again after a drop with a growing pause, `latest` closes the old socket when the pair changes, and `throttle` limits how often the list is drawn. No server. | [StackBlitz](https://stackblitz.com/github/nanoeffects/nanoeffects/tree/main/examples/trades) |
+
+## Debugging examples
+
+[`debug`](debug) is a folder of small scenarios for finding and cutting event loops with `graphLogger` and `loopGuardPlugin`: a loop between two handlers, across `await`, across modules, made of microtasks, a storm from a component, a graph exported to Mermaid, Graphviz and JSON, and the same checks on flows that must stay clean. Each runs alone with one command and gives the same output each time. Explained in [Find and cut event loops](../docs/debugging-loops.md).
 
 ## Backend examples
 

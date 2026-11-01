@@ -21,6 +21,7 @@ Optional. A plugin adds one thing to a bus: fields on `ctx`, a method, a registr
   - [Hand the bus to a state manager: `emitterPlugin`](#hand-the-bus-to-a-state-manager-emitterplugin)
   - [Tell the bus when a React value changes: `reactPlugin`](#tell-the-bus-when-a-react-value-changes-reactplugin)
   - [Find leaks while you develop: `devPlugin`](#find-leaks-while-you-develop-devplugin)
+  - [Cut a loop that runs away: `loopGuardPlugin`](#cut-a-loop-that-runs-away-loopguardplugin)
 - [Put them together](#put-them-together)
 - [Use them in any order](#use-them-in-any-order)
 - [See what is not a plugin](#see-what-is-not-a-plugin)
@@ -49,6 +50,7 @@ Find your need in the left column. No row fits: you need no plugin.
 | A React component that sends its value to the bus | [`reactPlugin`](#tell-the-bus-when-a-react-value-changes-reactplugin) |
 | Names in the trace | [`tracePlugin`](#name-the-origin-and-the-flow-of-a-trace-traceplugin) |
 | Warnings about leaks while you develop | [`devPlugin`](#find-leaks-while-you-develop-devplugin) |
+| A loop that must not take the app down | [`loopGuardPlugin`](#cut-a-loop-that-runs-away-loopguardplugin) |
 
 ## Main plugins
 
@@ -145,6 +147,7 @@ Add one of these when you meet its need. None of them is required.
 | [`tracePlugin`](#name-the-origin-and-the-flow-of-a-trace-traceplugin) | `traceId` and `traceGroupId` for a trace: the root of an emitter, a flow, a named listener. | `nanoeffects/trace` | The same bus |
 | [`reactPlugin`](#tell-the-bus-when-a-react-value-changes-reactplugin) | A React hook that emits when a value of a component changes. | `nanoeffects/react` | The same bus, with `useEmitter` |
 | [`devPlugin`](#find-leaks-while-you-develop-devplugin) | Warnings about listeners that pile up, and messages about modules, while you develop. | `nanoeffects/dev` | A function that disconnects it |
+| [`loopGuardPlugin`](#cut-a-loop-that-runs-away-loopguardplugin) | Refuses the emit that would pass a limit of a chain, so a loop ends. | `nanoeffects/guard` | The same bus |
 
 ### Give one action its own fields: `scopePlugin`
 
@@ -291,6 +294,18 @@ bus.use(modulePlugin([userModule]));
 const disconnect = bus.use(devPlugin());
 
 disconnect(); // stops the diagnostics
+```
+
+### Cut a loop that runs away: `loopGuardPlugin`
+
+Two handlers that emit each other's events never stop, and a loop of microtasks freezes the page. The plugin follows the chain of emits and refuses the emit that would repeat one event too often or make the chain too long. It needs no tracer, so it can stay on in production. More in [Cut a loop](loop-guard.md).
+
+```js
+import { createBus } from "nanoeffects";
+import { loopGuardPlugin } from "nanoeffects/guard";
+
+// loopGuardPlugin — refuses the emit that would put one event in a chain 50 times
+const bus = createBus().use(loopGuardPlugin({ maxRepeats: 50 }));
 ```
 
 ## Put them together

@@ -26,7 +26,8 @@
 | `nanoeffects/svelte` | `sveltePlugin`: добавляет `eventStore` на шину (нужен Svelte 5 или новее) | компоненты Svelte |
 | `nanoeffects/vue` | `vuePlugin`: добавляет `watchEmitter` и `useEventRef` на шину (нужен Vue 3.3 или новее) | компоненты Vue |
 | `nanoeffects/dev` | `devPlugin` (в production ничего не делает) | нужно находить утечки подписок при разработке |
-| `nanoeffects/trace` | `createTracer`, логгеры и `tracePlugin` (имена для трассировки) | нужно видеть, что выполнилось и почему |
+| `nanoeffects/trace` | `createTracer`, логгеры (`graphLogger` находит циклы событий) и `tracePlugin` (имена для трассировки) | нужно видеть, что выполнилось и почему |
+| `nanoeffects/guard` | `loopGuardPlugin`: отклоняет emit, который превысил бы предел цепочки | цикл не должен ронять приложение |
 
 Плагины с именами `...Plugin` подключаются через `bus.use`. Страница [Плагины](plugins.md) перечисляет их все, говорит, что каждый возвращает и в каком порядке их подключать.
 

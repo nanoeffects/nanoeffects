@@ -30,7 +30,8 @@ Each row is optional. The "when" column says what need brings you to it.
 | `nanoeffects/svelte` | `sveltePlugin`: adds `eventStore` to a bus (needs Svelte 5 or newer) | Svelte components |
 | `nanoeffects/vue` | `vuePlugin`: adds `watchEmitter` and `useEventRef` to a bus (needs Vue 3.3 or newer) | Vue components |
 | `nanoeffects/dev` | `devPlugin` (no-op in production) | you look for leaks in development |
-| `nanoeffects/trace` | `createTracer`, the loggers and `tracePlugin` (names for the trace) | you want to see what ran and why |
+| `nanoeffects/trace` | `createTracer`, the loggers (`graphLogger` finds event loops) and `tracePlugin` (names for the trace) | you want to see what ran and why |
+| `nanoeffects/guard` | `loopGuardPlugin`: refuses the emit that would pass a limit of a chain | a loop must not take the app down |
 
 The `...Plugin` names above are used with `bus.use`. [Plugins](plugins.md) lists all of them, what each returns, and the order to use them in.
 

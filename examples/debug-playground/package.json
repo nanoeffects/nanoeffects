@@ -1,0 +1,14 @@
+{
+	"name": "nanoeffects-debug-playground",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "vite"
+	},
+	"dependencies": {
+		"nanoeffects": "^0.29.0"
+	},
+	"devDependencies": {
+		"vite": "^7.0.0"
+	}
+}

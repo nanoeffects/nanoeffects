@@ -122,6 +122,8 @@ export const sidebar: SidebarItem[] = [
 			{ text: "Semantics", link: "/semantics" },
 			{ text: "Plugins", link: "/plugins" },
 			{ text: "Trace tasks", link: "/tracing" },
+			{ text: "Find and cut event loops", link: "/debugging-loops" },
+			{ text: "Cut a loop with loopGuardPlugin", link: "/loop-guard" },
 			{ text: "Hot reload and dev diagnostics", link: "/hmr" },
 		],
 	},
@@ -161,6 +163,8 @@ const russian: Record<string, string> = {
 	Semantics: "Семантика",
 	Plugins: "Плагины",
 	"Trace tasks": "Трассировка задач",
+	"Find and cut event loops": "Поиск и обрыв циклов событий",
+	"Cut a loop with loopGuardPlugin": "Обрыв цикла через loopGuardPlugin",
 	"Hot reload and dev diagnostics": "Hot reload и диагностика",
 };
 

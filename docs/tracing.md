@@ -19,6 +19,7 @@ Tracing is optional. A bus works the same without it, and it costs almost nothin
   - [Cut volume in production](#cut-volume-in-production)
   - [Keep the last events for an incident](#keep-the-last-events-for-an-incident)
   - [Configure Redux DevTools](#configure-redux-devtools)
+  - [Find loops with `graphLogger`](#find-loops-with-graphlogger)
   - [Write your own logger](#write-your-own-logger)
 - [Drop tracing from a build](#drop-tracing-from-a-build)
 
@@ -249,6 +250,7 @@ const bus = createBus({
 | `consoleLogger()` | Prints one line per phase, indented by task depth |
 | `performanceLogger()` | User Timing measures for the browser Performance panel |
 | `createTraceRecorder()` | Keeps events in `recorder.events`: all of them for tests, or with `{ capacity }` the last N ([see below](#keep-the-last-events-for-an-incident)) |
+| `graphLogger()` | Builds the map of which event leads to which, finds loops while the app runs, and writes the map as Mermaid, Graphviz or JSON ([see below](#find-loops-with-graphlogger)) |
 
 ### Cut volume in production
 
@@ -380,6 +382,29 @@ reduxDevtools({
 ```
 
 With two quick `search` emits and a `latest` handler, the default list is `search`, `search`. With `policies: true` it adds the `latest` stages of each call, for example `search/latest/cancel` for the first one.
+
+### Find loops with `graphLogger`
+
+Two handlers that emit each other's events never stop. `graphLogger` is a logger that finds such a loop while the app runs, writes a report once for it, and keeps the map of the events so you can draw it.
+
+```js
+// bus.js
+import { createBus } from "nanoeffects";
+import { createTracer, graphLogger, tracePlugin } from "nanoeffects/trace";
+
+// graphLogger — the map of events and the loop finder, in one logger
+export const graph = graphLogger({ name: "app" });
+
+// createTracer — sends every task of the bus to the logger
+const trace = createTracer(graph);
+
+// tracePlugin — also reports each emit; the logger works without it, with a coarser map
+export const bus = createBus({ trace }).use(tracePlugin());
+
+// graph.cycles() lists the loops found; graph.toMermaid() draws the map
+```
+
+It reports a node that is in one chain three times, a storm of emits from outside any handler, and a chain that starts too many tasks. It writes to `console.warn`, or to `onCycle`, or to Redux DevTools with `devtools: true`. Nothing is stopped: to cut a loop use [`loopGuardPlugin`](loop-guard.md). The full walk-through, with scenarios you can run, is [Find and cut event loops](debugging-loops.md).
 
 ### Write your own logger
 
