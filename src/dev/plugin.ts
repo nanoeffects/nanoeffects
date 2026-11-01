@@ -159,12 +159,12 @@ const nameOf = (event: unknown) =>
 		? event
 		: String(Reflect.get(Object(event), "type"));
 
-// an event is a string, or an object, a creator or an action that has a `type`
-const _nameOf = (event: unknown) =>
-	typeof event === "string"
-		? event
-		: String(Reflect.get(Object(event), "type"));
-type Aborted = { type: string; signal: AbortSignal; emit: Emitter };
+type Aborted = {
+	type: string;
+	signal: AbortSignal;
+	emit: Emitter;
+	on: Emitter;
+};
 
 // Watches `ctx.emit` of every task. An emit after the signal of the task aborted is dropped by the bus,
 // so a handler that does it kept working after it was cancelled: it did not use `ctx.signal`.
@@ -195,6 +195,21 @@ const watchAbandoned = <E extends EventMap>(
 			}
 
 			return emitOf(event, ...rest);
+		};
+		// `ctx.on` after an abort adds nothing and returns a function that does nothing: the same mistake
+		const onOf = task.on;
+		task.on = (event, ...rest) => {
+			const name = nameOf(event);
+			const key = `${task.type}\u0000on\u0000${name}`;
+			if (active && task.signal.aborted && !told.has(key)) {
+				told.add(key);
+				warn(
+					`${PREFIX} the handler of "${task.type}" subscribed to "${name}" after its task was aborted, so the subscription was dropped. ` +
+						"The handler kept running after it was cancelled: pass ctx.signal to the request or give ctx to an effect.",
+				);
+			}
+
+			return onOf(event, ...rest);
 		};
 	};
 

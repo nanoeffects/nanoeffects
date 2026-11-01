@@ -28,6 +28,7 @@ export const sidebar: SidebarItem[] = [
 			{ text: "Pause between requests", link: "/debounce-and-abort" },
 			{ text: "Prevent a double submit", link: "/prevent-double-submit" },
 			{ text: "Errors and unheard events", link: "/errors" },
+			{ text: "Keep the signal through a handler", link: "/pass-the-signal" },
 		],
 	},
 	{
@@ -139,6 +140,7 @@ const russian: Record<string, string> = {
 	"Working with async": "Работа с асинхронностью",
 	"Cancel stale requests": "Отмена устаревших запросов",
 	"Pause between requests": "Пауза между запросами",
+	"Keep the signal through a handler": "Сохранение сигнала в обработчике",
 	"Prevent a double submit": "Защита от повторной отправки",
 	"Errors and unheard events": "Ошибки и события без подписчиков",
 	Policies: "Политики",

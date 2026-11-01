@@ -114,7 +114,9 @@ Written in the style of the other examples (comments on each nanoeffects call, b
 - [x] 12.1 Make `reduxDevtools` serialize payloads and errors (with the `serialize` option), `performanceLogger` read errors safely, `createTraceRecorder` get `toJSON()`, and export `safeSerialize` from `nanoeffects/trace`. Verified by `src/trace/serialization.test.ts`: 17 kinds of values through every built-in logger, JSON-safe output, and the `serialize` option.
 - [x] 12.2 Add the `abandoned` check to `devPlugin` (a warning for an emit after an abort) with tests in `src/dev/plugin.test.ts`, and raise the `size-limit` of `dev` to 1.4 kB.
 - [x] 12.3 Add `examples/lint` (an ESLint/oxlint rule, two Biome GritQL rules, a fixture) for a policy handler with no `ctx` or one that takes `ctx` and loses the signal, and `src/tests/lint-recipes.test.ts` that runs Biome and the plugin (parsed by acorn) on the fixture and compares the lines.
-- [x] 12.4 Document it in `docs/hmr.md` and `docs/tracing.md` (and the Russian pages), and add the `CHANGELOG.md` entries.
+- [x] 12.4 Make the lint rules read each step of a policy handler (`await`, `return`, an arrow body, `for await`, `await new Promise`, the calls of `Promise.all` and `map`, the callbacks of `retry`, `timeout`, `poll`, `all`, `race` and `ctx.run`), follow aliases of the signal, take `ignore`, skip a handler that wires the signal by hand, and flag `bus.emit` in a handler; make `devPlugin` also warn on `ctx.on` after an abort. Tests: `src/tests/lint-recipes.test.ts` (the fixture on Biome and the plugin, and 27 situations inline) and `src/dev/plugin.test.ts`.
+- [x] 12.5 Add the page `docs/pass-the-signal.md` (English and Russian) with every situation, what catches it, and the setup, and link it from `docs/hmr.md`, `llms.txt` and the side bar.
+- [x] 12.6 Document it in `docs/hmr.md` and `docs/tracing.md` (and the Russian pages), and add the `CHANGELOG.md` entries.
 
 ## Workflow follow-up
 

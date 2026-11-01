@@ -653,6 +653,27 @@ describe("devPlugin: a handler that ignores the signal", () => {
 		expect(warnings[0]).toContain("ctx.signal");
 	});
 
+	it("warns once when a handler subscribes with ctx.on after it was aborted", async () => {
+		const { bus, messages } = make();
+		bus.on(
+			"search",
+			latest(async (_query: string, ctx) => {
+				await later(10);
+				ctx.on("other", () => {});
+			}),
+		);
+
+		bus.emit("search", "a");
+		bus.emit("search", "ab");
+		await later(40);
+
+		const warnings = messages.filter((message) =>
+			message.includes("subscribed to"),
+		);
+		expect(warnings).toHaveLength(1);
+		expect(warnings[0]).toContain('"other"');
+	});
+
 	it("is quiet when the handler stops with its signal", async () => {
 		const { bus, messages } = make();
 		bus.on(

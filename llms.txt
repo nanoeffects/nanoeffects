@@ -59,6 +59,7 @@ Rules that generated code often gets wrong:
 ## Reference
 
 - [Semantics](docs/semantics.md): exact rules of emit, abort and ordering
+- [Keep the signal through a handler](docs/pass-the-signal.md): every way a policy handler loses `ctx.signal`, and the lint rules and `devPlugin` check that find it
 - [Trace tasks](docs/tracing.md): loggers, Redux DevTools, `graphLogger`, the `notrace` build
 - [Find and cut event loops](docs/debugging-loops.md): symptoms, `graphLogger`, the graph as Mermaid, Graphviz or JSON, Redux DevTools
 - [Cut a loop with loopGuardPlugin](docs/loop-guard.md): limits on repeats, depth and emits from outside

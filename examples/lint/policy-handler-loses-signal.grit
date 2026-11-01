@@ -1,6 +1,33 @@
 language js
 
-// A handler of a policy that takes ctx but never passes the signal on keeps running after it is cancelled.
+// A step of a policy handler that waits for a call without the signal keeps running after the policy cancels
+// the handler. The step is `await call`, `return call`, or an arrow body that is a call.
+// It is not flagged when the call mentions the signal (`signal`, `ctx.signal`), gets ctx as an argument, is a call
+// on ctx, reads a response body, or gets a variable that the handler set from the signal or from ctx
+// (`const options = { signal }`). A handler that wires the signal by hand is skipped.
+//
+// This is the text-based version of the rule. The ESLint and oxlint rule reads the syntax tree and also checks
+// the calls inside `Promise.all([...])` and inside the callbacks of effects.
+
+pattern loses_signal($id, $body) {
+	`$callee($callArgs)` as $call where {
+		// a mention of `signal` that is not the member of another object (`controller.signal` is not ours)
+		$call <: not r"(?s).*(?:^|[^.\w])signal\b.*",
+		$call <: not contains `$id.signal`,
+		$call <: not contains $id,
+		$callee <: not r"(?s)^\w+\.(?:emit|on|off|run|abort)$|.*\.(?:json|text|blob|arrayBuffer|formData|clone)$",
+		$callArgs <: not contains `$alias` where {
+			$body <: contains `const $alias = $init`,
+			$init <: or { r"(?s).*(?:^|[^.\w])signal\b.*", contains `$id.signal`, contains $id }
+		},
+		register_diagnostic(
+			span = $call,
+			message = "This step waits for a call that does not get the signal, so it keeps running after the policy cancels the handler. Pass { signal: ctx.signal } to it, or ctx to an effect.",
+			severity = "warn"
+		)
+	}
+}
+
 or {
 	`latest($fn)`,
 	`leading($fn)`,
@@ -9,33 +36,27 @@ or {
 	`throttle($ms, $fn)`
 } where {
 	$fn <: or {
-		`async ($first, $ctx) => $body`,
-		`($first, $ctx) => $body`,
-		`async function ($first, $ctx) { $body }`,
-		`function ($first, $ctx) { $body }`
+		`async ($first, $param) => $body`,
+		`($first, $param) => $body`,
+		`async function ($first, $param) { $body }`,
+		`function ($first, $param) { $body }`
 	},
-	or {
-		// ({ emit }): a pattern that names no member which carries the signal
-		and {
-			$ctx <: r"(?s)^(\{[^}]*\}).*"($props),
-			$props <: not r"(?s).*(?:signal|run|abort|\.\.\.).*"
-		},
-		// ctx: the signal is not read, ctx is not given to a call, and ctx.run and ctx.abort are not used
-		and {
-			$ctx <: r"(?s)^(\w+).*"($id),
-			$body <: not r"(?s).*signal.*",
-			// ctx.run and ctx.abort keep the link; ctx given to a call (an effect) passes the signal on
-			$body <: not contains or {
-				`$id.run`,
-				`$id.abort`,
-				`$f($args)` where { $args <: contains $id },
-				`const $name = $id`
-			}
+	// the name of ctx when the second parameter is a plain name (with or without a type); a pattern names no ctx
+	or { $param <: r"(?s)^(\w+).*"($id), $id = "__no_ctx__" },
+	$body <: not contains or { `$signalName.addEventListener($listenerArgs)`, `onAbort($ctxArg, $rest)` },
+	// any, not or: every alternative runs, so a handler can have several findings
+	any {
+		$body <: loses_signal($id, $body),
+		$body <: contains `await $call` where { $call <: loses_signal($id, $body) },
+		$body <: contains `return $call` where { $call <: loses_signal($id, $body) },
+		// bus.emit is not dropped after the handler was cancelled, so a stale call still delivers its result
+		$body <: contains `$emitter.emit($emitArgs)` where {
+			$emitter <: not $id,
+			register_diagnostic(
+				span = $emitter,
+				message = "This emit is not dropped when the policy cancels the handler, so a stale call still delivers its result. Use ctx.emit.",
+				severity = "warn"
+			)
 		}
-	},
-	register_diagnostic(
-		span = $fn,
-		message = "This handler takes ctx but never passes the signal on (ctx is unused, or used only for emit and on), so it keeps running after the policy cancels it. Pass ctx.signal to the request, or ctx to an effect.",
-		severity = "warn"
-	)
+	}
 }
