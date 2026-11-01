@@ -94,18 +94,15 @@ export const sidebar: SidebarItem[] = [
 			{ text: "Vue", link: "/vue" },
 			{ text: "Svelte", link: "/svelte" },
 			{ text: "Observable", link: "/observable" },
+			{ text: "Node.js", link: "/server" },
 		],
 	},
 	{
-		text: "Backend, requests, state managers",
+		text: "Infrastructure",
 		collapsed: true,
 		items: [
-			{ text: "Stop work on a server when the client leaves", link: "/server" },
-			{
-				text: "React Query, SWR, RTK Query, Axios",
-				link: "/query-libraries",
-			},
-			{ text: "Redux, Zustand, MobX, Pinia", link: "/stores" },
+			{ text: "HTTP requests", link: "/query-libraries" },
+			{ text: "State managers", link: "/stores" },
 		],
 	},
 	{
@@ -154,13 +151,10 @@ const russian: Record<string, string> = {
 	"Chat example": "Пример: чат",
 	"Chat widget": "Пример: виджет чата",
 	Ecosystem: "Экосистема",
-	"Backend, requests, state managers": "Backend, запросы, state managers",
+	Infrastructure: "Инфраструктура",
+	"HTTP requests": "HTTP-запросы",
 	"Effects outside a task": "Эффекты вне задачи",
-	"Redux, Zustand, MobX, Pinia": "Redux, Zustand, MobX, Pinia",
 	Observable: "Observable",
-	Servers: "Backend",
-	"Stop work on a server when the client leaves":
-		"Остановка работы на backend, когда клиент ушёл",
 	"Migrating from": "Переход с других библиотек",
 	"mitt and nanoevents": "mitt и nanoevents",
 	Reference: "Справочник",
