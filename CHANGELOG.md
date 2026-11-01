@@ -2,7 +2,7 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
-## Unreleased
+## 0.31.0
 
 ### Added
 - `signalFetch` in `nanoeffects/signal` is a `fetch` bound to a signal. With `contextPlugin({ fetch: fromSignal(signalFetch) })` every handler has a `ctx.fetch` that stops with its task, so the signal is never passed by hand. [Docs](docs/pass-the-signal.md#bind-the-signal-once)
