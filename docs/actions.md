@@ -117,7 +117,7 @@ These are the events of the user domain, in a file of their own (`user.js`). The
 - `userLoaded.match(action)` — narrows an action
 - `createAction(type, handler)` — a function as the second argument is the handler; `bus.emit(action(payload))` tells the listeners, runs the handler as a task and returns its result
 - `createAction(type, { prepare })` — build the payload from several arguments
-- `createAction(type, { handle, prepare, ...scope })` — everything in one object: `handle` and `prepare` are taken out, and every other field is the [scope](scope.md)
+- `createAction(type, { handle, prepare, ...scope })` — everything in one object: `handle` and `prepare` are taken out, and every other field is the [scope](context.md#scope-fields-for-an-action-a-module-and-a-call)
 - Works as the event of its type: `bus.emit(userLoaded(user))`, `bus.on(userLoaded, fn)`
 
 A scope goes after a handler as the last argument, `createAction(type, handler, scope)`; `prepare` with a handler goes in that last object: `createAction(type, handler, { prepare, ...scope })`.
@@ -411,4 +411,4 @@ const fakeApi = { getUser: async (id) => ({ id, name: "test" }) };
 bus.emit(getUser("1"), { api: fakeApi });
 ```
 
-The handler gets the fields typed. Without `scopePlugin` the scope is ignored. The full picture, with jobs, actions, modules and which value wins, is in [scopes](scope.md).
+The handler gets the fields typed. Without `scopePlugin` the scope is ignored. The full picture, with jobs, actions, modules and which value wins, is in [scopes](context.md#scope-fields-for-an-action-a-module-and-a-call).

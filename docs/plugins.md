@@ -148,7 +148,7 @@ Add one of these when you meet its need. None of them is required.
 
 ### Give one action its own fields: `scopePlugin`
 
-An action with a handler, an action, a job or a module can carry its own fields and effects, and one `emit` can replace them. A test gives a fake to one call. More in [Scopes](scope.md).
+An action with a handler, an action, a job or a module can carry its own fields and effects, and one `emit` can replace them. A test gives a fake to one call. More in [Scopes](context.md#scope-fields-for-an-action-a-module-and-a-call).
 
 ```js
 import { createBus } from "nanoeffects";

@@ -73,12 +73,17 @@ export const sidebar: SidebarItem[] = [
 		collapsed: true,
 		items: [
 			{ text: "Actions, jobs and modules", link: "/actions" },
-			{ text: "Context fields", link: "/context" },
-			{ text: "Scopes", link: "/scope" },
-			{ text: "Use the bus from a class", link: "/oop" },
-			{ text: "TypeScript in many files", link: "/typescript" },
-			{ text: "Chat example", link: "/chat-example" },
-			{ text: "Chat widget", link: "/chat-widget" },
+			{ text: "Working with context", link: "/context" },
+			{ text: "Working with OOP", link: "/oop" },
+			{ text: "Working with TypeScript", link: "/typescript" },
+			{
+				text: "Examples",
+				link: "/examples",
+				items: [
+					{ text: "Chat example", link: "/chat-example" },
+					{ text: "Chat widget", link: "/chat-widget" },
+				],
+			},
 		],
 	},
 	{
@@ -92,35 +97,25 @@ export const sidebar: SidebarItem[] = [
 		],
 	},
 	{
-		text: "State managers",
-		collapsed: true,
-		items: [{ text: "Redux, Zustand, MobX, Pinia", link: "/stores" }],
-	},
-	{
-		text: "Requests",
+		text: "Backend, requests, state managers",
 		collapsed: true,
 		items: [
+			{ text: "Stop work on a server when the client leaves", link: "/server" },
 			{
 				text: "React Query, SWR, RTK Query, Axios",
 				link: "/query-libraries",
 			},
-		],
-	},
-	{
-		text: "Servers",
-		collapsed: true,
-		items: [
-			{ text: "Stop work on a server when the client leaves", link: "/server" },
+			{ text: "Redux, Zustand, MobX, Pinia", link: "/stores" },
 		],
 	},
 	{
 		text: "Migrating from",
 		collapsed: true,
 		items: [
+			{ text: "RxJS", link: "/migrating-from-rxjs" },
+			{ text: "mitt and nanoevents", link: "/migrating-from-mitt" },
 			{ text: "redux-saga", link: "/migrating-from-saga" },
 			{ text: "Effector", link: "/migrating-from-effector" },
-			{ text: "mitt, nanoevents, EventEmitter", link: "/migrating-from-mitt" },
-			{ text: "RxJS", link: "/migrating-from-rxjs" },
 		],
 	},
 	{
@@ -152,14 +147,14 @@ const russian: Record<string, string> = {
 	"Effects and cancellation": "Эффекты и отмена",
 	"Domain logic": "Доменная логика",
 	"Actions, jobs and modules": "Actions, jobs и модули",
-	"Context fields": "Поля контекста",
-	Scopes: "Области (scope)",
-	"Use the bus from a class": "Шина в классе",
-	"TypeScript in many files": "TypeScript в нескольких файлах",
+	"Working with context": "Работа с контекстом",
+	"Working with OOP": "Работа с ООП",
+	"Working with TypeScript": "Работа с TypeScript",
+	Examples: "Примеры",
 	"Chat example": "Пример: чат",
 	"Chat widget": "Пример: виджет чата",
 	Ecosystem: "Экосистема",
-	Requests: "Запросы",
+	"Backend, requests, state managers": "Backend, запросы, state managers",
 	"Effects outside a task": "Эффекты вне задачи",
 	"Redux, Zustand, MobX, Pinia": "Redux, Zustand, MobX, Pinia",
 	Observable: "Observable",
@@ -167,7 +162,7 @@ const russian: Record<string, string> = {
 	"Stop work on a server when the client leaves":
 		"Остановка работы на backend, когда клиент ушёл",
 	"Migrating from": "Переход с других библиотек",
-	"mitt, nanoevents, EventEmitter": "mitt, nanoevents, EventEmitter",
+	"mitt and nanoevents": "mitt и nanoevents",
 	Reference: "Справочник",
 	Semantics: "Семантика",
 	Plugins: "Плагины",

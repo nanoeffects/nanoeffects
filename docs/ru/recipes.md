@@ -487,7 +487,7 @@ bus.emit("search", "nano"); // в логе: search · emit, затем results �
 - **RxJS.** [nanoeffects рядом с RxJS](migrating-from-rxjs.md) и [Observable](observable.md).
 - **Переход с redux-saga.** [Переход с redux-saga](migrating-from-saga.md).
 - **Переход с Effector.** [Переход с Effector](migrating-from-effector.md).
-- **Переход с mitt, nanoevents или EventEmitter.** [Переход с mitt](migrating-from-mitt.md).
+- **Переход с mitt или nanoevents.** [Переход с mitt](migrating-from-mitt.md).
 
 ## ООП и TypeScript
 

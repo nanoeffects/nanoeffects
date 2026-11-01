@@ -39,10 +39,10 @@ Rules that generated code often gets wrong:
 - [Build a sign-up form in React](docs/react.md): a form with a username check, a submit that cannot fire twice, and retry; `useEventState` shows an event as state, `usePolicy` keeps a debounced handler between renders
 - [Build a chat with entities, features, modules and a small server](docs/chat-example.md): rooms, a history under `latest`, a send under `queue` and `retry`, a search with `allSettled` and `timeout`, new messages polled with `poll`
 - [Build a chat widget that listens only while it is open](docs/chat-widget.md): a bot widget for a site; opening mounts a module (handlers, polling, Escape), closing unmounts it and aborts running requests
+- [Examples](docs/examples.md): playgrounds, bigger projects, backend examples, recipes and TypeScript projects that live in `examples/`
 - [Use nanoeffects in a Vue app](docs/vue.md): `vuePlugin` adds `watchEmitter` (a value of a component to the bus) and `useEventRef` (an event as a ref)
 - [Use nanoeffects in a Svelte app](docs/svelte.md): `sveltePlugin` adds `eventStore` (an event as a Svelte store)
-- [Context fields](docs/context.md): put a store or client on every task
-- [Scopes](docs/scope.md): fields for one action, job, module or `emit`, and a way to replace them in a test
+- [Working with context](docs/context.md): put a store or client on every task, and give fields to one action, job, module or `emit` with a scope
 - [Use the bus from a class](docs/oop.md): `Emitter`, `extendBus`, `@WithBus`, `@On`, `@Once`, and `dispose()` for the subscriptions of an instance
 
 ## TypeScript
@@ -53,7 +53,7 @@ Rules that generated code often gets wrong:
 
 - [Coming from redux-saga](docs/migrating-from-saga.md)
 - [Coming from Effector](docs/migrating-from-effector.md)
-- [Coming from mitt, nanoevents or EventEmitter](docs/migrating-from-mitt.md): the same calls, plus cancellation for async handlers
+- [Coming from mitt and nanoevents](docs/migrating-from-mitt.md): the same calls, plus cancellation for async handlers
 - [Use nanoeffects next to RxJS](docs/migrating-from-rxjs.md)
 
 ## Reference

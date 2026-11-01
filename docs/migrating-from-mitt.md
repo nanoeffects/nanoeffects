@@ -1,8 +1,8 @@
-# Coming from mitt, nanoevents or EventEmitter
+# Coming from mitt and nanoevents
 
-> **Level A, for readers who know mitt or EventEmitter.** Read first: nothing: the bus is the same idea.
+> **Level A, for readers who know mitt or nanoevents.** Read first: nothing: the bus is the same idea.
 
-Read this page if your app uses a small event emitter (`mitt`, `nanoevents`, Node's `EventEmitter`, `tiny-emitter`) and its handlers start to do async work: requests, timers, retries. It maps the calls, shows what you gain, and shows what to check before you switch.
+Read this page if your app uses a small event emitter (`mitt`, `nanoevents`, `tiny-emitter`) and its handlers start to do async work: requests, timers, retries. It maps the calls, shows what you gain, and shows what to check before you switch.
 
 ## When to switch
 
@@ -17,8 +17,8 @@ If handlers stay synchronous, keep your emitter. nanoeffects costs about 1.4 kB 
 
 ## Find the equivalent
 
-| mitt / EventEmitter | nanoeffects |
-| ------------------- | ----------- |
+| mitt / nanoevents | nanoeffects |
+| ----------------- | ----------- |
 | `emitter.on("a", handler)` | `bus.on("a", handler)` |
 | `emitter.off("a", handler)` | call the function that `bus.on` returned, or `bus.off("a")` for all handlers of `a` |
 | `emitter.emit("a", payload)` | `bus.emit("a", payload)` |

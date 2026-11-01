@@ -115,7 +115,7 @@ export const loadUser = createJob("user/load", fetchUser, {
 - `userLoaded.match(action)` — сужает тип action
 - `createAction(type, handler)` — функция вторым аргументом — это обработчик; `bus.emit(action(payload))` сообщает подписчикам, запускает обработчик как задачу и возвращает его результат
 - `createAction(type, { prepare })` — собрать payload из нескольких аргументов
-- `createAction(type, { handle, prepare, ...scope })` — всё в одном объекте: `handle` и `prepare` извлекаются, а каждое остальное поле — это [scope](scope.md)
+- `createAction(type, { handle, prepare, ...scope })` — всё в одном объекте: `handle` и `prepare` извлекаются, а каждое остальное поле — это [scope](context.md#scope-поля-для-action-модуля-и-вызова)
 - Работает как событие своего типа: `bus.emit(userLoaded(user))`, `bus.on(userLoaded, fn)`
 
 Scope идёт после обработчика последним аргументом, `createAction(type, handler, scope)`; `prepare` вместе с обработчиком идёт в этот последний объект: `createAction(type, handler, { prepare, ...scope })`.
@@ -409,4 +409,4 @@ const fakeApi = { getUser: async (id) => ({ id, name: "test" }) };
 bus.emit(getUser("1"), { api: fakeApi });
 ```
 
-Обработчик получает поля с типами. Без `scopePlugin` scope игнорируется. Полная картина, с задачами, actions, модулями и тем, какое значение побеждает, описана в [областях (scope)](scope.md).
+Обработчик получает поля с типами. Без `scopePlugin` scope игнорируется. Полная картина, с задачами, actions, модулями и тем, какое значение побеждает, описана в [областях (scope)](context.md#scope-поля-для-action-модуля-и-вызова).

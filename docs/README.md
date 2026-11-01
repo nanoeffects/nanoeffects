@@ -77,7 +77,7 @@ For a problem, start from [Common tasks](recipes.md). For a project shape:
 | Old responses overwrite new ones | [Cancel stale requests](cancel-stale-requests.md) |
 | Debounced input that must also cancel the old request | [Pause between requests](debounce-and-abort.md) |
 | A second click sends a second request | [Prevent a double submit](prevent-double-submit.md) |
-| Using mitt, nanoevents or EventEmitter | [Coming from mitt](migrating-from-mitt.md) |
+| Using mitt or nanoevents | [Coming from mitt](migrating-from-mitt.md) |
 | Moving from redux-saga | [Coming from redux-saga](migrating-from-saga.md) |
 | Using RxJS | [Use nanoeffects next to RxJS](migrating-from-rxjs.md) |
 | Moving from Effector | [Coming from Effector](migrating-from-effector.md) |

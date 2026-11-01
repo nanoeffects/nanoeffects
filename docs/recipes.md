@@ -487,7 +487,7 @@ More: [Trace tasks](tracing.md). To reload modules without a page refresh, see [
 - **RxJS.** [Use nanoeffects next to RxJS](migrating-from-rxjs.md) and [Observables](observable.md).
 - **Moving from redux-saga.** [Coming from redux-saga](migrating-from-saga.md).
 - **Moving from Effector.** [Coming from Effector](migrating-from-effector.md).
-- **Moving from mitt, nanoevents or EventEmitter.** [Coming from mitt](migrating-from-mitt.md).
+- **Moving from mitt or nanoevents.** [Coming from mitt](migrating-from-mitt.md).
 
 ## Classes and TypeScript
 
