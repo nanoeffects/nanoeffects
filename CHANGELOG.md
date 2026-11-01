@@ -2,6 +2,11 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
+## Unreleased
+
+### Fixed
+- `devPlugin` gave back the storage it uses to follow requests only when the process ended. On Node 22 and older each plugin that stayed connected slowed every promise, so a test suite that made many buses could time out. `disconnect` now releases it.
+
 ## 0.31.1
 
 ### Added

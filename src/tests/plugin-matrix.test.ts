@@ -953,11 +953,15 @@ const failuresOf = async (order: Name[]) => {
 			continue;
 		}
 		let ok = false;
+		const build = make(order);
 		try {
-			ok = await probe.run(make(order));
+			ok = await probe.run(build);
 		} catch (error) {
 			failures.push(`${order.join(" > ")}: ${probe.id} threw ${String(error)}`);
 			continue;
+		} finally {
+			// devPlugin patches fetch and keeps a storage for the requests: put them back, or thousands pile up
+			build.disconnect?.();
 		}
 		if (!ok) {
 			failures.push(`${order.join(" > ")}: ${probe.id}`);

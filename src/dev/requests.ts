@@ -4,6 +4,8 @@ import type { LostSignal } from "./types";
 type Storage = {
 	getStore: () => unknown;
 	enterWith: (store: unknown) => void;
+	// takes the storage out of the async hooks: on older Node every promise pays for each live storage
+	disable: () => void;
 };
 
 type Task = {
@@ -161,6 +163,7 @@ export const trackRequests = (
 			};
 		},
 		stop() {
+			storage.disable();
 			if (globalThis.fetch === patched) {
 				globalThis.fetch = original;
 			}
