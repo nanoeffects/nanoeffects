@@ -55,7 +55,7 @@ const loadRule = async () => {
 // the lines the rule reports for a piece of code
 const lintLines = async (
 	source: string,
-	options: { ignore?: string[] } = {},
+	options: { ignore?: string[]; only?: string[] } = {},
 ) => {
 	const rule = await loadRule();
 	const program = parse(source, {
@@ -114,7 +114,10 @@ describe("examples/lint: the fixture", () => {
 });
 
 describe("examples/lint: the situations where the signal is hard to pass", () => {
-	const flagged = async (body: string, options?: { ignore?: string[] }) =>
+	const flagged = async (
+		body: string,
+		options?: { ignore?: string[]; only?: string[] },
+	) =>
 		(await lintLines(`latest(async (query, ctx) => {\n${body}\n});`, options))
 			.length;
 
@@ -328,6 +331,48 @@ describe("examples/lint: the situations where the signal is hard to pass", () =>
 		expect(await flagged(body, { ignore: ["cache.*", "db.*"] })).toBe(1);
 	});
 
+	it("takes only: the calls that take a signal are checked, and nothing else is", async () => {
+		const body =
+			"await cache.get(query);\nawait db.users.find(query);\nawait api.search(query);\nawait fetch(url);";
+
+		expect(await flagged(body, { only: ["api.*", "fetch"] })).toBe(2);
+		expect(await flagged(body, { only: ["api.search"] })).toBe(1);
+		expect(await flagged(body, { only: ["nothing.*"] })).toBe(0);
+	});
+
+	it("only does not hide a wait that nothing can cancel, and ignore wins over only", async () => {
+		expect(
+			await flagged(
+				"await new Promise((resolve) => setTimeout(resolve, 100));",
+				{ only: ["api.*"] },
+			),
+		).toBe(1);
+		expect(
+			await flagged("await api.search(query);", {
+				only: ["api.*"],
+				ignore: ["api.search"],
+			}),
+		).toBe(0);
+	});
+
+	it("checks the calls of Promise.all and the callbacks of effects against only too", async () => {
+		expect(
+			await flagged("await Promise.all([api.a(query), cache.get(query)]);", {
+				only: ["api.*"],
+			}),
+		).toBe(1);
+		expect(
+			await flagged("return retry(ctx, () => cache.get(query));", {
+				only: ["api.*"],
+			}),
+		).toBe(0);
+		expect(
+			await flagged("return retry(ctx, () => api.search(query));", {
+				only: ["api.*"],
+			}),
+		).toBe(1);
+	});
+
 	it("does not look into a function that is only declared in the handler", async () => {
 		expect(
 			await flagged(
@@ -385,5 +430,113 @@ describe("examples/lint: the situations where the signal is hard to pass", () =>
 				"latest(withLogging(async (query, ctx) => api.search(query)));",
 			),
 		).toEqual([]);
+	});
+});
+
+// With type information the rule reads the function it calls. The test builds a TypeScript 5 program for the typed
+// fixture (JSDoc types in a .js file) and maps each node of acorn to the node of TypeScript with the same place,
+// which is what typescript-eslint does with its own parser.
+describe("examples/lint: with type information", () => {
+	const typedLines = async () => {
+		const ts = (await import("typescript-5")).default;
+		const file = join(folder, "typed-fixture.js");
+		const source = readFileSync(file, "utf8");
+		const program = ts.createProgram([file], {
+			allowJs: true,
+			checkJs: true,
+			noEmit: true,
+			strict: true,
+			target: ts.ScriptTarget.ES2022,
+			lib: ["lib.es2022.d.ts", "lib.dom.d.ts"],
+		});
+		const sourceFile = program.getSourceFile(file);
+		const tsNodeAt = (start: number, end: number) => {
+			let found: unknown;
+			const visit = (node: import("typescript-5").Node) => {
+				if (
+					node.getStart() === start &&
+					node.end === end &&
+					ts.isCallExpression(node)
+				) {
+					found = node;
+				}
+				ts.forEachChild(node, visit);
+			};
+			if (sourceFile) {
+				visit(sourceFile);
+			}
+
+			return found;
+		};
+		const esTreeNodeToTSNodeMap = {
+			get: (node: { start: number; end: number }) =>
+				tsNodeAt(node.start, node.end),
+		};
+
+		const rule = await loadRule();
+		const reports: Report[] = [];
+		const visitor =
+			rule?.create({
+				report: (report: Report) => reports.push(report),
+				options: [{}],
+				settings: { nanoeffects: { typescript: ts } },
+				sourceCode: { parserServices: { program, esTreeNodeToTSNodeMap } },
+			}) ?? {};
+		const tree = parse(source, {
+			ecmaVersion: "latest",
+			sourceType: "module",
+			locations: true,
+		});
+		const walk = (node: unknown) => {
+			if (!node || typeof node !== "object") {
+				return;
+			}
+			if ((node as { type?: string }).type === "CallExpression") {
+				visitor.CallExpression?.(node);
+			}
+			for (const child of Object.values(node)) {
+				if (Array.isArray(child)) {
+					child.forEach(walk);
+				} else {
+					walk(child);
+				}
+			}
+		};
+		walk(tree);
+
+		return reports.map(
+			(report) => [report.node.loc.start.line, report.messageId] as const,
+		);
+	};
+
+	it("reports a call without the signal only when the function takes one, and a function that ignores the signal", async () => {
+		const reports = await typedLines();
+		const lines = readFileSync(join(folder, "typed-fixture.js"), "utf8").split(
+			"\n",
+		);
+		const named = reports.map(
+			([line, id]) => `${id}: ${lines[line - 1]?.trim()}`,
+		);
+
+		expect(named).toEqual([
+			"lostSignal: const first = await searchGood(query);",
+			"lostSignal: latest(async (id, ctx) => loadGood(id));",
+			"ignoredSignal: latest(async (query, ctx) => searchIgnores(query, { signal: ctx.signal }));",
+			"ignoredSignal: latest(async (query, ctx) => streamIgnores(query, ctx.signal));",
+			"ignoredSignal: latest(async (id, ctx) => loadIgnores(id, { signal: ctx.signal }));",
+			"ignoredSignal: latest(async (query, ctx) => viaHelperIgnores(query, { signal: ctx.signal }));",
+			"ignoredSignal: latest(async (query, ctx) => onlyOtherOptions(query, { signal: ctx.signal }));",
+			"lostSignal: latest(async (query, ctx) => anyApi.search(query));",
+		]);
+	});
+
+	it("without type information the same fixture reports the cache call too, which has no signal to pass", async () => {
+		const source = readFileSync(join(folder, "typed-fixture.js"), "utf8");
+		const lines = await lintLines(source);
+		const text = source.split("\n");
+
+		expect(lines.map((line) => text[line - 1]?.trim())).toContain(
+			"const cached = await cacheGet(query);",
+		);
 	});
 });

@@ -21,13 +21,30 @@
 // or `ctx` itself as an argument. A handler that wires the signal by hand (`signal.addEventListener("abort", ...)`
 // or `onAbort(ctx, ...)`) is not checked step by step.
 //
-// Option `ignore`: callee names that cannot be cancelled and are fine to wait for, such as `["cache.get", "db.*"]`.
-// A trailing `*` matches any name after the dot. To silence one line use the disable comment of your linter.
+// Two options choose which calls are checked, by the name of the callee (`api.search`, `fetch`):
+//   - `ignore`: calls that cannot be cancelled and are fine to wait for, such as `["cache.get", "db.*"]` (a list
+//     of what to skip);
+//   - `only`: the calls that take a signal, such as `["api.*", "fetch"]` (a list of what to check). Anything else
+//     is left alone. With `only` set, a call that is not on the list is never reported.
+// A trailing `*` matches any name after the dot. A call that matches both lists is skipped. To silence one line
+// use the disable comment of your linter.
 //
+//
+// With type information (typescript-eslint with a program) the rule also reads the function it calls:
+//   - a call that does not get the signal is reported only when the function takes one (a parameter of type
+//     `AbortSignal`, or an options object with `signal`). A function that takes none, such as `cache.get(key)`,
+//     cannot be cancelled and is left alone, so `ignore` is rarely needed. A function whose type is unknown (`any`)
+//     is reported as before.
+//   - a call that does get the signal is reported when the function is in your sources and never uses it: the
+//     parameter is unused, or only other options are read from it. A function from a library (a `.d.ts` file) is
+//     trusted. A signal that is forwarded to another function of yours is followed, up to three calls deep.
+// Without type information (oxlint, or ESLint with no program) only the syntax is read.
 // It is an ordinary ESLint rule with no dependency, so it works in ESLint and in oxlint (as a JS plugin).
 // It reads handlers written in place; `latest(namedHandler)` and `latest(withLogging(async ...))` are not
 // checked. It walks the syntax tree on its own and does not use scope analysis. It cannot know whether a callee
 // accepts a signal, so a call that cannot be cancelled is reported unless it matches `ignore`.
+
+import { createRequire } from "node:module";
 
 const policies = new Set(["latest", "leading", "queue", "debounce", "throttle"]);
 // the first argument of these is a number of ms, so the handler is the second one
@@ -332,13 +349,194 @@ const isExempt = (call, { contexts }, ignore) => {
 	return onContext || reads;
 };
 
+
+// ---- type information -------------------------------------------------------------------------------------------
+
+const nodeRequire = createRequire(import.meta.url);
+
+// the TypeScript package of the project, if it has the compiler API (typescript 7 has none)
+const loadTypeScript = () => {
+	try {
+		const ts = nodeRequire("typescript");
+
+		return typeof ts.createProgram === "function" ? ts : null;
+	} catch {
+		return null;
+	}
+};
+
+// does a type carry a signal? "yes": an AbortSignal, or an object with a `signal` member; "unknown": any
+const typeCarries = (ts, type) => {
+	if (type.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown)) {
+		return "unknown";
+	}
+	if (type.isUnion() || type.isIntersection()) {
+		const results = type.types.map((member) => typeCarries(ts, member));
+		if (results.includes("yes")) {
+			return "yes";
+		}
+
+		return results.includes("unknown") ? "unknown" : "no";
+	}
+	if (type.getSymbol()?.getName() === "AbortSignal" || type.getProperty("signal")) {
+		return "yes";
+	}
+
+	return "no";
+};
+
+// the type is an AbortSignal (or an AbortSignal that may be undefined), not an object that has one
+const isAbortSignal = (ts, type) => {
+	if (type.isUnion()) {
+		const members = type.types.filter((member) => !(member.flags & (ts.TypeFlags.Undefined | ts.TypeFlags.Null)));
+
+		return members.length > 0 && members.every((member) => isAbortSignal(ts, member));
+	}
+
+	return type.getSymbol()?.getName() === "AbortSignal";
+};
+
+const identifiersNamed = (ts, root, name) => {
+	const found = [];
+	const visit = (node) => {
+		if (ts.isIdentifier(node) && node.text === name) {
+			found.push(node);
+		}
+		ts.forEachChild(node, visit);
+	};
+	visit(root);
+
+	return found;
+};
+
+// the declaration of a function that is in your sources, with a body to read
+const readableDeclaration = (ts, program, signature) => {
+	const declaration = signature?.declaration;
+	const file = declaration?.getSourceFile();
+	const readable =
+		declaration &&
+		ts.isFunctionLike(declaration) &&
+		declaration.body &&
+		!file.isDeclarationFile &&
+		!program.isSourceFileFromExternalLibrary(file);
+
+	return readable ? declaration : null;
+};
+
+// How a function uses the parameter that receives the signal: "uses", "ignores", or "unknown".
+const parameterUsage = (ts, program, checker, parameter, body, depth) => {
+	const name = parameter.name;
+	if (ts.isObjectBindingPattern(name)) {
+		const element = name.elements.find(
+			(item) => (item.propertyName ?? item.name).text === "signal" || item.dotDotDotToken,
+		);
+		if (!element || !ts.isIdentifier(element.name)) {
+			return "ignores";
+		}
+
+		return identifiersNamed(ts, body, element.name.text).length > 0 ? "uses" : "ignores";
+	}
+	if (!ts.isIdentifier(name)) {
+		return "unknown";
+	}
+	const isSignalItself = isAbortSignal(ts, checker.getTypeAtLocation(parameter));
+	for (const reference of identifiersNamed(ts, body, name.text)) {
+		const parent = reference.parent;
+		if (isSignalItself) {
+			return "uses";
+		}
+		if (ts.isPropertyAccessExpression(parent) && parent.expression === reference) {
+			if (parent.name.text === "signal") {
+				return "uses";
+			}
+			continue;
+		}
+		if ((ts.isCallExpression(parent) || ts.isNewExpression(parent)) && parent.arguments?.includes(reference)) {
+			if (forwardedUsage(ts, program, checker, parent, parent.arguments.indexOf(reference), depth) !== "ignores") {
+				return "uses";
+			}
+			continue;
+		}
+		if (ts.isPropertyAssignment(parent) && parent.name === reference) {
+			continue;
+		}
+		// a spread, an alias, a return, an element access: the signal can go anywhere, so trust it
+		return "uses";
+	}
+
+	return "ignores";
+};
+
+// the signal goes to argument `index` of another call: follow it into the function when it is in your sources
+const forwardedUsage = (ts, program, checker, call, index, depth) => {
+	if (depth >= 3) {
+		return "unknown";
+	}
+	const signature = checker.getResolvedSignature(call);
+	const declaration = readableDeclaration(ts, program, signature);
+	const parameter = declaration?.parameters[index];
+	if (!parameter) {
+		return "unknown";
+	}
+
+	return parameterUsage(ts, program, checker, parameter, declaration.body, depth + 1);
+};
+
+// the answers of the type checker about a call, for the rule
+const typeProvider = (context, carriesIn) => {
+	const services = context.sourceCode?.parserServices ?? context.parserServices;
+	const ts = context.settings?.nanoeffects?.typescript ?? loadTypeScript();
+	if (!ts || !services?.program || !services.esTreeNodeToTSNodeMap) {
+		return null;
+	}
+	const program = services.program;
+	const checker = program.getTypeChecker();
+	const tsNodeOf = (node) => services.esTreeNodeToTSNodeMap.get(node);
+
+	return {
+		// does the function take a signal? "yes", "no", or "unknown" when the types do not say
+		accepts(call) {
+			const tsCall = tsNodeOf(call);
+			const signature = tsCall ? checker.getResolvedSignature(tsCall) : null;
+			if (!signature?.declaration) {
+				return "unknown";
+			}
+			let answer = "no";
+			for (const parameter of signature.getParameters()) {
+				const type = checker.getTypeOfSymbolAtLocation(parameter, tsCall);
+				const isRest = parameter.valueDeclaration?.dotDotDotToken;
+				const result = typeCarries(ts, isRest ? (checker.getIndexTypeOfType(type, ts.IndexKind.Number) ?? type) : type);
+				if (result === "yes") {
+					return "yes";
+				}
+				answer = result === "unknown" ? "unknown" : answer;
+			}
+
+			return answer;
+		},
+		// does the function use the signal it gets? "ignores" only when it is in your sources and never uses it
+		usage(call, names) {
+			const tsCall = tsNodeOf(call);
+			const index = call.arguments.findIndex((argument) => carriesIn(argument, names));
+			if (!tsCall || index < 0) {
+				return "unknown";
+			}
+
+			return forwardedUsage(ts, program, checker, tsCall, index, 0);
+		},
+	};
+};
+
 const rule = {
 	meta: {
 		type: "problem",
 		schema: [
 			{
 				type: "object",
-				properties: { ignore: { type: "array", items: { type: "string" } } },
+				properties: {
+					ignore: { type: "array", items: { type: "string" } },
+					only: { type: "array", items: { type: "string" } },
+				},
 				additionalProperties: false,
 			},
 		],
@@ -347,6 +545,8 @@ const rule = {
 				"This handler has no ctx parameter, so it cannot pass ctx.signal to its request and cannot stop when the policy cancels it. Add (value, ctx) and pass ctx.signal on.",
 			lostSignal:
 				"This step waits for a call that does not get the signal, so it keeps running after the policy cancels the handler. Pass { signal: ctx.signal } to it, or ctx to an effect.",
+			ignoredSignal:
+				"This call gets the signal, but the function never uses it, so the request is not cancelled. Pass the signal on inside the function: fetch(url, { signal }).",
 			staleEmit:
 				"This emit is not dropped when the policy cancels the handler, so a stale call still delivers its result. Use ctx.emit.",
 			lostWait:
@@ -354,7 +554,31 @@ const rule = {
 		},
 	},
 	create(context) {
-		const ignore = context.options?.[0]?.ignore ?? [];
+		const options = context.options?.[0] ?? {};
+		const ignore = options.ignore ?? [];
+		const only = options.only ?? [];
+		// with `only`, a call is checked when its name is on the list; a name that cannot be read is not
+		const isChecked = (call) =>
+			only.length === 0 || call.type === "NewExpression" || matches(calleeText(call.callee), only);
+
+		const types = typeProvider(context, carriesSignal);
+
+		// what the rule says about one step: null when it is fine
+		const verdictOf = (step, names) => {
+			if (!isChecked(step) || isExempt(step, names, ignore)) {
+				return null;
+			}
+			const carries = carriesSignal(step, names);
+			if (step.type !== "CallExpression" || !types) {
+				return carries ? null : step.type === "NewExpression" ? "lostWait" : "lostSignal";
+			}
+			if (!carries) {
+				// a function that takes no signal cannot be cancelled: the types say so
+				return types.accepts(step) === "no" ? null : "lostSignal";
+			}
+
+			return types.usage(step, names) === "ignores" ? "ignoredSignal" : null;
+		};
 
 		// checks the steps of one function, and of the callbacks that its steps run
 		const check = (fn, names) => {
@@ -369,11 +593,11 @@ const rule = {
 					if (isCombinator(step)) {
 						checkCombinator(step, names);
 					}
-				} else if (!(isExempt(step, names, ignore) || carriesSignal(step, names))) {
-					context.report({
-						node: step,
-						messageId: step.type === "NewExpression" ? "lostWait" : "lostSignal",
-					});
+				} else {
+					const verdict = verdictOf(step, names);
+					if (verdict) {
+						context.report({ node: step, messageId: verdict });
+					}
 				}
 			}
 		};
@@ -391,8 +615,11 @@ const rule = {
 				const item = unwrap(element);
 				if (item?.type === "CallExpression" && item.callee.property?.name === "map" && isFunction(item.arguments[0])) {
 					check(item.arguments[0], namesOf(item.arguments[0], names, item.arguments[0].params.length));
-				} else if (item?.type === "CallExpression" && !(isExempt(item, names, ignore) || carriesSignal(item, names))) {
-					context.report({ node: item, messageId: "lostSignal" });
+				} else if (item?.type === "CallExpression") {
+					const verdict = verdictOf(item, names);
+					if (verdict) {
+						context.report({ node: item, messageId: verdict });
+					}
 				}
 			}
 		};

@@ -22,12 +22,16 @@ What counts as passing the signal: `signal` or `ctx.signal` in the arguments, a 
 | oxlint | `nanoeffects-lint.mjs`, `.oxlintrc.json` | `jsPlugins` and the same rule name (oxlint runs ESLint-compatible plugins) |
 | Biome | `policy-handler-needs-ctx.grit`, `policy-handler-loses-signal.grit`, `biome.json` | list both files in `plugins` |
 
-The ESLint and oxlint rule is one file with no dependency, and it takes `ignore`: callee names that cannot be cancelled, such as `{ ignore: ["cache.get", "db.*"] }`. The Biome rules are two GritQL plugins that read text, so they flag the direct steps and `bus.emit`, and miss the deeper cases (`Promise.all` elements, effect callbacks, `for await`, a pause, the key of an options object). `src/tests/lint-recipes.test.ts` runs the Biome rules and the plugin on `fixture.js` and compares the lines; the plugin is also tested on about thirty situations written inline. ESLint 9 and oxlint 1.90 were run on the fixture by hand with the same result as the plugin test.
+The ESLint and oxlint rule is one file with no dependency. It takes two lists of callee names: `ignore` (calls to skip, such as `{ ignore: ["cache.get", "db.*"] }`) and `only` (the calls to check, a whitelist, such as `{ only: ["api.*", "fetch"] }`; nothing else is reported). With ESLint and `@typescript-eslint/parser` (a `project`, and `typescript` 5) the rule reads the types and needs no list: it leaves alone a function that takes no signal, and reports a function in your sources that is given the signal and never uses it (`typed-fixture.js` shows both). The Biome rules are two GritQL plugins that read text, so they flag the direct steps and `bus.emit`, and miss the deeper cases (`Promise.all` elements, effect callbacks, `for await`, a pause, the key of an options object). `src/tests/lint-recipes.test.ts` runs the Biome rules and the plugin on `fixture.js` and compares the lines; the plugin is also tested on about thirty situations written inline. ESLint 9 and oxlint 1.90 were run on the fixture by hand with the same result as the plugin test.
+
+## Prove it with a test
+
+A linter cannot know what a function does with the signal, a test can. `prove-cancel.js` replaces `fetch` with a server that stops when its request's signal aborts, runs your handler, cancels it in the middle of each step, and returns the requests that kept running. `src/tests/signal-proof.test.ts` shows it finding a request that the linter accepts (the signal is passed and the api ignores it), a step that drops the signal, and a signal of the handler's own. Copy the file into your tests; it needs no package.
 
 ## What the rules do not see
 
 - A handler that is not written in place: `latest(namedHandler)` is not read.
-- A callee that ignores the signal you pass, or `ctx` passed to a function that ignores it.
+- Without type information, a callee that ignores the signal you pass. With it, the rule reads callees in your sources and trusts a library.
 - Shadowed names: the plugin uses no scope analysis.
 - A handler wrapped by another function: `latest(withLogging(async (query, ctx) => ...))`.
 - A handler under a custom policy. Add its name to `policies` in `nanoeffects-lint.mjs`, or to the `or` lists of the `.grit` files.

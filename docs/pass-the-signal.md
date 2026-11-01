@@ -10,6 +10,8 @@ A policy such as `latest` cancels an older call by aborting its `ctx.signal`. Th
 - [Fix a handler that loses the signal](#fix-a-handler-that-loses-the-signal)
 - [Pass the signal when it is hard](#pass-the-signal-when-it-is-hard)
 - [Turn on the checks](#turn-on-the-checks)
+- [Choose which calls are checked](#choose-which-calls-are-checked)
+- [Prove it with a test](#prove-it-with-a-test)
 - [Know what the checks cannot see](#know-what-the-checks-cannot-see)
 
 ## Know what the signal does
@@ -76,7 +78,8 @@ Each row is a situation where the signal is easy to lose. The right column says 
 | A chain: `api.news(q).then(...)` | Pass the signal to the first call | yes | |
 | Another signal: `AbortSignal.timeout(5000)`, or the signal of your own `AbortController` | Join it with the handler's: `AbortSignal.any([ctx.signal, AbortSignal.timeout(5000)])` | yes | |
 | Reading a response body: `await response.json()` | Nothing, the signal of the request stops it | accepted | |
-| A library that takes no signal (a cache, a local database) | Leave it out with the rule's `ignore` option, or a disable comment | `ignore` | |
+| A library that takes no signal (a cache, a local database) | List it in `ignore`, or check only the calls on your list with `only`. With type information the rule skips a function that takes no signal on its own | `ignore`, `only`, types | |
+| A function takes the signal and never uses it: `search(query, options) { return fetch(url); }` | Pass the signal on inside it. Only type information finds this in the linter; a test finds it for sure | types | |
 | The signal is wired by hand: `signal.addEventListener("abort", ...)` | Nothing, the handler is not checked step by step | accepted | |
 | `bus.emit` in a handler | Use `ctx.emit`: only it is dropped after the handler was cancelled | yes | |
 | Results emitted after the cancel | The handler ignored the signal. Pass it, or check `ctx.signal.aborted` | | yes |
@@ -172,9 +175,70 @@ const bus = createBus();
 bus.use(devPlugin());
 ```
 
+## Choose which calls are checked
+
+The rule cannot tell, from the call alone, whether the function takes a signal. Three ways to tell it:
+
+- **`ignore`** lists the calls to skip, by name: `ignore: ["cache.get", "storage.*"]`. Use it when most calls take a signal and a few cannot.
+- **`only`** lists the calls to check, by name: `only: ["api.*", "fetch"]`. Anything else is left alone, so a call that is not on the list is never reported. Use it when you know which clients take a signal. A call on both lists is skipped, and a pause that nothing can cancel (`await new Promise(...)`) is reported whatever `only` says.
+- **Type information** needs no list. With `@typescript-eslint/parser` and a `project`, the rule reads the function it calls. A call that does not get the signal is reported only when the function takes one (a parameter typed `AbortSignal`, or an options object with `signal`), so `cache.get(key)` is left alone. A call that passes the signal is reported when the function is in your sources and never uses it: the parameter is unused, or only other options are read from it. A signal forwarded to another function of yours is followed up to three calls deep, and a function from a library is trusted. A callee typed `any` is reported as before.
+
+<!-- docs-check: skip - a config file of the reader's project -->
+```js
+// eslint.config.mjs
+import parser from "@typescript-eslint/parser";
+import nanoeffects from "./nanoeffects-lint.mjs";
+
+export default [
+  {
+    files: ["**/*.{ts,tsx}"],
+    // the parser gives the rule the type checker of your project
+    languageOptions: { parser, parserOptions: { project: "./tsconfig.json" } },
+    plugins: { nanoeffects },
+    rules: { "nanoeffects/policy-handler-uses-signal": "warn" },
+  },
+];
+```
+
+oxlint and Biome do not give a rule type information, so they use the syntax and the lists. The type-aware mode needs the `typescript` package with the compiler API (version 5 today; the native version 7 has none), as `@typescript-eslint/parser` does.
+
+## Prove it with a test
+
+A linter reads code; it cannot know what a function does with the signal. A test can. The idea: replace `fetch` with a server that answers after a moment and stops when the request's signal aborts, run the handler, cancel it in the middle of each step, and list the requests that did not stop.
+
+<!-- docs-check: skip - a test file of the reader's project -->
+```js
+// search.cancel.test.js
+import { createBus } from "nanoeffects";
+import { latest } from "nanoeffects/policies";
+import { expect, test } from "vitest";
+// copy prove-cancel.js from examples/lint; it needs no package
+import { requestsThatKeptRunning } from "./prove-cancel.js";
+
+test("a newer search stops the older one at every step", async () => {
+  const bus = createBus();
+  bus.on(
+    "search",
+    latest(async (query, ctx) => {
+      const news = await api.news(query, { signal: ctx.signal });
+      const posts = await api.posts(query, { signal: ctx.signal });
+      ctx.emit("results", { news, posts });
+    }),
+  );
+
+  // for each step: start a call, cancel it with a newer one, and collect the requests that did not stop
+  const kept = await requestsThatKeptRunning((value) => bus.emit("search", value));
+
+  // empty when every request got a signal that aborted with the handler
+  expect(kept).toEqual([]);
+});
+```
+
+`kept` has the url of each request that went on, the step where the handler was cancelled, and whether the request got a signal at all (`hadSignal: false`) or one that is not the handler's (`hadSignal: true`). This finds what the linter cannot: `api.posts` that takes `{ signal }` and ignores it, an `AbortSignal.timeout` in place of the handler's signal, a request in a branch you did not think of. It checks the boundary, `fetch`; for another client (axios, a database driver) stub that client in the same way. The repository tests the helper on handlers that forward the signal, ignore it, drop it at the third step, and use a signal of their own.
+
 ## Know what the checks cannot see
 
 - **A handler that is not written in place.** `latest(searchHandler)` and `latest(withLogging(async (query, ctx) => ...))` are not read by the linter.
-- **A callee that ignores the signal you pass.** The rule sees that you passed it, not what the callee does with it.
+- **A callee that ignores the signal you pass.** Without type information the rule sees that you passed it, not what the callee does with it. With it, the rule reads callees in your sources; a library is trusted. The test above checks the real requests.
 - **A handler that never emits.** `devPlugin` sees a lost signal by an emit after the cancel; a handler that only writes elsewhere is seen by the linter alone.
 - **Shadowed names.** The rule uses no scope analysis, so an inner variable named `signal` can hide a lost signal.
