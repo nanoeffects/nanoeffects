@@ -141,7 +141,7 @@ const russian: Record<string, string> = {
 	"Async UI recipes": "Рецепты для async UI",
 	"Cancel stale requests": "Отмена устаревших запросов",
 	"Debounce and abort": "Debounce и отмена",
-	"Prevent a double submit": "Защита от двойной отправки",
+	"Prevent a double submit": "Защита от повторной отправки",
 	"Errors and unheard events": "Ошибки и события без подписчиков",
 	Policies: "Политики",
 	Effects: "Эффекты",
