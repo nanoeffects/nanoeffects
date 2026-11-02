@@ -14,6 +14,7 @@ import * as scope from "../scope";
 import * as signal from "../signal";
 import * as redux from "../store/redux";
 import * as svelte from "../svelte";
+import * as testing from "../testing";
 import * as trace from "../trace";
 import * as vue from "../vue";
 
@@ -106,6 +107,13 @@ describe("public entries", () => {
 			"fromSignal",
 			"signalFetch",
 			"signalPlugin",
+		]);
+	});
+
+	it("testing", () => {
+		expect(Object.keys(testing).sort()).toEqual([
+			"createMarbleBus",
+			"fakeTimersClock",
 		]);
 	});
 

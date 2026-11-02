@@ -35,6 +35,7 @@ export default defineConfig([
 			signal: "src/signal/index.ts",
 			context: "src/context/index.ts",
 			oop: "src/oop/index.ts",
+			testing: "src/testing/index.ts",
 		},
 		dts: true,
 		clean: true,

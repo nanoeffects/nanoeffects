@@ -194,4 +194,4 @@ The subscription is not tied to a task. Call `subscription.unsubscribe()` when t
 - **Abort replaces unsubscribe for work in flight.** A stopped task is stopped through its `signal`. Pass it to `fetch` or to the client.
 - **Errors are not part of the stream.** A failed task rejects its own promise. Without `onError` on the bus nobody else hears it ([Errors](errors.md)).
 - **No completion.** An event bus does not end. A task ends when its work ends or its signal aborts.
-- **No marble tests.** Test with the real handler and fake timers.
+- **Marble tests are a smaller tool.** [`createMarbleBus`](testing.md) writes the emits and the phases of tasks as diagrams on fake timers. It has no hot or cold sources and no `|`.

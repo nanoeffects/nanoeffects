@@ -122,6 +122,7 @@ export const sidebar: SidebarItem[] = [
 		items: [
 			{ text: "Semantics", link: "/semantics" },
 			{ text: "Plugins", link: "/plugins" },
+			{ text: "Test time with diagrams", link: "/testing" },
 			{ text: "Trace tasks", link: "/tracing" },
 			{ text: "Debugging compared", link: "/debugging-compared" },
 			{ text: "Find and cut event loops", link: "/debugging-loops" },
@@ -165,6 +166,7 @@ const russian: Record<string, string> = {
 	Reference: "Справочник",
 	Semantics: "Семантика",
 	Plugins: "Плагины",
+	"Test time with diagrams": "Тесты времени диаграммами",
 	"Trace tasks": "Трассировка задач",
 	"Debugging compared": "Отладка в сравнении с RxJS, Effector и mitt",
 	"Find and cut event loops": "Поиск и обрыв циклов событий",

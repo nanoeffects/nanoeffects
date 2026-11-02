@@ -29,6 +29,7 @@
   - [Не оставлять подписки после закрытия виджета](#не-оставлять-подписки-после-закрытия-виджета)
 - [Остановка работы на backend](#остановка-работы-на-backend)
 - [Отладка: что выполнилось и почему](#отладка-что-выполнилось-и-почему)
+- [Тест политики на поддельных таймерах](#тест-политики-на-поддельных-таймерах)
 - [Другие библиотеки в проекте](#другие-библиотеки-в-проекте)
 - [ООП и TypeScript](#ооп-и-typescript)
   - [Шина в классе](#шина-в-классе)
@@ -479,6 +480,40 @@ bus.emit("search", "nano"); // в логе: search · emit, затем results �
 ```
 
 Подробнее: [Трассировка задач](tracing.md). Чтобы перезагружать модули без обновления страницы, см. [Hot reload](hmr.md).
+
+## Тест политики на поддельных таймерах
+
+Тест `latest` или `debounce` полон чисел `advanceTimersByTime`, и по ним никто не поймёт, что тест доказывает. Запишите отправки и фазы диаграммами.
+
+```js
+import { it, vi } from "vitest";
+import { latest } from "nanoeffects/policies";
+import { createMarbleBus, fakeTimersClock } from "nanoeffects/testing";
+
+// поиск, который занимает 50 мс
+function search(query) {
+  return new Promise((resolve) => setTimeout(resolve, 50));
+}
+
+it("latest cancels the search that is running", async () => {
+  vi.useFakeTimers();
+
+  // createMarbleBus: шина, которая записывает трассировку; кадр — 10 мс
+  const marbles = createMarbleBus({ clock: fakeTimersClock(vi) });
+  marbles.bus.on("search/changed", latest(search), { traceId: "search" });
+
+  // "a-b": две отправки, в кадре 0 и в кадре 2
+  const result = await marbles.run({
+    emits: { "search/changed": { marble: "a-b" } },
+    frames: 12,
+  });
+
+  // s старт, c отмена, d готово
+  result.expect({ "search/changed:latest": "s-(cs)----d----" });
+});
+```
+
+Подробнее: [Тесты времени диаграммами](testing.md).
 
 ## Другие библиотеки в проекте
 

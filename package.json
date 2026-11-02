@@ -114,6 +114,10 @@
 			"types": "./dist/trace.d.ts",
 			"import": "./dist/trace.js"
 		},
+		"./testing": {
+			"types": "./dist/testing.d.ts",
+			"import": "./dist/testing.js"
+		},
 		"./redux": {
 			"notrace": {
 				"types": "./dist/notrace/redux.d.ts",
@@ -253,6 +257,11 @@
 			"name": "guard (plugin)",
 			"path": "dist/guard.js",
 			"limit": "1 kB"
+		},
+		{
+			"name": "testing (marble bus)",
+			"path": "dist/testing.js",
+			"limit": "4.1 kB"
 		},
 		{
 			"name": "trace: graphLogger",

@@ -14,6 +14,7 @@ const aboveCore = [
 	"src/react/**",
 	"src/store/**",
 	"src/svelte/**",
+	"src/testing/**",
 	"src/trace/**",
 	"src/vue/**",
 ];

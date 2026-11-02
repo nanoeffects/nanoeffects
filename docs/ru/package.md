@@ -27,6 +27,7 @@
 | `nanoeffects/vue` | `vuePlugin`: добавляет `watchEmitter` и `useEventRef` на шину (нужен Vue 3.3 или новее) | компоненты Vue |
 | `nanoeffects/dev` | `devPlugin` (в production ничего не делает), `getLostSignalsCount` и `getLostSignals` для тестов | нужно находить утечки подписок и потерянные сигналы при разработке и в тестах |
 | `nanoeffects/trace` | `createTracer`, логгеры (`graphLogger` находит циклы событий) и `tracePlugin` (имена для трассировки) | нужно видеть, что выполнилось и почему |
+| `nanoeffects/testing` | `createMarbleBus`, `fakeTimersClock`: шина для тестов, где отправки и фазы записаны диаграммами | вы тестируете `latest`, `debounce`, `queue`, `retry` или `timeout` на поддельных таймерах |
 | `nanoeffects/guard` | `loopGuardPlugin`: отклоняет emit, который превысил бы предел цепочки | цикл не должен ронять приложение |
 
 Плагины с именами `...Plugin` подключаются через `bus.use`. Страница [Плагины](plugins.md) перечисляет их все, говорит, что каждый возвращает и в каком порядке их подключать.

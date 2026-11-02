@@ -27,6 +27,10 @@ export default defineConfig({
 			{ find: /^nanoeffects\/signal$/, replacement: src("signal/index.ts") },
 			{ find: /^nanoeffects\/match$/, replacement: src("match/index.ts") },
 			{ find: /^nanoeffects\/oop$/, replacement: src("oop/index.ts") },
+			{
+				find: /^nanoeffects\/testing$/,
+				replacement: src("testing/index.ts"),
+			},
 			{ find: /^nanoeffects\/context$/, replacement: src("context/index.ts") },
 		],
 	},

@@ -39,6 +39,7 @@ src/context/           contextPlugin (entry nanoeffects/context); its types NoCl
 src/react/             reactPlugin (useEmitter, useEventState), usePolicy (entry nanoeffects/react, optional peer react, no notrace build)
 src/svelte/            sveltePlugin (eventStore: an event as a readable Svelte store) (entry nanoeffects/svelte, optional peer svelte, no notrace build); the type of the state of an event is shared with react and vue from src/core/state-of.ts
 src/vue/               vuePlugin (watchEmitter, useEventRef) (entry nanoeffects/vue, optional peer vue, no notrace build); the type of the state of an event is shared with react from src/core/state-of.ts
+src/testing/           createMarbleBus, fakeTimersClock: a traced bus and a runner that moves a clock frame by frame and gives the phases of tasks as diagrams (entry nanoeffects/testing, no notrace build, no import of a test runner)
 src/oop/               extendBus, Emitter, WithBus, On, Once, disposeBus: the methods of a bus on a class (entry nanoeffects/oop, own size-limit)
 src/store/redux/        createEffectsMiddleware(bus, { filter }): the Redux middleware for a bus that already exists; it puts `ctx.store` on the tasks through `bus.addContext` (no dependency on redux); `middleware.ts` is its inner part, not exported
 src/observable.ts       createObserve, Subject: an event of the bus as a TC39 Observable, and as a class with `next` (entry nanoeffects/observable, no notrace build)

@@ -29,6 +29,7 @@ Each task below starts with the problem, then a short solution. Where the page h
   - [Do not leave subscriptions after a widget closes](#do-not-leave-subscriptions-after-a-widget-closes)
 - [Stop work on a server](#stop-work-on-a-server)
 - [Debugging: what ran and why](#debugging-what-ran-and-why)
+- [Test a policy with fake timers](#test-a-policy-with-fake-timers)
 - [Other libraries in the project](#other-libraries-in-the-project)
 - [Classes and TypeScript](#classes-and-typescript)
   - [Use the bus in a class](#use-the-bus-in-a-class)
@@ -479,6 +480,40 @@ bus.emit("search", "nano"); // the log shows: search · emit, then results · em
 ```
 
 More: [Trace tasks](tracing.md). To reload modules without a page refresh, see [Hot reload](hmr.md).
+
+## Test a policy with fake timers
+
+A test of `latest` or `debounce` is full of `advanceTimersByTime` numbers, and nobody can tell from them what the test proves. Write the emits and the phases as diagrams instead.
+
+```js
+import { it, vi } from "vitest";
+import { latest } from "nanoeffects/policies";
+import { createMarbleBus, fakeTimersClock } from "nanoeffects/testing";
+
+// a search that takes 50 ms
+function search(query) {
+  return new Promise((resolve) => setTimeout(resolve, 50));
+}
+
+it("latest cancels the search that is running", async () => {
+  vi.useFakeTimers();
+
+  // createMarbleBus: a bus that records its trace; a frame is 10 ms
+  const marbles = createMarbleBus({ clock: fakeTimersClock(vi) });
+  marbles.bus.on("search/changed", latest(search), { traceId: "search" });
+
+  // "a-b": two emits, at frame 0 and frame 2
+  const result = await marbles.run({
+    emits: { "search/changed": { marble: "a-b" } },
+    frames: 12,
+  });
+
+  // s start, c cancel, d done
+  result.expect({ "search/changed:latest": "s-(cs)----d----" });
+});
+```
+
+More: [Test time with diagrams](testing.md).
 
 ## Other libraries in the project
 

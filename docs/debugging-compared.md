@@ -21,7 +21,7 @@ Read this page if you know RxJS, Effector or mitt and want to know what nanoeffe
 | A log of every emit | `tracePlugin` reports each emit, also with no listener | `tap` per stream | A logger over the units | A `"*"` listener |
 | A map of the app | `describeBus` before a run, `graphLogger` after ([Find and cut event loops](debugging-loops.md)) | Not built in | The graph of units, with names from the Babel/SWC plugin | `emitter.all` holds the handlers of each event (mitt) |
 | Find a loop | `graphLogger`, then `loopGuardPlugin` cuts it | — | — | No |
-| Test a flow | [`createTraceRecorder`](tracing.md#keep-the-last-events-for-an-incident) | [Marble tests](https://rxjs.dev/guide/testing/marble-testing) | `fork` gives an isolated scope | You wire it yourself |
+| Test a flow | [`createMarbleBus`](testing.md): emits and phases as diagrams on fake timers; [`createTraceRecorder`](tracing.md#keep-the-last-events-for-an-incident) keeps the events | [Marble tests](https://rxjs.dev/guide/testing/marble-testing) | `fork` gives an isolated scope | You wire it yourself |
 
 A dash means that this page does not compare it. Read the table as a map of where to look, not as a score. Effector and RxJS also hold state and streams, which nanoeffects does not, so their tools cover more ground. nanoeffects covers one thing in depth: why an async handler ran, and why it stopped.
 

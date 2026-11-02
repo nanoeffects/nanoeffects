@@ -30,7 +30,8 @@
 			"nanoeffects/match": ["./src/match/index.ts"],
 			"nanoeffects/signal": ["./src/signal/index.ts"],
 			"nanoeffects/context": ["./src/context/index.ts"],
-			"nanoeffects/oop": ["./src/oop/index.ts"]
+			"nanoeffects/oop": ["./src/oop/index.ts"],
+			"nanoeffects/testing": ["./src/testing/index.ts"]
 		}
 	},
 	"include": ["src", "examples", "integration"]

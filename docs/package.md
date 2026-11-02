@@ -31,6 +31,7 @@ Each row is optional. The "when" column says what need brings you to it.
 | `nanoeffects/vue` | `vuePlugin`: adds `watchEmitter` and `useEventRef` to a bus (needs Vue 3.3 or newer) | Vue components |
 | `nanoeffects/dev` | `devPlugin` (no-op in production), `getLostSignalsCount` and `getLostSignals` for tests | you look for leaks and lost signals in development and in tests |
 | `nanoeffects/trace` | `createTracer`, the loggers (`graphLogger` finds event loops) and `tracePlugin` (names for the trace) | you want to see what ran and why |
+| `nanoeffects/testing` | `createMarbleBus`, `fakeTimersClock`: a bus for tests, with emits and phases as diagrams | you test `latest`, `debounce`, `queue`, `retry` or `timeout` with fake timers |
 | `nanoeffects/guard` | `loopGuardPlugin`: refuses the emit that would pass a limit of a chain | a loop must not take the app down |
 
 The `...Plugin` names above are used with `bus.use`. [Plugins](plugins.md) lists all of them, what each returns, and the order to use them in.

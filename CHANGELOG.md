@@ -9,6 +9,7 @@ How to read an entry: **Breaking** needs a change in your code or setup, **Chang
 
 ### Added
 - `tracePlugin({ source: true })` records where each listener was registered (`file:line:column`) and puts it on the events of that listener, also for an anonymous one. `consoleLogger({ source: true })` and `describeBus(bus, { source: true })` show it. It is the line of your call also through `matchPlugin`, `signalPlugin`, `devPlugin`, a module's `m.on` and `extendBus`, in any order of plugins and in a bundle. Off by default. [Docs](docs/tracing.md#find-the-line-of-a-listener)
+- `nanoeffects/testing`: `createMarbleBus` and `fakeTimersClock` write the emits and the phases of tasks as diagrams on fake timers, so a test of `latest`, `debounce`, `queue`, `retry` or `timeout` shows time. [Docs](docs/testing.md)
 - `describeBus(bus)` in `nanoeffects/trace` lists the listeners of each event by name, before anything runs. [Docs](docs/tracing.md#list-who-listens)
 - A page that compares debugging with RxJS, Effector and mitt. [Docs](docs/debugging-compared.md)
 
