@@ -20,10 +20,13 @@ Tracing is optional. A bus works the same without it, and it costs almost nothin
 - [Use built-in loggers](#use-built-in-loggers)
   - [Cut volume in production](#cut-volume-in-production)
   - [Keep the last events for an incident](#keep-the-last-events-for-an-incident)
+  - [Measure time and find open tasks](#measure-time-and-find-open-tasks)
+  - [Find the cause of an error](#find-the-cause-of-an-error)
   - [Configure Redux DevTools](#configure-redux-devtools)
   - [Find loops with `graphLogger`](#find-loops-with-graphlogger)
   - [Send safe data to a tool](#send-safe-data-to-a-tool)
   - [Write your own logger](#write-your-own-logger)
+  - [Stop on an event](#stop-on-an-event)
 - [Drop tracing from a build](#drop-tracing-from-a-build)
 
 ## Attach a tracer
@@ -395,11 +398,90 @@ window.addEventListener("error", () => {
 What to know before you send the events:
 
 - **`payload` and `error` can hold private data**: what a user typed, tokens, personal text. The recorder keeps them as they are and does not redact. Choose what to send, as `withoutPayload` does.
-- **There is no time on an event.** You get the order, not the duration. To add a time, wrap the recorder in a logger that stamps `performance.now()` on a copy of the event.
+- **There is no time on an event.** You get the order, not the duration. [`timingLogger`](#measure-time-and-find-open-tasks) measures time.
 - **An old `parentId` can point at an event that was pushed out.** When you build a tree from the events, treat an unknown `parentId` as a root.
 - **`recorder.events` is a snapshot with a `capacity`.** Each read builds a new array, so read it once at the moment you need it. Without a `capacity` it is one live array.
 - **A low `sample` thins the buffer.** `createTracer(recorder, { sample: 0.05 })` records 5% of root tasks, so the buffer may hold little when the incident comes. See [Cut volume in production](#cut-volume-in-production).
 - **A `capacity` that is not a positive integer** (`0`, a negative number, `NaN`) means no limit.
+
+### Measure time and find open tasks
+
+An event has no time, so the recorder cannot tell you which handler is slow, how long a request lived before `cancel`, or whether a test left something running. `timingLogger` stamps the time on each event when it gets it and pairs `start` with the first closing phase (`done`, `error`, `cancel` or `drop`) of the same task.
+
+Pass it to the tracer next to the recorder: `createTracer` takes an array of loggers.
+
+<!-- docs-check: new -->
+
+```js
+// bus.js
+import { createBus } from "nanoeffects";
+import { createTraceRecorder, createTracer, timingLogger } from "nanoeffects/trace";
+
+// createTraceRecorder: events in the order they came
+export const recorder = createTraceRecorder();
+
+// timingLogger: the time of each event and the duration of tasks
+export const timing = timingLogger();
+
+// createTracer: both loggers get every event
+const trace = createTracer([recorder, timing]);
+
+export const bus = createBus({ trace });
+```
+
+```js
+// check.js
+import { timing } from "./bus";
+
+// durations: the tasks that ended, with the closing phase and the time in ms
+const slow = timing.durations.filter((task) => task.ms > 500);
+console.log(slow);
+
+// pending: the tasks that started and have not ended
+const leftovers = timing.pending();
+if (leftovers.length > 0) {
+  throw new Error(`${leftovers.length} tasks are still open`);
+}
+```
+
+What to know:
+
+- **The clock.** Time comes from `performance.now()`, or `Date.now()` where there is none. In a test pass your own clock: `timingLogger({ now })`.
+- **`capacity` cuts only `durations`.** `timingLogger({ capacity: 200 })` keeps the last 200 ended tasks. `pending()` is never cut: a leak shows up as a growing list.
+- **`clear()`** empties both lists. Call it between tests.
+- **The logger sees what the tracer lets through.** A task whose `start` was filtered out or not sampled gets no pair, and its ending is ignored.
+
+### Find the cause of an error
+
+An error arrives as one event, and you cannot see what led to it. `chainOf` builds the path from the root to a task by `parentId`. Give it the recorder: then the listeners that send no event (a plain handler that calls `ctx.emit`) are in the path too.
+
+```js
+// why.js
+import { chainOf } from "nanoeffects/trace";
+import { recorder } from "./bus";
+
+const failed = recorder.events.find((event) => event.phase === "error");
+
+// chainOf: the path from the root to the failed task
+const path = chainOf(recorder, failed.id);
+
+const text = path.map((step) => step.type).join(" → ");
+console.log(text); // queryChanged → searchLoaded
+```
+
+A step has `type`, and `effect` and `phase` (a listener with no events has neither), `source` and `traceGroupId` when known. If you pass a list of events (a snapshot, a file) instead of the recorder, the path holds only the tasks that have events.
+
+To see the path right in the console, turn on `chain` in `consoleLogger`:
+
+```js
+import { consoleLogger, createTracer } from "nanoeffects/trace";
+
+// consoleLogger: the line of an error ends with the path from the root
+const trace = createTracer(consoleLogger({ chain: true }));
+// [nanoeffects] render · run error (queryChanged → render)
+```
+
+`chain` remembers the last 1000 tasks. It is off by default.
 
 ### Configure Redux DevTools
 
@@ -531,6 +613,26 @@ const errorsOnly = (): TraceLogger => (event) => {
   }
 };
 ```
+
+### Stop on an event
+
+You want the debugger to stop when a certain event comes. No API is needed for that: it is five lines in a logger of your own.
+
+```js
+import { createTracer } from "nanoeffects/trace";
+
+// A logger that stops in the debugger at the start of a task with this type
+const stopOn = (type) => (event) => {
+  if (event.type === type && event.phase === "start") {
+    debugger; // the browser stops here when DevTools is open
+  }
+};
+
+// createTracer: pass the logger like any other
+const trace = createTracer(stopOn("search"));
+```
+
+In the debugger read `event.payload` and walk up the stack: the synchronous part of the chain is all there.
 
 ## Drop tracing from a build
 

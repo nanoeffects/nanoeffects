@@ -1,4 +1,8 @@
-import type { TraceLogger } from "../core/types";
+import type { Phase, TraceLogger } from "../core/types";
+import { createTaskIndex, type KnownTask } from "./task-index";
+
+// how many tasks `chain` remembers: the ones that report nothing never close
+const CHAIN_TASKS = 1000;
 
 export type ConsoleLoggerOptions = {
 	/** Defaults to `globalThis.console`. */
@@ -7,6 +11,8 @@ export type ConsoleLoggerOptions = {
 	prefix?: string;
 	/** Append where the listener was registered, to the lines of events that have it. Default `false`. */
 	source?: boolean;
+	/** Append the path from the root, with the listeners that report nothing, to the line of an `error`. Default `false`. */
+	chain?: boolean;
 };
 
 /**
@@ -29,8 +35,28 @@ export const consoleLogger = (
 	const locationOf = (source: string | undefined) =>
 		withSource && source !== void 0 ? ` (${source})` : "";
 	const depths = new Map<number, number>();
+	const index = options.chain === true ? createTaskIndex(CHAIN_TASKS) : void 0;
 
-	return ({
+	const chainText = (id: number, phase: Phase) => {
+		if (!index || phase !== "error") {
+			return "";
+		}
+		const types: string[] = [];
+		const seen = new Set<number>();
+		let next: number | undefined = id;
+		while (next !== void 0 && !seen.has(next)) {
+			seen.add(next);
+			const known: KnownTask | undefined = index.tasks.get(next);
+			if (!known) {
+				break;
+			}
+			types.push(known.type);
+			next = known.parentId;
+		}
+		return types.length > 1 ? ` (${types.reverse().join(" → ")})` : "";
+	};
+
+	const log: TraceLogger = ({
 		id,
 		parentId,
 		type,
@@ -55,11 +81,16 @@ export const consoleLogger = (
 
 		const group = traceGroupId === void 0 ? "" : ` [${traceGroupId}]`;
 		const where = locationOf(source);
-		const line = `${prefix}${group} ${indent}${type} · ${effect} ${phase}${where}`;
+		const path = chainText(id, phase);
+		const line = `${prefix}${group} ${indent}${type} · ${effect} ${phase}${where}${path}`;
 		if (phase === "error") {
 			out?.error(line, error);
 		} else {
 			out?.debug(line, payload);
 		}
 	};
+	if (index) {
+		log.task = index.task;
+	}
+	return log;
 };

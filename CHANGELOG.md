@@ -2,6 +2,13 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
+## Unreleased
+
+### Added
+- `timingLogger()` in `nanoeffects/trace` measures time: `durations` lists the tasks that ended with how long they took, `pending()` lists the tasks that started and have not ended. [Docs](docs/tracing.md#measure-time-and-find-open-tasks)
+- `chainOf(recorder, id)` returns the path from the root to a task, through the listeners that report nothing. `createTraceRecorder` keeps those tasks in `recorder.tasks`, and `consoleLogger({ chain: true })` prints the path on an `error` line. [Docs](docs/tracing.md#find-the-cause-of-an-error)
+- A short example of stopping the debugger on an event. [Docs](docs/tracing.md#stop-on-an-event)
+
 ## 0.32.0
 
 ### Changed

@@ -98,6 +98,8 @@ const typeExports: Record<string, string[]> = {
 	context: ["ContextTask", "NoClash"],
 	oop: ["BusMethods", "Extended", "MethodDecorator"],
 	trace: [
+		"ChainStep",
+		"ClosedTask",
 		"ConsoleLoggerOptions",
 		"DescribeBusOptions",
 		"EffectName",
@@ -119,6 +121,9 @@ const typeExports: Record<string, string[]> = {
 		"ReduxExtension",
 		"SerializeOptions",
 		"TaskInfo",
+		"TimedTask",
+		"TimingLogger",
+		"TimingLoggerOptions",
 		"Trace",
 		"TraceEvent",
 		"TraceLogger",

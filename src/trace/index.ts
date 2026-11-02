@@ -21,6 +21,7 @@ export {
 	type SerializeOptions,
 	safeSerialize,
 } from "../graph/serialize";
+export { type ChainStep, chainOf } from "./chain";
 export { type ConsoleLoggerOptions, consoleLogger } from "./console";
 export { type DescribeBusOptions, describeBus } from "./describe";
 export {
@@ -38,4 +39,11 @@ export {
 	type ReduxExtension,
 	reduxDevtools,
 } from "./redux";
+export {
+	type ClosedTask,
+	type TimedTask,
+	type TimingLogger,
+	type TimingLoggerOptions,
+	timingLogger,
+} from "./timing";
 export { createTracer, type TracerOptions } from "./tracer";

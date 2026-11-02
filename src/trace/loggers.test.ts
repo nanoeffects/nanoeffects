@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createBus } from "../core/bus";
-import type { TraceEvent } from "../core/types";
+import type { TaskInfo, TraceEvent } from "../core/types";
 import { latest } from "../policies";
 import { createHarness, type TestEvents } from "../tests/test-helpers";
 import { delay } from "../utils";
@@ -59,6 +59,60 @@ describe("createTraceRecorder", () => {
 			"start",
 			"done",
 		]);
+	});
+});
+
+describe("createTraceRecorder tasks", () => {
+	const info = (patch: Partial<TaskInfo> & { id: number }): TaskInfo => ({
+		ref: {},
+		type: "search",
+		...patch,
+	});
+
+	it("remembers a task that reports no event, with its parent", () => {
+		const recorder = createTraceRecorder();
+		const parent = info({ id: 1, type: "queryChanged" });
+		recorder.task?.(parent);
+		recorder.task?.(info({ id: 2, type: "listener", parent: parent.ref }));
+
+		expect(recorder.tasks.get(2)).toEqual({ type: "listener", parentId: 1 });
+	});
+
+	it("updates a task that is renamed", () => {
+		const recorder = createTraceRecorder();
+		const task = info({ id: 1, type: "search" });
+		recorder.task?.(task);
+		recorder.task?.({ ...task, type: "onSearch", source: "a.ts:1:1" });
+
+		expect(recorder.tasks.get(1)).toEqual({
+			type: "onSearch",
+			source: "a.ts:1:1",
+		});
+	});
+
+	it("keeps the last tasks with a capacity", () => {
+		const recorder = createTraceRecorder({ capacity: 2 });
+		for (const id of [1, 2, 3]) {
+			recorder.task?.(info({ id }));
+		}
+
+		expect([...recorder.tasks.keys()]).toEqual([2, 3]);
+	});
+
+	it("clear empties the tasks", () => {
+		const recorder = createTraceRecorder();
+		recorder.task?.(info({ id: 1 }));
+		recorder.clear();
+
+		expect(recorder.tasks.size).toBe(0);
+	});
+
+	it("leaves the tasks out of toJSON", () => {
+		const recorder = createTraceRecorder();
+		recorder.task?.(info({ id: 1 }));
+		recorder(event());
+
+		expect(recorder.toJSON()).toHaveLength(1);
 	});
 });
 
@@ -881,5 +935,43 @@ describe("the group and the root in the loggers", () => {
 			effect: "latest",
 			traceGroupId: "checkout",
 		});
+	});
+});
+
+describe("consoleLogger chain", () => {
+	type Events = { queryChanged: string; searchLoaded: string };
+
+	const run = (chain: boolean) => {
+		const out = { debug: vi.fn(), error: vi.fn() };
+		const logger = consoleLogger({ console: out, prefix: ">", chain });
+		const bus = createBus<Events>({ trace: createTracer(logger) }).use(
+			tracePlugin(),
+		);
+		bus.on("queryChanged", (query, ctx) => {
+			ctx.emit("searchLoaded", query);
+		});
+		bus.on(
+			"searchLoaded",
+			() => {
+				throw new Error("boom");
+			},
+			{ traceId: "render" },
+		);
+		expect(() => bus.emit("queryChanged", "q")).toThrow("boom");
+		return out;
+	};
+
+	it("appends the path of a failed task through a silent listener", () => {
+		const out = run(true);
+
+		expect(out.error.mock.calls[0]?.[0]).toMatch(
+			/render · run error \(queryChanged → render\)$/,
+		);
+	});
+
+	it("leaves the lines as they were by default", () => {
+		const out = run(false);
+
+		expect(out.error.mock.calls[0]?.[0]).toMatch(/render · run error$/);
 	});
 });

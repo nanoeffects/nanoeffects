@@ -57,6 +57,7 @@ describe("public entries", () => {
 
 	it("trace", () => {
 		expect(Object.keys(trace).sort()).toEqual([
+			"chainOf",
 			"consoleLogger",
 			"createTraceRecorder",
 			"createTracer",
@@ -65,6 +66,7 @@ describe("public entries", () => {
 			"performanceLogger",
 			"reduxDevtools",
 			"safeSerialize",
+			"timingLogger",
 			"tracePlugin",
 		]);
 	});
