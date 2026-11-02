@@ -2,7 +2,7 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
-## Unreleased
+## 0.32.0
 
 ### Changed
 - With `tracePlugin`, a listener that has a function name is named by it in the trace, so a log is readable without `traceId`. An inline arrow stays as it was, and `traceId` wins over the name. [Docs](docs/tracing.md#name-a-listener)
