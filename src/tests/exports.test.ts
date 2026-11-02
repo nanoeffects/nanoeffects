@@ -94,7 +94,6 @@ describe("public entries", () => {
 			"createModule",
 			"emitterPlugin",
 			"modulePlugin",
-			"setHandler",
 		]);
 	});
 

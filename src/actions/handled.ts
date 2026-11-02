@@ -58,7 +58,7 @@ export type ScopedHandled<P, R, T extends string, F> = ((
  *
  * The handler is optional. An action without one is only a contract, and the
  * bus gets its implementation from the `actions` registry (see
- * `actionsPlugin` and `setHandler`). A handler bound there wins over the one
+ * `actionsPlugin` and `Registry.handle`). A handler bound there wins over the one
  * the action was created with, so a test can give a bus its own implementation.
  *
  * A handler can be wrapped in a policy, e.g. `latest(fn)`.
@@ -78,7 +78,8 @@ export type ScopedHandled<P, R, T extends string, F> = ((
  * const sendMail = createAction<Mail, void>("mail/send"); // implemented elsewhere
  *
  * const bus = createBus<Events>();
- * bus.use(actionsPlugin([setHandler(sendMail, smtpSend)]));
+ * const actions = bus.use(actionsPlugin());
+ * actions.handle(sendMail, smtpSend);
  * const user = await bus.emit(getUser("1"));
  *
  * actions.handle(getUser, async () => fakeUser); // in a test
@@ -155,40 +156,6 @@ export function buildHandled(
 	return handled;
 }
 
-/** An action (or its type) with the handler to bind to it; `setHandler` makes one. */
-export type Binding<E extends EventMap = EventMap> = readonly [
-	Handled<never, unknown> | string,
-	Task<never, E, unknown>,
-];
-
-/**
- * Pairs an action with the handler to bind to it, for `actionsPlugin`. For a
- * action (an action made with a handler, or with a `Call` type) it checks that
- * the handler fits; any other action is accepted with a handler of any payload.
- *
- * @example
- * ```ts
- * bus.use(actionsPlugin([setHandler(sendMail, smtpSend)]));
- * ```
- */
-export function setHandler<P, R, E extends EventMap>(
-	handled: Handled<P, R>,
-	fn: Task<P, E, R>,
-): Binding<E>;
-export function setHandler<
-	A extends { readonly type: string },
-	E extends EventMap,
->(action: A, fn: LooseHandler<A, E>): Binding<E>;
-export function setHandler(
-	action: { readonly type: string },
-	fn: Task<never, EventMap, unknown>,
-): Binding<EventMap> {
-	// a binding is looked up by the type of the action, so an action is only a way to say it
-	const looseAction: unknown = action;
-
-	return [looseAction as Handled<never, unknown>, fn];
-}
-
 /**
  * The handler an action that is not an action can have: any. An action
  * (a creator whose calls are calls of an action with a handler) is not accepted here, so its own
@@ -209,7 +176,6 @@ export interface Registry<E extends EventMap> extends Actions {
 		fn: LooseHandler<A, E>,
 	): UnsubscribeCallback;
 	handle(type: string, fn: Task<never, E, unknown>): UnsubscribeCallback;
-	handle(bindings: readonly Binding<E>[]): UnsubscribeCallback;
 }
 
 // the registry of an earlier `actionsPlugin`: `actions` with a `handle`, which a custom runner does not have
@@ -220,11 +186,11 @@ const isRegistry = <E extends EventMap>(
 
 /**
  * The plugin that gives a bus the handlers bound to actions:
- * `bus.use(actionsPlugin(bindings))` makes the registry, sets it as the
+ * `bus.use(actionsPlugin())` makes the registry, sets it as the
  * actions of the bus and returns it. Each bus has its own, so each test can
- * have its own implementation. `handle` binds more later and returns the
- * function that unbinds. A second `actionsPlugin` on the same bus binds its
- * list in the registry that is there and returns it, so the order of the
+ * have its own implementation. `handle` binds a handler and returns the
+ * function that unbinds. A second `actionsPlugin` on the same bus returns the
+ * registry that is there, so the order of the
  * plugins does not matter. A `actions` that is not such a registry (a custom
  * runner) is replaced.
  *
@@ -234,19 +200,18 @@ const isRegistry = <E extends EventMap>(
  * @example
  * ```ts
  * const bus = createBus<Events>();
- * const actions = bus.use(actionsPlugin([setHandler(sendMail, smtpSend)]));
+ * const actions = bus.use(actionsPlugin());
+ * actions.handle(sendMail, smtpSend);
  *
  * const unbind = actions.handle(getUser, async () => fakeUser);
  * unbind(); // the action's own handler is back
  * ```
  */
 export const actionsPlugin =
-	<E extends EventMap>(bindings: readonly Binding<E>[] = []) =>
+	<E extends EventMap>() =>
 	(bus: Bus<E>): Registry<E> => {
 		const existing = bus.actions;
 		if (isRegistry<E>(existing)) {
-			existing.handle(bindings);
-
 			return existing;
 		}
 
@@ -278,29 +243,12 @@ export const actionsPlugin =
 			type: string,
 			fn: Task<never, E, unknown>,
 		): UnsubscribeCallback;
-		function handle(bindings: readonly Binding<E>[]): UnsubscribeCallback;
 		function handle(
-			target: string | { type: string } | readonly Binding<E>[],
-			fn?: Task<never, E, unknown>,
+			target: string | { type: string },
+			fn: Task<never, E, unknown>,
 		): UnsubscribeCallback {
-			if (fn) {
-				const handled = target as string | { type: string };
-				return bind(eventKey(handled), fn);
-			}
-
-			const list = target as readonly Binding<E>[];
-			const unbinds = list.map(([handled, handler]) =>
-				bind(eventKey(handled), handler),
-			);
-
-			return () => {
-				for (const unbind of unbinds) {
-					unbind();
-				}
-			};
+			return bind(eventKey(target), fn);
 		}
-
-		handle(bindings);
 
 		// the contract passes the payload and the context loosely typed: they belong to the action
 		const run: Actions["run"] = (handled, payload, ctx) => {

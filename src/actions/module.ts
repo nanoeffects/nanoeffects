@@ -9,7 +9,7 @@ import type {
 } from "../core/types";
 import type { Scoped, ScopeSlots } from "../scope/types";
 import { onAbort, report, withCaller } from "../utils";
-import { actionsPlugin, type Binding, type LooseHandler } from "./handled";
+import { actionsPlugin, type LooseHandler } from "./handled";
 import { holdListeners } from "./hold";
 import { mountEach } from "./mount-each";
 
@@ -20,7 +20,7 @@ import { mountEach } from "./mount-each";
  * module does is undone when it is unmounted.
  */
 export type ModuleContext<E extends EventMap = EventMap> = Context<E> & {
-	/** Binds the handler of an action, or a list of them; undone on unmount. */
+	/** Binds the handler of an action; undone on unmount. */
 	handle<P, R>(handled: Handled<P, R>, fn: Task<P, E, R>): UnsubscribeCallback;
 	/** Also an action made without a handler: the handler answers it as it would one made with a handler. */
 	handle<A extends { readonly type: string }>(
@@ -28,7 +28,6 @@ export type ModuleContext<E extends EventMap = EventMap> = Context<E> & {
 		fn: LooseHandler<A, E>,
 	): UnsubscribeCallback;
 	handle(type: string, fn: Task<never, E, unknown>): UnsubscribeCallback;
-	handle(bindings: readonly Binding<E>[]): UnsubscribeCallback;
 	/**
 	 * Brings sub-modules and actions, in any order. A sub-module is mounted and
 	 * unmounted with this one. An action is bound to the handler it carries, for
@@ -65,7 +64,7 @@ export type Module<E extends EventMap = EventMap> = {
  * ```ts
  * export const userModule = createModule<Events>("user", (m) => {
  *   m.handle(getUser, fetchUser);
- *   m.handle([setHandler(sendMail, smtpSend)]);
+ *   m.handle(sendMail, smtpSend);
  *   m.use(authModule);
  *
  *   m.on(loginRequested, (user, ctx) => ctx.emit(userLoaded(user)));
@@ -118,9 +117,6 @@ const fitted = (
 	target: unknown,
 	fn: unknown,
 ) => {
-	if (Array.isArray(target)) {
-		return [target.map(([handled, handler]) => [handled, within(handler)]), fn];
-	}
 	return [target, within(fn)];
 };
 

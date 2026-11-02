@@ -376,7 +376,7 @@ bus.emit(double(21)); // 42
 
 **Проблема.** Обработчик action лежит в файле фичи, а тесту нужна подделка, или работа принадлежит другому слою. Если положить обработчик в `createAction`, файл события окажется связан с работой.
 
-**Что делать.** Создайте action без обработчика: это событие. Настоящий обработчик привяжите через `setHandler` при создании шины. Позже `actions.handle` привязывает новый обработчик, который главнее, пока вы его не снимете.
+**Что делать.** Создайте action без обработчика: это событие. Настоящий обработчик привяжите через `actions.handle` при создании шины. Следующий `actions.handle` привязывает новый обработчик, который главнее, пока вы его не снимете.
 
 ```js
 // user.js
@@ -388,16 +388,16 @@ export const getUser = createAction("user/get"); // обработчика по�
 ```js
 // bus.js
 import { createBus } from "nanoeffects";
-import { actionsPlugin, setHandler } from "nanoeffects/actions";
+import { actionsPlugin } from "nanoeffects/actions";
 import { getUser } from "./user";
 
 export const bus = createBus();
 
-// setHandler — привязывает настоящий обработчик к action
-const realUser = setHandler(getUser, (id) => api.user(id));
-
 // actionsPlugin — реестр привязанных обработчиков этой шины
-export const actions = bus.use(actionsPlugin([realUser]));
+export const actions = bus.use(actionsPlugin());
+
+// actions.handle — привязывает настоящий обработчик к action
+actions.handle(getUser, (id) => api.user(id));
 ```
 
 ```js

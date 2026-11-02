@@ -4,7 +4,6 @@ import {
 	createJob,
 	createModule,
 	modulePlugin,
-	setHandler,
 } from "../actions";
 import type { Call } from "../core/action-creator";
 import { createBus } from "../core/bus";
@@ -187,11 +186,9 @@ describe("module scope", () => {
 				moduleContext.handle(ask, (_, ctx) => {
 					seen.push(["handle", nameOf(ctx)]);
 				});
-				moduleContext.handle([
-					setHandler(bound, (_, ctx) => {
-						seen.push(["bindings", nameOf(ctx)]);
-					}),
-				]);
+				moduleContext.handle(bound, (_, ctx) => {
+					seen.push(["bindings", nameOf(ctx)]);
+				});
 				moduleContext.use(own);
 				moduleContext.spawn(async (_, ctx) => {
 					await Promise.resolve();

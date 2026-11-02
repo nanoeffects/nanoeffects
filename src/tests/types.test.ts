@@ -41,7 +41,6 @@ import {
 	createModule,
 	emitterPlugin,
 	modulePlugin,
-	setHandler,
 } from "../actions";
 import { contextPlugin } from "../context";
 import {
@@ -801,17 +800,24 @@ describe("actions on the bus", () => {
 		expectTypeOf(bus.emit(getUser, "1")).resolves.toEqualTypeOf<User>();
 	});
 
-	it("bindings keep the payload types of their actions", () => {
+	it("handle keeps the payload types of its actions", () => {
 		const bus = createBus<Events>();
-		const actions = bus.use(
-			actionsPlugin([
-				setHandler(getUser, async (id) => {
-					expectTypeOf(id).toEqualTypeOf<string>();
-					return { id, name: "a" };
-				}),
-			]),
-		);
-		expectTypeOf(actions.handle).toBeFunction();
+		const actions = bus.use(actionsPlugin());
+		actions.handle(getUser, async (id) => {
+			expectTypeOf(id).toEqualTypeOf<string>();
+			return { id, name: "a" };
+		});
+	});
+
+	it("actionsPlugin takes no list and handle takes no list of pairs", () => {
+		const wrongCalls = () => {
+			// @ts-expect-error handlers are bound with actions.handle
+			actionsPlugin([["mail/send", () => 1]]);
+			const actions = createBus<Events>().use(actionsPlugin());
+			// @ts-expect-error a list of pairs is not accepted
+			actions.handle([["mail/send", () => 1]]);
+		};
+		expectTypeOf(wrongCalls).toBeFunction();
 	});
 
 	it("the constructor has no actions option", () => {

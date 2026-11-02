@@ -7,7 +7,6 @@ import {
 	createAction,
 	createModule,
 	modulePlugin,
-	setHandler,
 } from "nanoeffects/actions";
 import { all, retry, take, timeout } from "nanoeffects/effects";
 import { debounce, latest, queue, throttle } from "nanoeffects/policies";
@@ -189,11 +188,8 @@ const getUser = createAction<Call<string, Promise<User>>>("user/get");
 export const step8 = async () => {
 	const seen: string[] = [];
 	const bus = createBus<Events>();
-	const actions = bus.use(
-		actionsPlugin([
-			setHandler(getUser, async (id) => ({ id, name: `user ${id}` })),
-		]),
-	);
+	const actions = bus.use(actionsPlugin());
+	actions.handle(getUser, async (id) => ({ id, name: `user ${id}` }));
 
 	const user = await bus.emit(getUser("1"));
 	seen.push(user.name);

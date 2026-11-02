@@ -141,15 +141,21 @@ export const sendMail = createAction("mail/send");
 ```js
 // bus.js
 import { createBus } from "nanoeffects";
-import { actionsPlugin, setHandler } from "nanoeffects/actions";
-import { sendMail } from "./mail";
+import { actionsPlugin } from "nanoeffects/actions";
 
 export const bus = createBus();
 
-// actionsPlugin — реестр обработчиков этой шины; setHandler связывает action с его работой
-export const actions = bus.use(
-  actionsPlugin([setHandler(sendMail, smtpSend)]),
-);
+// actionsPlugin — реестр обработчиков этой шины
+export const actions = bus.use(actionsPlugin());
+```
+
+```js
+// mail-handlers.js
+import { actions } from "./bus";
+import { sendMail } from "./mail";
+
+// actions.handle — привязывает работу к action на этой шине
+actions.handle(sendMail, smtpSend);
 ```
 
 ```js
@@ -163,7 +169,7 @@ unbind();
 
 Обработчик, привязанный в реестре, заставляет `bus.emit(sendMail(mail))` запустить его и вернуть его результат, как и для action со своим обработчиком. Подписки на этот тип получают сообщение первыми. Если обработчик не привязан, `sendMail` снова просто событие.
 
-Реестр живёт в `nanoeffects/actions`, поэтому шина без него этого кода не содержит. Без реестра `emit` запускает собственный обработчик action. `bus.use(actionsPlugin())` задаёт `bus.actions`. Второй `actionsPlugin` привязывает свой список в том же реестре и возвращает его. В `createBus` нет параметра `actions`. Собственный исполнитель назначьте через `bus.actions = { run }`, а добавив ему `bound(type)`, вы сможете отвечать за actions без собственного обработчика.
+Реестр живёт в `nanoeffects/actions`, поэтому шина без него этого кода не содержит. Без реестра `emit` запускает собственный обработчик action. `bus.use(actionsPlugin())` задаёт `bus.actions`. Второй `actionsPlugin` возвращает тот же реестр. В `createBus` нет параметра `actions`. Собственный исполнитель назначьте через `bus.actions = { run }`, а добавив ему `bound(type)`, вы сможете отвечать за actions без собственного обработчика.
 
 ### Тип результата привязанного обработчика
 

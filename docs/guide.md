@@ -377,7 +377,7 @@ Use strings for the plain case. Use objects when other code already builds actio
 
 **Problem.** The handler of an action is in the file of the feature, but a test needs a fake, or another layer owns the work. If the handler sits in `createAction`, the event file is tied to the work.
 
-**What to do.** Create the action without a handler: it is an event. Bind the real handler with `setHandler` when the bus is made. Later, `actions.handle` binds a newer handler that wins until you remove it.
+**What to do.** Create the action without a handler: it is an event. Bind the real handler with `actions.handle` when the bus is made. A later `actions.handle` binds a newer handler that wins until you remove it.
 
 ```js
 // user.js
@@ -389,16 +389,16 @@ export const getUser = createAction("user/get"); // no handler yet: an event
 ```js
 // bus.js
 import { createBus } from "nanoeffects";
-import { actionsPlugin, setHandler } from "nanoeffects/actions";
+import { actionsPlugin } from "nanoeffects/actions";
 import { getUser } from "./user";
 
 export const bus = createBus();
 
-// setHandler — binds the real handler to the action
-const realUser = setHandler(getUser, (id) => api.user(id));
-
 // actionsPlugin — the registry of bound handlers of this bus
-export const actions = bus.use(actionsPlugin([realUser]));
+export const actions = bus.use(actionsPlugin());
+
+// actions.handle — binds the real handler to the action
+actions.handle(getUser, (id) => api.user(id));
 ```
 
 ```js

@@ -10,7 +10,7 @@ import {
 import { createTraceRecorder } from "../trace/recorder";
 import { createTracer } from "../trace/tracer";
 import { createAction } from "./action";
-import { actionsPlugin, setHandler } from "./handled";
+import { actionsPlugin } from "./handled";
 import { createJob } from "./job";
 
 type Events = TestEvents & { "user/get": string };
@@ -269,42 +269,40 @@ describe("createAction", () => {
 			expect(action(1)).toEqual({ type: "a/b", payload: 1 });
 		});
 
-		it("actionsPlugin binds the list it is given", () => {
+		it("actions.handle binds a declared action", () => {
 			const send = createAction<Call<string, string>>("mail/send");
 			const bus = createBus<Events>();
-			bus.use(actionsPlugin([setHandler(send, (to) => `sent to ${to}`)]));
+			const actions = bus.use(actionsPlugin());
+			actions.handle(send, (to) => `sent to ${to}`);
 
 			expect(bus.emit(send, "ann")).toBe("sent to ann");
 		});
 
-		it("binds several actions from the list", () => {
+		it("binds several actions", () => {
 			const first = createAction<Call<number, number>>("a");
 			const second = createAction<Call<number, number>>("b");
 			const bus = createBus<Events>();
-			bus.use(
-				actionsPlugin([
-					setHandler(first, (value) => value + 1),
-					setHandler(second, (value) => value * 2),
-				]),
-			);
+			const actions = bus.use(actionsPlugin());
+			actions.handle(first, (value) => value + 1);
+			actions.handle(second, (value) => value * 2);
 
 			expect([bus.emit(first, 1), bus.emit(second, 5)]).toEqual([2, 10]);
 		});
 
 		it("a binding can name the action by its type string", () => {
 			const bus = createBus<Events>();
-			bus.use(actionsPlugin([["x/y", () => 1]]));
+			const actions = bus.use(actionsPlugin());
+			actions.handle("x/y", () => 1);
 			const action = createAction<Call<number, number>>("x/y");
 
 			expect(bus.emit(action, 0)).toBe(1);
 		});
 
-		it("a handler bound later wins over the list", () => {
+		it("a handler bound later wins over an earlier one", () => {
 			const action = createAction<Call<number, string>>("a/b");
 			const bus = createBus<Events>();
-			const actions = bus.use(
-				actionsPlugin([setHandler(action, () => "listed")]),
-			);
+			const actions = bus.use(actionsPlugin());
+			actions.handle(action, () => "earlier");
 			actions.handle(action, () => "later");
 
 			expect(bus.emit(action, 1)).toBe("later");
@@ -327,17 +325,6 @@ describe("createAction", () => {
 			const action = createAction<Call<number, number>>("a/b");
 
 			expect(() => bus.emit(action(1))).not.toThrow();
-		});
-	});
-
-	describe("setHandler", () => {
-		it("pairs an action with its handler", () => {
-			const action = createAction<Call<number, number>>("a/b");
-			const handler = (value: number) => value;
-			const pair = setHandler(action, handler);
-
-			expect(pair[0]).toBe(action);
-			expect(pair[1]).toBe(handler);
 		});
 	});
 

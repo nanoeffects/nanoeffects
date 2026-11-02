@@ -5,7 +5,6 @@ import { createApp } from "../tests/test-helpers";
 import { createTraceRecorder } from "../trace/recorder";
 import { createTracer } from "../trace/tracer";
 import { createAction } from "./action";
-import { setHandler } from "./handled";
 import { createModule } from "./module";
 
 type Events = { ping: number; pong: string; job: number };
@@ -93,17 +92,15 @@ describe("module context", () => {
 			expect(app.bus.emit(action, 4)).toBe(8);
 		});
 
-		it("binds a list of handlers", () => {
+		it("binds several handlers", () => {
 			const first = createAction<Call<number, number>>("a");
 			const second = createAction<Call<number, number>>("b");
 			const app = createApp<Events>({
 				modules: [
-					createModule("math", (moduleContext) =>
-						moduleContext.handle([
-							setHandler(first, (value) => value + 1),
-							setHandler(second, (value) => value * 2),
-						]),
-					),
+					createModule("math", (moduleContext) => {
+						moduleContext.handle(first, (value) => value + 1);
+						moduleContext.handle(second, (value) => value * 2);
+					}),
 				],
 			});
 

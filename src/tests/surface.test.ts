@@ -84,7 +84,6 @@ const typeExports: Record<string, string[]> = {
 	],
 	actions: [
 		"ActionCreator",
-		"Binding",
 		"EmitterApi",
 		"FreeActionCreator",
 		"Job",

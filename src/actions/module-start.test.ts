@@ -7,7 +7,7 @@ import { matchPlugin } from "../match";
 import type { TestEvents } from "../tests/test-helpers";
 import { delay } from "../utils";
 import { createAction } from "./action";
-import { actionsPlugin, setHandler } from "./handled";
+import { actionsPlugin } from "./handled";
 import { createModule, type ModuleApi, modulePlugin } from "./module";
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -142,7 +142,8 @@ describe("modulePlugin starts on the first use", () => {
 				}),
 			]),
 		);
-		bus.use(actionsPlugin<TestEvents>([setHandler(other, () => 2)]));
+		const actions = bus.use(actionsPlugin<TestEvents>());
+		actions.handle(other, () => 2);
 
 		expect(bus.actions).toBe(app.actions);
 		expect([bus.emit(mine, 0), bus.emit(other, 0)]).toEqual([1, 2]);

@@ -143,15 +143,21 @@ export const sendMail = createAction("mail/send");
 ```js
 // bus.js
 import { createBus } from "nanoeffects";
-import { actionsPlugin, setHandler } from "nanoeffects/actions";
-import { sendMail } from "./mail";
+import { actionsPlugin } from "nanoeffects/actions";
 
 export const bus = createBus();
 
-// actionsPlugin — the registry of handlers of this bus; setHandler pairs an action with its work
-export const actions = bus.use(
-  actionsPlugin([setHandler(sendMail, smtpSend)]),
-);
+// actionsPlugin — the registry of handlers of this bus
+export const actions = bus.use(actionsPlugin());
+```
+
+```js
+// mail-handlers.js
+import { actions } from "./bus";
+import { sendMail } from "./mail";
+
+// actions.handle — binds the work to the action on this bus
+actions.handle(sendMail, smtpSend);
 ```
 
 ```js
@@ -165,7 +171,7 @@ unbind();
 
 A handler bound in the registry makes `bus.emit(sendMail(mail))` run it and return its result, the same as for an action that carries its handler. The listeners of the type are told first. With no handler bound, `sendMail` is an event again.
 
-The registry lives in `nanoeffects/actions`, so a bus without one carries none of that code. Without a registry, `emit` runs the handler that the action carries. `bus.use(actionsPlugin())` sets `bus.actions`. A second `actionsPlugin` binds its list in that registry and returns it. There is no `actions` option in `createBus`; assign a custom runner with `bus.actions = { run }`, and add `bound(type)` to it to answer for actions that have no handler of their own.
+The registry lives in `nanoeffects/actions`, so a bus without one carries none of that code. Without a registry, `emit` runs the handler that the action carries. `bus.use(actionsPlugin())` sets `bus.actions`. A second `actionsPlugin` returns that registry. There is no `actions` option in `createBus`; assign a custom runner with `bus.actions = { run }`, and add `bound(type)` to it to answer for actions that have no handler of their own.
 
 ### The result type of a bound handler
 

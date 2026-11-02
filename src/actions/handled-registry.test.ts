@@ -3,7 +3,7 @@ import type { Call } from "../core/action-creator";
 import { createBus } from "../core/bus";
 import type { TestEvents } from "../tests/test-helpers";
 import { createAction } from "./action";
-import { actionsPlugin, MissingHandlerError, setHandler } from "./handled";
+import { actionsPlugin, MissingHandlerError } from "./handled";
 import { createJob } from "./job";
 
 describe("bus.use(actionsPlugin())", () => {
@@ -23,23 +23,23 @@ describe("bus.use(actionsPlugin())", () => {
 		expect(bus.emit(getUser, "1")).toBe("user 1");
 	});
 
-	it("the initial bindings answer", () => {
+	it("a handler bound after the plugin answers", () => {
 		const bus = createBus<TestEvents>();
 		const send = createAction<Call<string, string>>("mail/send");
-		bus.use(actionsPlugin([setHandler(send, (to) => `sent to ${to}`)]));
+		const actions = bus.use(actionsPlugin());
+		actions.handle(send, (to) => `sent to ${to}`);
 
 		expect(bus.emit(send, "ann")).toBe("sent to ann");
 	});
 
-	it("a second actionsPlugin binds in the registry that is there and returns it", () => {
+	it("a second actionsPlugin returns the registry that is there", () => {
 		const bus = createBus<TestEvents>();
 		const action = createAction<number, number>("a/b", (value) => value);
 		const other = createAction<number, number>("a/c", (value) => value);
 		const first = bus.use(actionsPlugin());
 		first.handle(action, () => 1);
-		const second = bus.use(
-			actionsPlugin([setHandler(other, (value) => value + 1)]),
-		);
+		const second = bus.use(actionsPlugin());
+		second.handle(other, (value) => value + 1);
 
 		expect(second).toBe(first);
 		expect(bus.actions).toBe(first);

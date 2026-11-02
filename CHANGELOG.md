@@ -2,6 +2,11 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
+## 0.34.0
+
+### Breaking
+- `setHandler`, the `Binding` type, the list of `actionsPlugin([...])` and the list form `handle([...])` (of the registry and of a module) are removed. `actions.handle(action, fn)` is the one way to bind a handler. Migrate `bus.use(actionsPlugin([setHandler(a, fn)]))` to `const actions = bus.use(actionsPlugin()); actions.handle(a, fn);`. [Docs](docs/actions.md#bind-a-handler-later)
+
 ## 0.33.0
 
 ### Changed
