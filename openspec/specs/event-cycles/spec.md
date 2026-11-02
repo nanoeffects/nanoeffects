@@ -1,7 +1,7 @@
 # event-cycles Specification
 
 ## Purpose
-TBD - created by archiving change add-event-graph-logger. Update Purpose after archive.
+Finds loops in a trace while the app runs, reports each once with where the chain began, and stops nothing.
 
 ## Requirements
 

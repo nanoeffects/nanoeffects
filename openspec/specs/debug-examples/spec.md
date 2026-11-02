@@ -1,7 +1,7 @@
 # debug-examples Specification
 
 ## Purpose
-TBD - created by archiving change add-event-graph-logger. Update Purpose after archive.
+Gives a reader runnable, tested debugging scenarios and a Redux DevTools playground, so each tracing tool can be seen working before it is used in an app.
 
 ## Requirements
 

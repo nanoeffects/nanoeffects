@@ -1,7 +1,7 @@
 # docs-ru Specification
 
 ## Purpose
-TBD - created by archiving change docs-site-ru. Update Purpose after archive.
+Keeps a Russian page for every docs page, with code that matches the English one, as a locale of the docs site.
 
 ## Requirements
 

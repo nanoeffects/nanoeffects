@@ -1,7 +1,7 @@
 # event-graph Specification
 
 ## Purpose
-TBD - created by archiving change add-event-graph-logger. Update Purpose after archive.
+Builds a map of which event leads to which from what ran, exports it, and joins the maps of several runs to find listeners that never ran.
 
 ## Requirements
 

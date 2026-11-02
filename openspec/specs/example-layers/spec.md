@@ -1,7 +1,7 @@
 # example-layers Specification
 
 ## Purpose
-TBD - created by archiving change layer-chat-and-pokedex-examples. Update Purpose after archive.
+Keeps the big examples (chat, pokédex) in layers that import downwards only, and checks the rule with a test.
 
 ## Requirements
 

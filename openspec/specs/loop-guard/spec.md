@@ -1,7 +1,7 @@
 # loop-guard Specification
 
 ## Purpose
-TBD - created by archiving change add-event-graph-logger. Update Purpose after archive.
+Cuts a looping or too deep chain of events at run time, with an opt-in plugin that always reports what it cut.
 
 ## Requirements
 

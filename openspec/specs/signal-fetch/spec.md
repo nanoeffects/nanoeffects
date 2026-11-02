@@ -1,7 +1,7 @@
 # signal-fetch Specification
 
 ## Purpose
-TBD - created by archiving change track-lost-requests. Update Purpose after archive.
+Binds fetch to the signal of a task, so an aborted task also aborts its request.
 
 ## Requirements
 

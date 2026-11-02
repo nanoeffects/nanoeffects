@@ -1,7 +1,7 @@
 # docs-site Specification
 
 ## Purpose
-TBD - created by archiving change docs-site. Update Purpose after archive.
+Publishes docs/ as a static site, with links that resolve, navigation by project level and the docs checks kept intact.
 
 ## Requirements
 

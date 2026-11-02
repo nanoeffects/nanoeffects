@@ -1,7 +1,7 @@
 # trace-serialization Specification
 
 ## Purpose
-TBD - created by archiving change add-event-graph-logger. Update Purpose after archive.
+Makes everything that leaves the process through a logger plain data, with safeSerialize exported for custom loggers.
 
 ## Requirements
 

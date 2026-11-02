@@ -1,7 +1,7 @@
 # svelte-entry Specification
 
 ## Purpose
-TBD - created by archiving change add-svelte-plugin. Update Purpose after archive.
+Offers a nanoeffects/svelte entry whose plugin turns an event of the bus into a readable Svelte store.
 
 ## Requirements
 

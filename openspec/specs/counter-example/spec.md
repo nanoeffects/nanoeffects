@@ -1,7 +1,7 @@
 # counter-example Specification
 
 ## Purpose
-TBD - created by archiving change add-counter-example. Update Purpose after archive.
+Defines the counter example, a small project that shows policies, retry, cancellation and error isolation, with and without Redux, and maps them to redux-saga.
 
 ## Requirements
 

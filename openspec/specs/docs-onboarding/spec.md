@@ -1,7 +1,7 @@
 # docs-onboarding Specification
 
 ## Purpose
-TBD - created by archiving change docs-site-ru. Update Purpose after archive.
+Keeps the docs readable for a newcomer: first steps in order, an explicit ladder of project levels, and one index of recipes by problem.
 
 ## Requirements
 
