@@ -4,6 +4,7 @@ import { run as chainBroken } from "../../examples/debug/src/chain-broken";
 import { run as cleanFlow } from "../../examples/debug/src/clean-flow";
 import { run as exportGraph } from "../../examples/debug/src/export-graph";
 import { run as failingHandler } from "../../examples/debug/src/failing-handler";
+import { run as findOrphansExample } from "../../examples/debug/src/find-orphans";
 import { run as hostilePayloads } from "../../examples/debug/src/hostile-payloads";
 import { run as ignoreRecursion } from "../../examples/debug/src/ignore-recursion";
 import { run as loopAsync } from "../../examples/debug/src/loop-async";
@@ -89,6 +90,15 @@ describe("examples/debug", () => {
 			name: "Error",
 			message: "boom",
 		});
+	});
+
+	it("find-orphans: a merge removes the false orphans", () => {
+		const { notes } = findOrphansExample();
+
+		expect(notes[0]).toBe(
+			"one session: resetTotal (unemitted), sendReceipt (unemitted)",
+		);
+		expect(notes[1]).toBe("both sessions: sendReceipt (unemitted)");
 	});
 
 	it("clean-flow reports nothing and marks no edge", () => {

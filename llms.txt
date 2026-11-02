@@ -63,7 +63,7 @@ Rules that generated code often gets wrong:
 - [Test time with diagrams](docs/testing.md): `createMarbleBus` and `fakeTimersClock`; emits and phases as diagrams on fake timers
 - [Trace tasks](docs/tracing.md): loggers, `timingLogger` for durations and open tasks, `chainOf` for the cause of an error, Redux DevTools, `graphLogger`, the `notrace` build
 - [Debugging cases](docs/debugging-cases.md): who listens to an event, what began a chain, why a request stopped
-- [Find and cut event loops](docs/debugging-loops.md): symptoms, `graphLogger`, the graph as Mermaid, Graphviz or JSON, Redux DevTools
+- [Find and cut event loops](docs/debugging-loops.md): symptoms, `graphLogger`, the graph as Mermaid, Graphviz or JSON, Redux DevTools, `mergeGraphs` and `findOrphans` for listeners no run reached
 - [Cut a loop with loopGuardPlugin](docs/loop-guard.md): limits on repeats, depth and emits from outside
 - [Turn events into Observables](docs/observable.md): `createObserve`, `Subject`, `events` (an event as a `for await` loop)
 - [Hot reload and development diagnostics](docs/hmr.md): `devPlugin`

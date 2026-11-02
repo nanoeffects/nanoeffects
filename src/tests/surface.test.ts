@@ -110,6 +110,7 @@ const typeExports: Record<string, string[]> = {
 		"GraphSnapshot",
 		"JsonOptions",
 		"JsonValue",
+		"Orphan",
 		"PayloadMode",
 		"PerformanceLoggerOptions",
 		"Phase",

@@ -26,6 +26,7 @@ A scenario is a file with a `run()` function that returns `{ findings, mermaid, 
 | `ignore-recursion` | a tree walk | reported without `ignore`, quiet with it |
 | `failing-handler` | a throw in the middle of a chain | no false cycle afterwards |
 | `assert-no-cycles` | the CI check | `assertNoCycles(graph)` throws when the graph has a cycle |
+| `find-orphans` | two sessions that each reach part of the app | a listener looks dead in one session and is gone from the list after `mergeGraphs`; one is never reached |
 
 ## See the exports
 

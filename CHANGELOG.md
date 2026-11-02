@@ -5,6 +5,7 @@ How to read an entry: **Breaking** needs a change in your code or setup, **Chang
 ## Unreleased
 
 ### Added
+- `mergeGraphs(...snapshots)` joins the graphs of several runs (tests, e2e) into one, and `findOrphans(describeBus(bus), graph)` lists the listeners that no run reached. [Docs](docs/debugging-loops.md#find-listeners-that-never-ran)
 - `timingLogger()` in `nanoeffects/trace` measures time: `durations` lists the tasks that ended with how long they took, `pending()` lists the tasks that started and have not ended. [Docs](docs/tracing.md#measure-time-and-find-open-tasks)
 - `chainOf(recorder, id)` returns the path from the root to a task, through the listeners that report nothing. `createTraceRecorder` keeps those tasks in `recorder.tasks`, and `consoleLogger({ chain: true })` prints the path on an `error` line. [Docs](docs/tracing.md#find-the-cause-of-an-error)
 - A short example of stopping the debugger on an event. [Docs](docs/tracing.md#stop-on-an-event)

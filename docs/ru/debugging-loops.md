@@ -16,6 +16,7 @@
 - [Обрыв цикла во время работы](#обрыв-цикла-во-время-работы)
 - [Падение теста при цикле](#падение-теста-при-цикле)
 - [Экспорт графа и payload](#экспорт-графа-и-payload)
+- [Подписки, которые не запускались](#подписки-которые-не-запускались)
 - [Как находится цикл](#как-находится-цикл)
 - [Ограничения](#ограничения)
 
@@ -277,6 +278,84 @@ console.log(JSON.stringify(data));
 ```
 
 Payload может быть экземпляром класса, `Map`, объектом с циклической ссылкой или `Error`, которые обычный `JSON.stringify` не примет. Экспорт превращает их в обычный JSON: у `Error` остаются имя, сообщение, стек и причина, цикл становится `"[Circular]"`, `Map` — `{ "$map": [...] }`, а экземпляр класса сохраняет собственные поля и имя класса в `$class`. Геттеры не вызываются, а слишком глубокое или слишком большое значение обрезается.
+
+## Подписки, которые не запускались
+
+Граф одного запуска показывает только то, что сделал этот запуск. Он не скажет, какие подписки есть в приложении, но ни один запуск до них не дошёл: мёртвый код или сценарий, который никто не тестирует. Чтобы их найти, объедините графы нескольких запусков и сравните результат с подписками шины.
+
+Что нужно заранее: шина использует `tracePlugin` и `graphLogger` (см. [Поиск цикла](#поиск-цикла)), а у каждой подписки есть имя функции или `traceId`. У анонимной подписки нет узла в графе, поэтому о ней не сообщается.
+
+1. Каждый запуск пишет свой граф в файл.
+2. Скрипт читает файлы и объединяет их через `mergeGraphs`.
+3. `findOrphans` сравнивает объединённый граф с `describeBus`.
+
+```js
+// bus.js
+import { createBus } from "nanoeffects";
+import { createTracer, graphLogger, tracePlugin } from "nanoeffects/trace";
+
+// graphLogger — карта того, что выполнилось
+export const graph = graphLogger({ name: "cart" });
+export const bus = createBus({ trace: createTracer(graph) }).use(tracePlugin());
+```
+
+```js
+// handlers.js
+import { bus } from "./bus";
+
+// подписка названа по функции; findOrphans сопоставляет это имя
+bus.on("cart/added", function recalcTotal() {});
+bus.on("cart/cleared", function resetTotal() {});
+```
+
+```js
+// graph-setup.js (setup-файл вашего тест-раннера)
+import { mkdirSync, writeFileSync } from "node:fs";
+import { afterAll } from "vitest";
+import { graph } from "./bus";
+
+afterAll(() => {
+  mkdirSync("graphs", { recursive: true });
+
+  // toJSON — граф этого запуска как обычные данные
+  const data = graph.toJSON();
+  writeFileSync(`graphs/${process.pid}.json`, JSON.stringify(data));
+});
+```
+
+```js
+// orphans.js (запустите после тестов)
+import { readdirSync, readFileSync } from "node:fs";
+import { describeBus, findOrphans, mergeGraphs } from "nanoeffects/trace";
+import { bus } from "./bus";
+import "./handlers";
+
+const files = readdirSync("graphs");
+const runs = files.map((file) => JSON.parse(readFileSync(`graphs/${file}`, "utf8")));
+
+// mergeGraphs — счётчики складываются, поэтому подписка, выполнявшаяся в любом запуске, становится узлом
+const all = mergeGraphs(...runs);
+
+// describeBus — подписки, которые держит шина, по событиям
+const described = describeBus(bus);
+
+// findOrphans — подписки, которые объединённый граф ни разу не видел
+console.log(findOrphans(described, all));
+// [{ event: "cart/cleared", listener: "resetTotal", kind: "unemitted" }]
+```
+
+У каждого элемента есть `kind`:
+
+| `kind` | Что значит | Что проверить |
+| ------ | ---------- | ------------- |
+| `unemitted` | Ни в одном запуске никто не отправил это событие. | Нужно ли ещё событие? Не хватает ли сценария? |
+| `unrun` | Событие отправлялось, а эта подписка не запускалась. | Условие или [политика](policies.md), из-за которых она не запускается. |
+
+Читайте список как подсказку, а не как ошибку. При малом числе запусков в нём много ложных записей, и сигналом он становится, когда запуски покрывают основные сценарии. Ограничения:
+
+- Две подписки с одним именем дают один узел, поэтому вторая никогда не попадёт в список. Дайте каждой своё имя или `traceId`.
+- Объединяйте запуски одной сборки. Переименованная подписка попадёт в список.
+- `mergeGraphs` не находит цикл, который замыкается только при объединении рёбер разных запусков. Смотрите `graph.cycles()` в каждом запуске.
 
 ## Как находится цикл
 

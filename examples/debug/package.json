@@ -16,6 +16,7 @@
 		"ignore-recursion": "tsx src/ignore-recursion.ts",
 		"failing-handler": "tsx src/failing-handler.ts",
 		"assert-no-cycles": "tsx src/assert-no-cycles.ts",
+		"find-orphans": "tsx src/find-orphans.ts",
 		"run-all": "tsx src/run-all.ts"
 	},
 	"dependencies": {

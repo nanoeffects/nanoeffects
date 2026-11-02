@@ -16,6 +16,7 @@ A loop is two handlers that emit each other's events, or one handler that emits 
 - [Cut a loop at run time](#cut-a-loop-at-run-time)
 - [Fail a test on a loop](#fail-a-test-on-a-loop)
 - [Export the graph and the payloads](#export-the-graph-and-the-payloads)
+- [Find listeners that never ran](#find-listeners-that-never-ran)
 - [Know how a loop is found](#know-how-a-loop-is-found)
 - [Know the limits](#know-the-limits)
 
@@ -277,6 +278,84 @@ console.log(JSON.stringify(data));
 ```
 
 A payload can be a class instance, a `Map`, a circular object or an `Error`, which a plain `JSON.stringify` cannot take. The exports make them plain JSON: an `Error` keeps its name, message, stack and cause, a cycle becomes `"[Circular]"`, a `Map` becomes `{ "$map": [...] }`, and an instance of a class keeps its own fields and its name as `$class`. Getters are never called, and a value that is too deep or too big is cut.
+
+## Find listeners that never ran
+
+A graph of one run shows what that run did. It cannot tell you which listeners the app has but no run ever reached: dead code, or a scenario nobody tests. To find them, join the graphs of several runs, then compare the result with the listeners the bus holds.
+
+Prerequisites: the bus uses `tracePlugin` and `graphLogger` (see [Find a loop](#find-a-loop)), and each listener has a function name or a `traceId`. An anonymous listener has no node in the graph, so it is never reported.
+
+1. Each run writes its graph to a file.
+2. A script reads the files and joins them with `mergeGraphs`.
+3. `findOrphans` compares the joined graph with `describeBus`.
+
+```js
+// bus.js
+import { createBus } from "nanoeffects";
+import { createTracer, graphLogger, tracePlugin } from "nanoeffects/trace";
+
+// graphLogger — the map of what ran
+export const graph = graphLogger({ name: "cart" });
+export const bus = createBus({ trace: createTracer(graph) }).use(tracePlugin());
+```
+
+```js
+// handlers.js
+import { bus } from "./bus";
+
+// the listener is named by its function; findOrphans matches this name
+bus.on("cart/added", function recalcTotal() {});
+bus.on("cart/cleared", function resetTotal() {});
+```
+
+```js
+// graph-setup.js (the setup file of your test runner)
+import { mkdirSync, writeFileSync } from "node:fs";
+import { afterAll } from "vitest";
+import { graph } from "./bus";
+
+afterAll(() => {
+  mkdirSync("graphs", { recursive: true });
+
+  // toJSON — the graph of this run as plain data
+  const data = graph.toJSON();
+  writeFileSync(`graphs/${process.pid}.json`, JSON.stringify(data));
+});
+```
+
+```js
+// orphans.js (run it after the tests)
+import { readdirSync, readFileSync } from "node:fs";
+import { describeBus, findOrphans, mergeGraphs } from "nanoeffects/trace";
+import { bus } from "./bus";
+import "./handlers";
+
+const files = readdirSync("graphs");
+const runs = files.map((file) => JSON.parse(readFileSync(`graphs/${file}`, "utf8")));
+
+// mergeGraphs — counts add up, so a listener that ran in any run is a node
+const all = mergeGraphs(...runs);
+
+// describeBus — the listeners the bus holds, by event
+const described = describeBus(bus);
+
+// findOrphans — the listeners the joined graph never saw run
+console.log(findOrphans(described, all));
+// [{ event: "cart/cleared", listener: "resetTotal", kind: "unemitted" }]
+```
+
+Each item has a `kind`:
+
+| `kind` | Meaning | What to check |
+| ------ | ------- | ------------- |
+| `unemitted` | Nothing emitted the event in any run. | Is the event still used? Is a scenario missing? |
+| `unrun` | The event was emitted, this listener did not run. | A condition or a [policy](policies.md) that never lets it run. |
+
+Read the list as a hint, not as a failure. With few runs it holds many false items, and it only becomes a signal when the runs cover the main scenarios. Know the limits:
+
+- Two listeners with one name are one node, so the second one is never reported. Give each a distinct name or `traceId`.
+- Merge runs of one build. A listener that was renamed shows up as an orphan.
+- `mergeGraphs` does not find a loop that only closes when the edges of two runs are joined. Use `graph.cycles()` in each run.
 
 ## Know how a loop is found
 

@@ -338,7 +338,7 @@ const bus = createBus({
 | `consoleLogger()` | Prints one line per phase, indented by task depth |
 | `performanceLogger()` | User Timing measures for the browser Performance panel |
 | `createTraceRecorder()` | Keeps events in `recorder.events`: all of them for tests, or with `{ capacity }` the last N ([see below](#keep-the-last-events-for-an-incident)) |
-| `graphLogger()` | Builds the map of which event leads to which, finds loops while the app runs, and writes the map as Mermaid, Graphviz or JSON ([see below](#find-loops-with-graphlogger)) |
+| `graphLogger()` | Builds the map of which event leads to which, finds loops while the app runs, and writes the map as Mermaid, Graphviz or JSON ([see below](#find-loops-with-graphlogger)); [`mergeGraphs` and `findOrphans`](debugging-loops.md#find-listeners-that-never-ran) join runs and find listeners that never ran |
 
 ### Cut volume in production
 

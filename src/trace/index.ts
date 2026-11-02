@@ -10,11 +10,14 @@ export type {
 export {
 	type ExportOptions,
 	type Finding,
+	findOrphans,
 	type GraphLogger,
 	type GraphLoggerOptions,
 	type GraphSnapshot,
 	graphLogger,
 	type JsonOptions,
+	mergeGraphs,
+	type Orphan,
 } from "../graph";
 export {
 	type JsonValue,

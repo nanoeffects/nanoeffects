@@ -337,7 +337,7 @@ const bus = createBus({
 | `reduxDevtools()` | Отправляет emit в Redux DevTools, а с `policies` — стадии обработчиков как `type/effect/phase`; state — `{ running }` |
 | `consoleLogger()` | Печатает по одной строке на фазу, с отступом по глубине задачи |
 | `performanceLogger()` | Измерения User Timing для панели Performance браузера |
-| `graphLogger()` | Строит карту того, какое событие к какому ведёт, находит циклы во время работы приложения и записывает карту как Mermaid, Graphviz или JSON ([см. ниже](#поиск-циклов-через-graphlogger)) |
+| `graphLogger()` | Строит карту того, какое событие к какому ведёт, находит циклы во время работы приложения и записывает карту как Mermaid, Graphviz или JSON ([см. ниже](#поиск-циклов-через-graphlogger)); [`mergeGraphs` и `findOrphans`](debugging-loops.md#подписки-которые-не-запускались) объединяют запуски и находят подписки, которые не запускались |
 | `createTraceRecorder()` | Хранит события в `recorder.events`: все — для тестов, либо с `{ capacity }` последние N ([см. ниже](#последние-события-на-случай-инцидента)) |
 
 ### Сокращение объёма в production

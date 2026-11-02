@@ -5,6 +5,7 @@ import { run as chainBroken } from "./chain-broken";
 import { run as cleanFlow } from "./clean-flow";
 import { run as exportGraph } from "./export-graph";
 import { run as failingHandler } from "./failing-handler";
+import { run as findOrphans } from "./find-orphans";
 import { printResult } from "./harness";
 import { run as hostilePayloads } from "./hostile-payloads";
 import { run as ignoreRecursion } from "./ignore-recursion";
@@ -29,6 +30,7 @@ export const scenarios = {
 	"ignore-recursion": ignoreRecursion,
 	"failing-handler": failingHandler,
 	"assert-no-cycles": assertNoCycles,
+	"find-orphans": findOrphans,
 };
 
 if (process.argv[1]?.endsWith("run-all.ts")) {
