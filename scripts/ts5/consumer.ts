@@ -29,7 +29,7 @@ const bus = createBus<Events>()
 	.use(contextPlugin({ api: "x" }));
 bus.use(matchPlugin);
 bus.use(signalPlugin);
-bus.use(tracePlugin);
+bus.use(tracePlugin());
 
 const stored: StarterOf<Events> = all({ user: retry(() => loadUser("1")) });
 

@@ -10,6 +10,7 @@ import type { TraceEvent } from "../core/types";
 import { extendBus } from "../oop";
 import { latest } from "../policies";
 import { noPayload } from "../tests/test-helpers";
+import { describeBus } from "./describe";
 import { emitFrom } from "./origin";
 import { tracePlugin } from "./plugin";
 import { createTraceRecorder } from "./recorder";
@@ -350,6 +351,266 @@ describe("tracePlugin", () => {
 			bus.emit("name/changed", "Eva");
 
 			expect(handler).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("a listener named by its function", () => {
+		const runTypes = (recorder: { events: TraceEvent[] }) =>
+			recorder.events
+				.filter((event) => event.effect === "run")
+				.map((event) => event.type);
+
+		it("is a task named by the function", () => {
+			const { bus, recorder } = setup();
+			function saveName() {}
+			bus.on("name/changed", saveName);
+
+			bus.emit("name/changed", "Eva");
+
+			expect(runTypes(recorder)).toContain("saveName");
+		});
+
+		it("leaves an anonymous handler as it is", () => {
+			const { bus, recorder } = setup();
+			const seen: string[] = [];
+			bus.on("name/changed", (name) => {
+				seen.push(name);
+			});
+
+			bus.emit("name/changed", "Eva");
+
+			expect(seen).toEqual(["Eva"]);
+			expect(runTypes(recorder)).toEqual([]);
+		});
+
+		it("lets traceId win over the name", () => {
+			const { bus, recorder } = setup();
+			function saveName() {}
+			bus.on("name/changed", saveName, { traceId: "saveNotifier" });
+
+			bus.emit("name/changed", "Eva");
+
+			expect(runTypes(recorder)).toContain("saveNotifier");
+			expect(runTypes(recorder)).not.toContain("saveName");
+		});
+
+		it("runs a once listener once and removes it with off", () => {
+			const { bus } = setup();
+			const handler = vi.fn();
+			function onceHandler(name: string) {
+				handler(name);
+			}
+			bus.once("name/changed", onceHandler);
+			bus.emit("name/changed", "Eva");
+			bus.emit("name/changed", "Eva");
+
+			const later = vi.fn();
+			function laterHandler() {
+				later();
+			}
+			bus.on("name/changed", laterHandler);
+			bus.off("name/changed", laterHandler);
+			bus.emit("name/changed", "Eva");
+
+			expect(handler).toHaveBeenCalledTimes(1);
+			expect(later).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("describeBus", () => {
+		it("lists the listeners of each event in order", () => {
+			const { bus } = setup();
+			function saveName() {}
+			function audit() {}
+			function refresh() {}
+			bus.on("name/changed", saveName);
+			bus.on("name/changed", audit);
+			bus.on("other", refresh, { traceId: "refreshView" });
+
+			expect(describeBus(bus)).toEqual({
+				"name/changed": ["saveName", "audit"],
+				other: ["refreshView"],
+			});
+		});
+
+		it("lists an action creator under its type, and an anonymous listener as such", () => {
+			const { bus } = setup();
+			const rename = createAction<string>("user/rename");
+			bus.on(rename, () => {});
+			bus.on("*", function everything() {});
+
+			expect(describeBus(bus)).toEqual({
+				"user/rename": ["<anonymous>"],
+				"*": ["everything"],
+			});
+		});
+
+		it("forgets a listener that was removed, one that ran once and the returned unsubscribe", () => {
+			const { bus } = setup();
+			function first() {}
+			function second() {}
+			function third() {}
+			function fourth() {}
+			bus.on("name/changed", first);
+			bus.on("name/changed", second);
+			const unsubscribe = bus.on("other", third);
+			bus.once("other", fourth);
+
+			bus.off("name/changed", first);
+			unsubscribe();
+			bus.emit("other", 1);
+
+			expect(describeBus(bus)).toEqual({ "name/changed": ["second"] });
+			bus.off("name/changed");
+			expect(describeBus(bus)).toEqual({});
+			bus.on("other", third);
+			bus.off();
+			expect(describeBus(bus)).toEqual({});
+		});
+
+		it("is empty without a tracer or without the plugin", () => {
+			const plain = createBus<Events>();
+			plain.use(tracePlugin());
+			plain.on("name/changed", function saveName() {});
+			const traced = createBus<Events>({
+				trace: createTracer(createTraceRecorder()),
+			});
+			traced.on("name/changed", function saveName() {});
+
+			expect(describeBus(plain)).toEqual({});
+			expect(describeBus(traced)).toEqual({});
+		});
+
+		it("holds nothing after many subscribes and unsubscribes", () => {
+			const { bus } = setup();
+			for (let index = 0; index < 10_000; index += 1) {
+				const unsubscribe = bus.on("name/changed", function listener() {});
+				unsubscribe();
+			}
+
+			expect(describeBus(bus)).toEqual({});
+		});
+	});
+
+	describe("the source of a listener", () => {
+		const withSource = () => {
+			const recorder = createTraceRecorder();
+			const bus = createBus<Events>({ trace: createTracer(recorder) });
+			bus.use(tracePlugin({ source: true }));
+
+			return { bus, recorder };
+		};
+		const sourcesOf = (recorder: { events: TraceEvent[] }) =>
+			recorder.events
+				.filter((event) => event.effect === "run")
+				.map((event) => event.source);
+
+		it("is the line that called bus.on, for a named listener", () => {
+			const { bus, recorder } = withSource();
+			function saveName() {}
+			bus.on("name/changed", saveName);
+
+			bus.emit("name/changed", "Eva");
+
+			const [first] = sourcesOf(recorder);
+			expect(first).toMatch(/plugin\.test\.ts:\d+:\d+$/);
+			expect(recorder.events.some((event) => event.type === "saveName")).toBe(
+				true,
+			);
+		});
+
+		it("reports an anonymous listener under its event, with a source", () => {
+			const { bus, recorder } = withSource();
+			bus.on("name/changed", () => {});
+
+			bus.emit("name/changed", "Eva");
+
+			const run = recorder.events.find((event) => event.effect === "run");
+			expect(run?.type).toBe("name/changed");
+			expect(run?.source).toMatch(/plugin\.test\.ts:\d+:\d+$/);
+		});
+
+		it("is the line of bus.once", () => {
+			const { bus, recorder } = withSource();
+			bus.once("name/changed", function once() {});
+
+			bus.emit("name/changed", "Eva");
+			bus.emit("name/changed", "Eva");
+
+			const runs = recorder.events.filter(
+				(event) => event.effect === "run" && event.phase === "done",
+			);
+			expect(runs).toHaveLength(1);
+			expect(runs[0]?.source).toMatch(/plugin\.test\.ts:\d+:\d+$/);
+		});
+
+		it("is not recorded by default, and no stack is read", () => {
+			const { bus, recorder } = setup();
+			const stack = vi.spyOn(Error, "captureStackTrace");
+			function saveName() {}
+			bus.on("name/changed", saveName);
+
+			bus.emit("name/changed", "Eva");
+
+			expect(sourcesOf(recorder).every((source) => source === void 0)).toBe(
+				true,
+			);
+			expect(stack).not.toHaveBeenCalled();
+			stack.mockRestore();
+		});
+
+		it("records the source of a listener on an action creator", () => {
+			const recorder = createTraceRecorder();
+			const bus = createBus({ trace: createTracer(recorder) });
+			bus.use(tracePlugin({ source: true }));
+			const rename = createAction<string>("user/rename");
+			const seen: string[] = [];
+			bus.on(rename, (name) => {
+				seen.push(name);
+			});
+
+			bus.emit(rename("Eva"));
+
+			const run = recorder.events.find((event) => event.effect === "run");
+			expect(seen).toEqual(["Eva"]);
+			expect(run?.type).toBe("user/rename");
+			expect(run?.source).toMatch(/plugin\.test\.ts:\d+:\d+$/);
+		});
+
+		it("runs a handler with the same payload and result when the stack is missing", () => {
+			const { bus } = withSource();
+			const limit = Error.stackTraceLimit;
+			Error.stackTraceLimit = 0;
+			const handler = vi.fn();
+			try {
+				bus.on("name/changed", handler);
+			} finally {
+				Error.stackTraceLimit = limit;
+			}
+
+			bus.emit("name/changed", "Eva");
+
+			expect(handler).toHaveBeenCalledTimes(1);
+			expect(handler.mock.calls[0]?.[0]).toBe("Eva");
+		});
+
+		it("is ignored on a bus without a tracer", () => {
+			const bus = createBus<Events>();
+			const { on } = bus;
+			bus.use(tracePlugin({ source: true }));
+
+			expect(bus.on).toBe(on);
+		});
+
+		it("is listed by describeBus only when asked", () => {
+			const { bus } = withSource();
+			function saveName() {}
+			bus.on("name/changed", saveName);
+
+			expect(describeBus(bus)).toEqual({ "name/changed": ["saveName"] });
+			expect(describeBus(bus, { source: true })["name/changed"]?.[0]).toMatch(
+				/^saveName \(.*plugin\.test\.ts:\d+:\d+\)$/,
+			);
 		});
 	});
 

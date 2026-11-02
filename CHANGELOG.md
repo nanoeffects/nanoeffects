@@ -2,6 +2,16 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
+## Unreleased
+
+### Changed
+- With `tracePlugin`, a listener that has a function name is named by it in the trace, so a log is readable without `traceId`. An inline arrow stays as it was, and `traceId` wins over the name. [Docs](docs/tracing.md#name-a-listener)
+
+### Added
+- `tracePlugin({ source: true })` records where each listener was registered (`file:line:column`) and puts it on the events of that listener, also for an anonymous one. `consoleLogger({ source: true })` and `describeBus(bus, { source: true })` show it. It is the line of your call also through `matchPlugin`, `signalPlugin`, `devPlugin`, a module's `m.on` and `extendBus`, in any order of plugins and in a bundle. Off by default. [Docs](docs/tracing.md#find-the-line-of-a-listener)
+- `describeBus(bus)` in `nanoeffects/trace` lists the listeners of each event by name, before anything runs. [Docs](docs/tracing.md#list-who-listens)
+- A page that compares debugging with RxJS, Effector and mitt. [Docs](docs/debugging-compared.md)
+
 ## 0.31.2
 
 ### Fixed

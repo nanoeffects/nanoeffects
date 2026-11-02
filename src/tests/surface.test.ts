@@ -98,6 +98,7 @@ const typeExports: Record<string, string[]> = {
 	oop: ["BusMethods", "Extended", "MethodDecorator"],
 	trace: [
 		"ConsoleLoggerOptions",
+		"DescribeBusOptions",
 		"EffectName",
 		"ExportOptions",
 		"Finding",
@@ -120,6 +121,7 @@ const typeExports: Record<string, string[]> = {
 		"Trace",
 		"TraceEvent",
 		"TraceLogger",
+		"TracePluginOptions",
 		"Tracer",
 		"TracerOptions",
 	],

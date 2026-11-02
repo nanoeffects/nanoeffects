@@ -8,7 +8,7 @@ import type {
 	UnsubscribeCallback,
 } from "../core/types";
 import type { Scoped, ScopeSlots } from "../scope/types";
-import { onAbort, report } from "../utils";
+import { onAbort, report, withCaller } from "../utils";
 import { actionsPlugin, type Binding, type LooseHandler } from "./handled";
 import { holdListeners } from "./hold";
 import { mountEach } from "./mount-each";
@@ -134,7 +134,9 @@ const listenWith = <E extends EventMap>(
 	return (...args: unknown[]) => {
 		// the options (`{ traceId }` of `tracePlugin`) go on to `on`
 		const [event, fn, ...rest] = args;
-		return Reflect.apply(taskOn, null, [event, within(fn), ...rest]);
+		return withCaller(() =>
+			Reflect.apply(taskOn, null, [event, within(fn), ...rest]),
+		);
 	};
 };
 

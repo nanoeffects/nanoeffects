@@ -474,6 +474,28 @@ describe("createTracer: the task method of a logger", () => {
 		expect(seen[0]?.ref).toBe(seen[1]?.ref);
 	});
 
+	it("carries the source of a rename to the info and to the events", () => {
+		const { logger, seen } = watched();
+		const recorder = createTraceRecorder();
+		const tracer = createTracer([logger, recorder]);
+		const ref = tracer.task({ type: "total/changed" });
+		tracer.rename?.(ref, "syncCart", "src/cart.ts:4:2");
+		tracer.report(ref, "run", "start");
+
+		expect(seen[0]?.source).toBeUndefined();
+		expect(seen[1]?.source).toBe("src/cart.ts:4:2");
+		expect(recorder.events[0]?.source).toBe("src/cart.ts:4:2");
+	});
+
+	it("keeps a rename without a source as it was", () => {
+		const { logger, seen } = watched();
+		const tracer = createTracer(logger);
+		const ref = tracer.task({ type: "total/changed" });
+		tracer.rename?.(ref, "syncCart");
+
+		expect("source" in (seen[1] ?? {})).toBe(false);
+	});
+
 	it("marks the emit leaf", () => {
 		const { logger, seen } = watched();
 		const tracer = createTracer(logger);

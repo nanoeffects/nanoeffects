@@ -22,11 +22,12 @@ export {
 	safeSerialize,
 } from "../graph/serialize";
 export { type ConsoleLoggerOptions, consoleLogger } from "./console";
+export { type DescribeBusOptions, describeBus } from "./describe";
 export {
 	type PerformanceLoggerOptions,
 	performanceLogger,
 } from "./performance";
-export { tracePlugin } from "./plugin";
+export { type TracePluginOptions, tracePlugin } from "./plugin";
 export { createTraceRecorder, type Recorder } from "./recorder";
 export {
 	type PayloadMode,

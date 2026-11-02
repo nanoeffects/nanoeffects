@@ -48,6 +48,8 @@ type Ref = {
 	payload: unknown;
 	sampled: boolean;
 	group?: string | undefined;
+	// where a listener was registered, when `tracePlugin` was asked to record it
+	source?: string | undefined;
 	// the id of the root task of the chain: its own, or its parent’s
 	root: number;
 };
@@ -110,6 +112,9 @@ export const createTracer = <E = Record<string, unknown>>(
 		if (ref.group !== void 0) {
 			info.traceGroupId = ref.group;
 		}
+		if (ref.source !== void 0) {
+			info.source = ref.source;
+		}
 		for (const watch of watchers) {
 			try {
 				watch(info);
@@ -148,9 +153,12 @@ export const createTracer = <E = Record<string, unknown>>(
 			return ref;
 		},
 
-		rename: (ref, type) => {
+		rename: (ref, type, source) => {
 			ref.event ??= ref.type;
 			ref.type = type;
+			if (source !== void 0) {
+				ref.source = source;
+			}
 			if (watchers.length > 0 && ref.sampled) {
 				announce(ref);
 			}
@@ -176,6 +184,9 @@ export const createTracer = <E = Record<string, unknown>>(
 			}
 			if (ref.group !== void 0) {
 				event.traceGroupId = ref.group;
+			}
+			if (ref.source !== void 0) {
+				event.source = ref.source;
 			}
 			if (phase === "error") {
 				event.error = error;

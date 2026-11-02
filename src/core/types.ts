@@ -52,6 +52,8 @@ export type TraceEvent<E = Record<string, unknown>> = {
 		traceGroupId?: string;
 		/** The id of the root task of the chain; absent on the root itself. */
 		rootId?: number;
+		/** Where the listener of the task was registered (`file:line:column`); set only with `tracePlugin({ source: true })`. */
+		source?: string;
 	};
 }[Keys<E>];
 
@@ -87,6 +89,8 @@ export type TaskInfo = {
 	/** `false` for a task that `ctx.run` or an effect or a policy made inside a handler; `true` for the task of an emit. */
 	emitted?: boolean;
 	traceGroupId?: string;
+	/** Where the listener of the task was registered (`file:line:column`); set only with `tracePlugin({ source: true })`. */
+	source?: string;
 };
 
 /** One logger or several; a throwing logger never breaks the task or the others. */

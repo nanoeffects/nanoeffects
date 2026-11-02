@@ -5,6 +5,8 @@ export type ConsoleLoggerOptions = {
 	console?: Pick<Console, "debug" | "error">;
 	/** Prepended to every line. */
 	prefix?: string;
+	/** Append where the listener was registered, to the lines of events that have it. Default `false`. */
+	source?: boolean;
 };
 
 /**
@@ -23,6 +25,9 @@ export const consoleLogger = (
 ): TraceLogger => {
 	const out = options.console ?? globalThis.console;
 	const prefix = options.prefix ?? "[nanoeffects]";
+	const withSource = options.source === true;
+	const locationOf = (source: string | undefined) =>
+		withSource && source !== void 0 ? ` (${source})` : "";
 	const depths = new Map<number, number>();
 
 	return ({
@@ -34,6 +39,7 @@ export const consoleLogger = (
 		payload,
 		error,
 		traceGroupId,
+		source,
 	}) => {
 		if (!depths.has(id)) {
 			depths.set(
@@ -48,7 +54,8 @@ export const consoleLogger = (
 		}
 
 		const group = traceGroupId === void 0 ? "" : ` [${traceGroupId}]`;
-		const line = `${prefix}${group} ${indent}${type} · ${effect} ${phase}`;
+		const where = locationOf(source);
+		const line = `${prefix}${group} ${indent}${type} · ${effect} ${phase}${where}`;
 		if (phase === "error") {
 			out?.error(line, error);
 		} else {

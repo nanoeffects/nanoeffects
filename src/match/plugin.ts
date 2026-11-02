@@ -1,5 +1,6 @@
 import type { Action, Bus, EventPayload } from "../core/bus";
 import type { EventMap, Task, UnsubscribeCallback } from "../core/types";
+import { withCaller } from "../utils";
 
 /** A function over the action of an event: `{ type, payload }`. */
 type Predicate<E extends EventMap> = (action: Action<E>) => boolean;
@@ -150,10 +151,12 @@ export const matchPlugin =
 		return Object.assign(
 			bus,
 			apiOf<E>({
-				on: (first: unknown, handler: Handler, options?: unknown) =>
-					onWith(first, handler, false, options),
-				once: (first: unknown, handler: Handler, options?: unknown) =>
-					onWith(first, handler, true, options),
+				on: (first: unknown, handler: Handler, options?: unknown) => {
+					return withCaller(() => onWith(first, handler, false, options));
+				},
+				once: (first: unknown, handler: Handler, options?: unknown) => {
+					return withCaller(() => onWith(first, handler, true, options));
+				},
 				off: offWith,
 			}),
 		);

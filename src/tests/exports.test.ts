@@ -59,6 +59,7 @@ describe("public entries", () => {
 			"consoleLogger",
 			"createTraceRecorder",
 			"createTracer",
+			"describeBus",
 			"graphLogger",
 			"performanceLogger",
 			"reduxDevtools",

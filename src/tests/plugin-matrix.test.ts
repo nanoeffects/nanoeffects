@@ -24,6 +24,7 @@ import { sveltePlugin } from "../svelte";
 import {
 	createTraceRecorder,
 	createTracer,
+	describeBus,
 	type Recorder,
 	tracePlugin,
 } from "../trace";
@@ -112,6 +113,10 @@ const abortedWith = (ctx: { signal: AbortSignal }, ...before: unknown[]) =>
 const emitWith = (bus: Bus<EventMap>, call: unknown, options: unknown) =>
 	Reflect.apply(bus.emit, bus, [call, options]) as Promise<string>;
 
+// the place of a registration in this file: the line of the call, not a line of a wrapper
+const isHere = (source: unknown) =>
+	typeof source === "string" && /plugin-matrix\.test\.ts:\d+:\d+$/.test(source);
+
 const getValue = createAction<Call<void, number>>("probe/value");
 
 const make = (order: Name[]): Build => {
@@ -192,7 +197,7 @@ const make = (order: Name[]): Build => {
 				}),
 			);
 		} else if (name === "trace") {
-			build.bus.use(tracePlugin());
+			build.bus.use(tracePlugin({ source: true }));
 		} else if (name === "guard") {
 			build.bus.use(loopGuardPlugin({ maxRepeats: 5, report: () => {} }));
 		} else if (name === "react") {
@@ -420,6 +425,64 @@ const probes: Probe[] = [
 			return (
 				seen.length === 1 &&
 				recorder.events.some((event) => event.type === "probe-listener")
+			);
+		},
+	},
+	{
+		id: "a listener is named by its function, and describeBus lists it",
+		needs: ["trace"],
+		run: ({ bus, recorder }) => {
+			const seen: unknown[] = [];
+			function probeFunction(value: unknown) {
+				seen.push(value);
+			}
+			bus.on("p/function-name", probeFunction);
+			bus.emit("p/function-name", 1);
+
+			return (
+				seen.length === 1 &&
+				recorder.events.some((event) => event.type === "probeFunction") &&
+				describeBus(bus)["p/function-name"]?.join() === "probeFunction"
+			);
+		},
+	},
+	{
+		id: "a listener has the source of its registration, whichever plugin wrapped on",
+		needs: ["trace"],
+		run: ({ bus, recorder }) => {
+			bus.on("p/source", function probeSource() {});
+			bus.emit("p/source", 1);
+
+			return recorder.events.some(
+				(event) => event.type === "probeSource" && isHere(event.source),
+			);
+		},
+	},
+	{
+		id: "a listener of a module has the source of its m.on",
+		needs: ["trace", "modules"],
+		run: ({ bus, recorder }) => {
+			bus.emit("module/event");
+
+			return recorder.events.some(
+				(event) =>
+					event.effect === "run" &&
+					event.type === "module/event" &&
+					isHere(event.source),
+			);
+		},
+	},
+	{
+		id: "a listener of an instance made from the bus has the source of its on",
+		needs: ["trace"],
+		run: ({ bus, recorder }) => {
+			const Service = extendBus(bus, class {});
+			const service = new Service();
+			service.on("p/instance-source", function probeInstance() {});
+			bus.emit("p/instance-source", 1);
+
+			return recorder.events.some(
+				(event) => event.type === "probeInstance" && isHere(event.source),
 			);
 		},
 	},

@@ -36,10 +36,11 @@ export const traceTask = <E extends EventMap>(
 export const renameTask = <E extends EventMap>(
 	ctx: Context<E>,
 	type: string,
+	source?: string,
 ) => {
 	const meta = TRACE && metaOf.get(ctx);
 	if (meta) {
-		meta.tracer.rename?.(meta.ref, type);
+		meta.tracer.rename?.(meta.ref, type, source);
 	}
 };
 

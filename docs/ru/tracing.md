@@ -13,6 +13,8 @@
 - [Какая подписка начала цепочку](#какая-подписка-начала-цепочку)
 - [Один поток через traceGroupId](#один-поток-через-tracegroupid)
 - [Имя обработчика](#имя-обработчика)
+- [Список подписчиков события](#список-подписчиков-события)
+- [Строка кода обработчика](#строка-кода-обработчика)
 - [Сохранение цепочки: `ctx.emit` вместо `bus.emit`](#сохранение-цепочки-ctxemit-вместо-busemit)
 - [Отключение имён](#отключение-имён)
 - [Встроенные логгеры](#встроенные-логгеры)
@@ -186,7 +188,7 @@ const pay = createAction("checkout/pay", async () => {}, {
 
 **Когда.** У события больше одного обработчика, и вы читаете трассировку, чтобы увидеть, кто сделал работу.
 
-Дайте обработчику `traceId` при регистрации. Плагин делает каждый его вызов задачей с этим именем, а то, что он отправляет через `ctx.emit`, становится дочерним. `off` работает как раньше. Это работает и в модуле (`m.on(event, handler, { traceId })`), и на экземпляре, созданном через `extendBus`.
+Обработчик получает имя своей функции, если регистрируете именованную функцию (`function saveName() {}`), поэтому лог приложения, которое никто не размечал, уже читается. Стрелка без имени остаётся как есть. Чтобы выбрать имя или назвать стрелку, дайте обработчику `traceId` при регистрации: он главнее имени функции. Плагин делает каждый вызов именованного обработчика задачей с этим именем, а то, что он отправляет через `ctx.emit`, становится дочерним. Минификатор может сократить имена функций в production-сборке: используйте `traceId`, где имя должно быть стабильным, и для обработчика, который возвращает политика (`latest(fn)`): у него нет собственного имени. `off` работает как раньше. Это работает и в модуле (`m.on(event, handler, { traceId })`), и на экземпляре, созданном через `extendBus`.
 
 ```js
 import { createBus } from "nanoeffects";
@@ -208,6 +210,88 @@ bus.once("name/changed", (name) => console.log(name), { traceId: "auditLog" });
 [nanoeffects]   user/save · action start
 [nanoeffects] saveNotifier · run done
 ```
+
+## Список подписчиков события
+
+**Проблема.** Чтобы узнать, что запустит emit, приходится искать в коде каждый `bus.on` этого события.
+
+**Когда.** Вы читаете чужое приложение или тест должен охранять подключения шины.
+
+`describeBus(bus)` возвращает обработчики каждого события на данный момент: по именам и в порядке добавления. Имя — это `traceId`, иначе имя функции, иначе `"<anonymous>"`. Функция читает то, что хранит `tracePlugin`, поэтому на шине без плагина или без трассировщика, а также в сборке `notrace` она возвращает `{}`. Она ничего не запускает и не меняет шину.
+
+```js
+import { createBus } from "nanoeffects";
+import { consoleLogger, createTracer, describeBus, tracePlugin } from "nanoeffects/trace";
+
+function saveName(name) {
+  console.log("save", name);
+}
+
+function audit(name) {
+  console.log("audit", name);
+}
+
+const trace = createTracer(consoleLogger());
+
+const bus = createBus({ trace })
+  .use(tracePlugin());
+
+bus.on("name/changed", saveName);
+bus.on("name/changed", audit);
+bus.on("saved", () => {}, { traceId: "refreshView" });
+
+// describeBus: карта событий и имён обработчиков
+console.log(describeBus(bus));
+```
+
+```
+{ "name/changed": ["saveName", "audit"], saved: ["refreshView"] }
+```
+
+## Строка кода обработчика
+
+**Проблема.** Лог говорит, что выполнился `saveNotifier`, и приходится искать в коде `bus.on`, который его зарегистрировал. У стрелки без имени нет имени вообще, поэтому её нет и в логе.
+
+**Когда.** Вы отлаживаете в разработке и хотите перейти от строки лога к коду.
+
+Передайте `source: true` в `tracePlugin`. Он читает место каждого вызова `bus.on` и `bus.once` один раз, при регистрации, и никогда при `emit`. События обработчика получают `source` (`file:line:column`), `consoleLogger({ source: true })` печатает его, а `describeBus(bus, { source: true })` его перечисляет. Обработчик без имени тоже попадает в трассировку, под типом своего события.
+
+```js
+import { createBus } from "nanoeffects";
+import { consoleLogger, createTracer, describeBus, tracePlugin } from "nanoeffects/trace";
+
+// source: печатать, где зарегистрирован обработчик
+const trace = createTracer(consoleLogger({ source: true }));
+
+// source: читать место каждого bus.on один раз, при регистрации
+const bus = createBus({ trace })
+  .use(tracePlugin({ source: true }));
+
+function saveName(name) {
+  console.log("save", name);
+}
+
+bus.on("name/changed", saveName);
+bus.on("name/changed", (name) => console.log("audit", name));
+
+bus.emit("name/changed", "Eva");
+
+// describeBus: те же места, ничего не запуская
+console.log(describeBus(bus, { source: true }));
+```
+
+```
+[nanoeffects] saveName · run start (file:///app/src/user.js:13:5)
+[nanoeffects] name/changed · run start (file:///app/src/user.js:14:5)
+{ "name/changed": ["saveName (file:///app/src/user.js:13:5)", "<anonymous> (file:///app/src/user.js:14:5)"] }
+```
+
+Ограничения:
+
+- **Минифицированный или собранный код** даёт строку сборки. Включите source maps (`node --enable-source-maps` или source maps браузера), чтобы увидеть исходную строку.
+- **`ctx.on`, вызванный вручную** внутри обработчика, показывает строку в библиотеке. `on` модуля и экземпляра, созданного через `extendBus`, а также `on` у `matchPlugin`, `signalPlugin` и `devPlugin` показывают вашу строку при любом порядке плагинов и в бандле.
+- **Нет стека**, например при `Error.stackTraceLimit = 0`: `source` не ставится, обработчик работает как обычно.
+- **По умолчанию выключено.** Чтение стека стоит немного на каждую регистрацию, поэтому включайте его в разработке.
 
 ## Сохранение цепочки: `ctx.emit` вместо `bus.emit`
 

@@ -75,6 +75,26 @@ describe("consoleLogger", () => {
 		expect(out.debug).toHaveBeenCalledWith("> search · latest start", "q");
 	});
 
+	it("appends the source only when asked and when the event has one", () => {
+		const out = { debug: vi.fn(), error: vi.fn() };
+		const withSource = consoleLogger({
+			console: out,
+			prefix: ">",
+			source: true,
+		});
+		const without = consoleLogger({ console: out, prefix: ">" });
+
+		withSource(event({ source: "src/a.ts:1:2" }));
+		withSource(event());
+		without(event({ source: "src/a.ts:1:2" }));
+
+		expect(out.debug.mock.calls.map((call) => call[0])).toEqual([
+			"> search · latest start (src/a.ts:1:2)",
+			"> search · latest start",
+			"> search · latest start",
+		]);
+	});
+
 	it("prints errors with console.error and the cause", () => {
 		const { out, log } = setup();
 		const error = new Error("boom");

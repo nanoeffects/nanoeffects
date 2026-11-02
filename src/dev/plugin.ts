@@ -5,6 +5,7 @@ import { emitAfterAbort } from "../core/emit-key";
 import { eventKey } from "../core/event";
 import { recordSite } from "../core/site";
 import type { EventMap } from "../core/types";
+import { withCaller } from "../utils";
 import { trackRequests } from "./requests";
 import type { DevPlugin, LostSignal, LostSignalsOptions } from "./types";
 
@@ -125,7 +126,9 @@ const watchListeners = <E extends EventMap>(
 			);
 		}
 
-		const off: () => void = Reflect.apply(original, bus, args);
+		const off: () => void = withCaller(() =>
+			Reflect.apply(original, bus, args),
+		);
 		const forgetSite = siteOfListener(args);
 		let removed = false;
 

@@ -232,7 +232,7 @@
 		{
 			"name": "actions (all)",
 			"path": "dist/actions.js",
-			"limit": "3.31 kB"
+			"limit": "3.4 kB"
 		},
 		{
 			"name": "match (plugin)",
@@ -263,7 +263,7 @@
 		{
 			"name": "oop (class entry)",
 			"path": "dist/oop.js",
-			"limit": "2.6 kB"
+			"limit": "2.62 kB"
 		},
 		{
 			"name": "scope (plugin and effect)",

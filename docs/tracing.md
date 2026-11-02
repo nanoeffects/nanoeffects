@@ -13,6 +13,8 @@ Tracing is optional. A bus works the same without it, and it costs almost nothin
 - [Show which subscription began a chain](#show-which-subscription-began-a-chain)
 - [Follow one flow with a traceGroupId](#follow-one-flow-with-a-tracegroupid)
 - [Name a listener](#name-a-listener)
+- [List who listens](#list-who-listens)
+- [Find the line of a listener](#find-the-line-of-a-listener)
 - [Keep the chain: `ctx.emit`, not `bus.emit`](#keep-the-chain-ctxemit-not-busemit)
 - [Turn the names off](#turn-the-names-off)
 - [Use built-in loggers](#use-built-in-loggers)
@@ -186,7 +188,7 @@ The emitters take it too: `useEmitter(cartChanged, cart, { traceId: "Cart", trac
 
 **When.** An event has more than one listener and you read the trace to see which one did the work.
 
-Give the listener a `traceId` when you register it. The plugin makes each call of it a task with that name, and what it emits with `ctx.emit` is below it. `off` works as before. It also works in a module (`m.on(event, handler, { traceId })`) and on an instance made by `extendBus`.
+A listener is named by its function when you register one with a name (`function saveName() {}`), so a log of an app that nobody annotated is already readable. An inline arrow has no name and stays as it is. To choose the name, or to name an arrow, give the listener a `traceId` when you register it; it wins over the function name. The plugin makes each call of a named listener a task with that name, and what it emits with `ctx.emit` is below it. A minifier can shorten function names in a production build: use `traceId` where a name must stay stable, and for a handler that a policy returns (`latest(fn)`), which has no name of its own. `off` works as before. It also works in a module (`m.on(event, handler, { traceId })`) and on an instance made by `extendBus`.
 
 ```js
 import { createBus } from "nanoeffects";
@@ -208,6 +210,88 @@ bus.once("name/changed", (name) => console.log(name), { traceId: "auditLog" });
 [nanoeffects]   user/save · action start
 [nanoeffects] saveNotifier · run done
 ```
+
+## List who listens
+
+**Problem.** To know what an emit will start, you search the code for every `bus.on` of that event.
+
+**When.** You read an app that you did not write, or a test must guard the wiring of the bus.
+
+`describeBus(bus)` returns the listeners that each event has right now, by name and in the order they were added. A name is the `traceId`, else the function name, else `"<anonymous>"`. It reads what `tracePlugin` keeps, so it returns `{}` on a bus without the plugin or a tracer, and in the `notrace` build. It does not run anything and does not change the bus.
+
+```js
+import { createBus } from "nanoeffects";
+import { consoleLogger, createTracer, describeBus, tracePlugin } from "nanoeffects/trace";
+
+function saveName(name) {
+  console.log("save", name);
+}
+
+function audit(name) {
+  console.log("audit", name);
+}
+
+const trace = createTracer(consoleLogger());
+
+const bus = createBus({ trace })
+  .use(tracePlugin());
+
+bus.on("name/changed", saveName);
+bus.on("name/changed", audit);
+bus.on("saved", () => {}, { traceId: "refreshView" });
+
+// describeBus: the map of events to listener names
+console.log(describeBus(bus));
+```
+
+```
+{ "name/changed": ["saveName", "audit"], saved: ["refreshView"] }
+```
+
+## Find the line of a listener
+
+**Problem.** The log says that `saveNotifier` ran, and you must search the code for the `bus.on` that registered it. An inline arrow has no name at all, so it is not in the log.
+
+**When.** You debug in development and want to jump from a log line to the code.
+
+Pass `source: true` to `tracePlugin`. It reads the place of each `bus.on` and `bus.once` call once, when the listener is registered, and never on `emit`. The events of the listener get a `source` (`file:line:column`), `consoleLogger({ source: true })` prints it, and `describeBus(bus, { source: true })` lists it. An anonymous listener is reported too, under the type of its event.
+
+```js
+import { createBus } from "nanoeffects";
+import { consoleLogger, createTracer, describeBus, tracePlugin } from "nanoeffects/trace";
+
+// source: print where the listener was registered
+const trace = createTracer(consoleLogger({ source: true }));
+
+// source: read the place of each bus.on, once at registration
+const bus = createBus({ trace })
+  .use(tracePlugin({ source: true }));
+
+function saveName(name) {
+  console.log("save", name);
+}
+
+bus.on("name/changed", saveName);
+bus.on("name/changed", (name) => console.log("audit", name));
+
+bus.emit("name/changed", "Eva");
+
+// describeBus: the same places, without running anything
+console.log(describeBus(bus, { source: true }));
+```
+
+```
+[nanoeffects] saveName · run start (file:///app/src/user.js:13:5)
+[nanoeffects] name/changed · run start (file:///app/src/user.js:14:5)
+{ "name/changed": ["saveName (file:///app/src/user.js:13:5)", "<anonymous> (file:///app/src/user.js:14:5)"] }
+```
+
+Know the limits:
+
+- **Minified or bundled code** gives the line of the bundle. Turn on source maps (`node --enable-source-maps`, or the browser's) to see the original line.
+- **`ctx.on` called by hand** inside a handler shows the line in the library as its place. The `on` of a module and of an instance made by `extendBus`, and the `on` of `matchPlugin`, `signalPlugin` and `devPlugin`, show your line, in any order of plugins and in a bundle.
+- **No stack**, as with `Error.stackTraceLimit = 0`, gives no `source`. The listener runs as usual.
+- **The default is off.** Reading a stack costs a little for each registration, so turn it on in development.
 
 ## Keep the chain: `ctx.emit`, not `bus.emit`
 

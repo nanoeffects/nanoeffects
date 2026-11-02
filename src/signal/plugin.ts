@@ -11,7 +11,7 @@ import type {
 	ListenerOptions,
 	UnsubscribeCallback,
 } from "../core/types";
-import { isPromise, onAbort } from "../utils";
+import { isPromise, onAbort, withCaller } from "../utils";
 
 /** What the second argument of `emit` takes besides the fields of a scope. */
 export type SignalOption = {
@@ -42,9 +42,8 @@ type Subscriber = (
 ) => UnsubscribeCallback;
 
 // `on` or `once` that also takes `{ signal }`: the listener goes when the signal aborts
-const removedBy =
-	(subscribe: Subscriber, single: boolean): Subscriber =>
-	(event, handler, options) => {
+const removedBy = (subscribe: Subscriber, single: boolean): Subscriber => {
+	const register: Subscriber = (event, handler, options) => {
 		const signal = options?.signal;
 		if (!signal) {
 			return subscribe(event, handler, options);
@@ -66,6 +65,11 @@ const removedBy =
 			unbind();
 		};
 	};
+
+	return (event, handler, options) => {
+		return withCaller(() => register(event, handler, options));
+	};
+};
 
 // the contexts that one emit made, to abort together
 type Linked = { target: object }[];

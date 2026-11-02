@@ -1,5 +1,6 @@
 import { type Bus, createBus } from "../core/bus";
 import type { EventMap } from "../core/types";
+import { withCaller } from "../utils";
 import { decoratedOf } from "./registry";
 import { disposeBus, subscribe, unsubscribe } from "./subscriptions";
 import type { Constructor, Extended } from "./types";
@@ -56,8 +57,12 @@ const methodsOf = (instance: object, bus: object) => {
 		return known;
 	}
 	const made = {
-		on: (...args: unknown[]) => subscribe(instance, bus, "on", args),
-		once: (...args: unknown[]) => subscribe(instance, bus, "once", args),
+		on: (...args: unknown[]) => {
+			return withCaller(() => subscribe(instance, bus, "on", args));
+		},
+		once: (...args: unknown[]) => {
+			return withCaller(() => subscribe(instance, bus, "once", args));
+		},
 		off: (...args: unknown[]) => unsubscribe(instance, bus, args),
 	};
 	bound.set(instance, made);

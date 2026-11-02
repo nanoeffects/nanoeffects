@@ -1,5 +1,6 @@
 import type { Bus } from "../core/bus";
 import type { EventMap } from "../core/types";
+import { callerStack, withCaller } from "../utils";
 
 // any function of the bus: its calls go through `Reflect.apply`, so the parameters need no type
 type Method = (...args: never[]) => unknown;
@@ -8,6 +9,8 @@ type Method = (...args: never[]) => unknown;
 type Held = {
 	kind: "on" | "once" | "off";
 	args: unknown[];
+	// where the user made the call, for `tracePlugin({ source: true })`; the replay gives it back
+	stack?: string | undefined;
 	dropped: boolean;
 	// the unsubscribe function of the real subscription, once it is made
 	live?: (() => void) | undefined;
@@ -65,7 +68,7 @@ export const holdListeners = <E extends EventMap>(bus: Bus<E>) => {
 			if (!holding) {
 				return call(method, args);
 			}
-			const entry: Held = { kind, args, dropped: false };
+			const entry: Held = { kind, args, stack: callerStack(), dropped: false };
 			queue.push(entry);
 
 			return () => {
@@ -123,7 +126,10 @@ export const holdListeners = <E extends EventMap>(bus: Bus<E>) => {
 					call(original.off, entry.args);
 				} else {
 					const method = entry.kind === "on" ? original.on : original.once;
-					entry.live = call(method, entry.args) as () => void;
+					entry.live = withCaller(
+						() => call(method, entry.args),
+						entry.stack,
+					) as () => void;
 				}
 			}
 		},

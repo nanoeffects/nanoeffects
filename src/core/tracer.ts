@@ -23,8 +23,8 @@ export interface Tracer<Ref extends object = object> {
 		},
 		parent?: Ref,
 	): Ref;
-	/** Gives the task another `type`, for a task that is named after it was made (a named listener). A tracer may leave it out. */
-	rename?(ref: Ref, type: string): void;
+	/** Gives the task another `type`, for a task that is named after it was made (a named listener); `source` is where the listener was registered. A tracer may leave it out. */
+	rename?(ref: Ref, type: string, source?: string): void;
 	/** Reports a phase of a task. */
 	report(ref: Ref, effect: EffectName, phase: Phase, error?: unknown): void;
 	/** Returns `settle(phase, error?)` that reports only the first phase it gets. */
