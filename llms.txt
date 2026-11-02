@@ -62,7 +62,7 @@ Rules that generated code often gets wrong:
 - [Keep the signal through a handler](docs/pass-the-signal.md): every way a policy handler loses `ctx.signal`, and the lint rules and `devPlugin` check that find it
 - [Test time with diagrams](docs/testing.md): `createMarbleBus` and `fakeTimersClock`; emits and phases as diagrams on fake timers
 - [Trace tasks](docs/tracing.md): loggers, Redux DevTools, `graphLogger`, the `notrace` build
-- [Debugging compared with RxJS, Effector and mitt](docs/debugging-compared.md): what you can see in each, and three debugging cases
+- [Debugging cases](docs/debugging-cases.md): who listens to an event, what began a chain, why a request stopped
 - [Find and cut event loops](docs/debugging-loops.md): symptoms, `graphLogger`, the graph as Mermaid, Graphviz or JSON, Redux DevTools
 - [Cut a loop with loopGuardPlugin](docs/loop-guard.md): limits on repeats, depth and emits from outside
 - [Turn events into Observables](docs/observable.md): `createObserve`, `Subject`, `events` (an event as a `for await` loop)
