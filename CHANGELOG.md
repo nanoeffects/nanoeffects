@@ -2,7 +2,7 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
-## Unreleased
+## 0.33.0
 
 ### Changed
 - With `tracePlugin({ source: true })`, an inline listener with no name is named `event#1`, `event#2`, ... instead of `event`, so two of them on one event are two nodes in a graph; the place stays in `source`. Old saved graphs do not merge with new ones for these nodes; give a `traceId` to keep a name. [Docs](docs/tracing.md#find-the-line-of-a-listener)
