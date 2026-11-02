@@ -128,22 +128,22 @@ export const tracePlugin =
 			wantCaller();
 		}
 
-		// the name the task shows: given, else (to hold a source) the event the listener handles
-		const shownName = (name: string | undefined, key: unknown) => {
-			if (name !== void 0 || !withSource) {
-				return name;
-			}
+		// how many unnamed listeners each event got; a number is not used twice
+		const numbered = new Map<unknown, number>();
 
-			return typeof key === "string" ? key : void 0;
-		};
-
-		// what the bus holds: the listener, named when it has a name, and leaving the list when it runs once
+		// what the bus holds: the listener, named when it has a name, and leaving the list when it runs once.
+		// With a source an unnamed listener is the event and its number, so two inline ones are two nodes
 		const wrapperOf = (entry: Entry, key: unknown, once: boolean) => {
-			const shown = shownName(entry.name, key);
+			let shown = entry.name;
+			if (!shown && withSource && typeof key === "string") {
+				const next = (numbered.get(key) ?? 0) + 1;
+				numbered.set(key, next);
+				shown = `${key}#${next}`;
+			}
 			const run =
-				typeof shown === "string"
-					? named(entry.handler, shown, entry.source)
-					: entry.handler;
+				shown === void 0
+					? entry.handler
+					: named(entry.handler, shown, entry.source);
 			if (!once) {
 				return run;
 			}
@@ -189,15 +189,13 @@ export const tracePlugin =
 				listeners.clear();
 			} else if (fn === void 0) {
 				listeners.delete(keyOf(event));
-			} else {
-				const entry = lastOf(listeners, keyOf(event), fn);
-				if (entry) {
-					drop(listeners, keyOf(event), entry);
-				}
-				off(event, entry?.wrapper ?? fn);
-				return;
 			}
-			off(event, fn);
+			const entry =
+				event !== void 0 && fn && lastOf(listeners, keyOf(event), fn);
+			if (entry) {
+				drop(listeners, keyOf(event), entry);
+			}
+			off(event, entry ? entry.wrapper : fn);
 		};
 
 		const on = bus.on as Subscribe;

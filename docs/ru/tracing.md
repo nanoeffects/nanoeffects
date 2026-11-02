@@ -257,7 +257,7 @@ console.log(describeBus(bus));
 
 **Когда.** Вы отлаживаете в разработке и хотите перейти от строки лога к коду.
 
-Передайте `source: true` в `tracePlugin`. Он читает место каждого вызова `bus.on` и `bus.once` один раз, при регистрации, и никогда при `emit`. События обработчика получают `source` (`file:line:column`), `consoleLogger({ source: true })` печатает его, а `describeBus(bus, { source: true })` его перечисляет. Обработчик без имени тоже попадает в трассировку, под типом своего события.
+Передайте `source: true` в `tracePlugin`. Он читает место каждого вызова `bus.on` и `bus.once` один раз, при регистрации, и никогда при `emit`. События обработчика получают `source` (`file:line:column`), `consoleLogger({ source: true })` печатает его, а `describeBus(bus, { source: true })` его перечисляет. Обработчик без имени тоже попадает в трассировку, под типом своего события и номером: `name/changed#1`, `name/changed#2`, в порядке регистрации. Два встроенных обработчика одного события — это две записи, а место остаётся в `source`. Добавление или перестановка вызовов `bus.on` меняет номера, поэтому дайте `traceId` обработчику, чьё имя должно остаться прежним между сборками.
 
 ```js
 import { createBus } from "nanoeffects";
@@ -285,7 +285,7 @@ console.log(describeBus(bus, { source: true }));
 
 ```
 [nanoeffects] saveName · run start (file:///app/src/user.js:13:5)
-[nanoeffects] name/changed · run start (file:///app/src/user.js:14:5)
+[nanoeffects] name/changed#1 · run start (file:///app/src/user.js:14:5)
 { "name/changed": ["saveName (file:///app/src/user.js:13:5)", "<anonymous> (file:///app/src/user.js:14:5)"] }
 ```
 

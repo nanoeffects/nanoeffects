@@ -208,3 +208,19 @@ describe("graphLogger: where a listener was made", () => {
 		).toBeUndefined();
 	});
 });
+
+describe("anonymous listeners with source", () => {
+	it("are two nodes when they listen to one event", () => {
+		const graph = graphLogger({ console: { warn: vi.fn() } });
+		const bus = createBus<Events>({ trace: createTracer(graph) });
+		bus.use(tracePlugin({ source: true }));
+		bus.on("cart/added", () => {});
+		bus.on("cart/added", () => {});
+
+		bus.emit("cart/added", 1);
+
+		const names = graph.toJSON().nodes.map((node) => node.name);
+		expect(names).toContain("cart/added#1");
+		expect(names).toContain("cart/added#2");
+	});
+});

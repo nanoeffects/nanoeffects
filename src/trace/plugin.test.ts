@@ -519,15 +519,72 @@ describe("tracePlugin", () => {
 			);
 		});
 
-		it("reports an anonymous listener under its event, with a source", () => {
+		it("names an anonymous listener by its event and a number", () => {
 			const { bus, recorder } = withSource();
 			bus.on("name/changed", () => {});
 
 			bus.emit("name/changed", "Eva");
 
 			const run = recorder.events.find((event) => event.effect === "run");
-			expect(run?.type).toBe("name/changed");
 			expect(run?.source).toMatch(/plugin\.test\.ts:\d+:\d+$/);
+			expect(run?.type).toBe("name/changed#1");
+		});
+
+		it("makes two anonymous listeners on one event two tasks", () => {
+			const { bus, recorder } = withSource();
+			bus.on("name/changed", () => {});
+			bus.on("name/changed", () => {});
+
+			bus.emit("name/changed", "Eva");
+
+			const types = recorder.events
+				.filter((event) => event.effect === "run" && event.phase === "start")
+				.map((event) => event.type);
+			expect(types).toEqual(["name/changed#1", "name/changed#2"]);
+		});
+
+		it("does not use a number again after its listener is removed", () => {
+			const { bus, recorder } = withSource();
+			const off = bus.on("name/changed", () => {});
+			off();
+			bus.on("name/changed", () => {});
+
+			bus.emit("name/changed", "Eva");
+
+			const run = recorder.events.find((event) => event.effect === "run");
+			expect(run?.type).toBe("name/changed#2");
+		});
+
+		it("keeps the name of a function and a traceId, and adds the source", () => {
+			const { bus, recorder } = withSource();
+			function saveName() {}
+			bus.on("name/changed", saveName);
+			bus.on("name/changed", () => {}, { traceId: "saveNotifier" });
+
+			bus.emit("name/changed", "Eva");
+
+			const runs = recorder.events.filter(
+				(event) => event.effect === "run" && event.phase === "start",
+			);
+			expect(runs.map((event) => event.type)).toEqual([
+				"saveName",
+				"saveNotifier",
+			]);
+			expect(runs.every((event) => event.source !== void 0)).toBe(true);
+		});
+
+		it("numbers it also when the stack gives no place", () => {
+			const limit = Error.stackTraceLimit;
+			Error.stackTraceLimit = 0;
+			const { bus, recorder } = withSource();
+			bus.on("name/changed", () => {});
+			Error.stackTraceLimit = limit;
+
+			bus.emit("name/changed", "Eva");
+
+			const run = recorder.events.find((event) => event.effect === "run");
+			expect(run?.type).toBe("name/changed#1");
+			expect(run?.source).toBeUndefined();
 		});
 
 		it("is the line of bus.once", () => {
@@ -573,7 +630,7 @@ describe("tracePlugin", () => {
 
 			const run = recorder.events.find((event) => event.effect === "run");
 			expect(seen).toEqual(["Eva"]);
-			expect(run?.type).toBe("user/rename");
+			expect(run?.type).toBe("user/rename#1");
 			expect(run?.source).toMatch(/plugin\.test\.ts:\d+:\d+$/);
 		});
 

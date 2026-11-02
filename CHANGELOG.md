@@ -4,6 +4,9 @@ How to read an entry: **Breaking** needs a change in your code or setup, **Chang
 
 ## Unreleased
 
+### Changed
+- With `tracePlugin({ source: true })`, an inline listener with no name is named `event#1`, `event#2`, ... instead of `event`, so two of them on one event are two nodes in a graph; the place stays in `source`. Old saved graphs do not merge with new ones for these nodes; give a `traceId` to keep a name. [Docs](docs/tracing.md#find-the-line-of-a-listener)
+
 ### Added
 - `mergeGraphs(...snapshots)` joins the graphs of several runs (tests, e2e) into one, and `findOrphans(describeBus(bus), graph)` lists the listeners that no run reached. [Docs](docs/debugging-loops.md#find-listeners-that-never-ran)
 - `timingLogger()` in `nanoeffects/trace` measures time: `durations` lists the tasks that ended with how long they took, `pending()` lists the tasks that started and have not ended. [Docs](docs/tracing.md#measure-time-and-find-open-tasks)

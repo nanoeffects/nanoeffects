@@ -467,7 +467,7 @@ const probes: Probe[] = [
 			return recorder.events.some(
 				(event) =>
 					event.effect === "run" &&
-					event.type === "module/event" &&
+					event.type.startsWith("module/event#") &&
 					isHere(event.source),
 			);
 		},

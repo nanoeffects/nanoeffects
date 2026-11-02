@@ -257,7 +257,7 @@ console.log(describeBus(bus));
 
 **When.** You debug in development and want to jump from a log line to the code.
 
-Pass `source: true` to `tracePlugin`. It reads the place of each `bus.on` and `bus.once` call once, when the listener is registered, and never on `emit`. The events of the listener get a `source` (`file:line:column`), `consoleLogger({ source: true })` prints it, and `describeBus(bus, { source: true })` lists it. An anonymous listener is reported too, under the type of its event.
+Pass `source: true` to `tracePlugin`. It reads the place of each `bus.on` and `bus.once` call once, when the listener is registered, and never on `emit`. The events of the listener get a `source` (`file:line:column`), `consoleLogger({ source: true })` prints it, and `describeBus(bus, { source: true })` lists it. An anonymous listener is reported too, under the type of its event and a number: `name/changed#1`, `name/changed#2`, in the order of registration. Two inline listeners on one event are two entries, and the place stays in `source`. Adding or reordering `bus.on` calls renumbers them, so give a `traceId` to a listener whose name must stay the same between builds.
 
 ```js
 import { createBus } from "nanoeffects";
@@ -285,7 +285,7 @@ console.log(describeBus(bus, { source: true }));
 
 ```
 [nanoeffects] saveName · run start (file:///app/src/user.js:13:5)
-[nanoeffects] name/changed · run start (file:///app/src/user.js:14:5)
+[nanoeffects] name/changed#1 · run start (file:///app/src/user.js:14:5)
 { "name/changed": ["saveName (file:///app/src/user.js:13:5)", "<anonymous> (file:///app/src/user.js:14:5)"] }
 ```
 
