@@ -48,7 +48,7 @@ Calling an action made with a handler (and so a job) with a payload SHALL return
 - **THEN** `onUnhandled` is called, nothing is run and no error is thrown
 
 ### Requirement: An action with a handler is accepted wherever a handler is bound
-An action creator that carries a handler SHALL be accepted by `bus.emit(creator, payload)`, `actions.handle(creator, fn)`, `setHandler(creator, fn)`, `module.use(creator)` and `module.handle(creator, fn)`, and a handler bound for it in the registry SHALL win over its own. It SHALL have `type` and `match`.
+An action creator that carries a handler SHALL be accepted by `bus.emit(creator, payload)`, `actions.handle(creator, fn)`, `module.use(creator)` and `module.handle(creator, fn)`, and a handler bound for it in the registry SHALL win over its own. It SHALL have `type` and `match`. `nanoeffects/actions` SHALL NOT export `setHandler`.
 
 #### Scenario: The registry overrides the handler
 - **WHEN** `actions.handle(double, () => 0)` is called on a bus and `bus.emit(double(21))` follows
@@ -111,7 +111,7 @@ A creator with `prepare` SHALL build its call from several arguments, `renamed("
 - **THEN** `bus.emit(sendMail(mail))` has the type `void`, calling it builds `{ type: "mail/send", payload: mail }`, and the payload is checked against `Mail`
 
 #### Scenario: A bound declared action runs
-- **WHEN** `bus.use(actionsPlugin([setHandler(sendMail, smtpSend)]))` is used and `bus.emit(sendMail(mail))` follows
+- **WHEN** `const actions = bus.use(actionsPlugin())`, `actions.handle(sendMail, smtpSend)` and `bus.emit(sendMail(mail))` follow in that order
 - **THEN** `smtpSend` runs and its result is returned
 
 #### Scenario: Nothing bound is an event

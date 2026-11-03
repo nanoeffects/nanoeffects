@@ -6,15 +6,19 @@ Say how the registry of command handlers is connected to a bus: it is attached t
 ## Requirements
 
 ### Requirement: The registry is attached to a bus
-`actionsPlugin(bindings?)` SHALL return a plugin, a function of a bus; `bus.use(actionsPlugin(bindings?))` SHALL create a registry of action handlers, set it as the actions of `bus` (`bus.actions`), and return it, with the events type taken from `bus`.
+`actionsPlugin()` SHALL return a plugin, a function of a bus; `bus.use(actionsPlugin())` SHALL create a registry of action handlers, set it as the actions of `bus` (`bus.actions`), and return it, with the events type taken from `bus`. `actionsPlugin` SHALL take no argument, and handlers SHALL be bound with `actions.handle`.
 
 #### Scenario: Handlers registered after the bus exists
 - **WHEN** `const actions = bus.use(actionsPlugin())` and `actions.handle(getUser, fn)` are called, and `bus.emit(getUser("1"))` follows
 - **THEN** `emit` runs `fn` and returns its result
 
 #### Scenario: Initial bindings
-- **WHEN** `bus.use(actionsPlugin([setHandler(sendMail, smtpSend)]))` is called
+- **WHEN** `const actions = bus.use(actionsPlugin())` and `actions.handle(sendMail, smtpSend)` are called
 - **THEN** `bus.emit(sendMail(mail))` runs `smtpSend`
+
+#### Scenario: The old list is a type error
+- **WHEN** `actionsPlugin([["mail/send", smtpSend]])` is written
+- **THEN** it does not type-check
 
 ### Requirement: The constructor has no actions option
 `createBus` SHALL NOT take an `actions` option (nor the old `commands` one); the actions of a bus SHALL be set only through `bus.use(actionsPlugin())`, through the module plugin, or by assigning `bus.actions`.
@@ -50,22 +54,22 @@ A bus with no actions set SHALL run an action that carries a handler (including 
 - **THEN** a registry is attached, modules bind in it, and `app.actions` is it
 
 ### Requirement: A later actionsPlugin merges into the registry
-When the bus already has a registry made by `actionsPlugin` or by `modulePlugin`, `bus.use(actionsPlugin(bindings))` SHALL bind `bindings` in that registry and return that same registry; the handlers bound earlier SHALL keep running. An `actions` that is not such a registry (a custom runner `{ run }`) SHALL be replaced as before.
+When the bus already has a registry made by `actionsPlugin` or by `modulePlugin`, `bus.use(actionsPlugin())` SHALL return that same registry; the handlers bound earlier SHALL keep running. An `actions` that is not such a registry (a custom runner `{ run }`) SHALL be replaced as before.
 
 #### Scenario: Two uses share one registry
 - **WHEN** `bus.use(actionsPlugin())` is called twice and a handler was bound in the first
 - **THEN** both calls return the same registry and `emit` runs the handler of the first
 
 #### Scenario: After the module plugin
-- **WHEN** `bus.use(modulePlugin([userModule]))` and then `bus.use(actionsPlugin([binding]))` are called
-- **THEN** the handlers the module binds and `binding` both run, and `app.actions` is that registry
+- **WHEN** `bus.use(modulePlugin([userModule]))` and then `bus.use(actionsPlugin())` are called, and `actions.handle(action, fn)` is called on the result
+- **THEN** the handlers the module binds and `fn` both run, and `app.actions` is that registry
 
 #### Scenario: A custom runner is replaced
 - **WHEN** `bus.actions = { run }` is set and then `bus.use(actionsPlugin())` is called
 - **THEN** the bus runs the new registry
 
 ### Requirement: The registry binds a handler to any action
-A handler bound in the registry for the type of an action, by `actions.handle(action, fn)` or `setHandler(action, fn)`, SHALL run when that action is emitted and its result SHALL be returned, also when the action was made without a handler (`createAction("user/loaded")`), and when it is emitted as a plain `{ type, payload }` or by its type string. The listeners of the type SHALL be told first, as for any event.
+A handler bound in the registry for the type of an action, by `actions.handle(action, fn)`, SHALL run when that action is emitted and its result SHALL be returned, also when the action was made without a handler (`createAction("user/loaded")`), and when it is emitted as a plain `{ type, payload }` or by its type string. The listeners of the type SHALL be told first, as for any event. `actions.handle` SHALL take an action or a type string and a handler; it SHALL NOT take a list of pairs.
 
 #### Scenario: An action made without a handler gets one
 - **WHEN** `actions.handle(userLoaded, fn)` is called and `bus.emit(userLoaded(user))` follows
