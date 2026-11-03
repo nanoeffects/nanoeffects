@@ -6,6 +6,51 @@
 
 Нужны Vue 3.3 или новее и установленная `nanoeffects`. Не знакомы с шиной? Сначала прочитайте [Руководство](guide.md).
 
+Самый короткий вариант: поле поиска, которое показывает найденное обработчиком. Плагин для этого не нужен; разделы ниже добавляют помощник, который сокращает компонент.
+
+```js
+// search.js
+import { createBus } from "nanoeffects";
+import { latest } from "nanoeffects/policies";
+
+export const bus = createBus(); // шина, создаётся один раз
+
+// логика поиска вне компонента; latest прерывает предыдущий запрос
+bus.on(
+  "search",
+  latest(async (query, ctx) => {
+    const items = await api.search(query, { signal: ctx.signal });
+    ctx.emit("found", items);
+  }),
+);
+```
+
+Обработчик ничего не знает об UI, а компонент только отправляет `search` и слушает `found`.
+
+<!-- docs-check: skip - a .vue file -->
+```vue
+<script setup>
+import { onUnmounted, ref } from "vue";
+import { bus } from "./search";
+
+const items = ref([]);
+
+// on возвращает функцию отписки; при размонтировании вызываем её
+const unbind = bus.on("found", (found) => {
+  items.value = found;
+});
+onUnmounted(unbind);
+</script>
+
+<template>
+  <input @input="bus.emit('search', $event.target.value)" />
+  <ul>
+    <li v-for="item in items" :key="item.id">{{ item.title }}</li>
+  </ul>
+</template>
+```
+
+
 ## Плагин на шине
 
 **Проблема.** Без помощи компонент пишет `watch(query, (value) => bus.emit(queryChanged(value)))` и собственную подписку в `onMounted` и `onUnmounted`. Эти строки копируются в каждый компонент, и в каждой копии что-нибудь забыто: очистка, проверка равенства или имя подписки в трассировке.

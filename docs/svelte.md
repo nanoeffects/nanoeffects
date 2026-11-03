@@ -6,6 +6,47 @@ Use this page when your app is in Svelte 5 and a component has to show the resul
 
 You need Svelte 5 or newer and `nanoeffects` installed. If you do not know what the bus is, read the [Guide](guide.md) first.
 
+The shortest version: a search box that shows what the handler found. No plugin is needed for this; the sections below add a helper that shortens the component.
+
+```js
+// search.js
+import { createBus } from "nanoeffects";
+import { latest } from "nanoeffects/policies";
+
+export const bus = createBus(); // the bus, created once
+
+// the search logic, outside the component; latest aborts the previous request
+bus.on(
+  "search",
+  latest(async (query, ctx) => {
+    const items = await api.search(query, { signal: ctx.signal });
+    ctx.emit("found", items);
+  }),
+);
+```
+
+The handler knows nothing about the UI, and the component only sends `search` and listens to `found`.
+
+<!-- docs-check: skip - a .svelte file -->
+```svelte
+<script>
+  import { bus } from "./search";
+
+  let items = $state([]);
+
+  // on returns the unbind function; $effect calls it on cleanup
+  $effect(() => bus.on("found", (found) => (items = found)));
+</script>
+
+<input oninput={(event) => bus.emit("search", event.target.value)} />
+<ul>
+  {#each items as item (item.id)}
+    <li>{item.title}</li>
+  {/each}
+</ul>
+```
+
+
 ## Add the plugin to the bus
 
 **Problem.** A Svelte component reads a value with `$store`. An event of the bus is not a store, so without help the component writes its own `readable` and its own `bus.on`, and has to remember to stop listening. The same few lines are copied into every component.

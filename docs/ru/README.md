@@ -3,10 +3,11 @@
 nanoeffects выносит бизнес-логику и побочные эффекты из компонентов в обычные `async`-функции. Политики (`latest`, `debounce`, `queue`) и эффекты (`retry`, `timeout`, `poll`) решают гонки, повторы и отмену запросов.
 
 ```js
+// search.js
 import { createBus } from "nanoeffects";
 import { latest } from "nanoeffects/policies";
 
-const bus = createBus(); // шина событий
+export const bus = createBus(); // шина событий
 
 // Логика поиска живёт вне компонента; latest прерывает предыдущий запрос
 bus.on(
@@ -22,7 +23,33 @@ bus.on("found", (items) => render(items));
 bus.emit("search", "nano");
 ```
 
-Тот же пример с UI-фреймворком: [React](react.md), [Vue](vue.md), [Svelte](svelte.md). Готовые проекты: [Проект из шаблона](starter.md).
+В компоненте та же шина не требует лишнего кода. Пример на React; обработчик остаётся в `search.js`:
+
+```jsx
+// SearchBox.jsx
+import { useEffect, useState } from "react";
+import { bus } from "./search";
+
+export function SearchBox() {
+  const [items, setItems] = useState([]);
+
+  // on возвращает функцию отписки; если вернуть её из эффекта, подписка снимается при размонтировании
+  useEffect(() => bus.on("found", setItems), []);
+
+  return (
+    <>
+      <input onChange={(event) => bus.emit("search", event.target.value)} />
+      <ul>
+        {items.map((item) => (
+          <li key={item.id}>{item.title}</li>
+        ))}
+      </ul>
+    </>
+  );
+}
+```
+
+Тот же пример по шагам: [React](react.md), [Vue](vue.md), [Svelte](svelte.md). Готовые проекты: [Проект из шаблона](starter.md).
 
 ## Установка
 

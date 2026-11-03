@@ -8,6 +8,47 @@ Steps 1 and 2 are required, step 3 is not. The last two sections are extra.
 
 You need a React project and `nanoeffects` installed. The form talks to your own client, `api` below: replace it with your requests.
 
+The shortest version: a name field that asks the backend whether the name is free. The rest of the page builds a whole form from it.
+
+```js
+// username.js
+import { createBus } from "nanoeffects";
+import { latest } from "nanoeffects/policies";
+
+export const bus = createBus(); // the bus, created once
+
+// the name check, outside the component; latest aborts the check of the previous name
+bus.on(
+  "username/typed",
+  latest(async (name, ctx) => {
+    const available = await api.usernameAvailable(name, { signal: ctx.signal });
+    ctx.emit("username/checked", available);
+  }),
+);
+```
+
+```jsx
+// NameField.jsx
+import { useEffect, useState } from "react";
+import { bus } from "./username";
+
+export function NameField() {
+  const [available, setAvailable] = useState(null); // null: not checked yet
+
+  // on returns the unbind function; returning it removes the listener on unmount
+  useEffect(() => bus.on("username/checked", setAvailable), []);
+
+  return (
+    <>
+      <input onChange={(event) => bus.emit("username/typed", event.target.value)} />
+      {available === false && <p>This name is taken</p>}
+    </>
+  );
+}
+```
+
+The handler knows nothing about React, and the component knows nothing about requests.
+
 ## On this page
 
 - [Problems of the form without a bus](#problems-of-the-form-without-a-bus)

@@ -6,6 +6,47 @@
 
 Нужны Svelte 5 или новее и установленная `nanoeffects`. Не знакомы с шиной? Сначала прочитайте [Руководство](guide.md).
 
+Самый короткий вариант: поле поиска, которое показывает найденное обработчиком. Плагин для этого не нужен; разделы ниже добавляют помощник, который сокращает компонент.
+
+```js
+// search.js
+import { createBus } from "nanoeffects";
+import { latest } from "nanoeffects/policies";
+
+export const bus = createBus(); // шина, создаётся один раз
+
+// логика поиска вне компонента; latest прерывает предыдущий запрос
+bus.on(
+  "search",
+  latest(async (query, ctx) => {
+    const items = await api.search(query, { signal: ctx.signal });
+    ctx.emit("found", items);
+  }),
+);
+```
+
+Обработчик ничего не знает об UI, а компонент только отправляет `search` и слушает `found`.
+
+<!-- docs-check: skip - a .svelte file -->
+```svelte
+<script>
+  import { bus } from "./search";
+
+  let items = $state([]);
+
+  // on возвращает функцию отписки; $effect вызывает её при очистке
+  $effect(() => bus.on("found", (found) => (items = found)));
+</script>
+
+<input oninput={(event) => bus.emit("search", event.target.value)} />
+<ul>
+  {#each items as item (item.id)}
+    <li>{item.title}</li>
+  {/each}
+</ul>
+```
+
+
 ## Плагин на шине
 
 **Проблема.** Компонент Svelte читает значение через `$store`, а событие шины — не store. Без помощи компонент пишет свой `readable` и `bus.on` и должен не забыть отписаться. Эти строки копируются в каждый компонент.

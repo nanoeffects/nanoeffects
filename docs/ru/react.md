@@ -8,6 +8,47 @@
 
 Нужен проект на React с установленной `nanoeffects`. Форма общается с вашим клиентом, `api` ниже: замените его своими запросами.
 
+Самый короткий вариант: поле имени, которое спрашивает backend, свободно ли оно. Остальная страница строит из него форму целиком.
+
+```js
+// username.js
+import { createBus } from "nanoeffects";
+import { latest } from "nanoeffects/policies";
+
+export const bus = createBus(); // шина, создаётся один раз
+
+// проверка имени вне компонента; latest прерывает проверку предыдущего имени
+bus.on(
+  "username/typed",
+  latest(async (name, ctx) => {
+    const available = await api.usernameAvailable(name, { signal: ctx.signal });
+    ctx.emit("username/checked", available);
+  }),
+);
+```
+
+```jsx
+// NameField.jsx
+import { useEffect, useState } from "react";
+import { bus } from "./username";
+
+export function NameField() {
+  const [available, setAvailable] = useState(null); // null: not checked yet
+
+  // on возвращает функцию отписки; если вернуть её из эффекта, подписка снимается при размонтировании
+  useEffect(() => bus.on("username/checked", setAvailable), []);
+
+  return (
+    <>
+      <input onChange={(event) => bus.emit("username/typed", event.target.value)} />
+      {available === false && <p>This name is taken</p>}
+    </>
+  );
+}
+```
+
+Обработчик ничего не знает о React, а компонент ничего не знает о запросах.
+
 ## На этой странице
 
 - [Проблемы формы без шины](#проблемы-формы-без-шины)

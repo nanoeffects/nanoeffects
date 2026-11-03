@@ -6,6 +6,51 @@ Use this page when your app is in Vue 3 and a component has to talk to the bus: 
 
 You need Vue 3.3 or newer and `nanoeffects` installed. If you do not know what the bus is, read the [Guide](guide.md) first.
 
+The shortest version: a search box that shows what the handler found. No plugin is needed for this; the sections below add a helper that shortens the component.
+
+```js
+// search.js
+import { createBus } from "nanoeffects";
+import { latest } from "nanoeffects/policies";
+
+export const bus = createBus(); // the bus, created once
+
+// the search logic, outside the component; latest aborts the previous request
+bus.on(
+  "search",
+  latest(async (query, ctx) => {
+    const items = await api.search(query, { signal: ctx.signal });
+    ctx.emit("found", items);
+  }),
+);
+```
+
+The handler knows nothing about the UI, and the component only sends `search` and listens to `found`.
+
+<!-- docs-check: skip - a .vue file -->
+```vue
+<script setup>
+import { onUnmounted, ref } from "vue";
+import { bus } from "./search";
+
+const items = ref([]);
+
+// on returns the unbind function; unmounting calls it
+const unbind = bus.on("found", (found) => {
+  items.value = found;
+});
+onUnmounted(unbind);
+</script>
+
+<template>
+  <input @input="bus.emit('search', $event.target.value)" />
+  <ul>
+    <li v-for="item in items" :key="item.id">{{ item.title }}</li>
+  </ul>
+</template>
+```
+
+
 ## Add the plugin to the bus
 
 **Problem.** Without help, a component writes `watch(query, (value) => bus.emit(queryChanged(value)))` and its own subscription in `onMounted` and `onUnmounted`. The same few lines are copied into every component, and each copy forgets something: the cleanup, the equality check, or the name of the subscription in the trace.

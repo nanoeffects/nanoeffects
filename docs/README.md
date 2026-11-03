@@ -3,10 +3,11 @@
 nanoeffects moves business logic and side effects out of UI components into plain `async` functions. Policies (`latest`, `debounce`, `queue`) and effects (`retry`, `timeout`, `poll`) handle races, retries and cancellation.
 
 ```js
+// search.js
 import { createBus } from "nanoeffects";
 import { latest } from "nanoeffects/policies";
 
-const bus = createBus(); // event bus
+export const bus = createBus(); // event bus
 
 // The search logic lives outside the component; latest aborts the previous request
 bus.on(
@@ -22,7 +23,33 @@ bus.on("found", (items) => render(items));
 bus.emit("search", "nano");
 ```
 
-The same example with a UI framework: [React](react.md), [Vue](vue.md), [Svelte](svelte.md). Ready projects: [Start a project from a template](starter.md).
+In a component, the same bus needs no extra code. This is React; the handler stays in `search.js`:
+
+```jsx
+// SearchBox.jsx
+import { useEffect, useState } from "react";
+import { bus } from "./search";
+
+export function SearchBox() {
+  const [items, setItems] = useState([]);
+
+  // on returns the unbind function; returning it removes the listener on unmount
+  useEffect(() => bus.on("found", setItems), []);
+
+  return (
+    <>
+      <input onChange={(event) => bus.emit("search", event.target.value)} />
+      <ul>
+        {items.map((item) => (
+          <li key={item.id}>{item.title}</li>
+        ))}
+      </ul>
+    </>
+  );
+}
+```
+
+The same example step by step: [React](react.md), [Vue](vue.md), [Svelte](svelte.md). Ready projects: [Start a project from a template](starter.md).
 
 ## Install
 
