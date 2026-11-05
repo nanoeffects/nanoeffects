@@ -1,25 +1,33 @@
+import type { WithSignal } from "../core/bus";
+
 /**
- * A `fetch` that carries a given signal, so the request stops when the signal aborts and the caller never passes
- * it. Give it to `fromSignal` and every task gets a `ctx.fetch` made from its own signal. A call that has a
- * `signal` of its own stops with whichever aborts first.
+ * A `fetch` that stops with its task: an effect, so `ctx` is the first argument and the request carries
+ * `ctx.signal`. The caller never passes the signal. A call that has a `signal` of its own in `init` stops with
+ * whichever aborts first. Outside a task pass `{ signal }` of the source, or `{}` in plain JavaScript.
+ *
+ * With `effectsPlugin({ fetch: signalFetch })` every task has a `ctx.fetch(input, init)` bound to itself.
  *
  * @example
  * ```ts
- * const bus = createBus().use(
- *   contextPlugin({ fetch: fromSignal(signalFetch) }),
- * );
- *
  * bus.on("search", latest(async (query, ctx) => {
- *   const response = await ctx.fetch(`/api?q=${query}`); // stops when the policy cancels the handler
+ *   const response = await signalFetch(ctx, `/api?q=${query}`); // stops when the policy cancels the handler
  *   ctx.emit("results", await response.json());
  * }));
+ *
+ * const withFetch = createBus().use(effectsPlugin({ fetch: signalFetch }));
+ * withFetch.on("search", latest(async (query, { fetch }) => fetch(`/api?q=${query}`)));
  * ```
  */
-export const signalFetch =
-	(signal: AbortSignal): typeof fetch =>
-	(input, init) => {
-		const own = init?.signal;
-		const joined = own ? AbortSignal.any([signal, own]) : signal;
+export const signalFetch = (
+	ctx: WithSignal,
+	input: RequestInfo | URL,
+	init?: RequestInit,
+): Promise<Response> => {
+	const own = init?.signal;
+	const signal =
+		own && ctx.signal
+			? AbortSignal.any([ctx.signal, own])
+			: (own ?? ctx.signal);
 
-		return fetch(input, { ...init, signal: joined });
-	};
+	return fetch(input, { ...init, signal });
+};

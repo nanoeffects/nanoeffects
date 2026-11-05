@@ -22,23 +22,34 @@ A policy such as `latest` cancels an older call by aborting its `ctx.signal`. Th
 
 ## Bind the signal once
 
-The surest fix is a handler with no signal in it. Make the client from the signal of the task, once, and the handler calls `ctx.fetch` and cannot forget anything. `signalFetch` is a `fetch` bound to a signal; `fromSignal` builds it for each task.
+The surest fix is a handler that never writes a signal. `signalFetch` is a `fetch` that takes `ctx` first, like `retry(ctx, ...)`: the request carries `ctx.signal`, so there is nothing to forget.
+
+```js
+// search-handlers.js
+import { latest } from "nanoeffects/policies";
+import { signalFetch } from "nanoeffects/signal";
+import { bus } from "./bus";
+
+bus.on(
+  "search",
+  latest(async (query, ctx) => {
+    // signalFetch — fetch with ctx.signal: it stops when the policy cancels the handler
+    const response = await signalFetch(ctx, `/api?q=${query}`);
+    ctx.emit("results", await response.json());
+  }),
+);
+```
+
+To get `ctx.fetch` in every handler, put the effect on the context once. `effectsPlugin` binds it to each task, so the handler drops the `ctx` argument:
 
 ```js
 // bus.js
 import { createBus } from "nanoeffects";
-import { contextPlugin } from "nanoeffects/context";
-import { fromSignal, signalFetch } from "nanoeffects/signal";
-import axios from "axios";
+import { effectsPlugin } from "nanoeffects/effects";
+import { signalFetch } from "nanoeffects/signal";
 
-// fromSignal — ctx.fetch is made from the signal of the task that reads it
-export const bus = createBus().use(
-  contextPlugin({
-    fetch: fromSignal(signalFetch),
-    // your own client too: it is made from the signal of each task
-    http: fromSignal((signal) => axios.create({ signal })),
-  }),
-);
+// effectsPlugin — ctx.fetch is signalFetch bound to the task that reads it
+export const bus = createBus().use(effectsPlugin({ fetch: signalFetch }));
 ```
 
 ```js
@@ -48,10 +59,27 @@ import { bus } from "./bus";
 
 bus.on(
   "search",
-  latest(async (query, ctx) => {
-    // no signal here: ctx.fetch stops when the policy cancels the handler
-    const response = await ctx.fetch(`/api?q=${query}`);
-    ctx.emit("results", await response.json());
+  latest(async (query, { fetch, emit }) => {
+    // no signal and no ctx argument: fetch stops when the policy cancels the handler
+    const response = await fetch(`/api?q=${query}`);
+    emit("results", await response.json());
+  }),
+);
+```
+
+A client that is not an effect, such as an `axios` instance, is made from the signal of each task with `fromSignal`:
+
+```js
+// bus.js
+import { createBus } from "nanoeffects";
+import { contextPlugin } from "nanoeffects/context";
+import { fromSignal } from "nanoeffects/signal";
+import axios from "axios";
+
+// fromSignal — ctx.http is made from the signal of the task that reads it
+export const bus = createBus().use(
+  contextPlugin({
+    http: fromSignal((signal) => axios.create({ signal })),
   }),
 );
 ```
@@ -123,7 +151,7 @@ Each row is a situation where the signal is easy to lose. The right column says 
 | A function takes the signal and never uses it: `search(query, options) { return fetch(url); }` | Pass the signal on inside it. Only type information finds this in the linter; a test finds it for sure | types | |
 | The signal is wired by hand: `signal.addEventListener("abort", ...)` | Nothing, the handler is not checked step by step | accepted | |
 | `bus.emit` in a handler | Use `ctx.emit`: only it is dropped after the handler was cancelled | yes | |
-| A request that keeps running after the cancel, on Node | Pass the signal, or use `ctx.fetch` | | yes |
+| A request that keeps running after the cancel, on Node | Pass the signal, or use `signalFetch(ctx, url)` | | yes |
 | Results emitted after the cancel | The handler ignored the signal. Pass it, or check `ctx.signal.aborted` | | yes |
 | `ctx.on` after the cancel | The same | | yes |
 

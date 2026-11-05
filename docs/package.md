@@ -21,7 +21,7 @@ Each row is optional. The "when" column says what need brings you to it.
 | `nanoeffects/actions` | `createAction`, `createJob`, `createModule`, `modulePlugin`, `actionsPlugin` | `emit` must return a result, or domain logic leaves the UI |
 | `nanoeffects/match` | `matchPlugin`: `on`, `once` and `off` that take a function which picks the events | `on` must take a function that picks events |
 | `nanoeffects/context` | `contextPlugin`: your own fields (a store, a client) on `ctx` of every task, typed from the value | a store or client must be on every task |
-| `nanoeffects/signal` | `signalPlugin`: `emit(call, { signal })` ties the tasks of an emit to an outside `AbortSignal`; `fromSignal` and `signalFetch`: a client or a `fetch` made from the signal of each task | an outside `AbortSignal` (request, React Query) must stop tasks, or a handler must not pass the signal by hand |
+| `nanoeffects/signal` | `signalPlugin`: `emit(call, { signal })` ties the tasks of an emit to an outside `AbortSignal`; `signalFetch(ctx, url)`: a `fetch` that stops with its task; `fromSignal`: a client made from the signal of each task | an outside `AbortSignal` (request, React Query) must stop tasks, or a handler must not pass the signal by hand |
 | `nanoeffects/oop` | `Emitter`, `extendBus`, `WithBus`, `On`, `Once`, `disposeBus`: the methods of a bus on a class, with the subscriptions of each instance ended by `dispose()` | you write classes, not functions |
 | `nanoeffects/scope` | `scopePlugin`, `effect`: fields for one action, job, module or `emit` (the types `Scope`, `Effect`) | one action or module needs its own fields |
 | `nanoeffects/redux` | `createEffectsMiddleware` | you already use Redux |

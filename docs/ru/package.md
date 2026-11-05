@@ -17,7 +17,7 @@
 | `nanoeffects/actions` | `createAction`, `createJob`, `createModule`, `modulePlugin`, `actionsPlugin` | `emit` должен вернуть результат или доменная логика уходит из UI |
 | `nanoeffects/match` | `matchPlugin`: `on`, `once` и `off` принимают функцию-фильтр вместо имени события | подписываться нужно по условию, а не по имени |
 | `nanoeffects/context` | `contextPlugin`: ваши собственные поля (store, клиент) на `ctx` каждой задачи, с типами по значению | store или клиент должен быть на каждой задаче |
-| `nanoeffects/signal` | `signalPlugin`: `emit(call, { signal })` привязывает задачи этого `emit` к внешнему `AbortSignal`; `fromSignal` и `signalFetch`: клиент или `fetch`, созданный из сигнала каждой задачи | внешний `AbortSignal` (запрос, React Query) должен останавливать задачи или обработчик не должен передавать сигнал вручную |
+| `nanoeffects/signal` | `signalPlugin`: `emit(call, { signal })` привязывает задачи этого `emit` к внешнему `AbortSignal`; `signalFetch(ctx, url)`: `fetch`, который останавливается вместе с задачей; `fromSignal`: клиент, созданный из сигнала каждой задачи | внешний `AbortSignal` (запрос, React Query) должен останавливать задачи или обработчик не должен передавать сигнал вручную |
 | `nanoeffects/oop` | `Emitter`, `extendBus`, `WithBus`, `On`, `Once`, `disposeBus`: методы шины на классе, подписки каждого экземпляра заканчиваются через `dispose()` | вы пишете классы, а не функции |
 | `nanoeffects/scope` | `scopePlugin`, `effect`: поля для одного action, задачи, модуля или `emit` (типы `Scope`, `Effect`) | одному action или модулю нужны свои поля |
 | `nanoeffects/redux` | `createEffectsMiddleware` | вы уже используете Redux |

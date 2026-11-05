@@ -22,23 +22,34 @@
 
 ## Привязка сигнала один раз
 
-Надёжнее всего обработчик, в котором сигнала нет вообще. Создайте клиент из сигнала задачи один раз, и обработчик вызывает `ctx.fetch`, ничего не забывая. `signalFetch` — это `fetch`, привязанный к сигналу; `fromSignal` создаёт его для каждой задачи.
+Надёжнее всего обработчик, в котором сигнал не пишется вообще. `signalFetch` — это `fetch`, который принимает `ctx` первым аргументом, как `retry(ctx, ...)`: запрос несёт `ctx.signal`, и забыть нечего.
+
+```js
+// search-handlers.js
+import { latest } from "nanoeffects/policies";
+import { signalFetch } from "nanoeffects/signal";
+import { bus } from "./bus";
+
+bus.on(
+  "search",
+  latest(async (query, ctx) => {
+    // signalFetch — fetch с ctx.signal: останавливается, когда политика отменяет обработчик
+    const response = await signalFetch(ctx, `/api?q=${query}`);
+    ctx.emit("results", await response.json());
+  }),
+);
+```
+
+Чтобы `ctx.fetch` был в каждом обработчике, положите эффект на контекст один раз. `effectsPlugin` привязывает его к каждой задаче, поэтому обработчик обходится без аргумента `ctx`:
 
 ```js
 // bus.js
 import { createBus } from "nanoeffects";
-import { contextPlugin } from "nanoeffects/context";
-import { fromSignal, signalFetch } from "nanoeffects/signal";
-import axios from "axios";
+import { effectsPlugin } from "nanoeffects/effects";
+import { signalFetch } from "nanoeffects/signal";
 
-// fromSignal — ctx.fetch создаётся из сигнала задачи, которая его читает
-export const bus = createBus().use(
-  contextPlugin({
-    fetch: fromSignal(signalFetch),
-    // и ваш клиент тоже: он создаётся из сигнала каждой задачи
-    http: fromSignal((signal) => axios.create({ signal })),
-  }),
-);
+// effectsPlugin — ctx.fetch это signalFetch, привязанный к задаче, которая его читает
+export const bus = createBus().use(effectsPlugin({ fetch: signalFetch }));
 ```
 
 ```js
@@ -48,10 +59,27 @@ import { bus } from "./bus";
 
 bus.on(
   "search",
-  latest(async (query, ctx) => {
-    // сигнала здесь нет: ctx.fetch останавливается, когда политика отменяет обработчик
-    const response = await ctx.fetch(`/api?q=${query}`);
-    ctx.emit("results", await response.json());
+  latest(async (query, { fetch, emit }) => {
+    // ни сигнала, ни аргумента ctx: fetch останавливается, когда политика отменяет обработчик
+    const response = await fetch(`/api?q=${query}`);
+    emit("results", await response.json());
+  }),
+);
+```
+
+Клиент, который не является эффектом, например экземпляр `axios`, создаётся из сигнала каждой задачи через `fromSignal`:
+
+```js
+// bus.js
+import { createBus } from "nanoeffects";
+import { contextPlugin } from "nanoeffects/context";
+import { fromSignal } from "nanoeffects/signal";
+import axios from "axios";
+
+// fromSignal — ctx.http создаётся из сигнала задачи, которая его читает
+export const bus = createBus().use(
+  contextPlugin({
+    http: fromSignal((signal) => axios.create({ signal })),
   }),
 );
 ```
@@ -105,7 +133,7 @@ bus.on(
 | Ситуация | Что сделать | Линтер | devPlugin |
 | -------- | ----------- | :----: | :-------: |
 | У обработчика нет `ctx`: `latest(async (query) => ...)` | Возьмите `(query, ctx)` и передайте `ctx.signal` | да | |
-| `ctx` взят, но в запрос не передан | Передайте `{ signal: ctx.signal }` в каждый запрос или привяжите его один раз: `ctx.fetch` ([выше](#привязка-сигнала-один-раз)) | да | да |
+| `ctx` взят, но в запрос не передан | Передайте `{ signal: ctx.signal }` в каждый запрос или привяжите его один раз: `signalFetch(ctx, url)` ([выше](#привязка-сигнала-один-раз)) | да | да |
 | Один шаг передаёт сигнал, другой нет | Передайте его каждому шагу | да | да |
 | Сигнал лежит в переменной: `const options = { signal: ctx.signal }` | Ничего: переменная с сигналом считается | принимает | |
 | Вызовы идут вместе: `Promise.all([a(), b()])` | Передайте сигнал каждому вызову, а не одному | да | |
@@ -123,7 +151,7 @@ bus.on(
 | Функция принимает сигнал и не использует его: `search(query, options) { return fetch(url); }` | Передайте сигнал дальше внутри неё. В линтере это находит только информация о типах; тест находит наверняка | типы | |
 | Сигнал подключён вручную: `signal.addEventListener("abort", ...)` | Ничего: такой обработчик не проверяется по шагам | принимает | |
 | `bus.emit` в обработчике | Используйте `ctx.emit`: только его отбрасывают после отмены обработчика | да | |
-| Запрос продолжает идти после отмены, на Node | Передайте сигнал или используйте `ctx.fetch` | | да |
+| Запрос продолжает идти после отмены, на Node | Передайте сигнал или используйте `signalFetch(ctx, url)` | | да |
 | Результаты отправлены после отмены | Обработчик проигнорировал сигнал. Передайте его или проверьте `ctx.signal.aborted` | | да |
 | `ctx.on` после отмены | То же | | да |
 

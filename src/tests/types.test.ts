@@ -79,7 +79,7 @@ import {
 } from "../policies";
 import { reactPlugin, usePolicy } from "../react";
 import { effect, type Signaled } from "../scope";
-import { fromSignal, signalPlugin } from "../signal";
+import { fromSignal, signalFetch, signalPlugin } from "../signal";
 import { createEffectsMiddleware, type ReduxStoreApi } from "../store/redux";
 import { sveltePlugin } from "../svelte";
 import {
@@ -1063,6 +1063,30 @@ describe("effectsPlugin", () => {
 			// @ts-expect-error "missing" is not an event of this bus
 			await take("missing");
 		});
+	});
+
+	it("signalFetch is an effect: ctx first, and ctx.fetch has no ctx parameter", () => {
+		const withFetch = createBus<LoadEvents>().use(
+			effectsPlugin({ fetch: signalFetch }),
+		);
+		withFetch.on("load", async (url, ctx) => {
+			expectTypeOf(await ctx.fetch(url)).toEqualTypeOf<Response>();
+			expectTypeOf(await signalFetch(ctx, url)).toEqualTypeOf<Response>();
+			expectTypeOf(
+				await signalFetch({ signal: ctx.signal }, url),
+			).toEqualTypeOf<Response>();
+		});
+	});
+
+	it("the factory form of signalFetch is gone", () => {
+		const controller = new AbortController();
+		const oldForms = () => {
+			// @ts-expect-error a signal alone is not a call any more
+			signalFetch(controller.signal);
+			// @ts-expect-error signalFetch is not a factory for fromSignal
+			fromSignal(signalFetch);
+		};
+		expectTypeOf(oldForms).toBeFunction();
 	});
 
 	it("wrong arguments of a bound effect are errors", () => {

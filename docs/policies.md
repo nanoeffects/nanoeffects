@@ -24,7 +24,7 @@ bus.on(
 );
 ```
 
-Pass `signal` to `fetch` (and the like) so the request cancels. To not pass it at all, bind it once: with `ctx.fetch` the request stops with the handler and there is nothing to forget ([Keep the signal through a handler](pass-the-signal.md#bind-the-signal-once)).
+Pass `signal` to `fetch` (and the like) so the request cancels. To not pass it at all, bind it once: with `signalFetch(ctx, url)` the request stops with the handler and there is nothing to forget ([Keep the signal through a handler](pass-the-signal.md#bind-the-signal-once)).
 
 ## Choose a policy
 

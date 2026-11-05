@@ -9,6 +9,7 @@ import { createBus } from "../core/bus";
 import { siteOf } from "../core/site";
 import { matchPlugin } from "../match";
 import { latest } from "../policies";
+import { signalFetch } from "../signal";
 import type { TestEvents } from "../tests/test-helpers";
 import {
 	getLostSignalsCount as noopGetLostSignals,
@@ -986,6 +987,28 @@ describe("devPlugin: the requests of a handler", () => {
 		expect(
 			messages.filter((message) => message.includes("kept running")),
 		).toHaveLength(1);
+		disconnect();
+	});
+
+	it("counts a bare fetch but not one made with signalFetch", async () => {
+		serve();
+		const { bus, disconnect } = make();
+		bus.on(
+			"search",
+			latest(async (query: string, ctx) => {
+				await Promise.allSettled([
+					fetch(`/bare?q=${query}`),
+					signalFetch(ctx, `/bound?q=${query}`),
+				]);
+			}),
+		);
+
+		bus.emit("search", "a");
+		bus.emit("search", "ab");
+
+		expect(await getLostSignals(bus, { wait: 20 })).toEqual([
+			{ kind: "request", handler: "search", event: "/bare?q=a" },
+		]);
 		disconnect();
 	});
 

@@ -2,6 +2,11 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
+## Unreleased
+
+### Breaking
+- `signalFetch` is now an effect: `signalFetch(ctx, input, init)` is a `fetch` that stops with the task, with no plugin. The factory `signalFetch(signal)` is gone. Migrate `contextPlugin({ fetch: fromSignal(signalFetch) })` to `effectsPlugin({ fetch: signalFetch })` (still `ctx.fetch`), and `signalFetch(signal)(url)` to `signalFetch({ signal }, url)`. `fromSignal` stays for clients such as `axios`. [Docs](docs/pass-the-signal.md#bind-the-signal-once)
+
 ## 0.34.0
 
 ### Breaking

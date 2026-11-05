@@ -5,5 +5,5 @@ import { devPlugin } from "nanoeffects/dev";
 export const bus = createBus();
 
 // devPlugin — warns in the console when a handler keeps working after it was cancelled (it lost ctx.signal);
-// it does nothing in a production build, so the line can stay. Bind the signal once with signalFetch: see the docs
+// it does nothing in a production build, so the line can stay. Stop requests with their task through signalFetch(ctx, url): see the docs
 bus.use(devPlugin());
