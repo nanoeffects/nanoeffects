@@ -1,30 +1,44 @@
 import { useEffect, useRef, useState } from "react";
 import { createSession, SECONDS } from "./session";
 
+type Session = ReturnType<typeof createSession>;
+
 export function App() {
-	const [run, setRun] = useState(0); // every Restart makes a new number, so a new session
+	const [run, setRun] = useState(1); // the number of the session; Restart makes the next one
 	const [left, setLeft] = useState(SECONDS);
 	const [outcome, setOutcome] = useState<"claimed" | "expired" | null>(null);
-	const session = useRef<ReturnType<typeof createSession>>(null);
+	const [log, setLog] = useState<string[]>([]); // proof that old sessions are gone
+	const session = useRef<Session>(null);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: run is the trigger, a new number restarts the session
 	useEffect(() => {
 		setLeft(SECONDS);
 		setOutcome(null);
 
-		const { bus, dispose } = createSession(); // a fresh bus for this run
-		session.current = { bus, dispose };
-		const offTick = bus.on("tick", setLeft);
-		const offFinished = bus.on("finished", setOutcome);
-		bus.emit("start");
+		const current = createSession(); // a fresh bus for this run
+		session.current = current;
+		const offTick = current.bus.on("tick", setLeft);
+		const offFinished = current.bus.on("finished", setOutcome);
+		current.bus.emit("start");
 
-		// cleanup: runs on Restart and on unmount; the old session stops and hears nothing
+		// cleanup: runs on Restart; the old session stops, hears nothing, and we check it
 		return () => {
 			offTick();
 			offFinished();
-			dispose();
+			current.dispose().then(() => {
+				const { listeners, timerRunning } = current.inspect();
+				const timer = timerRunning ? "STILL RUNNING" : "stopped";
+				setLog((lines) => [
+					`Session #${run} disposed: timer ${timer}, listeners left: ${listeners}`,
+					...lines,
+				]);
+			});
 		};
 	}, [run]);
+
+	const { listeners, timerRunning } = session.current?.inspect() ?? {
+		listeners: 0,
+		timerRunning: false,
+	};
 
 	return (
 		<>
@@ -42,6 +56,17 @@ export function App() {
 			<button type="button" onClick={() => setRun(run + 1)}>
 				Restart
 			</button>
+
+			<h2>What is alive</h2>
+			<p className="state">
+				Session #{run}: timer {timerRunning ? "running" : "stopped"}, listeners:{" "}
+				{listeners}
+			</p>
+			<ul className="log">
+				{log.map((line) => (
+					<li key={line}>✓ {line}</li>
+				))}
+			</ul>
 		</>
 	);
 }

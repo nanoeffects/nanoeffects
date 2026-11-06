@@ -12,3 +12,10 @@ the countdown, and `take("stop")`. The first to finish wins and the others are a
 
 **Restart** disposes the old session (`stop` ends its race and its timer) and creates a new bus. The
 old session cannot change the page: its timer is stopped and its subscriptions are removed.
+
+## Proof that nothing is left
+
+The page shows what is alive on the current session (`timer running`, `listeners: N`). Press
+**Restart** and a green line appears for the old session: `timer stopped, listeners left: 0`. It
+is measured after `dispose()` has finished, with `bus.get().length` for the listeners and a flag
+that the countdown sets in `finally` for the timer.
