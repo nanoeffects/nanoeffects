@@ -33,10 +33,12 @@ export function App() {
 		};
 	}, [run]);
 
-	const { listeners, timerRunning } = session.current?.inspect() ?? {
-		listeners: 0,
-		timerRunning: false,
-	};
+	const { listeners, listenersOf, timerRunning } =
+		session.current?.inspect() ?? {
+			listeners: 0,
+			listenersOf: [],
+			timerRunning: false,
+		};
 
 	return (
 		<>
@@ -60,6 +62,13 @@ export function App() {
 				Session #{run}: timer {timerRunning ? "running" : "stopped"}, listeners:{" "}
 				{listeners}
 			</p>
+			<ul className="listeners">
+				{listenersOf.map(({ name, count }) => (
+					<li key={name}>
+						{name}: {count}
+					</li>
+				))}
+			</ul>
 			<ul className="log">
 				{log.map((line) => (
 					<li key={line}>✓ {line}</li>

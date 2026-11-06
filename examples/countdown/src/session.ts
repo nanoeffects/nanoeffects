@@ -12,6 +12,8 @@ type Events = {
 	finished: "claimed" | "expired";
 };
 
+const events = ["start", "claim", "stop", "tick", "finished"] as const;
+
 export function createSession() {
 	const bus = createBus<Events>(); // createBus: a new bus for every session
 	let running: Promise<void> = Promise.resolve();
@@ -44,7 +46,14 @@ export function createSession() {
 	return {
 		bus,
 		// what is still alive on this session: used to show that nothing is left
-		inspect: () => ({ listeners: bus.get().length, timerRunning }),
+		inspect: () => ({
+			listeners: bus.get().length, // get: every listener of the bus
+			listenersOf: events.map((name) => ({
+				name,
+				count: bus.get(name).length,
+			})), // get(name): the listeners of one event
+			timerRunning,
+		}),
 		// dispose: "stop" ends the race and its timer, off() removes every listener of this bus
 		dispose: async () => {
 			bus.emit("stop");
