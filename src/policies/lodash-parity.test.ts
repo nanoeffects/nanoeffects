@@ -38,7 +38,9 @@ const drive = async (
 	return log;
 };
 
-describe("throttle parity with lodash", () => {
+// 300 random runs each: a loaded machine needs more than the default 5 s, and a test that times out
+// leaves fake timers on for the next one
+describe("throttle parity with lodash", { timeout: 60_000 }, () => {
 	afterEach(() => {
 		vi.useRealTimers();
 	});
@@ -86,7 +88,9 @@ describe("throttle parity with lodash", () => {
 	}
 });
 
-describe("debounce parity with lodash", () => {
+// 300 random runs each: a loaded machine needs more than the default 5 s, and a test that times out
+// leaves fake timers on for the next one
+describe("debounce parity with lodash", { timeout: 60_000 }, () => {
 	afterEach(() => {
 		vi.useRealTimers();
 	});
@@ -134,7 +138,11 @@ describe("debounce parity with lodash", () => {
 	}
 });
 
-describe("a keyed throttle behaves like an unkeyed one", () => {
+// 300 random runs each: a loaded machine needs more than the default 5 s, and a test that times out
+// leaves fake timers on for the next one
+describe("a keyed throttle behaves like an unkeyed one", {
+	timeout: 60_000,
+}, () => {
 	afterEach(() => {
 		vi.useRealTimers();
 	});
