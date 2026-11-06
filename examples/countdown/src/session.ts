@@ -25,15 +25,17 @@ export function createSession() {
 	// the whole logic: a countdown that races with the button
 	bus.on("start", async (_, ctx) => {
 		timerRunning = true;
-		const showLeft = (tick: number) => ctx.emit("tick", SECONDS - tick);
+		let left = SECONDS;
+		const showLeft = () => ctx.emit("tick", left--);
 
 		// race: the first of the four to settle wins, the other three are aborted
 		const result = await race(ctx, {
 			claimed: take("claim"), // take: wait for the next "claim"
 			stopped: take("stop"), // take: wait for the next "stop" (the session is disposed)
 			expired: delay(SECONDS * 1000), // delay: wait 15 s
-			// poll: call showLeft every second (at once too); it never ends, the race stops it
-			ticking: (child) => poll(child, showLeft, 1000, { leading: true }),
+			// poll: call showLeft every second (at once too); it never ends, the race stops it.
+			// With no ctx it is a ready-made function for the group, like take and delay
+			ticking: poll(1000, showLeft, { leading: true }),
 		});
 
 		timerRunning = false; // the timer is over, whoever won
