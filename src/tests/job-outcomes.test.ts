@@ -4,7 +4,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { actionsPlugin, createJob } from "../actions";
 import { createBus } from "../core/bus";
-import { debounce, latest, leading, queue, throttle } from "../policies";
+import {
+	batch,
+	debounce,
+	dedupe,
+	distinct,
+	latest,
+	leading,
+	queue,
+	rateLimit,
+	throttle,
+} from "../policies";
 import { deferred } from "./test-helpers";
 
 type Events = Record<string, unknown>;
@@ -199,5 +209,95 @@ describe("job outcomes under a policy", () => {
 		]);
 
 		expect(state.running).toBe(0);
+	});
+});
+
+describe("job outcomes under the newer policies", () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it("dedupe: a shared run sends one pending and one success, and both emits get the value", async () => {
+		const { bus, actions, job, seen, state } = setup();
+		const gate = deferred<string>();
+		actions.handle(
+			job,
+			dedupe(() => gate.promise),
+		);
+
+		const first = bus.emit(job("1"));
+		const second = bus.emit(job("1"));
+		gate.resolve("user");
+
+		await expect(first).resolves.toBe("user");
+		await expect(second).resolves.toBe("user");
+		expect(seen).toEqual(["pending", "success"]);
+		expect(state.running).toBe(0);
+	});
+
+	it("dedupe: a shared failure sends one fail", async () => {
+		const { bus, actions, job, seen } = setup();
+		const gate = deferred<string>();
+		actions.handle(
+			job,
+			dedupe(() => gate.promise),
+		);
+
+		const first = bus.emit(job("1"));
+		const second = bus.emit(job("1"));
+		const settled = Promise.allSettled([first, second]);
+		gate.reject(new Error("boom"));
+		await settled;
+
+		expect(seen).toEqual(["pending", "fail"]);
+	});
+
+	it("distinct: a skipped repeat sends nothing", async () => {
+		const { bus, actions, job, seen } = setup();
+		actions.handle(
+			job,
+			distinct(async (id: string) => id),
+		);
+
+		await bus.emit(job("1"));
+		await bus.emit(job("1"));
+
+		expect(seen).toEqual(["pending", "success"]);
+	});
+
+	it("rateLimit: the delayed call sends pending when its handler starts", async () => {
+		const { bus, actions, job, seen } = setup();
+		actions.handle(
+			job,
+			rateLimit(1, 100, async (id: string) => id),
+		);
+
+		const first = bus.emit(job("1"));
+		const second = bus.emit(job("2"));
+		await first;
+		expect(seen).toEqual(["pending", "success"]);
+		await vi.advanceTimersByTimeAsync(100);
+		await second;
+
+		expect(seen).toEqual(["pending", "success", "pending", "success"]);
+	});
+
+	it("batch: three emits in one window send one pending and one success", async () => {
+		const { bus, actions, job, seen } = setup();
+		actions.handle(
+			job,
+			batch(100, async (ids: string[]) => ids.join()),
+		);
+
+		const calls = ["1", "2", "3"].map((id) => bus.emit(job(id)));
+		expect(seen).toEqual([]);
+		await vi.advanceTimersByTimeAsync(100);
+		await Promise.all(calls);
+
+		expect(seen).toEqual(["pending", "success"]);
 	});
 });

@@ -16,6 +16,8 @@ Each task below starts with the problem, then a short solution. Where the page h
   - [A second click sends a second request](#a-second-click-sends-a-second-request)
   - [Messages must go out in order](#messages-must-go-out-in-order)
   - [A "Delete" button in a list blocks the other rows](#a-delete-button-in-a-list-blocks-the-other-rows)
+  - [Several components ask for the same data](#several-components-ask-for-the-same-data)
+  - [A form saves the same text twice](#a-form-saves-the-same-text-twice)
 - [An unreliable network and long flows](#an-unreliable-network-and-long-flows)
   - [A request fails sometimes: retry and backoff](#a-request-fails-sometimes-retry-and-backoff)
   - [A request hangs: timeout](#a-request-hangs-timeout)
@@ -23,6 +25,8 @@ Each task below starts with the problem, then a short solution. Where the page h
   - [Wait for another event inside a handler: take](#wait-for-another-event-inside-a-handler-take)
   - [Load several things at once: all](#load-several-things-at-once-all)
   - [Take the fastest answer: race](#take-the-fastest-answer-race)
+  - [An API allows only N requests per second](#an-api-allows-only-n-requests-per-second)
+  - [Many small events, one request](#many-small-events-one-request)
 - [Features and domain logic](#features-and-domain-logic)
   - [Get the result of emit](#get-the-result-of-emit)
   - [Group a feature with its handlers: modules](#group-a-feature-with-its-handlers-modules)
@@ -238,6 +242,49 @@ bus.on(
 
 More: [Policies, `key`](policies.md#key-isolate-state-by-key).
 
+### Several components ask for the same data
+
+A page shows a user in the header, in a sidebar and in a comment, and all three ask for user `1` in the same tick. That is three identical requests. `dedupe` makes the calls for one id share a single request. Use it for reads, not for writes.
+
+```js
+import { createBus } from "nanoeffects";
+import { dedupe } from "nanoeffects/policies";
+
+const bus = createBus();
+
+// dedupe — a call for an id that is loading already waits for that request
+bus.on(
+  "user/needed",
+  dedupe(async (id, ctx) => {
+    const user = await api.getUser(id, { signal: ctx.signal });
+    ctx.emit("user/loaded", user);
+  }),
+);
+```
+
+More: [Policies, `dedupe`](policies.md#dedupe-share-one-run-between-equal-calls).
+
+### A form saves the same text twice
+
+A form saves on every change. A user types a letter and deletes it, and the same text goes to the server again. `distinct` skips a call whose payload equals the last one.
+
+```js
+import { createBus } from "nanoeffects";
+import { distinct } from "nanoeffects/policies";
+
+const bus = createBus();
+
+// distinct — a text equal to the last saved one is skipped
+bus.on(
+  "draft/changed",
+  distinct(async (text, { signal }) => {
+    await api.saveDraft(text, { signal });
+  }),
+);
+```
+
+More: [Policies, `distinct`](policies.md#distinct-skip-a-repeated-payload).
+
 ## An unreliable network and long flows
 
 ### A request fails sometimes: retry and backoff
@@ -368,6 +415,49 @@ bus.on("user/opened", async (id, ctx) => {
 ```
 
 More: [`all`](effects.md#all), [`race`](effects.md#race).
+
+### An API allows only N requests per second
+
+A geocoding API allows 5 requests per second. A list of 40 addresses sends 40 requests at once, and most fail with `429`. `rateLimit` starts five and holds the rest until the window slides.
+
+```js
+import { createBus } from "nanoeffects";
+import { rateLimit } from "nanoeffects/policies";
+
+const bus = createBus();
+
+// rateLimit — five requests may start per second, the others wait their turn
+bus.on(
+  "address/geocode",
+  rateLimit(5, 1000, async (address, ctx) => {
+    const place = await api.geocode(address, { signal: ctx.signal });
+    ctx.emit("address/found", place);
+  }),
+);
+```
+
+More: [Policies, `rateLimit`](policies.md#ratelimit-stay-under-a-quota).
+
+### Many small events, one request
+
+A page sends an analytics event on every click, 30 requests a minute. The server prefers one request with all of them. `batch` collects the events that come within a window and sends them together.
+
+```js
+import { createBus } from "nanoeffects";
+import { batch } from "nanoeffects/policies";
+
+const bus = createBus();
+
+// batch — everything that comes within 500 ms goes in one request
+bus.on(
+  "analytics/event",
+  batch(500, async (events, { signal }) => {
+    await api.sendEvents(events, { signal });
+  }),
+);
+```
+
+More: [Policies, `batch`](policies.md#batch-send-many-calls-as-one).
 
 ## Features and domain logic
 

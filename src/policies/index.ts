@@ -1,6 +1,10 @@
+export { type BatchOptions, batch } from "./batch";
 export { type DebounceOptions, debounce } from "./debounce";
+export { type DedupeOptions, dedupe } from "./dedupe";
+export { type DistinctOptions, distinct } from "./distinct";
 export { type LatestOptions, latest } from "./latest";
 export { type LeadingOptions, leading } from "./leading";
 export { type QueueOptions, queue } from "./queue";
+export { type RateLimitOptions, rateLimit } from "./rate-limit";
 export { type ThrottleOptions, throttle } from "./throttle";
 export { type PolicyFunction, withPolicy } from "./with-policy";

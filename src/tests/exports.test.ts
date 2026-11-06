@@ -46,10 +46,14 @@ describe("public entries", () => {
 
 	it("policies", () => {
 		expect(Object.keys(policies).sort()).toEqual([
+			"batch",
 			"debounce",
+			"dedupe",
+			"distinct",
 			"latest",
 			"leading",
 			"queue",
+			"rateLimit",
 			"throttle",
 			"withPolicy",
 		]);

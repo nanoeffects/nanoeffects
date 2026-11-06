@@ -23,7 +23,7 @@ Rules that generated code often gets wrong:
 
 ## Async UI and unreliable networks
 
-- [Policies](docs/policies.md): `latest`, `leading`, `debounce`, `throttle`, `queue`, and `key`; `withPolicy` makes one a plain function without a bus
+- [Policies](docs/policies.md): `latest`, `leading`, `debounce`, `throttle`, `queue`, `dedupe`, `distinct`, `rateLimit`, `batch`, and `key`; `withPolicy` makes one a plain function without a bus
 - [Cancel stale requests and fix race conditions](docs/cancel-stale-requests.md): an older response overwrites a newer one; `latest`, `debounce`, `retry`, `timeout` in one recipe
 - [Pause between requests](docs/debounce-and-abort.md): `debounce` outside, `latest` inside, and when to use `throttle`
 - [Prevent a double submit](docs/prevent-double-submit.md): `leading`, one run per item with `key`, retry only on network errors

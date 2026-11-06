@@ -75,11 +75,15 @@ const typeExports: Record<string, string[]> = {
 		"TakeOptions",
 	],
 	policies: [
+		"BatchOptions",
 		"DebounceOptions",
+		"DedupeOptions",
+		"DistinctOptions",
 		"LatestOptions",
 		"LeadingOptions",
 		"PolicyFunction",
 		"QueueOptions",
+		"RateLimitOptions",
 		"ThrottleOptions",
 	],
 	actions: [

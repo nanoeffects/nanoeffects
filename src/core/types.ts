@@ -32,6 +32,10 @@ export type EffectName =
 	| "poll"
 	| "take"
 	| "queue"
+	| "dedupe"
+	| "distinct"
+	| "rateLimit"
+	| "batch"
 	| "allSettled"
 	| "action"
 	| "emit";

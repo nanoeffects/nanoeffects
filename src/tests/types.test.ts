@@ -70,10 +70,14 @@ import { matchPlugin } from "../match";
 import { events, Subject } from "../observable";
 import { type BusMethods, Emitter, extendBus, On } from "../oop";
 import {
+	batch,
 	debounce,
+	dedupe,
+	distinct,
 	latest,
 	leading,
 	queue,
+	rateLimit,
 	throttle,
 	withPolicy,
 } from "../policies";
@@ -202,6 +206,102 @@ describe("inference of handlers and policies", () => {
 		);
 	});
 
+	it("dedupe, distinct and rateLimit take the payload from the event", () => {
+		bus.on(
+			"search",
+			dedupe((query) => {
+				expectTypeOf(query).toEqualTypeOf<string>();
+			}),
+		);
+		bus.on(
+			"search",
+			distinct((query) => {
+				expectTypeOf(query).toEqualTypeOf<string>();
+			}),
+		);
+		bus.on(
+			"count",
+			rateLimit(5, 1000, (count) => {
+				expectTypeOf(count).toEqualTypeOf<number>();
+			}),
+		);
+	});
+
+	it("batch hands the handler an array of the payloads of the event", () => {
+		bus.on(
+			"search",
+			batch(100, (queries) => {
+				expectTypeOf(queries).toEqualTypeOf<string[]>();
+			}),
+		);
+		bus.on(
+			"loaded",
+			batch(
+				100,
+				(users) => {
+					expectTypeOf(users).toEqualTypeOf<User[]>();
+				},
+				{ key: (user) => user.id, maxSize: 10 },
+			),
+		);
+	});
+
+	it("the options of the newer policies get the payload", () => {
+		bus.on(
+			"loaded",
+			dedupe(() => {}, {
+				key: (user) => {
+					expectTypeOf(user).toEqualTypeOf<User>();
+					return user.id;
+				},
+			}),
+		);
+		bus.on(
+			"loaded",
+			distinct(() => {}, {
+				equals: (previous, next) => {
+					expectTypeOf(previous).toEqualTypeOf<User>();
+					expectTypeOf(next).toEqualTypeOf<User>();
+					return previous.id === next.id;
+				},
+			}),
+		);
+		bus.on(
+			"loaded",
+			rateLimit(2, 100, () => {}, {
+				key: (user) => user.id,
+				overflow: "drop",
+			}),
+		);
+	});
+
+	it("the newer policies return a promise, except distinct, which keeps the handler's own result", () => {
+		const deduped = dedupe((value: number) => value * 2);
+		const distinctSync = distinct((value: number) => value * 2);
+		const limited = rateLimit(1, 10, (value: number) => value * 2);
+		const batched = batch(10, (values: number[]) => values.length);
+		type Call<T> = T extends (...args: never[]) => infer R ? R : never;
+		expectTypeOf<Call<typeof deduped>>().toEqualTypeOf<
+			Promise<number | undefined>
+		>();
+		expectTypeOf<Call<typeof limited>>().toEqualTypeOf<
+			Promise<number | undefined>
+		>();
+		expectTypeOf<Call<typeof batched>>().toEqualTypeOf<
+			Promise<number | undefined>
+		>();
+		expectTypeOf<Call<typeof distinctSync>>().toEqualTypeOf<
+			number | Promise<number> | undefined
+		>();
+	});
+
+	it("the newer policies work through withPolicy as plain functions", () => {
+		const load = withPolicy(dedupe((id: number) => String(id)));
+		expectTypeOf(load).parameters.toEqualTypeOf<[number]>();
+		const send = withPolicy(batch(10, (values: number[]) => values.length));
+		expectTypeOf(send).parameters.toEqualTypeOf<[number]>();
+	});
+
 	it("the key option gets the payload", () => {
 		bus.on(
 			"loaded",
@@ -255,6 +355,21 @@ describe("inference of handlers and policies", () => {
 				"search",
 				// @ts-expect-error an unknown option
 				queue(() => {}, { concurency: 2 }),
+			);
+			bus.on(
+				"search",
+				// @ts-expect-error batch hands the handler an array, not one string
+				batch(100, (query: string) => query),
+			);
+			bus.on(
+				"search",
+				// @ts-expect-error overflow of rateLimit is "wait" or "drop"
+				rateLimit(1, 100, () => {}, { overflow: "drop-old" }),
+			);
+			bus.on(
+				"search",
+				// @ts-expect-error equals compares payloads, it does not take a number
+				distinct(() => {}, { equals: 1 }),
 			);
 		};
 		expectTypeOf(wrongCalls).toBeFunction();

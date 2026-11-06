@@ -17,6 +17,7 @@ import { graphLogger } from "../graph";
 import { loopGuardPlugin } from "../guard";
 import { matchPlugin } from "../match";
 import { extendBus } from "../oop";
+import { batch, dedupe, distinct, rateLimit } from "../policies";
 import { reactPlugin } from "../react";
 import { scopePlugin } from "../scope";
 import { fromSignal, signalPlugin } from "../signal";
@@ -1003,6 +1004,88 @@ probes.push(
 		id: "loopGuardPlugin cuts a loop whatever the other plugins are",
 		needs: ["guard"],
 		run: (build) => selfLoop(build, "probe/guarded") === 5,
+	},
+);
+
+// the policies are not plugins, but they run in the handlers that plugins wrap, so they are probed in every order
+probes.push(
+	{
+		id: "dedupe shares one run between calls with the same payload",
+		needs: [],
+		run: async ({ bus }) => {
+			let runs = 0;
+			let release = () => {};
+			bus.on(
+				"p/dedupe",
+				dedupe((_payload: unknown) => {
+					runs++;
+					return new Promise<void>((resolve) => {
+						release = resolve;
+					});
+				}),
+			);
+			bus.emit("p/dedupe", 1);
+			bus.emit("p/dedupe", 1);
+			bus.emit("p/dedupe", 2);
+			release();
+			await flush();
+
+			return runs === 2;
+		},
+	},
+	{
+		id: "distinct skips a payload that repeats",
+		needs: [],
+		run: ({ bus }) => {
+			const seen: unknown[] = [];
+			bus.on(
+				"p/distinct",
+				distinct((payload: unknown) => {
+					seen.push(payload);
+				}),
+			);
+			for (const value of [1, 1, 2, 2, 1]) {
+				bus.emit("p/distinct", value);
+			}
+
+			return seen.join() === "1,2,1";
+		},
+	},
+	{
+		id: "rateLimit starts only `limit` runs in a window",
+		needs: [],
+		run: ({ bus }) => {
+			let runs = 0;
+			bus.on(
+				"p/rate",
+				rateLimit(2, 10_000, () => {
+					runs++;
+				}),
+			);
+			for (let index = 0; index < 5; index++) {
+				bus.emit("p/rate", index);
+			}
+
+			return runs === 2;
+		},
+	},
+	{
+		id: "batch hands the payloads of a window to the handler once",
+		needs: [],
+		run: async ({ bus }) => {
+			const seen: unknown[][] = [];
+			bus.on(
+				"p/batch",
+				batch(0, (payloads: unknown[]) => {
+					seen.push(payloads);
+				}),
+			);
+			bus.emit("p/batch", 1);
+			bus.emit("p/batch", 2);
+			await flush();
+
+			return seen.length === 1 && seen[0]?.join() === "1,2";
+		},
 	},
 );
 
