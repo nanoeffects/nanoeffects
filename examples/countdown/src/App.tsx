@@ -16,14 +16,12 @@ export function App() {
 
 		const current = createSession(); // a fresh bus for this run
 		session.current = current;
-		const offTick = current.bus.on("tick", setLeft);
-		const offFinished = current.bus.on("finished", setOutcome);
+		current.bus.on("tick", setLeft);
+		current.bus.on("finished", setOutcome);
 		current.bus.emit("start");
 
-		// cleanup: runs on Restart; the old session stops, hears nothing, and we check it
+		// cleanup: runs on Restart; dispose removes every listener and stops the timer, then we check it
 		return () => {
-			offTick();
-			offFinished();
 			current.dispose().then(() => {
 				const { listeners, timerRunning } = current.inspect();
 				const timer = timerRunning ? "STILL RUNNING" : "stopped";

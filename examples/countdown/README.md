@@ -10,7 +10,7 @@ npm run dev
 All the logic is in `src/session.ts`: one handler runs a `race` between the button (`take("claim")`),
 the countdown, and `take("stop")`. The first to finish wins and the others are aborted.
 
-**Restart** disposes the old session (`stop` ends its race and its timer) and creates a new bus. The
+**Restart** disposes the old session (`stop` ends its race and its timer, `off()` removes its listeners) and creates a new bus. The
 old session cannot change the page: its timer is stopped and its subscriptions are removed.
 
 ## Proof that nothing is left
