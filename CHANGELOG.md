@@ -2,6 +2,14 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
+## 0.36.0
+
+### Added
+- Four policies in `nanoeffects/policies`: `dedupe` (calls with the same key share the run that is going), `distinct` (skip a call whose payload equals the last one), `rateLimit(limit, ms, fn)` (at most `limit` runs start per `ms`, the rest wait) and `batch(ms, fn)` (the payloads of one window go to `fn` as an array). All take `key`. [Docs](docs/policies.md#dedupe-share-one-run-between-equal-calls)
+
+### Fixed
+- A policy with `key` no longer keeps the state of a key that was made for a call whose task was already aborted: with ids or objects as keys that was a slow leak in `latest`, `leading`, `debounce`, `throttle` and `queue`.
+
 ## 0.35.0
 
 ### Breaking
