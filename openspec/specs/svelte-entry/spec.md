@@ -24,7 +24,7 @@ The package SHALL export `nanoeffects/svelte` with types and an ES module build.
 - **THEN** it behaves exactly as the method of the bus
 
 ### Requirement: eventStore is a readable store of an event
-`eventStore(event, initial)` SHALL return a Svelte readable store. Its value SHALL be `initial` until `event` is emitted and the payload of the latest emit after that. The store SHALL listen to the bus from the first subscription to the last unsubscription and SHALL NOT listen while nothing subscribes. A function payload SHALL be stored as it is, not called. The type of the value SHALL come from the event, or from `initial` when the event has no payload type, and a wrong `initial` SHALL be a type error.
+`eventStore(event, initial)` SHALL return a Svelte readable store. Its value SHALL be `initial` until `event` is emitted, and then the payload of the latest emit. The store SHALL listen to the bus from the first subscription to the last unsubscription and not while nothing subscribes. A function payload SHALL be stored as it is, not called. The type of the value SHALL come from the event, or from `initial` when the event has no payload type, and a wrong `initial` SHALL be a type error.
 
 #### Scenario: The value follows the event
 - **WHEN** a component subscribes to `eventStore(searchLoaded, [])` and the bus emits `searchLoaded(["a"])`

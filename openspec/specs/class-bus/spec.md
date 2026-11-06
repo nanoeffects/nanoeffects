@@ -29,7 +29,7 @@ Gives a class the methods of a bus and ties the subscriptions made through an in
 - **THEN** it acts on the bus as `service.emit("ping", 1)` does
 
 ### Requirement: The bus is optional and belongs to the class
-`extendBus(Base)` SHALL make a bus with `createBus()` for the returned class. The instances of one class SHALL share its bus, two classes SHALL have two buses, and the bus SHALL be the static property `bus` of the class and the property `bus` of its instances. When a bus is passed, that bus SHALL be used. `extendBus(bus)` with no class SHALL return a class over an empty base that uses `bus`, so that `class Service extends extendBus(bus) {}` has the methods of `bus`. A bus SHALL be told from a class by being a function or not.
+`extendBus(Base)` SHALL make a bus with `createBus()` for the returned class. The instances of one class SHALL share its bus, two classes SHALL have two buses, and the bus SHALL be the static property `bus` of the class and the property `bus` of its instances. A passed bus SHALL be used: `extendBus(bus)` with no class SHALL return a class over an empty base, so `class Service extends extendBus(bus) {}` has the methods of `bus`. A bus SHALL be told from a class by being a function or not.
 
 #### Scenario: Instances share the bus of their class
 - **WHEN** `const Service = extendBus(Base)` and two instances are made, and one calls `emit("ping", 1)`
@@ -52,7 +52,7 @@ Gives a class the methods of a bus and ties the subscriptions made through an in
 - **THEN** the class gets a bus of its own, as before
 
 ### Requirement: Subscriptions belong to the instance
-A subscription made with `this.on` or `this.once` SHALL be remembered for that instance, also when it is made in the constructor of `Base`. `dispose()` and `[Symbol.dispose]()` of the instance SHALL remove every subscription made through that instance and no other, and SHALL do nothing when called again. A subscription that its own unsubscribe function, `this.off` or a `once` that has fired removed SHALL not be remembered any more. `emit` SHALL remember nothing. A subscription with a predicate (`matchPlugin`) SHALL be treated the same way.
+A subscription made with `this.on` or `this.once` SHALL be remembered for that instance, also when it is made in the constructor of `Base` and when it has a predicate (`matchPlugin`). `emit` SHALL remember nothing. `dispose()` and `[Symbol.dispose]()` of the instance SHALL remove every subscription made through that instance and no other, and SHALL do nothing when called again.
 
 #### Scenario: dispose removes the subscriptions of the instance
 - **WHEN** an instance subscribed to two events with `this.on` and `dispose()` is called, then both events are emitted
@@ -74,6 +74,13 @@ A subscription made with `this.on` or `this.once` SHALL be remembered for that i
 - **WHEN** `instance[Symbol.dispose]()` is called
 - **THEN** the subscriptions are removed as by `dispose()`
 
+#### Scenario: A predicate subscription is tracked
+- **WHEN** `matchPlugin` was used and an instance subscribed with `this.on(predicate, handler)`
+- **THEN** `dispose()` removes it
+
+### Requirement: A subscription that was removed is forgotten
+A subscription that its own unsubscribe function, `this.off` or a `once` that has fired removed SHALL not be remembered any more.
+
 #### Scenario: A once that fired is forgotten
 - **WHEN** `this.once(event, handler)` has fired
 - **THEN** the instance holds nothing for it, and `dispose()` has nothing to remove for it
@@ -81,10 +88,6 @@ A subscription made with `this.on` or `this.once` SHALL be remembered for that i
 #### Scenario: off forgets
 - **WHEN** `this.off(event, handler)` is called for a subscription of the instance
 - **THEN** it is removed and `dispose()` has nothing to remove for it
-
-#### Scenario: A predicate subscription is tracked
-- **WHEN** `matchPlugin` was used and an instance subscribed with `this.on(predicate, handler)`
-- **THEN** `dispose()` removes it
 
 ### Requirement: The class of the user wins a clash of names
 A member is added to the returned class only if its name is not a member of `Base` or of a class that `Base` extends. This SHALL hold for `on`, `once`, `off`, `emit`, the methods of plugins, `dispose`, `[Symbol.dispose]`, `bus`. `disposeBus(instance)` SHALL remove the subscriptions of an instance of a class made by `extendBus`, and SHALL do nothing for any other value.
@@ -109,7 +112,7 @@ A handler passed to `this.on` or `this.once` SHALL be called as the bus calls it
 - **THEN** `handle` runs on the instance
 
 ### Requirement: Method decorators subscribe the methods of an instance
-`@On(event, wrap?, options?)` and `@Once(event, wrap?, options?)` SHALL make the decorated method a handler of `event` for each instance of a class made by `extendBus` or `@WithBus`, subscribed when the instance is constructed (after the constructor of `Base` has run) through the `on` and `once` of the instance. The method SHALL be called with `this` bound to the instance and with the payload and the task context of the event. `event` is an event name, an action creator or a command, as for `on`. `wrap`, if given, SHALL be a function that takes the bound handler and returns the handler to subscribe, such as `latest` or `(handler) => debounce(300, handler)`. The second argument MAY be the `options` instead of `wrap` when it is an object: `{ traceId }` SHALL be given on to the `on` or `once` of the instance as the options of `bus.on`, and has an effect only with `tracePlugin` (see `trace-plugin`). These subscriptions SHALL be the subscriptions of the instance: `dispose()` removes them. A subclass SHALL inherit them, and a method that a subclass overrides SHALL be subscribed only if the override is decorated. The decorators SHALL work for decorators of the language and for `experimentalDecorators`. On a class that is not made by `extendBus` or `@WithBus` they SHALL do nothing.
+`@On(event, wrap?, options?)` and `@Once(event, wrap?, options?)` SHALL make the decorated method a handler of `event` for each instance of a class made by `extendBus` or `@WithBus`, subscribed when the instance is constructed (after the constructor of `Base` has run) through the `on` and `once` of the instance. The method SHALL be called with `this` bound to the instance, the payload and the task context of the event. `event` is an event name, an action creator or a command, as for `on`.
 
 #### Scenario: A decorated method is a handler with this bound
 - **WHEN** a method is decorated with `@On("ping")`, an instance is made, and `ping` is emitted with `1`
@@ -123,17 +126,31 @@ A handler passed to `this.on` or `this.once` SHALL be called as the bus calls it
 - **WHEN** a method is decorated with `@Once("ping")` and `ping` is emitted twice
 - **THEN** the method runs once
 
+#### Scenario: An action creator and a command as the event
+- **WHEN** a method is decorated with `@On(userLoaded)`, where `userLoaded` is an action creator
+- **THEN** it runs for that action and the payload is typed as the payload of the creator
+
+### Requirement: A decorator takes a wrapper or options
+`wrap`, if given, SHALL be a function that takes the bound handler and returns the handler to subscribe, such as `latest` or `(handler) => debounce(300, handler)`. The second argument MAY be the `options` instead of `wrap` when it is an object: `{ traceId }` SHALL be given on to the `on` or `once` of the instance as the options of `bus.on`, and has an effect only with `tracePlugin` (see `trace-plugin`).
+
 #### Scenario: A policy in wrap
 - **WHEN** a method is decorated with `@On("ping", latest)` and two `ping` events come while the first run waits
 - **THEN** the first run is aborted by the second
 
+#### Scenario: A named decorated method
+- **WHEN** a method is decorated with `@On("ping", { traceId: "pinger" })` and the bus has a tracer and `tracePlugin`
+- **THEN** each call of the method is a task named `pinger`, and the method runs as without the option
+
+#### Scenario: A policy and a name
+- **WHEN** a method is decorated with `@On("ping", latest, { traceId: "pinger" })`
+- **THEN** `latest` wraps the method and the listener is named
+
+### Requirement: Decorated subscriptions belong to the instance and are inherited
+These subscriptions SHALL be the subscriptions of the instance: `dispose()` removes them. A subclass SHALL inherit them, and a method that a subclass overrides SHALL be subscribed only if the override is decorated. The decorators SHALL work for decorators of the language and for `experimentalDecorators`. On a class that is not made by `extendBus` or `@WithBus` they SHALL do nothing.
+
 #### Scenario: dispose ends them
 - **WHEN** an instance is disposed and `ping` is emitted
 - **THEN** the decorated method does not run for it
-
-#### Scenario: An action creator and a command as the event
-- **WHEN** a method is decorated with `@On(userLoaded)`, where `userLoaded` is an action creator
-- **THEN** it runs for that action and the payload is typed as the payload of the creator
 
 #### Scenario: Inherited and overridden
 - **WHEN** a subclass of the decorated class does not override the method, and another subclass overrides it without a decorator
@@ -147,14 +164,6 @@ A handler passed to `this.on` or `this.once` SHALL be called as the bus calls it
 - **WHEN** a class that is not made by `extendBus` or `@WithBus` has a method decorated with `@On("ping")`
 - **THEN** nothing is subscribed and nothing is thrown
 
-#### Scenario: A named decorated method
-- **WHEN** a method is decorated with `@On("ping", { traceId: "pinger" })` and the bus has a tracer and `tracePlugin`
-- **THEN** each call of the method is a task named `pinger`, and the method runs as without the option
-
-#### Scenario: A policy and a name
-- **WHEN** a method is decorated with `@On("ping", latest, { traceId: "pinger" })`
-- **THEN** `latest` wraps the method and the listener is named
-
 ### Requirement: A decorator does the same as extendBus
 `WithBus(bus?)` SHALL return a class decorator. `@WithBus(bus) class A {}` SHALL replace `A` by `extendBus(bus, A)`, and `@WithBus() class A {}` by `extendBus(A)`. It SHALL work for decorators of the language and for `experimentalDecorators`.
 
@@ -167,7 +176,7 @@ A handler passed to `this.on` or `this.once` SHALL be called as the bus calls it
 - **THEN** it has a bus of its own, as `extendBus(Base)` makes
 
 ### Requirement: The types follow the bus
-`extendBus` SHALL return a class whose constructor takes the arguments of the constructor of `Base` and whose instances are typed as `Base` and `BusMethods<typeof bus>`. `BusMethods<B>` SHALL be the function members of `B` that an instance gets, with `dispose(): void`, `[Symbol.dispose](): void` and `readonly bus: B`. A member of `Base` with the name of a bus method SHALL keep its own type. A class can declare what it uses with `declare on: BusMethods<typeof bus>["on"]`, and a decorated class with `interface Name extends BusMethods<typeof bus> {}`.
+`extendBus` SHALL return a class whose constructor takes the arguments of the constructor of `Base` and whose instances are typed as `Base` and `BusMethods<typeof bus>`. A member of `Base` with the name of a bus method SHALL keep its own type.
 
 #### Scenario: The instance is typed
 - **WHEN** `const service = new (extendBus(bus, Base))()` is written in TypeScript
@@ -180,6 +189,13 @@ A handler passed to `this.on` or `this.once` SHALL be called as the bus calls it
 #### Scenario: Own member keeps its type
 - **WHEN** `Base` declares `emit(text: string): void`
 - **THEN** the instance has that type for `emit`
+
+### Requirement: BusMethods names what an instance gets
+`BusMethods<B>` SHALL be the function members of `B` that an instance gets, with `dispose(): void`, `[Symbol.dispose](): void` and `readonly bus: B`. A class can declare what it uses with `declare on: BusMethods<typeof bus>["on"]`, and a decorated class with `interface Name extends BusMethods<typeof bus> {}`.
+
+#### Scenario: A class declares what it uses
+- **WHEN** a class declares `on` as `BusMethods<typeof bus>["on"]`, or a decorated class has `interface Name extends BusMethods<typeof bus> {}`
+- **THEN** the instance has the methods of the bus in its type, and `dispose` and `bus` with them
 
 ### Requirement: The class entry costs the core nothing and does not leak
 `createBus` SHALL not import `nanoeffects/oop`, and its size SHALL not grow. A disposed instance and its handlers SHALL be collectable.

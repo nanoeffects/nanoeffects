@@ -61,7 +61,7 @@ After `DRAIN_MS`, the server SHALL abort the signal that every `bus.emit` of the
 - **THEN** their outcome is `cancel`, and a call that was running has its `ctx.signal` aborted
 
 ### Requirement: The example is tested and passes the project gates
-`src/tests/backend-examples.test.ts` SHALL run the worker with a fake mailer and fake timers and cover the limit of three, the retry, the timeout, the counts, the answer 202 before sending and the three steps of the shutdown. `examples/job-worker/` SHALL pass `pnpm tsgo` and `pnpm check`, SHALL NOT be part of the published package, SHALL NOT change anything in `src/`, and SHALL add no dependency to the published package (its dev dependencies are `fastify`, `@fastify/websocket` and `@types/ws` in the root `package.json`).
+`src/tests/backend-examples.test.ts` SHALL run the worker with a fake mailer and fake timers and cover the limit of three, the retry, the timeout, the counts, the answer 202 before sending and the three steps of the shutdown. `examples/job-worker/` SHALL pass `pnpm tsgo` and `pnpm check`, SHALL NOT be part of the published package or change anything in `src/`, and SHALL add no dependency to it (`fastify`, `@fastify/websocket` and `@types/ws` are dev dependencies of the root `package.json`).
 
 #### Scenario: Gates
 - **WHEN** `pnpm verify` runs

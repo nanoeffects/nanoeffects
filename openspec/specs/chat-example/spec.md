@@ -32,7 +32,7 @@ The server SHALL answer 503 to every third send, 400 to a send whose text starts
 - **THEN** no send answers 503 and the search of every room answers quickly
 
 ### Requirement: The example splits the logic by layers
-The example SHALL have the entities `room` and `message` and the features `show-history`, `receive-messages` and `search-messages` as folders, over a `shared` folder with the bus and the server client, as `example-layers` says. Each entity and feature folder SHALL have an events file, a handlers file and a module made with `createModule`. The bus file SHALL hold only the bus and its plugins and SHALL NOT import events; an events file SHALL NOT import the bus. One file SHALL mount the modules with `modulePlugin`.
+The example SHALL have the entities `room` and `message` and the features `show-history`, `receive-messages` and `search-messages` as folders, over a `shared` folder with the bus and the server client (see `example-layers`). Each folder SHALL have an events file, a handlers file and a module made with `createModule`. The bus file SHALL hold only the bus and its plugins and SHALL NOT import events, an events file SHALL NOT import the bus, and one file SHALL mount the modules with `modulePlugin`.
 
 #### Scenario: Layout of a domain
 - **WHEN** the folder of an entity or a feature is read

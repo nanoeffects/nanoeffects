@@ -21,19 +21,11 @@ Lets an action, command, job or module carry its own context fields and bound ef
 - **THEN** `result === bus`
 
 ### Requirement: A scope is a flat object of fields and effects
-A scope SHALL be a plain object. Every key SHALL be put on the task context as it is, except `$effects`, and except a function made by `effect(fn)`, which SHALL be bound to the task. The name `$effects` is reserved: every entry of that object SHALL be a function whose first parameter accepts `{ signal }`, put on the task context bound to that task: calling `ctx.name(...args)` calls the function with the task context as the first argument.  A key named `effects` SHALL be an ordinary field like any other. The name `traceGroupId` is reserved for the tracer: it SHALL NOT be put on the task context (see `trace-group`).
+A scope SHALL be a plain object. Every key SHALL be put on the task context as it is, except `$effects`, and except a function made by `effect(fn)`, which SHALL be bound to the task. A key named `effects` SHALL be an ordinary field like any other.
 
 #### Scenario: A context value is read as is
 - **WHEN** a command is created with `{ cache }` and its handler destructures `cache`
 - **THEN** the handler gets the same `cache` object
-
-#### Scenario: An effect is bound to the task
-- **WHEN** a command is created with `{ $effects: { fetchJson } }` and its handler calls `fetchJson(url)`
-- **THEN** `fetchJson` runs with the task context as the first argument, so its `signal` is the signal of that task
-
-#### Scenario: A bound effect stops with the task
-- **WHEN** the task is aborted while a bound effect waits on `ctx.signal`
-- **THEN** the effect sees the abort exactly as the free form `fetchJson(ctx, url)` does
 
 #### Scenario: Unmarked functions are not bound
 - **WHEN** the scope is `{ log }` and `log` is a plain function
@@ -43,12 +35,23 @@ A scope SHALL be a plain object. Every key SHALL be put on the task context as i
 - **WHEN** a scope is `{ effects: { retries: 3 } }`
 - **THEN** `ctx.effects` is that object, and nothing in it is bound to the task
 
+### Requirement: The effects of a scope are bound to the task
+The name `$effects` is reserved: every entry of that object SHALL be a function whose first parameter accepts `{ signal }`, put on the task context bound to that task: calling `ctx.name(...args)` calls the function with the task context as the first argument. The name `traceGroupId` is reserved for the tracer: it SHALL NOT be put on the task context (see `trace-group`).
+
+#### Scenario: An effect is bound to the task
+- **WHEN** a command is created with `{ $effects: { fetchJson } }` and its handler calls `fetchJson(url)`
+- **THEN** `fetchJson` runs with the task context as the first argument, so its `signal` is the signal of that task
+
+#### Scenario: A bound effect stops with the task
+- **WHEN** the task is aborted while a bound effect waits on `ctx.signal`
+- **THEN** the effect sees the abort exactly as the free form `fetchJson(ctx, url)` does
+
 #### Scenario: traceGroupId is not a context field
 - **WHEN** a scope is `{ traceGroupId: "checkout", cache }`
 - **THEN** `ctx.cache` is the cache, `ctx.traceGroupId` is `undefined`, and the tracer reads the `traceGroupId`
 
 ### Requirement: A scope can be given to an action, a command, a job and a module
-`createJob`, `createAction` (also with a handler, which makes it a command) and `createModule` (and `createModule` of an app) SHALL accept a scope. The fields of a command, job or action scope SHALL be on the context of every handler that runs for a call made with it, including listeners of its type. The fields of a module scope SHALL be on the context of its listeners, bound commands and background tasks. When a job sends an outcome whose action has a scope of its own, its listeners SHALL see the fields of the job's scope with those of the action's scope over them.
+`createJob`, `createAction` (also with a handler, which makes it a command) and `createModule` (and `createModule` of an app) SHALL accept a scope. The fields of a command, job or action scope SHALL be on the context of every handler that runs for a call made with it, including listeners of its type.
 
 #### Scenario: Command scope reaches its handler and listeners
 - **WHEN** `bus.emit(getUser("1"))` runs and `getUser` has `{ cache }`
@@ -61,6 +64,9 @@ A scope SHALL be a plain object. Every key SHALL be put on the task context as i
 #### Scenario: Action scope
 - **WHEN** `bus.emit(userLoaded(user))` runs and `userLoaded` has `{ store }`
 - **THEN** every listener of that action gets `store`
+
+### Requirement: Module scopes and the scopes of outcomes
+The fields of a module scope SHALL be on the context of its listeners, bound commands and background tasks. When a job sends an outcome whose action has its own scope, its listeners SHALL see the job's fields with the action's over them.
 
 #### Scenario: Module scope covers what the module owns
 - **WHEN** a module has `{ audit }` and uses `m.on`, `m.handle` and `m.spawn`

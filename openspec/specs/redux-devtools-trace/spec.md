@@ -98,7 +98,7 @@ The option `payload` SHALL NOT change which actions are sent, nor `type`, `event
 - **THEN** every action serializes with `JSON.stringify`
 
 ### Requirement: The payload and the error are made plain before the extension gets them
-`reduxDevtools` SHALL make the payload and the error of each action plain data before it hands the action to the extension, so that `JSON.stringify` of every action works for any payload, also a circular object, a `Map`, a class instance, a function, a bigint or an object whose properties throw. An `Error` SHALL still be sent as its message. The option `serialize` SHALL replace this with a function of the value, and `serialize: false` SHALL send values as they are, leaving the work to the extension. Before this change the payload was passed as it was, and a payload that could not be serialized was reported through the failure path of the logger and not shown; now it is shown in plain form.
+`reduxDevtools` SHALL make the payload and the error of each action plain data before it hands the action to the extension, so that `JSON.stringify` of every action works for any payload, also a circular object, a `Map`, a class instance, a function, a bigint or an object whose properties throw. An `Error` SHALL still be sent as its message.
 
 #### Scenario: A circular payload is shown
 - **WHEN** the payload is a circular object and `payload` is `"essential"` or `"all"`
@@ -107,6 +107,9 @@ The option `payload` SHALL NOT change which actions are sent, nor `type`, `event
 #### Scenario: A bigint payload is shown
 - **WHEN** the payload is `10n`
 - **THEN** the action has `"10n"` as the payload and nothing is reported as a failure
+
+### Requirement: The serialization of reduxDevtools can be replaced
+The option `serialize` SHALL replace this with a function of the value, and `serialize: false` SHALL send values as they are, leaving the work to the extension.
 
 #### Scenario: Your own function
 - **WHEN** `serialize` is a function

@@ -6,7 +6,7 @@ Makes the first link of a trace chain readable. An event that `useEmitter` or `b
 ## Requirements
 
 ### Requirement: An emitter starts a root task when the bus traces
-When the bus has a tracer and `tracePlugin` is used on it, `useEmitter` and a function made by `bus.emitter` SHALL emit the event from a root task whose reports have the existing effect `"run"`. The task SHALL be reported as started before the event is emitted and as done after the synchronous emit returns, or as an error when it throws. Every task that the emit starts SHALL be below this task: a command that is emitted directly has it as its `parentId`, and a task below a listener has the task of the listener in between.
+When the bus has a tracer and `tracePlugin` is used on it, `useEmitter` and a function made by `bus.emitter` SHALL emit the event from a root task whose reports have the existing effect `"run"`. The task SHALL be reported as started before the emit and as done after the synchronous emit returns, or as an error when it throws. Every task that the emit starts SHALL be below it: a command emitted directly has it as its `parentId`, and a task below a listener has the listener's task in between.
 
 #### Scenario: A chain has a root
 - **WHEN** a bus with a tracer and `tracePlugin` has `useEmitter(nameChanged, name, { traceId: "Profile" })` in a component, a command listens to `nameChanged`, and the name changes

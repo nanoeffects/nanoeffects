@@ -6,7 +6,7 @@ Show a reader how a value shared by React components reaches the bus when it cha
 ## Requirements
 
 ### Requirement: The Stores page shows how to share a value in React
-`docs/stores.md` SHALL have a subsection that shows three ways to keep a value that several components read reactively and whose changes reach the bus: `useEmitter` in a Context provider (plain React); a small value store built on `useSyncExternalStore`, for reads outside React; and an atom of a store library with `listen(bus.emitter(...))`. It SHALL show how a handler's result returns to React, and SHALL say, with the reason, not to emit inside a `useReducer` reducer. It SHALL NOT show Redux `useDispatch`.
+`docs/stores.md` SHALL have a subsection that shows three ways to keep a value that several components read reactively and whose changes reach the bus: `useEmitter` in a Context provider (plain React); a small value store built on `useSyncExternalStore`, for reads outside React; and an atom of a store library with `listen(bus.emitter(...))`. It SHALL show how a handler's result returns to React, say why not to emit inside a `useReducer` reducer, and SHALL NOT show Redux `useDispatch`.
 
 #### Scenario: Plain React
 - **WHEN** a reader keeps the value in `useState` inside a provider

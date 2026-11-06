@@ -6,7 +6,14 @@ Makes everything that leaves the process through a logger plain data, with safeS
 ## Requirements
 
 ### Requirement: What leaves the process is plain data
-The built-in loggers SHALL NOT throw for any payload or error, and what they hand to a tool outside the process SHALL be plain data that `JSON.stringify` takes. `reduxDevtools` SHALL make the payload and the error of each action plain with `safeSerialize` before the extension gets them, except that an `Error` SHALL still be sent as its message; its `serialize` option SHALL replace this with a function, or send values as they are with `false`. `performanceLogger` SHALL send an error as text, also for an object with no prototype or a throwing `toString`. `consoleLogger` SHALL pass the value to the console. `createTraceRecorder` SHALL keep events as they are and SHALL have `toJSON()`, also used by `JSON.stringify(recorder)`, that gives the events as plain data, for a recorder with a capacity too. `graphLogger` SHALL export a payload only when asked, as plain data.
+The built-in loggers SHALL NOT throw for any payload or error, and what they hand to a tool outside the process SHALL be plain data that `JSON.stringify` takes. `consoleLogger` SHALL pass the value to the console, and `graphLogger` SHALL export a payload only when asked, as plain data. `createTraceRecorder` SHALL keep events as they are and have `toJSON()` (used by `JSON.stringify(recorder)`) that gives them as plain data.
+
+#### Scenario: The recorder
+- **WHEN** the same values are payloads
+- **THEN** `recorder.events` keeps them as they are, and `JSON.stringify(recorder)` and `recorder.toJSON()` do not throw
+
+### Requirement: Redux DevTools and the performance logger get plain data
+`reduxDevtools` SHALL make the payload and the error of each action plain with `safeSerialize` before the extension gets them, except that an `Error` SHALL still be sent as its message; its `serialize` option SHALL replace this with a function, or send values as they are with `false`. `performanceLogger` SHALL send an error as text, also for an object with no prototype or a throwing `toString`.
 
 #### Scenario: Hostile values reach Redux DevTools
 - **WHEN** a payload and an error are a circular object, a class instance, a `Map`, an `Error` with a `cause`, a bigint, a symbol, a function, a Proxy whose traps throw, an object with no prototype, a 5 000-deep chain or an array of 100 000 items
@@ -15,10 +22,6 @@ The built-in loggers SHALL NOT throw for any payload or error, and what they han
 #### Scenario: Performance details
 - **WHEN** the same values are errors
 - **THEN** the details recorded by `performanceLogger` are plain data
-
-#### Scenario: The recorder
-- **WHEN** the same values are payloads
-- **THEN** `recorder.events` keeps them as they are, and `JSON.stringify(recorder)` and `recorder.toJSON()` do not throw
 
 #### Scenario: Your own serialize
 - **WHEN** `reduxDevtools({ serialize })` is given a function

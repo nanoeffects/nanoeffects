@@ -110,7 +110,7 @@ With `devPlugin` used, the bus SHALL keep one call site for each subscription ma
 - **THEN** no site is recorded and nothing throws
 
 ### Requirement: devPlugin warns about a handler that ignores the signal
-With `devPlugin` used, the bus SHALL warn once for each pair of handler type and event when a handler emits through `ctx.emit`, or subscribes through `ctx.on`, after the signal of its task aborted, because the bus drops that emit or subscription. The warning SHALL name the handler and the event and SHALL say to pass `ctx.signal` to the request or `ctx` to an effect. The emit that `createJob` makes for its own `cancel` SHALL NOT be reported. `abandoned: false` SHALL turn the check off, `disconnect` SHALL stop it, the production build SHALL do nothing, and the policies and the bus SHALL carry no code for it.
+With `devPlugin` used, the bus SHALL warn once for each pair of handler type and event when a handler emits through `ctx.emit`, or subscribes through `ctx.on`, after the signal of its task aborted, because the bus drops that emit or subscription. The warning SHALL name the handler and the event and SHALL say to pass `ctx.signal` to the request or `ctx` to an effect. The emit that `createJob` makes for its own `cancel` SHALL NOT be reported.
 
 #### Scenario: A latest handler that ignores the signal
 - **WHEN** a handler under `latest` awaits a request that ignores `ctx.signal`, a newer call aborts it, and it then emits `results`
@@ -136,6 +136,9 @@ With `devPlugin` used, the bus SHALL warn once for each pair of handler type and
 - **WHEN** a test cancels a handler that emits after the cancel and calls `getLostSignalsCount(bus, { wait })`
 - **THEN** it resolves with the number of such emits and `ctx.on` calls, every one counted though the warning is written once, and `getLostSignals(bus)` lists `{ kind, handler, event }` for each
 
+### Requirement: The abandoned check can be turned off
+`abandoned: false` SHALL turn the check off, `disconnect` SHALL stop it, the production build SHALL do nothing, and the policies and the bus SHALL carry no code for it.
+
 #### Scenario: No tracking on the bus
 - **WHEN** `getLostSignalsCount` is called on a bus with no `devPlugin`, or with `abandoned: false`
 - **THEN** it rejects with a message that says to use `devPlugin`
@@ -145,7 +148,7 @@ With `devPlugin` used, the bus SHALL warn once for each pair of handler type and
 - **THEN** nothing is reported and `bus.addContext` is as it was
 
 ### Requirement: devPlugin follows the requests of a handler
-On Node (where `AsyncLocalStorage` is available), `devPlugin` SHALL attribute each `fetch` request to the task that made it, also after `await`, and SHALL count a request as a lost signal of kind `request` when its task is aborted while the request is still running and the request did not stop: it got no signal, or a signal that did not abort. A request that finished before the abort, or that stopped with the abort, SHALL NOT be counted. The lost signal SHALL name the handler and the url, `getLostSignalsCount` SHALL include it, and one warning SHALL be written for each handler and url. A request that starts after its task was already aborted SHALL be counted the same way. The option `requests: false` SHALL turn the tracking off, and `disconnect` SHALL put `fetch` back. Where `AsyncLocalStorage` is not available (a browser), nothing SHALL be tracked and nothing SHALL fail.
+On Node (where `AsyncLocalStorage` is available), `devPlugin` SHALL attribute each `fetch` request to the task that made it, also after `await`, and SHALL count a request as a lost signal of kind `request` when its task is aborted while the request is still running and the request did not stop: it got no signal, or a signal that did not abort. A request that finished before the abort, or that stopped with the abort, SHALL NOT be counted.
 
 #### Scenario: A request without a signal
 - **WHEN** a handler under `latest` calls `fetch(url)` with no signal and a newer call cancels it
@@ -163,9 +166,15 @@ On Node (where `AsyncLocalStorage` is available), `devPlugin` SHALL attribute ea
 - **WHEN** the request finished before the cancel
 - **THEN** it is not counted
 
+### Requirement: A lost request is reported by handler and url
+The lost signal SHALL name the handler and the url, `getLostSignalsCount` SHALL include it, and one warning SHALL be written for each handler and url. A request that starts after its task was already aborted SHALL be counted the same way.
+
 #### Scenario: The caller's own requests
 - **WHEN** test code calls `fetch` after `bus.emit` returned
 - **THEN** that request is not attributed to a task
+
+### Requirement: The request tracking can be turned off and needs AsyncLocalStorage
+The option `requests: false` SHALL turn the tracking off, and `disconnect` SHALL put `fetch` back. Where `AsyncLocalStorage` is not available (a browser), nothing SHALL be tracked and nothing SHALL fail.
 
 #### Scenario: Off and disconnected
 - **WHEN** `requests: false` is set, or the plugin is disconnected

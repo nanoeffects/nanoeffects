@@ -13,11 +13,14 @@ Lets a test state when events are emitted and when tasks start, finish, fail, st
 - **THEN** the trace of the run holds the events of the tasks, including a listener named by its function name
 
 ### Requirement: Emits are written as a diagram
-`run({ emits, frames })` SHALL take `emits` as an object whose keys are event names and whose values are `{ marble, values }`. In `marble`, `-` is a frame with no emit; any other character except `(`, `)`, `|` and whitespace emits the event at that frame with `values[character]`, or the character itself when `values` has no such key; `(ab)` emits `a` then `b` in one frame. Any other use of `|`, `(`, `)` or whitespace SHALL throw an error that names the diagram and the position. `frames` is the number of frames to run and SHALL default to the length of the longest diagram.
+`run({ emits, frames })` SHALL take `emits` as an object whose keys are event names and whose values are `{ marble, values }`. `frames` is the number of frames to run and SHALL default to the length of the longest diagram.
 
 #### Scenario: Two emits
 - **WHEN** `"a-b---"` is given with `values: { a: "x", b: "xy" }` for `search/changed`
 - **THEN** the bus gets `emit("search/changed", "x")` at frame 0 and `emit("search/changed", "xy")` at frame 2
+
+### Requirement: The characters of an emit diagram
+In `marble`, `-` is a frame with no emit; any other character except `(`, `)`, `|` and whitespace emits the event at that frame with `values[character]`, or the character itself when `values` has no such key; `(ab)` emits `a` then `b` in one frame. Any other use of `|`, `(`, `)` or whitespace SHALL throw an error that names the diagram and the position.
 
 #### Scenario: A group
 - **WHEN** the diagram is `"(ab)-"`
@@ -35,14 +38,14 @@ For each frame `i`, `run` SHALL emit what the diagrams say for `i`, and then cal
 - **THEN** its `done` is in frame 10
 
 ### Requirement: The trace is read as rows of phases
-`result.rows()` SHALL return an object whose keys are `type:effect` of the tasks that were traced (for example `search:run`, `search:queue`, `search/changed:latest`) and whose values are diagrams of the phases of those tasks: `s` for `start`, `d` for `done`, `e` for `error`, `c` for `cancel`, `x` for `drop`, `-` for a frame with none, and `(…)` for several in one frame, in the order they were recorded. Every diagram SHALL have one character or group for each frame run. The `emit` effect SHALL NOT be a row.
+`result.rows()` SHALL return an object whose keys are `type:effect` of the traced tasks (for example `search:run`, `search:queue`, `search/changed:latest`) and whose values are diagrams of the phases of those tasks: `s` for `start`, `d` for `done`, `e` for `error`, `c` for `cancel`, `x` for `drop`, `-` for a frame with none, `(…)` for several in one frame, in the order recorded. Every diagram SHALL have one character or group for each frame run. The `emit` effect SHALL NOT be a row.
 
 #### Scenario: latest
 - **WHEN** a handler named `search` behind `latest` takes 50 ms, is emitted at frames 0 and 1, and `frames` is 10
 - **THEN** the row `search/changed:latest` shows a `c` at the frame of the second emit and a `d` for the second call
 
 ### Requirement: expect compares diagrams and fails with both
-`result.expect(rows)` SHALL compare each given row with the diagram of the run. A key without `:` SHALL match every row whose effect is that key and, for the row to compare, its diagram SHALL be the one with the first match; a key with `:` SHALL match that row exactly. A diagram shorter than `frames` SHALL be padded with `-`. When a row differs or does not exist, `expect` SHALL throw an `Error` whose message holds the key and the two diagrams one under the other, marked `expected` and `received`; when all rows match it SHALL return the result.
+`result.expect(rows)` SHALL compare each given row with the run's diagram: a key without `:` SHALL match every row whose effect is that key and be compared with the first match, a key with `:` SHALL match that row exactly, and a shorter diagram SHALL be padded with `-`. When a row differs or does not exist, `expect` SHALL throw an `Error` whose message holds the key and both diagrams, one under the other, marked `expected` and `received`; if all rows match, it SHALL return the result.
 
 #### Scenario: A difference
 - **WHEN** `expect({ "search:run": "s---d" })` is called and the run has `s--d-`

@@ -6,7 +6,7 @@ Defines how `timingLogger` measures the duration of traced tasks and lists the o
 ## Requirements
 
 ### Requirement: A timing logger measures the duration of closed tasks
-`timingLogger()` SHALL return a trace logger that, for each task, records the time between the event with phase `start` and the first event with phase `done`, `error`, `cancel` or `drop` of the same task and effect. Time SHALL be read when the logger receives the event, from `options.now` when given and from a monotonic clock otherwise. `timingLogger().durations` SHALL list the closed tasks, oldest closed first, each with `id`, `type`, `effect`, the closing `phase`, `ms`, and `parentId`, `rootId` and `source` when the event has them.
+`timingLogger()` SHALL return a trace logger that, for each task, records the time between the event with phase `start` and the first event with phase `done`, `error`, `cancel` or `drop` of the same task and effect. `durations` SHALL list the closed tasks, oldest closed first, each with `id`, `type`, `effect`, the closing `phase`, `ms`, and `parentId`, `rootId` and `source` when the event has them.
 
 #### Scenario: A finished task
 - **WHEN** a task reports `start`, the clock moves 40 ms, and it reports `done`
@@ -27,6 +27,9 @@ Defines how `timingLogger` measures the duration of traced tasks and lists the o
 #### Scenario: Only the first closing phase counts
 - **WHEN** a task reports `start`, `cancel`, and then `done`
 - **THEN** `durations` has one entry for it, with phase `cancel`
+
+### Requirement: The timing logger reads time when the event arrives
+Time SHALL be read when the logger receives the event, from `options.now` when given and otherwise from a monotonic clock.
 
 #### Scenario: An injected clock
 - **WHEN** `timingLogger({ now })` is given a function that returns a number

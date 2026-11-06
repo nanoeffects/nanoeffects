@@ -28,7 +28,7 @@ A plugin SHALL be any function of the bus; the bus SHALL NOT keep a list of plug
 - **THEN** `a` has run before `b` starts
 
 ### Requirement: Modules are attached with a plugin
-`bus.use(modulePlugin(modules?))` SHALL attach modules to the bus and return `mount`, `unmount`, `isMounted`, `dispose` and `commands`, with the behavior that `registerModules` had. The given modules SHALL be mounted in the order given, not inside `bus.use`: at the first use of the app or of the bus (the first `bus.emit`, the first call of `mount`, `unmount`, `isMounted` or `dispose`, or the first read of `commands`), or, when none comes first and the list is not empty, at the end of the synchronous block in which `bus.use` was called. A module mounted by `mount` before that SHALL be mounted after the given modules. Between `bus.use(modulePlugin(...))` and that start, `bus.on`, `bus.once` and `bus.off` SHALL be held and replayed in the order called right after the given modules are mounted, so the listeners of the modules stay ahead of the listeners registered after `bus.use`.
+`bus.use(modulePlugin(modules?))` SHALL attach modules to the bus and return `mount`, `unmount`, `isMounted`, `dispose` and `commands`, with the behavior that `registerModules` had. The given modules SHALL be mounted in the order given. A module mounted by `mount` before the first start SHALL be mounted after the given modules.
 
 #### Scenario: Modules are mounted and returned api works
 - **WHEN** `const app = bus.use(modulePlugin([userModule]))` is called and later `app.mount(orderModule)` and `app.unmount(userModule)`
@@ -41,6 +41,17 @@ A plugin SHALL be any function of the bus; the bus SHALL NOT keep a list of plug
 #### Scenario: A module is replaced by name
 - **WHEN** a module is mounted and a module of the same name is mounted through the returned `mount`
 - **THEN** the first is unmounted before the second is mounted
+
+#### Scenario: Disposed before the first use
+- **WHEN** `app.dispose()` is the first use of the app
+- **THEN** the initial modules never run, also at the end of the block, and `app.mount` throws afterwards
+
+#### Scenario: Plugins used after modulePlugin are seen by modules
+- **WHEN** `bus.use(modulePlugin([userModule]))` is followed by `bus.use(contextPlugin({ store }))` and `bus.use(effectsPlugin({ race }))`, and then the bus is used
+- **THEN** the context of `userModule` and of the tasks it spawns has `store` and `race`
+
+### Requirement: Modules are mounted at the first use, or at the end of the block
+The given modules SHALL NOT be mounted inside `bus.use`. They SHALL be mounted at the first use of the app or of the bus (the first `bus.emit`, the first call of `mount`, `unmount`, `isMounted` or `dispose`, or the first read of `commands`), or, when none comes first and the list is not empty, at the end of the synchronous block in which `bus.use` was called.
 
 #### Scenario: Initial modules wait for the first use
 - **WHEN** `bus.use(modulePlugin([userModule]))` is called and nothing else has happened in the same synchronous block
@@ -66,6 +77,9 @@ A plugin SHALL be any function of the bus; the bus SHALL NOT keep a list of plug
 - **WHEN** the `setup` of an initial module throws and nothing used the app before the end of the block
 - **THEN** the error is reported, the modules of the list are not left mounted, the held listeners are replayed, and the app stays usable
 
+### Requirement: Calls made before the start are held and replayed
+Between `bus.use(modulePlugin(...))` and that start, `bus.on`, `bus.once` and `bus.off` SHALL be held and replayed in the order called right after the given modules are mounted, so the listeners of the modules stay ahead of the listeners registered after `bus.use`.
+
 #### Scenario: Module listeners stay ahead of the listeners registered after the plugin
 - **WHEN** `bus.use(modulePlugin([userModule]))` is called, then `bus.on("ping", outside)`, then `bus.emit("ping")`, and `userModule` listens to `ping`
 - **THEN** on `ping` the listener of `userModule` runs before `outside`
@@ -85,14 +99,6 @@ A plugin SHALL be any function of the bus; the bus SHALL NOT keep a list of plug
 #### Scenario: Held calls are replayed in order
 - **WHEN** `bus.on("ping", first)` and `bus.on("ping", second)` are called after `bus.use(modulePlugin(...))`
 - **THEN** on `ping` `first` runs before `second`
-
-#### Scenario: Plugins used after modulePlugin are seen by modules
-- **WHEN** `bus.use(modulePlugin([userModule]))` is followed by `bus.use(contextPlugin({ store }))` and `bus.use(effectsPlugin({ race }))`, and then the bus is used
-- **THEN** the context of `userModule` and of the tasks it spawns has `store` and `race`
-
-#### Scenario: Disposed before the first use
-- **WHEN** `app.dispose()` is the first use of the app
-- **THEN** the initial modules never run, also at the end of the block, and `app.mount` throws afterwards
 
 ### Requirement: registerModules is gone
 The package SHALL NOT export `registerModules`; attaching modules SHALL be done with `modulePlugin` and `bus.use`.

@@ -122,19 +122,22 @@ A task that ends with `done`, `error`, `cancel` or `drop` SHALL leave no trace i
 - **THEN** the chains started after it are counted from zero
 
 ### Requirement: The logger itself neither recurses nor loops
-The logger SHALL find a cycle with a loop over the chain, not by recursion, so a chain thousands of tasks deep does not overflow the stack of the logger. A report SHALL be made without re-entering the logger: when `onCycle`, the console or a DevTools call emits an event on the same bus, the logger SHALL take the events it gets then as part of its normal input, and SHALL NOT report the same path again or recurse into the report. A cycle that ends in a `RangeError` of the app (the stack of the app is full) SHALL have been reported before it.
+The logger SHALL find a cycle with a loop over the chain, not by recursion, so a chain thousands of tasks deep does not overflow the stack of the logger. A cycle that ends in a `RangeError` of the app (the stack of the app is full) SHALL have been reported before it.
 
 #### Scenario: A very deep chain
 - **WHEN** a chain of 5 000 tasks, each emitting the next, runs and ends
 - **THEN** the logger does not throw and does not overflow the stack
 
-#### Scenario: A report that emits
-- **WHEN** `onCycle` emits an event on the same bus, and a handler of that event emits the looping event again
-- **THEN** each path is reported once, and the logger does not recurse
-
 #### Scenario: A synchronous loop that overflows the stack
 - **WHEN** three handlers loop synchronously until the app throws `RangeError`
 - **THEN** the cycle was reported before the error
+
+### Requirement: A report does not re-enter the logger
+A report SHALL be made without re-entering the logger: when `onCycle`, the console or a DevTools call emits an event on the same bus, the logger SHALL take the events it gets then as part of its normal input, and SHALL NOT report the same path again or recurse into the report.
+
+#### Scenario: A report that emits
+- **WHEN** `onCycle` emits an event on the same bus, and a handler of that event emits the looping event again
+- **THEN** each path is reported once, and the logger does not recurse
 
 ### Requirement: Re-entry and listener changes during an emit are not mistaken for loops
 Subscribing, unsubscribing or replacing a listener while an emit runs SHALL NOT by itself be reported. A listener added during an emit SHALL NOT make the logger count the current emit twice, and a listener that removes itself or another one during the emit SHALL NOT leave counters behind.
@@ -148,7 +151,7 @@ Subscribing, unsubscribing or replacing a listener while an emit runs SHALL NOT 
 - **THEN** no cycle is reported and the counters of the chain are dropped when the tasks end
 
 ### Requirement: A report says where the chain began and how to break it
-A cycle or storm report SHALL name the root of the chain (the first node, or `outside` for an emit that came from outside any task), the `traceGroupId` when there is one, and one line of advice chosen by the kind of finding: a self loop (emit a different event for the result), a loop between listeners (break it with a condition or a different event), a storm (`equals` of `useEmitter`, `debounce`, a guard), a runaway chain (look for generated event names). The advice SHALL be text only and SHALL NOT depend on the payload.
+A cycle or storm report SHALL name the root of the chain (the first node, or `outside` for an emit from outside any task), the `traceGroupId` when there is one, and one line of advice for the kind of finding: a self loop (emit a different event for the result), a loop between listeners (break it with a condition or another event), a storm (`equals` of `useEmitter`, `debounce`, a guard), a runaway chain (look for generated event names). The advice SHALL be text only, not depending on the payload.
 
 #### Scenario: The root is named
 - **WHEN** a loop is started by `useEmitter` named `filters` and then runs between two listeners

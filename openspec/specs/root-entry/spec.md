@@ -17,7 +17,7 @@ The runtime exports of `nanoeffects` SHALL be `createBus` only. The internal key
 - **THEN** it is a type error, and the module has no such export at run time
 
 ### Requirement: The root entry exports the types the bus needs
-The root entry SHALL keep exporting the types needed to write and use a bus: `Bus`, `BusOptions`, the event, handler, emit and subscribe types, `Context`, `ContextOf`, `ContextOption`, `WithContext`, `WithPayload`, `WithSignal`, `WithType`, `EventMap`, `Keys`, `PayloadOf`, `Task`, `UnsubscribeCallback`, and the types of actions the bus names, among them `Handled` (an action with a handler) and `HandledCall` (what calling it returns). It SHALL NOT export `Command` or `CommandCall`. A project that imports only these from `nanoeffects` SHALL keep compiling.
+The root entry SHALL keep exporting the types needed to write and use a bus: `Bus`, `BusOptions`, the event, handler, emit and subscribe types, `Context`, `ContextOf`, `ContextOption`, `WithContext`, `WithPayload`, `WithSignal`, `WithType`, `EventMap`, `Keys`, `PayloadOf`, `Task`, `UnsubscribeCallback`, and the action types the bus names (`Handled` and `HandledCall`). It SHALL NOT export `Command` or `CommandCall`. A project that imports only these SHALL keep compiling.
 
 #### Scenario: WithSignal comes from the root
 - **WHEN** `import type { WithSignal } from "nanoeffects"` is written and a function takes `options: WithSignal`

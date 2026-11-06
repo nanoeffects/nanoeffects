@@ -50,7 +50,7 @@ The route SHALL abort an `AbortController` when the connection closes before the
 - **THEN** the server accepts no new connection, the request in flight is aborted, and the process exits with 0
 
 ### Requirement: The example is tested and passes the project gates
-`src/tests/backend-examples.test.ts` SHALL run the app against a fake upstream and cover the answers above, the retry, the limits and the disconnect. `examples/api-server/` SHALL pass `pnpm tsgo` and `pnpm check` with the type check using the sources of `nanoeffects`, SHALL NOT be part of the published package, SHALL NOT change anything in `src/`, and SHALL add no dependency to the published package (its dev dependencies are `fastify`, `@fastify/websocket` and `@types/ws` in the root `package.json`).
+`src/tests/backend-examples.test.ts` SHALL run the app against a fake upstream and cover the answers above, the retry, the limits and the disconnect. `examples/api-server/` SHALL pass `pnpm tsgo` and `pnpm check` with the type check using the sources of `nanoeffects`, SHALL NOT be part of the published package or change anything in `src/`, and SHALL add no dependency to it (`fastify`, `@fastify/websocket` and `@types/ws` are dev dependencies of the root `package.json`).
 
 #### Scenario: Gates
 - **WHEN** `pnpm verify` runs

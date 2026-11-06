@@ -6,7 +6,7 @@ A docs page that shows how to test a policy or an effect with diagrams, for a re
 ## Requirements
 
 ### Requirement: A testing page with a worked case
-`docs/testing.md` SHALL state its level and what to read first, start from the problem (a time-based test with `advanceTimersByTime` numbers), show one worked case with `latest` (the emit diagram, the expected diagram and the failure message), explain the alphabet, the frame, the clock and the `frames` option in a table or a short list, state what is not supported, and say that the helper needs a tracer so it has no `notrace` build. Every `js` or `ts` block SHALL pass `pnpm docs:check`, and every name in a block SHALL be defined in it.
+`docs/testing.md` SHALL state its level and what to read first, start from the problem (a time-based test with `advanceTimersByTime`), and show one worked case with `latest` (the emit diagram, the expected diagram and the failure message). It SHALL explain the alphabet, the frame, the clock and the `frames` option, state what is not supported, and say that the helper needs a tracer, so it has no `notrace` build. Every `js` or `ts` block SHALL pass `pnpm docs:check`, its names defined in it.
 
 #### Scenario: A reader copies the case
 - **WHEN** the worked case is copied into a Vitest file

@@ -28,7 +28,7 @@ The repository tests SHALL scaffold every template from the packed `create-nanoe
 - **THEN** the integration test for that template fails
 
 ### Requirement: There are TypeScript templates for both shapes
-The command SHALL offer the templates `vanilla-ts` and `react-ts` in addition to `vanilla` and `react`. `vanilla` SHALL stay the default, and the JavaScript templates SHALL NOT change. A TypeScript template SHALL show the same app as its JavaScript twin, with the same file split (the bus, the events and the handlers in separate files, as in the guide), written in `.ts` and `.tsx` files with a `tsconfig.json`. The templates `domains-ts`, `vue-ts` and `svelte-ts` have no JavaScript twin and follow their own requirements.
+The command SHALL offer the templates `vanilla-ts` and `react-ts` in addition to `vanilla` and `react`. `vanilla` SHALL stay the default, and the JavaScript templates SHALL NOT change. A TypeScript template SHALL show the same app as its JavaScript twin, with the same file split (bus, events and handlers in separate files, as in the guide), in `.ts` and `.tsx` files with a `tsconfig.json`. `domains-ts`, `vue-ts` and `svelte-ts` have no JavaScript twin and follow their own requirements.
 
 #### Scenario: Make a TypeScript template
 - **WHEN** the command is run as `create-nanoeffects my-app --template react-ts`
@@ -103,7 +103,7 @@ Where the template reads an event into React state with `useEventState`, a comme
 - **THEN** the file that calls `useEventState` has that comment next to the call
 
 ### Requirement: The vue-ts template shows the bus in a Vue app
-The command SHALL offer the template `vue-ts`: a Vite, Vue 3 and TypeScript project with `<script setup lang="ts">` that is the search app of `react-ts`. It SHALL keep the bus, the events and the handlers in separate files, as the other templates do, with the events made by `createAction<Payload>`. The bus file SHALL add `vuePlugin()` from `nanoeffects/vue`. The component SHALL read the result of the search from a `ref` made by `useEventRef`, and SHALL emit the query with `watchEmitter`. The template SHALL NOT carry a helper of its own for either.
+The command SHALL offer the template `vue-ts`: a Vite, Vue 3 and TypeScript project with `<script setup lang="ts">` that is the search app of `react-ts`. It SHALL keep the bus, the events and the handlers in separate files, with the events made by `createAction<Payload>`. The bus file SHALL add `vuePlugin()` from `nanoeffects/vue`. The component SHALL read the result of the search from a `ref` made by `useEventRef`, emit the query with `watchEmitter`, and carry no helper of its own for either.
 
 #### Scenario: Make the template
 - **WHEN** the command is run as `create-nanoeffects my-app --template vue-ts`

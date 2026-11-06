@@ -6,7 +6,7 @@ Defines `chainOf` and the `chain` option of `consoleLogger`, which show what led
 ## Requirements
 
 ### Requirement: chainOf returns the causal path of a task
-`chainOf(source, id)` SHALL return the path from the root task to the task `id`, oldest first, built from `parentId`. `source` is a recorder, or a plain list of events. With a recorder it SHALL use its events and its remembered tasks, so a task that reported no event (a listener) is a step of the path. With a list it SHALL use only the events. Each step SHALL have `id` and `type`; `effect` and `phase` of the latest event of the task when it has events; `source` and `traceGroupId` when known. The input is not changed.
+`chainOf(source, id)` SHALL return the path from the root task to the task `id`, oldest first, built from `parentId`. `source` is a recorder or a list of events. With a recorder it SHALL use its events and its remembered tasks, so a listener that reported no event is a step of the path; with a list, only the events. Each step SHALL have `id` and `type`, `effect` and `phase` of the latest event when the task has events, and `source` and `traceGroupId` when known. The input is not changed.
 
 #### Scenario: A chain through a silent listener
 - **WHEN** a listener of `queryChanged` (which reports no event) emits `searchLoaded` with `ctx.emit`, a handler of it fails, and `chainOf(recorder, id)` is called with the id of the failed task
