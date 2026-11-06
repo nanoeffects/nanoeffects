@@ -1,6 +1,6 @@
 // session.ts: one session = one bus. The countdown and the race live here, with no React.
 import { createBus } from "nanoeffects";
-import { delay, race, take } from "nanoeffects/effects";
+import { delay, poll, race, take } from "nanoeffects/effects";
 
 export const SECONDS = 15;
 
@@ -25,16 +25,15 @@ export function createSession() {
 	// the whole logic: a countdown that races with the button
 	bus.on("start", async (_, ctx) => {
 		timerRunning = true;
-		// race: the first of the three to settle wins, the other two are aborted
+		const showLeft = (tick: number) => ctx.emit("tick", SECONDS - tick);
+
+		// race: the first of the four to settle wins, the other three are aborted
 		const result = await race(ctx, {
 			claimed: take("claim"), // take: wait for the next "claim"
 			stopped: take("stop"), // take: wait for the next "stop" (the session is disposed)
-			expired: async (child) => {
-				for (let left = SECONDS; left > 0; left--) {
-					child.emit("tick", left);
-					await delay(child, 1000); // delay: wait 1 s, ends at once if the race is over
-				}
-			},
+			expired: delay(SECONDS * 1000), // delay: wait 15 s
+			// poll: call showLeft every second (at once too); it never ends, the race stops it
+			ticking: (child) => poll(child, showLeft, 1000, { leading: true }),
 		});
 
 		timerRunning = false; // the timer is over, whoever won
