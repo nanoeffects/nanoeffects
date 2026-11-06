@@ -122,7 +122,7 @@ More: [`dedupe`: share one run between equal calls](#dedupe-share-one-run-betwee
 
 ### `distinct`
 
-A call whose payload equals the last one is skipped and resolves with `undefined`.
+A call with the same payload as the last one is skipped: the work does not run.
 
 Signature: `distinct(fn, options?)`.
 
