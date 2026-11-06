@@ -56,6 +56,7 @@ export const byKey = <P, E extends EventMap, R>(
 	return (payload, ctx) => {
 		const id = key(payload);
 		let instance = instances.get(id);
+		let madeNow = false;
 
 		if (!instance) {
 			const made: Task<P, E, R> = create(() => {
@@ -65,9 +66,19 @@ export const byKey = <P, E extends EventMap, R>(
 			});
 			instance = made;
 			instances.set(id, made);
+			madeNow = true;
 		}
 
-		return instance(payload, ctx);
+		// a call whose task is aborted already starts nothing: an instance made for it alone would
+		// stay in the map for ever, so it goes when the call is answered
+		const abortedAtEntry = ctx.signal.aborted;
+		try {
+			return instance(payload, ctx);
+		} finally {
+			if (madeNow && abortedAtEntry && instances.get(id) === instance) {
+				instances.delete(id);
+			}
+		}
 	};
 };
 
