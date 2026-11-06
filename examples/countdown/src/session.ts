@@ -16,14 +16,17 @@ const events = ["start", "claim", "stop", "tick", "finished"] as const;
 
 export function createSession() {
 	const bus = createBus<Events>(); // createBus: a new bus for every session
-	let running: Promise<void> = Promise.resolve();
+	let ended = () => {};
+	const handlerDone = new Promise<void>((resolve) => {
+		ended = resolve;
+	});
 	let timerRunning = false;
 
 	// the whole logic: a countdown that races with the button
-	bus.on("start", (_, ctx) => {
+	bus.on("start", async (_, ctx) => {
 		timerRunning = true;
 		// race: the first of the three to settle wins, the other two are aborted
-		running = race(ctx, {
+		const result = await race(ctx, {
 			claimed: take("claim"), // take: wait for the next "claim"
 			stopped: take("stop"), // take: wait for the next "stop" (the session is disposed)
 			expired: async (child) => {
@@ -32,15 +35,16 @@ export function createSession() {
 					await delay(child, 1000); // delay: wait 1 s, ends at once if the race is over
 				}
 			},
-		}).then((result) => {
-			timerRunning = false; // the timer is over, whoever won
-			if ("claimed" in result) {
-				ctx.emit("finished", "claimed");
-			}
-			if ("expired" in result) {
-				ctx.emit("finished", "expired");
-			}
 		});
+
+		timerRunning = false; // the timer is over, whoever won
+		if ("claimed" in result) {
+			ctx.emit("finished", "claimed");
+		}
+		if ("expired" in result) {
+			ctx.emit("finished", "expired");
+		}
+		ended(); // tells dispose that the handler has finished
 	});
 
 	return {
@@ -54,11 +58,12 @@ export function createSession() {
 			})), // get(name): the listeners of one event
 			timerRunning,
 		}),
-		// dispose: "stop" ends the race and its timer, off() removes every listener of this bus
+		// dispose: "stop" ends the race and its timer, off() removes every listener of this bus.
+		// Safe to call twice.
 		dispose: async () => {
 			bus.emit("stop");
 			bus.off(); // off: clear every subscription of this bus
-			await running; // wait until the timer has really stopped
+			await handlerDone; // wait until the timer has really stopped
 		},
 	};
 }

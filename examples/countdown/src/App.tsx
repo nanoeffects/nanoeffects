@@ -16,20 +16,33 @@ export function App() {
 
 		const current = createSession(); // a fresh bus for this run
 		session.current = current;
+
+		// dispose the session and write down what is left; it runs once
+		let ended = false;
+		const end = async () => {
+			if (ended) {
+				return;
+			}
+			ended = true;
+			await current.dispose();
+			const { listeners, timerRunning } = current.inspect();
+			const timer = timerRunning ? "STILL RUNNING" : "stopped";
+			setLog((lines) => [
+				`Session #${run} disposed: timer ${timer}, listeners left: ${listeners}`,
+				...lines,
+			]);
+		};
+
 		current.bus.on("tick", setLeft);
-		current.bus.on("finished", setOutcome);
+		current.bus.on("finished", (result) => {
+			setOutcome(result);
+			end(); // the discount is taken or gone: the session is over, dispose it
+		});
 		current.bus.emit("start");
 
-		// cleanup: runs on Restart; dispose removes every listener and stops the timer, then we check it
+		// cleanup: runs on Restart; a session that is still running is disposed here
 		return () => {
-			current.dispose().then(() => {
-				const { listeners, timerRunning } = current.inspect();
-				const timer = timerRunning ? "STILL RUNNING" : "stopped";
-				setLog((lines) => [
-					`Session #${run} disposed: timer ${timer}, listeners left: ${listeners}`,
-					...lines,
-				]);
-			});
+			end();
 		};
 	}, [run]);
 
