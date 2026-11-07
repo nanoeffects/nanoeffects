@@ -83,6 +83,7 @@ npm create nanoeffects@latest my-app
 
 - [Точки входа пакета](package.md)
 - [Плагины](plugins.md): что даёт каждый плагин шины и в каком порядке их подключать
+- [Как устроена библиотека](how-it-works.md): задачи, один сигнал на каждую и путь прерывания по дереву
 - [Семантика](semantics.md): точные правила `emit`, отмены и порядка
 - [Трассировка](tracing.md): логгеры, Redux DevTools, `notrace`
 - [Observable](observable.md): события как Observable стандарта TC39

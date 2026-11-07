@@ -115,6 +115,7 @@ Look these up when you need the exact rule.
 
 - [Package entries](package.md): which import holds what
 - [Plugins](plugins.md): every plugin of a bus, what it returns, and the order to use them in
+- [How it works](how-it-works.md): tasks, one signal for each, and how aborts travel down the tree
 - [Semantics](semantics.md): the exact rules of emit, abort and ordering
 - [Tracing](tracing.md): loggers, Redux DevTools, `notrace`
 - [Observable](observable.md): events as TC39 Observables

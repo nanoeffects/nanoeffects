@@ -58,6 +58,7 @@ Rules that generated code often gets wrong:
 
 ## Reference
 
+- [How it works](docs/how-it-works.md): the model behind the API: a task for each handler, one signal for each task, signals that follow their parent, who aborts them and what an abort cannot stop
 - [Semantics](docs/semantics.md): exact rules of emit, abort and ordering
 - [Keep the signal through a handler](docs/pass-the-signal.md): every way a policy handler loses `ctx.signal`, and the lint rules and `devPlugin` check that find it
 - [Test time with diagrams](docs/testing.md): `createMarbleBus` and `fakeTimersClock`; emits and phases as diagrams on fake timers

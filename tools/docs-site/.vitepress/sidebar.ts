@@ -124,6 +124,7 @@ export const sidebar: SidebarItem[] = [
 		text: "Reference",
 		collapsed: true,
 		items: [
+			{ text: "How it works", link: "/how-it-works" },
 			{ text: "Semantics", link: "/semantics" },
 			{ text: "Plugins", link: "/plugins" },
 			{ text: "Test time with diagrams", link: "/testing" },
@@ -168,6 +169,7 @@ const russian: Record<string, string> = {
 	"Migrating from": "Переход с других библиотек",
 	"mitt and nanoevents": "mitt и nanoevents",
 	Reference: "Справочник",
+	"How it works": "Как это устроено",
 	Semantics: "Семантика",
 	Plugins: "Плагины",
 	"Test time with diagrams": "Тесты времени диаграммами",
