@@ -161,7 +161,7 @@ When the outer group cancels a starter made by `all`, `allSettled` or `race` wit
 - **THEN** the other starters of that inner group are cancelled, and the outer group sees the failure of the inner one
 
 ### Requirement: The form is told by the number of arguments
-`all`, `allSettled` and `race` SHALL take one argument as the short form and two as the `ctx` form. A single argument that is a context, an object whose `signal` is an abort signal, SHALL throw a `TypeError` that says the effects are missing, and SHALL start nothing. An effects object with a key named `signal` is still effects: its value is a starter, a function, and not an abort signal.
+`race` SHALL take one argument as the short form and two as the `ctx` form. `all` and `allSettled` SHALL take one argument as the short form, three as the `ctx` form, and for two arguments SHALL decide by the first: a context is not an array and has an abort signal as `signal` or no function value; otherwise it is the effects and the second argument is the options. A single argument that is a context SHALL throw a `TypeError` and start nothing.
 
 #### Scenario: A forgotten effects argument
 - **WHEN** `all(ctx)` is called with a task context and no effects
@@ -174,6 +174,34 @@ When the outer group cancels a starter made by `all`, `allSettled` or `race` wit
 #### Scenario: An empty object as a context
 - **WHEN** `all({}, { a: delay(10) })` is called
 - **THEN** it is the `ctx` form and returns a promise, as before
+
+#### Scenario: Effects and options are the short form
+- **WHEN** `all({ a: first, b: second }, { concurrency: 1 })` is called, where `first` and `second` are functions
+- **THEN** it returns a starter and starts nothing until a group calls it
+
+#### Scenario: An array of effects and options
+- **WHEN** `allSettled([first, second], { concurrency: 1 })` is called
+- **THEN** it returns a starter, because an array is never a context
+
+#### Scenario: A context and an array of effects
+- **WHEN** `all({}, [first])` or `all(ctx, [first])` is called
+- **THEN** it is the `ctx` form and returns a promise, as before
+
+#### Scenario: Null options
+- **WHEN** `all({ a: first }, null)` is called
+- **THEN** it returns a starter that runs with no limit
+
+#### Scenario: Two empty objects stay the ctx form
+- **WHEN** `all({}, {})` is called
+- **THEN** it is the `ctx` form and returns a promise, as before
+
+#### Scenario: A context with a signal is told by its signal
+- **WHEN** `all(controller, effects)` is called with an `AbortController`, or `all(ctx, effects)` with a task context
+- **THEN** it is the `ctx` form, because the `signal` of the first argument is an abort signal
+
+#### Scenario: race tells two arguments by the count
+- **WHEN** `race({ a: first }, { b: second })` is called
+- **THEN** the first argument is read as a context and the call is the `ctx` form, as before
 
 ### Requirement: A group starter is traced like the wrapped call
 A starter made by `all`, `allSettled` or `race` SHALL give the same trace as `(child) => all(child, effects)`, `(child) => allSettled(child, effects)` and `(child) => race(child, effects)` in the same place, with the same phases, parents, `rootId` and `traceGroupId`.

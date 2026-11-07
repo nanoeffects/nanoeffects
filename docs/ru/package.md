@@ -8,7 +8,7 @@
 | ------ | ---------- |
 | `nanoeffects` | `createBus`, типы |
 | `nanoeffects/policies` | `latest`, `leading`, `debounce`, `throttle`, `queue`, `dedupe`, `distinct`, `rateLimit`, `batch` |
-| `nanoeffects/effects` | `retry`, `timeout`, `poll`, `delay`, `take`, `all`, `allSettled`, `race`, `effectsPlugin` |
+| `nanoeffects/effects` | `retry`, `timeout`, `poll`, `delay`, `take`, `all`, `allSettled`, `race`, `transaction`, `effectsPlugin` |
 
 ## Остальные импорты
 

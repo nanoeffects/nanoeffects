@@ -12,7 +12,7 @@ import type { Call } from "../core/action-creator";
 import { type Bus, createBus } from "../core/bus";
 import type { EventMap } from "../core/types";
 import { devPlugin } from "../dev";
-import { all, delay, effectsPlugin, race } from "../effects";
+import { all, delay, effectsPlugin, race, transaction } from "../effects";
 import { graphLogger } from "../graph";
 import { loopGuardPlugin } from "../guard";
 import { matchPlugin } from "../match";
@@ -178,7 +178,7 @@ const make = (order: Name[]): Build => {
 				}),
 			);
 		} else if (name === "effects") {
-			build.bus.use(effectsPlugin({ delay, race }));
+			build.bus.use(effectsPlugin({ delay, race, transaction }));
 		} else if (name === "scope") {
 			build.bus.use(scopePlugin());
 		} else if (name === "actions") {
@@ -270,6 +270,30 @@ const probes: Probe[] = [
 			await flush();
 
 			return seen[0] === true;
+		},
+	},
+	{
+		id: "a bound transaction rolls back the finished steps",
+		needs: ["effects"],
+		run: async ({ bus }) => {
+			const seen: string[] = [];
+			bus.on("p/transaction", async (_payload, ctx) => {
+				const run = field(ctx, "transaction") as (
+					steps: object[],
+				) => Promise<unknown>;
+				await run([
+					{ run: () => "a", rollback: (value: string) => seen.push(value) },
+					{
+						run: () => {
+							throw new Error("boom");
+						},
+					},
+				]).catch(() => seen.push("failed"));
+			});
+			bus.emit("p/transaction");
+			await flush();
+
+			return seen.join() === "a,failed";
 		},
 	},
 	{

@@ -15,3 +15,11 @@ export { type RetryOptions, retry } from "./retry";
 export type { EffectContext, GroupOptions, StarterOf } from "./run";
 export { type TakeOptions, take } from "./take";
 export { timeout } from "./timeout";
+export {
+	type RollbackFailure,
+	type RollbackOn,
+	type RollbackOrder,
+	type TransactionOptions,
+	type TransactionStep,
+	transaction,
+} from "./transaction";

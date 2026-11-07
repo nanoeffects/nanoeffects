@@ -9,6 +9,15 @@ import type { allSettled } from "./allSettled";
 import type { race } from "./race";
 import type { GroupOptions, Starter } from "./run";
 import type { TakeOptions, take } from "./take";
+import type {
+	LeadingOptions,
+	StepsOf,
+	TransactionOptions,
+	TransactionStep,
+	TransactionValues,
+	transaction,
+	ValuesOf,
+} from "./transaction";
 
 /** The effects that `effectsPlugin` can put on `ctx`. */
 type Supported = {
@@ -17,6 +26,7 @@ type Supported = {
 	allSettled: typeof allSettled;
 	take: typeof take;
 	delay: typeof delay;
+	transaction: typeof transaction;
 };
 
 /** Each supported effect without its leading `ctx` argument. `take` knows the events of the bus. */
@@ -63,6 +73,19 @@ type Bound<E extends EventMap, Child> = {
 		<P>(creator: ActionCreator<P>, options?: TakeOptions<P>): Promise<P>;
 	};
 	delay: (ms: number | (() => number)) => Promise<void>;
+	transaction: {
+		<R extends [unknown, ...unknown[]]>(
+			options: LeadingOptions,
+			...steps: StepsOf<R, Child>
+		): Promise<ValuesOf<R>>;
+		<R extends [unknown, ...unknown[]]>(
+			...steps: StepsOf<R, Child>
+		): Promise<ValuesOf<R>>;
+		<const S extends readonly TransactionStep<Child>[]>(
+			steps: S,
+			options?: TransactionOptions | null,
+		): Promise<TransactionValues<S>>;
+	};
 };
 
 /** Any function whose first parameter takes `{ signal }` can go on the context, not only the built-in ones. */

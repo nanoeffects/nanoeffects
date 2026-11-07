@@ -1,5 +1,5 @@
 import type { ChildOf, GroupOptions, Starter, Starters } from "./run";
-import { emptyResult, groupOrStarter, runGroup } from "./run";
+import { emptyResult, groupOrStarterWithOptions, runGroup } from "./run";
 
 const settled = (
 	task: Promise<unknown>,
@@ -27,6 +27,25 @@ const settled = (
  * });
  * ```
  */
+// Without a context the call is a starter. The child type comes from the group that calls it.
+export function allSettled<
+	Child,
+	T extends Record<string, Starter<unknown, Child>>,
+>(
+	effects: T,
+	options?: GroupOptions | null,
+): (child: Child) => Promise<{
+	[K in keyof T]: PromiseSettledResult<Awaited<ReturnType<T[K]>>>;
+}>;
+export function allSettled<
+	Child,
+	const T extends readonly Starter<unknown, Child>[],
+>(
+	effects: T,
+	options?: GroupOptions | null,
+): (child: Child) => Promise<{
+	-readonly [K in keyof T]: PromiseSettledResult<Awaited<ReturnType<T[K]>>>;
+}>;
 export function allSettled<
 	C extends { signal?: AbortSignal },
 	T extends Record<string, Starter<unknown, ChildOf<C>>>,
@@ -47,29 +66,12 @@ export function allSettled<
 ): Promise<{
 	-readonly [K in keyof T]: PromiseSettledResult<Awaited<ReturnType<T[K]>>>;
 }>;
-// Without a context the call is a starter. The child type comes from the group that calls it.
-export function allSettled<
-	Child,
-	T extends Record<string, Starter<unknown, Child>>,
->(
-	effects: T,
-): (child: Child) => Promise<{
-	[K in keyof T]: PromiseSettledResult<Awaited<ReturnType<T[K]>>>;
-}>;
-export function allSettled<
-	Child,
-	const T extends readonly Starter<unknown, Child>[],
->(
-	effects: T,
-): (child: Child) => Promise<{
-	-readonly [K in keyof T]: PromiseSettledResult<Awaited<ReturnType<T[K]>>>;
-}>;
 export function allSettled(
 	...args:
 		| [{ signal?: AbortSignal }, Starters, (GroupOptions | null | undefined)?]
-		| [Starters]
+		| [Starters, (GroupOptions | null | undefined)?]
 ) {
-	return groupOrStarter(args, allSettledOf);
+	return groupOrStarterWithOptions(args, allSettledOf);
 }
 
 const allSettledOf = (

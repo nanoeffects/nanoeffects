@@ -41,6 +41,7 @@ describe("public entries", () => {
 			"retry",
 			"take",
 			"timeout",
+			"transaction",
 		]);
 	});
 

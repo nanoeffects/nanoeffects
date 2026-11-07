@@ -170,6 +170,20 @@ const startLimited = (
 	};
 };
 
+const startsWithContext = (first: object): boolean =>
+	!Array.isArray(first) &&
+	(isContext(Reflect.get(first, "signal")) ||
+		!Object.values(first).some((value) => typeof value === "function"));
+
+/** A lone context is a mistake: its `signal` is an object, and an effects key holds a function. */
+const rejectLoneContext = (effects: object, count: number): void => {
+	if (count === 1 && isContext(Reflect.get(effects, "signal"))) {
+		throw new TypeError(
+			"A group takes effects: call it as (effects), or as (ctx, effects); a context alone has none",
+		);
+	}
+};
+
 /**
  * One argument is a group without a context, which is a starter; two are the `ctx` form. The count
  * tells them apart because effects and a context are both objects. A lone context is a mistake:
@@ -189,13 +203,41 @@ export const groupOrStarter = <R>(
 		return group(...args);
 	}
 	const [effects] = args;
-	if (isContext(Reflect.get(effects, "signal"))) {
-		throw new TypeError(
-			"A group takes effects: call it as (effects), or as (ctx, effects); a context alone has none",
-		);
-	}
+	rejectLoneContext(effects, 1);
 
 	return (child) => group(child, effects);
+};
+
+/**
+ * `all` and `allSettled` also take options in the short form, so a call of two arguments is told
+ * by its first one (the count cannot: effects and a context are both objects). A context is not an
+ * array and either has an object `signal` or holds no function; anything else is the effects, and
+ * the second argument is their options. Three arguments are always the `ctx` form.
+ */
+export const groupOrStarterWithOptions = <R>(
+	args:
+		| [{ signal?: AbortSignal }, Starters, (GroupOptions | null | undefined)?]
+		| [Starters, (GroupOptions | null | undefined)?],
+	group: (
+		ctx: { signal?: AbortSignal },
+		effects: Starters,
+		options?: GroupOptions | null,
+	) => R,
+): R | ((child: Context<EventMap>) => R) => {
+	const [first] = args;
+	if (args.length > 2 || (args.length === 2 && startsWithContext(first))) {
+		const full = args as [
+			{ signal?: AbortSignal },
+			Starters,
+			(GroupOptions | null | undefined)?,
+		];
+
+		return group(...full);
+	}
+	const [effects, options] = args as [Starters, (GroupOptions | null)?];
+	rejectLoneContext(effects, args.length);
+
+	return (child) => group(child, effects, options);
 };
 
 /**

@@ -25,6 +25,7 @@ Each task below starts with the problem, then a short solution. Where the page h
   - [Wait for another event inside a handler: take](#wait-for-another-event-inside-a-handler-take)
   - [Load several things at once: all](#load-several-things-at-once-all)
   - [Take the fastest answer: race](#take-the-fastest-answer-race)
+  - [A flow stops halfway: roll the finished steps back](#a-flow-stops-halfway-roll-the-finished-steps-back)
   - [An API allows only N requests per second](#an-api-allows-only-n-requests-per-second)
   - [Many small events, one request](#many-small-events-one-request)
 - [Features and domain logic](#features-and-domain-logic)
@@ -415,6 +416,43 @@ bus.on("user/opened", async (id, ctx) => {
 ```
 
 More: [`all`](effects.md#all), [`race`](effects.md#race).
+
+### A flow stops halfway: roll the finished steps back
+
+A checkout creates an order, then charges the card. If the charge fails, the order stays in the system without a payment. If the user leaves the page between the two calls, the same happens. `transaction` runs the steps in order and, when one fails or the task is aborted, calls the `rollback` of the steps that finished, last first.
+
+```js
+import { createBus } from "nanoeffects";
+import { retry, transaction } from "nanoeffects/effects";
+
+const bus = createBus();
+
+// retry with {} — a rollback may fail too, so try the refund up to 3 times; {} means no signal, an abort does not stop it
+const refundWithRetry = (paymentId) =>
+  retry({}, () => api.refund(paymentId), { times: 3 });
+
+bus.on("checkout", async (order, ctx) => {
+  // transaction — run the steps in order; if one fails, roll back the finished ones, last first
+  const [orderId, paymentId] = await transaction(
+    ctx,
+    {
+      run: ({ signal }) => api.createOrder(order, { signal }),
+      // rollback gets what run returned, and no abort signal
+      rollback: (orderId) => api.cancelOrder(orderId),
+    },
+    {
+      run: ({ signal }) => api.charge(order, { signal }),
+      rollback: refundWithRetry,
+    },
+  );
+
+  ctx.emit("checkoutDone", { orderId, paymentId });
+});
+```
+
+The list of finished steps lives in memory: a closed tab loses a rollback that did not run. Make each `rollback` safe to call twice.
+
+More: [`transaction`](effects.md#transaction), with the strategy options `rollbackOn`, `rollbackFailure` and `rollbackOrder`.
 
 ### An API allows only N requests per second
 

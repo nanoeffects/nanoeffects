@@ -119,7 +119,7 @@ describe("all, allSettled and race without a context as starters", () => {
 		});
 	});
 
-	describe("the form is told by the number of arguments", () => {
+	describe("the form is told by the first argument and the count", () => {
 		it("starts nothing until the group calls it", () => {
 			const starter = vi.fn(() => "value");
 			const grouped: StarterOf<TestEvents> = all({
@@ -153,6 +153,81 @@ describe("all, allSettled and race without a context as starters", () => {
 			const result = await starter(harness.ctx());
 
 			expect(result).toEqual({ signal: "value" });
+		});
+
+		it("takes effects and options as a starter with two arguments", async () => {
+			const harness = createHarness();
+			const starter = vi.fn(() => "value");
+			const grouped = all(
+				{ first: starter, second: starter },
+				{ concurrency: 1 },
+			);
+
+			expect(typeof grouped).toBe("function");
+			expect(starter).not.toHaveBeenCalled();
+			const result = await (grouped as StarterOf<TestEvents>)(harness.ctx());
+
+			expect(result).toEqual({ first: "value", second: "value" });
+		});
+
+		it("takes an array of effects and options as a starter", async () => {
+			const harness = createHarness();
+			const grouped = allSettled([() => 1, () => 2], { concurrency: 1 });
+
+			expect(typeof grouped).toBe("function");
+			const result = await (grouped as StarterOf<TestEvents>)(harness.ctx());
+
+			expect(result).toEqual([
+				{ status: "fulfilled", value: 1 },
+				{ status: "fulfilled", value: 2 },
+			]);
+		});
+
+		it("keeps a context with an array of effects in the ctx form", async () => {
+			const harness = createHarness();
+			const fromContext = all(harness.ctx(), [() => 1]);
+			const fromEmpty = all({}, [() => 2]);
+
+			expect(fromContext).toBeInstanceOf(Promise);
+			expect(fromEmpty).toBeInstanceOf(Promise);
+			expect(await fromContext).toEqual([1]);
+			expect(await fromEmpty).toEqual([2]);
+		});
+
+		it("treats null options as no limit", async () => {
+			const harness = createHarness();
+			const grouped = all({ a: () => 1 }, null);
+			const result = await (grouped as StarterOf<TestEvents>)(harness.ctx());
+
+			expect(result).toEqual({ a: 1 });
+		});
+
+		it("keeps two empty objects as the ctx form", async () => {
+			const result = all({}, {});
+
+			expect(result).toBeInstanceOf(Promise);
+			expect(await result).toEqual({});
+		});
+
+		it("tells a controller and a task context by their signal", async () => {
+			const harness = createHarness();
+			const controller = new AbortController();
+			const withController = all(controller, { a: () => 1 });
+			const withContext = allSettled(harness.ctx(), { a: () => 2 });
+
+			expect(withController).toBeInstanceOf(Promise);
+			expect(withContext).toBeInstanceOf(Promise);
+			expect(await withController).toEqual({ a: 1 });
+			expect(await withContext).toEqual({
+				a: { status: "fulfilled", value: 2 },
+			});
+		});
+
+		it("tells two arguments of race by the count", async () => {
+			const result = race({}, { a: () => 1 });
+
+			expect(result).toBeInstanceOf(Promise);
+			expect(await result).toEqual({ a: 1 });
 		});
 
 		it("keeps an empty object as a context in the ctx form", async () => {

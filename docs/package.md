@@ -10,7 +10,7 @@ Imports are split so you only load what you use. `createBus` stays small; the re
 | ------ | ------------- |
 | `nanoeffects` | `createBus`, the types |
 | `nanoeffects/policies` | `latest`, `leading`, `debounce`, `throttle`, `queue`, `dedupe`, `distinct`, `rateLimit`, `batch` |
-| `nanoeffects/effects` | `retry`, `timeout`, `poll`, `delay`, `take`, `all`, `allSettled`, `race`, `effectsPlugin` |
+| `nanoeffects/effects` | `retry`, `timeout`, `poll`, `delay`, `take`, `all`, `allSettled`, `race`, `transaction`, `effectsPlugin` |
 
 ## Add the rest when you need it
 

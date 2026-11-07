@@ -65,6 +65,7 @@ import {
 	type StarterOf,
 	take,
 	timeout,
+	transaction,
 } from "../effects";
 import { matchPlugin } from "../match";
 import { events, Subject } from "../observable";
@@ -389,6 +390,142 @@ describe("results of effects", () => {
 		});
 	});
 
+	it("transaction gives a tuple of the values of run", () => {
+		bus.on("search", async (_, ctx) => {
+			const values = await transaction(ctx, [
+				{
+					run: async () => 1,
+					rollback: (value: number) => {
+						expectTypeOf(value).toEqualTypeOf<number>();
+					},
+				},
+				{ run: () => "text" },
+				{
+					run: async ({ signal }) => {
+						expectTypeOf(signal).toEqualTypeOf<AbortSignal>();
+						return { id: "1", name: "a" };
+					},
+					// not inferred from run: annotate the value to have it checked
+					rollback: (user: User) => {
+						expectTypeOf(user).toEqualTypeOf<User>();
+					},
+					rollbackOn: "abort",
+					rollbackFailure: "stop",
+				},
+			]);
+			expectTypeOf(values).toEqualTypeOf<[number, string, User]>();
+
+			await transaction(ctx, [{ run: async () => 1 }], {
+				rollbackOrder: "parallel",
+				rollbackOn: "error",
+				rollbackFailure: null,
+			});
+		});
+	});
+
+	it("transaction is a starter without a context, with options", () => {
+		bus.on("search", async (_, ctx) => {
+			const results = await all(ctx, {
+				order: transaction([{ run: async () => 1 }], {
+					rollbackOrder: "parallel",
+				}),
+				name: async () => "a",
+			});
+			expectTypeOf(results.order).toEqualTypeOf<[number]>();
+			expectTypeOf(results.name).toEqualTypeOf<string>();
+		});
+	});
+
+	it("transaction takes steps as arguments and infers rollback from run", () => {
+		bus.on("search", async (_, ctx) => {
+			const values = await transaction(
+				ctx,
+				{
+					run: async () => "order-1",
+					rollback: (orderId) => expectTypeOf(orderId).toEqualTypeOf<string>(),
+				},
+				{
+					run: () => 42,
+					rollback: (paymentId) =>
+						expectTypeOf(paymentId).toEqualTypeOf<number>(),
+				},
+			);
+			expectTypeOf(values).toEqualTypeOf<[string, number]>();
+
+			const withOptions = await transaction(
+				ctx,
+				{ rollbackOrder: "parallel" },
+				{ run: async () => 1 },
+			);
+			expectTypeOf(withOptions).toEqualTypeOf<[number]>();
+
+			const nullOptions = await transaction(ctx, null, {
+				run: async () => "x",
+			});
+			expectTypeOf(nullOptions).toEqualTypeOf<[string]>();
+
+			const grouped = await all(ctx, {
+				plain: transaction({
+					run: async () => 1,
+					rollback: (value) => expectTypeOf(value).toEqualTypeOf<number>(),
+				}),
+				limited: transaction(
+					{ rollbackFailure: "stop" },
+					{ run: async () => "a" },
+					{ run: () => true },
+				),
+			});
+			expectTypeOf(grouped.plain).toEqualTypeOf<[number]>();
+			expectTypeOf(grouped.limited).toEqualTypeOf<[string, boolean]>();
+
+			const list = [{ run: async () => 1, rollback: (value: number) => value }];
+			const spread = await transaction(ctx, ...(list as [(typeof list)[0]]));
+			expectTypeOf(spread).toEqualTypeOf<[number]>();
+
+			// {} is options here, so the call is a starter, as at run time
+			expectTypeOf(transaction({}, { run: async () => 1 })).toBeFunction();
+
+			// @ts-expect-error rollback gets the string that run returns
+			transaction(ctx, {
+				run: async () => "a",
+				rollback: (value: number) => value,
+			});
+			// @ts-expect-error not one of the three words
+			transaction(ctx, { rollbackOn: "sometimes" }, { run: async () => 1 });
+		});
+
+		const bound = createBus<Events>().use(effectsPlugin({ transaction }));
+		bound.on("search", async (_, { transaction: boundTransaction }) => {
+			const values = await boundTransaction(
+				{ rollbackOn: "error" },
+				{
+					run: async () => 1,
+					rollback: (value) => {
+						expectTypeOf(value).toEqualTypeOf<number>();
+					},
+				},
+				{ run: async () => "a" },
+			);
+			expectTypeOf(values).toEqualTypeOf<[number, string]>();
+		});
+	});
+
+	it("transaction rejects wrong options and a lone context", () => {
+		bus.on("search", async (_, ctx) => {
+			const wrongCalls = () => {
+				// @ts-expect-error a lone context has no steps
+				transaction(ctx);
+				// @ts-expect-error not one of the three words
+				transaction(ctx, [{ run: async () => 1 }], { rollbackOn: "sometimes" });
+				// @ts-expect-error not one of the two words
+				transaction(ctx, [{ run: async () => 1 }], {
+					rollbackOrder: "forward",
+				});
+			};
+			expectTypeOf(wrongCalls).toBeFunction();
+		});
+	});
+
 	it("all and allSettled keep the shape of the input", () => {
 		bus.on("search", async (_, ctx) => {
 			const results = await all(ctx, {
@@ -529,6 +666,54 @@ describe("results of effects", () => {
 				concurrency: 1,
 			});
 			expectTypeOf(values[1]).toEqualTypeOf<number>();
+		});
+	});
+
+	it("all and allSettled without a context take options and stay starters", () => {
+		bus.on("search", async (id, ctx) => {
+			const fetchUser = (_id: string) => Promise.resolve({ name: "a" });
+			const nested = await race(ctx, {
+				listed: all([retry(() => fetchUser(id))], { concurrency: 2 }),
+				named: allSettled(
+					{ user: retry(() => fetchUser(id)) },
+					{ concurrency: 1 },
+				),
+				unlimited: all({ count: take("count") }, null),
+			});
+			expectTypeOf(nested.listed).toEqualTypeOf<
+				[{ name: string }] | undefined
+			>();
+			expectTypeOf(nested.named).toEqualTypeOf<
+				{ user: PromiseSettledResult<{ name: string }> } | undefined
+			>();
+			expectTypeOf(nested.unlimited).toEqualTypeOf<
+				{ count: number } | undefined
+			>();
+
+			const withContext = all(ctx, { a: delay(1) });
+			expectTypeOf(withContext).toExtend<Promise<unknown>>();
+			const emptyContext = all({}, { a: delay(1) });
+			expectTypeOf(emptyContext).toExtend<Promise<unknown>>();
+			const withController = all(new AbortController(), [delay(1)]);
+			expectTypeOf(withController).toExtend<Promise<unknown>>();
+
+			// @ts-expect-error race takes no options
+			race({ a: delay(1) }, { concurrency: 2 });
+			await all(ctx, [
+				// @ts-expect-error concurrency is a number
+				all([delay(1)], { concurrency: "5" }),
+			]);
+		});
+	});
+
+	it("effectsPlugin binds transaction without ctx and keeps the tuple", () => {
+		const bound = createBus<Events>().use(effectsPlugin({ transaction }));
+		bound.on("search", async (_, { transaction: boundTransaction }) => {
+			const values = await boundTransaction(
+				[{ run: async () => 1 }, { run: () => "text" }],
+				{ rollbackOrder: "parallel" },
+			);
+			expectTypeOf(values).toEqualTypeOf<[number, string]>();
 		});
 	});
 

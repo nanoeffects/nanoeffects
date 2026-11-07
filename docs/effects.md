@@ -2,7 +2,7 @@
 
 > **Level C.** Read first: [Policies](policies.md).
 
-Use this page for retry, timeouts, waiting, or parallel work — not as the first page for a small bus. Pick **one** effect for your job; the rest is reference.
+Use this page for retry, timeouts, waiting, parallel work, or a rollback — not as the first page for a small bus. Pick **one** effect for your job; the rest is reference.
 
 An abort only raises a flag. Your code decides to stop. Start with `retry` / `timeout` on a handler (see [Guide §5](guide.md#5-add-retry-and-timeout)).
 
@@ -22,6 +22,7 @@ Every effect below has its own section with its forms, options and an example. `
 - [`all`](#all) — run several calls together; one failure cancels the rest.
 - [`allSettled`](#allsettled) — wait for all of them, whatever the outcome.
 - [`race`](#race) — take the first result and cancel the rest.
+- [`transaction`](#transaction) — run steps, and roll the finished ones back when a later one fails.
 - [`effectsPlugin`](#effectsplugin) — short forms of effects: call them without `ctx`.
 - [Effects outside a task](#effects-outside-a-task) — call effects where there is no handler.
 
@@ -354,7 +355,7 @@ bus.on("open", async (id, ctx) => {
 
 Every function of the group gets `child`, the context of its own child task. Pass `child` as the first argument to any effect, as a handler passes `ctx`: when the group ends or fails, `child` is aborted and stops exactly this effect. If your API takes the signal in its options, `child` has a `signal`, so pass it as the options: `(child) => fetchUser(id, child)` (`fetch` reads only `signal` from it). The same holds for `allSettled`, `race` and `timeout`.
 
-**Limit how many run at once.** `all` and `allSettled` start everything together. Over a long list that is a burst of requests. Pass `{ concurrency }` as the third argument and at most that many run at a time; the next one starts when a running one settles:
+**Limit how many run at once.** `all` and `allSettled` start everything together. Over a long list that is a burst of requests. Pass `{ concurrency }` as the third argument (the second in the form without `ctx`, see below) and at most that many run at a time; the next one starts when a running one settles:
 
 ```js
 import { createBus } from "nanoeffects";
@@ -375,6 +376,30 @@ bus.on("sync", async (ids, ctx) => {
 ```
 
 The result has the same order and shape as without the option. If one call of `all` fails, the running ones are cancelled and the waiting ones are never started. `allSettled` goes on after a failure. When `ctx` aborts, both stop and start nothing more. A value that is not a positive integer (`0`, `-1`, `NaN`, `1.5`) throws a `RangeError` before anything starts; `Infinity` means no limit. `race` has no `concurrency`: it ends at the first result, so a call that waited for a free slot would never run.
+
+The group without `ctx` takes the options as its second argument, so a limited group can sit inside another group:
+
+```js
+import { createBus } from "nanoeffects";
+import { all, delay, race, retry } from "nanoeffects/effects";
+
+const bus = createBus();
+
+bus.on("sync", async (ids, ctx) => {
+  const loads = ids.map((id) => retry(() => loadUser(id), { times: 2 }));
+
+  const result = await race(ctx, {
+    // all without ctx, with options — 2 loads at a time inside the race
+    loaded: all(loads, { concurrency: 2 }),
+    // delay without ctx — if it wins, the limited group above is cancelled
+    waited: delay(5000),
+  });
+
+  if ("loaded" in result) {
+    render(result.loaded);
+  }
+});
+```
 
 ## `allSettled`
 
@@ -473,7 +498,201 @@ bus.on("open", async (id, ctx) => {
 });
 ```
 
-One argument is the short form and two arguments are the form with `ctx`: `all(effects)` returns a function for a group, `all(ctx, effects)` runs the group. The inner group stops with the outer one and cancels its own calls. Passing only a context, `all(ctx)`, is a mistake and throws a `TypeError` at once. The form without `ctx` takes no options, because a second argument would look like the form with `ctx`; write `(child) => all(child, effects, { concurrency: 5 })` there. In TypeScript, a group kept in a variable outside a group needs a type: `StarterOf<Events>`, or `StarterOf<Events, Result>` when you need its value.
+`all(effects)` returns a function for a group, `all(ctx, effects)` runs the group. `race` tells them by the count: one argument is the short form, two are the form with `ctx`. `all` and `allSettled` take options in the short form too, `all(effects, { concurrency: 5 })`, so they tell a call of two arguments by its first one: a context is not an array and has an object `signal` (a task context, an `AbortController`, `{ signal }`) or is `{}`; anything else is the effects. Pass a context as an object with a `signal`, or `{}`; an object with functions and no `signal` is read as effects. The inner group stops with the outer one and cancels its own calls. Passing only a context, `all(ctx)`, is a mistake and throws a `TypeError` at once. `race` has no options, because it ends at the first result. In TypeScript, a group kept in a variable outside a group needs a type: `StarterOf<Events>`, or `StarterOf<Events, Result>` when you need its value.
+
+## `transaction`
+
+Runs steps one after another, each with a `rollback`. If a step fails or the task is aborted, it takes back the steps that already finished. Use it for a flow that must not stop halfway: create an order, charge the card, reserve the stock. If the stock call fails, the card is refunded and the order is cancelled.
+
+Without it, a handler keeps a list of undo functions by hand. That is easy to get wrong when the task is aborted: the undo must still run, the abort must not cut it, and a handler that a newer call replaced must not look finished before its undo is done. `transaction` does these three things.
+
+This is a list of steps in memory. It is not a database transaction, there is no isolation, and it does not survive a closed tab or a crash: a rollback that did not run is lost.
+
+```js
+import { createBus } from "nanoeffects";
+import { transaction } from "nanoeffects/effects";
+
+const bus = createBus();
+
+bus.on("checkout", async (order, ctx) => {
+  // transaction — run the steps in order; if one fails, roll back the finished ones, last first
+  const [orderId, paymentId] = await transaction(
+    ctx,
+    {
+      // run — does the work; child is the context of this step, so it has a signal
+      run: ({ signal }) => api.createOrder(order, { signal }),
+      // rollback — takes the work back; it gets what run returned, and no signal
+      rollback: (orderId) => api.cancelOrder(orderId),
+    },
+    {
+      run: ({ signal }) => api.charge(order, { signal }),
+      rollback: (paymentId) => api.refund(paymentId),
+    },
+    {
+      run: ({ signal }) => api.reserveStock(order, { signal }),
+      rollback: (reservationId) => api.releaseStock(reservationId),
+    },
+  );
+
+  ctx.emit("checkoutDone", { orderId, paymentId });
+});
+```
+
+The result is the array of what each `run` returned, in the order of the steps.
+
+**Steps as arguments or as an array.** `transaction(ctx, first, second)` takes the steps one by one; `transaction(ctx, steps)` takes an array, for a list that you build at run time. They do the same. Only the first lets TypeScript check each `rollback` against what its `run` returned. In the first form the options go before the steps, `transaction(ctx, options, first, second)`, and `null` means none; in the array form they are the last argument.
+
+**What is rolled back.** Only the steps whose `run` returned, and the step that failed is not one of them: the library cannot know how far it got, so a half-done step cleans up inside its own `run`. A step with no `rollback` is skipped. A step that ignores its signal and returns after an abort counts as finished and is rolled back, because its work happened. `rollback` gets no abort signal, so the abort that started a rollback does not cut it.
+
+**What you get back.** After the last rollback the result rejects with the error of the failed step, or with the abort reason, as every other effect does. If a rollback failed too, it rejects with an `AggregateError`: the first of its `errors` is why the transaction failed, the rest are the rollbacks that failed.
+
+```js
+import { createBus } from "nanoeffects";
+import { transaction } from "nanoeffects/effects";
+
+const bus = createBus();
+
+bus.on("checkout", async (order, ctx) => {
+  const steps = [
+    {
+      run: ({ signal }) => api.charge(order, { signal }),
+      rollback: (paymentId) => api.refund(paymentId),
+    },
+    { run: ({ signal }) => api.reserveStock(order, { signal }) },
+  ];
+
+  try {
+    await transaction(ctx, steps);
+  } catch (error) {
+    if (error instanceof AggregateError) {
+      // errors[0] is why it failed; the others are rollbacks that failed too
+      report(error.errors);
+    }
+    throw error;
+  }
+});
+```
+
+The result settles only after the last rollback has finished. A `queue` handler therefore frees its slot after the rollback. `latest` does not wait for the handler it replaces, so the rollback of the old call and the first steps of the new one can overlap: use `queue` when they must not.
+
+### Choose the rollback strategy
+
+Three options set the strategy. Give them in the options (before the steps, or the third argument of the array form) for every step, or in a step for that step alone; the step wins. `null` and a missing option fall back to the next level.
+
+| Option | Values (the first is the default) | In a step | In the options |
+| --- | --- | --- | --- |
+| `rollbackOn` | `"both"`, `"error"`, `"abort"` | yes | yes |
+| `rollbackFailure` | `"continue"`, `"stop"` | yes | yes |
+| `rollbackOrder` | `"reverse"`, `"parallel"` | no | yes |
+
+- `rollbackOn` says when a step is rolled back: when a step failed (`"error"`), when the task was aborted (`"abort"`), or in both cases.
+- `rollbackFailure` says what happens after a rollback fails: the rollbacks that are left still run (`"continue"`), or none of them does (`"stop"`). The errors are collected either way.
+- `rollbackOrder` says how the rollbacks run: one at a time, last step first (`"reverse"`), or all at once (`"parallel"`). It is not a step option because it describes the whole rollback.
+
+```js
+import { createBus } from "nanoeffects";
+import { transaction } from "nanoeffects/effects";
+
+const bus = createBus();
+
+bus.on("checkout", async (order, ctx) => {
+  await transaction(
+    ctx,
+    {
+      run: ({ signal }) => api.createOrder(order, { signal }),
+      rollback: (orderId) => api.cancelOrder(orderId),
+      // rollbackOn on a step — cancel the order only when a step failed; an abort leaves it for the user to resume
+      rollbackOn: "error",
+    },
+    {
+      run: ({ signal }) => api.charge(order, { signal }),
+      rollback: (paymentId) => api.refund(paymentId),
+      // rollbackFailure on a step — if the refund fails, do not go on: the order stays, so someone can see it was paid
+      rollbackFailure: "stop",
+    },
+  );
+});
+```
+
+Independent steps can roll back at once. `rollbackFailure: "stop"` has nothing to stop in a parallel rollback, so the combination throws a `TypeError` before the first step starts. A value that is not in its list throws a `RangeError` there too.
+
+```js
+import { createBus } from "nanoeffects";
+import { transaction } from "nanoeffects/effects";
+
+const bus = createBus();
+
+bus.on("upload", async (files, ctx) => {
+  const steps = files.map((file) => ({
+    run: ({ signal }) => api.upload(file, { signal }),
+    rollback: (url) => api.deleteFile(url),
+  }));
+
+  // rollbackOrder in the options — delete the uploaded files all at once, not one after another
+  await transaction(ctx, steps, { rollbackOrder: "parallel" });
+});
+```
+
+### Retry a rollback
+
+There is no retry option: `rollback` is a plain function of the value, so you wrap it in the `retry` you already know. Pass `{}` as its context. A rollback has no task signal on purpose, so nothing cuts the attempts.
+
+```js
+import { createBus } from "nanoeffects";
+import { retry, transaction } from "nanoeffects/effects";
+
+const bus = createBus();
+
+// retry with {} — up to 3 attempts to refund; {} means no signal, so an abort does not stop them
+const refundWithRetry = (paymentId) =>
+  retry({}, () => api.refund(paymentId), { times: 3 });
+
+bus.on("checkout", async (order, ctx) => {
+  await transaction(
+    ctx,
+    {
+      run: ({ signal }) => api.charge(order, { signal }),
+      rollback: refundWithRetry,
+    },
+    { run: ({ signal }) => api.reserveStock(order, { signal }) },
+  );
+});
+```
+
+Make a rollback safe to call twice: a request may have reached the server before the connection broke. Give the calls inside it their own time limit too (`timeout`), because the result waits for the rollback and a hanging one keeps the handler pending.
+
+### Inside a group, and in TypeScript
+
+`transaction(first, second)` with no `ctx` is a function for a group, as `all` and `race` take: when the group fails, it aborts the transaction and the finished steps are rolled back. Options go in front, `transaction(options, first, second)`, or last in the array form, `transaction(steps, options)`. The first argument tells the forms apart: an object with a `run` is a step, an array is the array form, an object whose `signal` is an object (a task context, an `AbortController`, `{ signal }`) is a context, and any other object, `{}` too, is the options. To run outside a task with no signal, use the array form, `transaction({}, steps)`.
+
+```js
+import { createBus } from "nanoeffects";
+import { all, transaction } from "nanoeffects/effects";
+
+const bus = createBus();
+
+bus.on("checkout", async (order, ctx) => {
+  // all — run the payment and the check together; if the check fails, the payment steps are rolled back
+  const { paid } = await all(ctx, {
+    // transaction without ctx — a function for the group; the options work here too
+    paid: transaction(
+      // options go first, then the steps
+      { rollbackOrder: "parallel" },
+      {
+        run: ({ signal }) => api.charge(order, { signal }),
+        rollback: (paymentId) => api.refund(paymentId),
+      },
+    ),
+    checked: ({ signal }) => api.checkFraud(order, { signal }),
+  });
+
+  ctx.emit("paid", paid);
+});
+```
+
+With [`effectsPlugin`](#effectsplugin), `effectsPlugin({ transaction })` gives `ctx.transaction(first, second)`, `ctx.transaction(options, first, second)` and `ctx.transaction(steps, options)`.
+
+In TypeScript the result is a tuple of what each `run` returns. With the steps as arguments, TypeScript also infers the value of `rollback` from `run` of the same step: `rollback: (orderId) => api.cancelOrder(orderId)` gets a `string` when `run` returns a `string`. In the array form it cannot, so the value is `any`; write the type where you want it checked: `rollback: (orderId: string) => api.cancelOrder(orderId)`. A key that a step does not have, such as `rollbackOrder` in a step, is not an error, and the step ignores it.
 
 ## `effectsPlugin`
 
@@ -506,7 +725,7 @@ bus.on("load", async (id, { race, all, delay }) => {
 });
 ```
 
-- The key is the name the effect gets on `ctx`. `race`, `all`, `allSettled`, `take` and `delay` are typed by hand.
+- The key is the name the effect gets on `ctx`. `race`, `all`, `allSettled`, `take`, `delay` and `transaction` are typed by hand.
 - Your own function works too if its first parameter is `{ signal }` (an *effect*): `effectsPlugin({ fetchJson })` gives `ctx.fetchJson(url)`. TypeScript removes the first parameter from its type; for a generic function see [keep a generic effect generic](context.md#keep-a-generic-effect-generic).
 - Leave `retry`, `timeout` and `poll` out: bound to the task they would look like their handler wrappers.
 - Fields from `createBus({ context })` stay. TypeScript rejects an effect whose name is already a context field of the bus, including one added by an earlier `effectsPlugin`.

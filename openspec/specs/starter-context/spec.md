@@ -50,7 +50,7 @@ The child of a starter SHALL be a `run` task under the group of the effect, as b
 - **THEN** the trace of that wait has the `run` task of the starter as its parent
 
 ### Requirement: all and allSettled can limit how many starters run at once
-`all(ctx, effects, options)` and `allSettled(ctx, effects, options)` SHALL accept `options.concurrency`, a positive integer or `Infinity`. At most `concurrency` starters SHALL be running at once. When a running starter settles, the next starter in the order of `effects` SHALL start. Without the option, or with `Infinity`, all starters SHALL start at once, as before. The result SHALL have the same shape, order and values as without the option, for an array and for an object of starters.
+`all` and `allSettled` SHALL accept `options.concurrency`, a positive integer or `Infinity`, in the form with `ctx` (third argument) and in the short form (second argument, applied when a group calls the starter). At most `concurrency` starters SHALL run at once, and when one settles the next in the order of `effects` SHALL start. Without the option, or with `Infinity`, all start at once. The result SHALL have the same shape, order and values as without the option.
 
 #### Scenario: Five at a time
 - **WHEN** `all(ctx, ids.map((id) => retry(() => loadUser(id))), { concurrency: 5 })` runs with 12 ids
@@ -63,6 +63,14 @@ The child of a starter SHALL be a `run` task under the group of the effect, as b
 #### Scenario: No option
 - **WHEN** `all(ctx, effects)` runs with no third argument
 - **THEN** every starter starts at once, as before this change
+
+#### Scenario: The short form is limited too
+- **WHEN** `race(ctx, { loaded: all(ids.map((id) => load(id)), { concurrency: 2 }) })` runs with 6 ids
+- **THEN** no more than 2 calls of `load` are in flight at any moment
+
+#### Scenario: A wrong value is rejected in the short form
+- **WHEN** a group calls `all(effects, { concurrency: 0 })`
+- **THEN** it throws a `RangeError` before any starter starts, as in the `ctx` form
 
 ### Requirement: A failure or an abort starts no waiting starter
 When a starter of `all` fails, the running starters SHALL be cancelled and the starters that have not started SHALL NOT be called. When `ctx` aborts, the same SHALL hold for `all` and `allSettled`. A starter that has not started SHALL NOT make a child task and SHALL NOT appear in the trace. `allSettled` SHALL NOT stop on a failure: it SHALL start the next starter when a running one settles, whether it succeeded or failed.

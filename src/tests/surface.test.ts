@@ -71,8 +71,13 @@ const typeExports: Record<string, string[]> = {
 		"PollOptions",
 		"RaceStarter",
 		"RetryOptions",
+		"RollbackFailure",
+		"RollbackOn",
+		"RollbackOrder",
 		"StarterOf",
 		"TakeOptions",
+		"TransactionOptions",
+		"TransactionStep",
 	],
 	policies: [
 		"BatchOptions",

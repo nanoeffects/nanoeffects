@@ -323,6 +323,59 @@ describe("the concurrency option of all and allSettled", () => {
 		});
 	});
 
+	describe("the short form", () => {
+		it("limits a group inside a race", async () => {
+			const harness = createHarness();
+			const track = tracker();
+			const promise = race(harness.ctx(), {
+				loaded: all(
+					[1, 2, 3, 4, 5, 6].map((id) => track.job(id)),
+					{
+						concurrency: 2,
+					},
+				),
+			});
+			await vi.advanceTimersByTimeAsync(100);
+
+			await expect(promise).resolves.toEqual({ loaded: [1, 2, 3, 4, 5, 6] });
+			expect(track.peak()).toBe(2);
+		});
+
+		it("limits an allSettled inside an all", async () => {
+			const harness = createHarness();
+			const track = tracker();
+			const promise = all(harness.ctx(), {
+				settled: allSettled(
+					{ a: track.job(1), b: track.job(2), c: track.job(3) },
+					{ concurrency: 1 },
+				),
+			});
+			await vi.advanceTimersByTimeAsync(100);
+
+			await expect(promise).resolves.toEqual({
+				settled: {
+					a: { status: "fulfilled", value: 1 },
+					b: { status: "fulfilled", value: 2 },
+					c: { status: "fulfilled", value: 3 },
+				},
+			});
+			expect(track.peak()).toBe(1);
+		});
+
+		it("throws a RangeError when the group calls it and starts nothing", async () => {
+			const harness = createHarness();
+			const track = tracker();
+			const outer = race(harness.ctx(), {
+				grouped: all([track.job(1)], { concurrency: 0 }),
+			});
+			const rejection = expect(outer).rejects.toThrow(RangeError);
+			await vi.advanceTimersByTimeAsync(100);
+
+			await rejection;
+			expect(track.calls).toEqual([]);
+		});
+	});
+
 	describe("race", () => {
 		it("takes no limit and starts everything", async () => {
 			const harness = createHarness();

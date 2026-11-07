@@ -15,7 +15,7 @@ Rules that generated code often gets wrong:
 ## Start here
 
 - [Guide](docs/guide.md): bus, handler context, policies, effects, actions and modules, step by step
-- [Common tasks](docs/recipes.md): the problem, a short solution and a link for each common task (a race, a double submit, a flaky network, a store, a framework), simplest first
+- [Common tasks](docs/recipes.md): the problem, a short solution and a link for each common task (a race, a double submit, a flaky network, a flow that stops halfway, a store, a framework), simplest first
 - [Start a project from a template](docs/starter.md): `npm create nanoeffects` makes a Vite project (`vanilla`, `react`, `vue-ts`, `svelte-ts` and others, in JavaScript or TypeScript) with a bus, `debounce` and `latest`
 - [Why nanoeffects exists](docs/motivation.md): logic and side effects outside UI components as plain async functions, DI by context, and no dependencies and no global state for micro-frontends and Module Federation
 - [Package entries](docs/package.md): which import holds what
@@ -27,7 +27,7 @@ Rules that generated code often gets wrong:
 - [Cancel stale requests and fix race conditions](docs/cancel-stale-requests.md): an older response overwrites a newer one; `latest`, `debounce`, `retry`, `timeout` in one recipe
 - [Pause between requests](docs/debounce-and-abort.md): `debounce` outside, `latest` inside, and when to use `throttle`
 - [Prevent a double submit](docs/prevent-double-submit.md): `leading`, one run per item with `key`, retry only on network errors
-- [Effects and cancellation](docs/effects.md): `retry`, `timeout`, `poll`, `take`, `all`, `race`, `backoff`
+- [Effects and cancellation](docs/effects.md): `retry`, `timeout`, `poll`, `take`, `all`, `race`, `transaction` (steps with a `rollback`), `backoff`
 - [Errors and unheard events](docs/errors.md): `onError`, `onUnhandled`
 
 ## Domain logic and stores

@@ -37,6 +37,7 @@ export type EffectName =
 	| "rateLimit"
 	| "batch"
 	| "allSettled"
+	| "transaction"
 	| "action"
 	| "emit";
 

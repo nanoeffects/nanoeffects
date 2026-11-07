@@ -1,5 +1,5 @@
 import type { ChildOf, GroupOptions, Starter, Starters } from "./run";
-import { emptyResult, groupOrStarter, runGroup } from "./run";
+import { emptyResult, groupOrStarterWithOptions, runGroup } from "./run";
 
 /**
  * Runs all starters; waits for every result. On failure or parent abort, cancels the rest.
@@ -16,6 +16,17 @@ import { emptyResult, groupOrStarter, runGroup } from "./run";
  * });
  * ```
  */
+// Without a context the call is a starter. The child type comes from the group that calls it.
+export function all<Child, T extends Record<string, Starter<unknown, Child>>>(
+	effects: T,
+	options?: GroupOptions | null,
+): (child: Child) => Promise<{ [K in keyof T]: Awaited<ReturnType<T[K]>> }>;
+export function all<Child, const T extends readonly Starter<unknown, Child>[]>(
+	effects: T,
+	options?: GroupOptions | null,
+): (
+	child: Child,
+) => Promise<{ -readonly [K in keyof T]: Awaited<ReturnType<T[K]>> }>;
 export function all<
 	C extends { signal?: AbortSignal },
 	T extends Record<string, Starter<unknown, ChildOf<C>>>,
@@ -32,21 +43,12 @@ export function all<
 	effects: T,
 	options?: GroupOptions | null,
 ): Promise<{ -readonly [K in keyof T]: Awaited<ReturnType<T[K]>> }>;
-// Without a context the call is a starter. The child type comes from the group that calls it.
-export function all<Child, T extends Record<string, Starter<unknown, Child>>>(
-	effects: T,
-): (child: Child) => Promise<{ [K in keyof T]: Awaited<ReturnType<T[K]>> }>;
-export function all<Child, const T extends readonly Starter<unknown, Child>[]>(
-	effects: T,
-): (
-	child: Child,
-) => Promise<{ -readonly [K in keyof T]: Awaited<ReturnType<T[K]>> }>;
 export function all(
 	...args:
 		| [{ signal?: AbortSignal }, Starters, (GroupOptions | null | undefined)?]
-		| [Starters]
+		| [Starters, (GroupOptions | null | undefined)?]
 ) {
-	return groupOrStarter(args, allOf);
+	return groupOrStarterWithOptions(args, allOf);
 }
 
 const allOf = (
