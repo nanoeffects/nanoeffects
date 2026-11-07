@@ -2,7 +2,7 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
-## Unreleased
+## 0.37.0
 
 ### Added
 - `transaction(ctx, first, second)` (or `transaction(ctx, steps, options)` with an array) in `nanoeffects/effects` runs steps with a `rollback` and rolls the finished ones back when a later step fails or the task is aborted. `rollbackOn`, `rollbackFailure` and `rollbackOrder` set the strategy for the whole transaction or for one step. With the steps as arguments, TypeScript infers the value of each `rollback` from its `run`; options go before the steps. [Docs](docs/effects.md#transaction)
