@@ -86,6 +86,18 @@ The options of the transaction SHALL be checked before `body` is called. The opt
 - **WHEN** the third `step` call has `rollbackOn: "eror"`
 - **THEN** it throws a `RangeError` before its `run`, and the first two steps are rolled back
 
+#### Scenario: Stop with parallel is rejected before the body
+- **WHEN** the options of the transaction have `rollbackFailure: "stop"` and `rollbackOrder: "parallel"`, even if every step would override `rollbackFailure`
+- **THEN** it throws a `TypeError` and the body is not called (the steps are not known yet, so the array forms, which see them, may accept the same options)
+
+#### Scenario: Options that are not an object
+- **WHEN** the options of the transaction are a value that is neither an object nor `null`
+- **THEN** it throws a `TypeError` and the body is not called
+
+#### Scenario: A second function is not options
+- **WHEN** `transaction(ctx, body, otherFunction)` is called
+- **THEN** it throws a `TypeError`
+
 ## MODIFIED Requirements
 
 ### Requirement: Strategy options and their precedence

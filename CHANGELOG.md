@@ -2,7 +2,7 @@
 
 How to read an entry: **Breaking** needs a change in your code or setup, **Changed** is a different behavior that rarely breaks anything, **Added** is new. Details live in the linked docs, not here.
 
-## Unreleased
+## 0.38.0
 
 ### Added
 - `transaction(ctx, async (step) => ...)` takes a function that calls `step(run, rollback, options)` for each step. The value of a step is a plain variable for the next one, `rollback` is typed from its own `run`, and the result is what the function returns. The array and the steps as arguments work as before; `ctx.transaction(body, options)` is bound by `effectsPlugin`. [Docs](docs/effects.md#transaction)
