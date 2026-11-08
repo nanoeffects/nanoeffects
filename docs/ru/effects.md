@@ -515,36 +515,97 @@ import { transaction } from "nanoeffects/effects";
 const bus = createBus();
 
 bus.on("checkout", async (order, ctx) => {
-  // transaction — выполнить шаги по порядку; если один упал, откатить завершённые, последний первым
-  const [orderId, paymentId] = await transaction(
-    ctx,
-    {
+  // transaction — функция: вызовите step для каждой части потока; если один упал, откатить завершённые шаги
+  const result = await transaction(ctx, async (step) => {
+    // step — выполнить работу как шаг; второй аргумент отменяет её и получает то, что вернул run
+    const placed = await step(
       // run — делает работу; child — контекст этого шага, поэтому у него есть signal
+      ({ signal }) => api.createOrder(order, { signal }),
+      // rollback — получает то, что вернул run, и не получает signal
+      (placed) => api.cancelOrder(placed.id),
+    );
+
+    // значение шага — переменная: этот шаг читает placed.id
+    const payment = await step(
+      ({ signal }) => api.charge(placed.id, { signal }),
+      (payment) => api.refund(payment.id),
+    );
+
+    await step(
+      ({ signal }) => api.reserveStock(placed.id, { signal }),
+      (reservation) => api.releaseStock(reservation.id),
+    );
+
+    return { orderId: placed.id, paymentId: payment.id };
+  });
+
+  ctx.emit("checkoutDone", result);
+});
+```
+
+`step(run, rollback)` выполняет `run`, ждёт его значение и отдаёт вам. Второй вызов `step` идёт, когда первый шаг уже завершился, поэтому значение одного шага — обычная переменная для следующего (`placed.id` выше). Результат `transaction` — то, что вернула функция.
+
+Поэтому транзакция — функция, а не список: список шагов — это данные, и шаг в нём не может прочитать, что вернул предыдущий. В TypeScript `rollback` каждого шага получает тип значения своего `run` без аннотаций.
+
+**Options шага и шаг без отката.** `step(run, rollback, options)` принимает options шага третьим аргументом (см. [Выбор стратегии отката](#выбор-стратегии-отката)). Шагу, которому нечего отменять, передайте `null` вместо `rollback`: `step(run, null, { rollbackOn: "abort" })`.
+
+**Шаги как данные.** Когда список шагов собирается во время работы или общий для нескольких вызовов, передайте шаги аргументами или массивом. Делают они то же, что и функция. `transaction(ctx, first, second)` принимает шаги по одному, `transaction(ctx, steps)` — массив. Только первая запись позволяет TypeScript проверить каждый `rollback` по тому, что вернул его `run`. В первой записи options идут перед шагами, `transaction(ctx, options, first, second)`, а `null` значит «без options»; в записи с массивом они последний аргумент. Результат этих записей — массив того, что вернул `run` каждого шага, в порядке шагов.
+
+```js
+import { createBus } from "nanoeffects";
+import { transaction } from "nanoeffects/effects";
+
+const bus = createBus();
+
+bus.on("checkout", async (order, ctx) => {
+  // transaction — тот же поток шагами в массиве; результат — массив их значений
+  const [orderId, paymentId] = await transaction(ctx, [
+    {
       run: ({ signal }) => api.createOrder(order, { signal }),
-      // rollback — отменяет работу; получает то, что вернул run, и не получает signal
       rollback: (orderId) => api.cancelOrder(orderId),
     },
     {
       run: ({ signal }) => api.charge(order, { signal }),
       rollback: (paymentId) => api.refund(paymentId),
     },
-    {
-      run: ({ signal }) => api.reserveStock(order, { signal }),
-      rollback: (reservationId) => api.releaseStock(reservationId),
-    },
-  );
+  ]);
 
   ctx.emit("checkoutDone", { orderId, paymentId });
 });
 ```
 
-Результат — массив того, что вернул `run` каждого шага, в порядке шагов.
+**Что откатывается.** Только шаги, у которых `run` вернул значение. Упавший шаг в их число не входит: библиотека не знает, как далеко он дошёл, поэтому шаг атомарен или убирает за собой сам внутри своего `run`. Шаг без `rollback` пропускается. Шаг, который игнорирует signal и вернулся уже после прерывания, считается завершённым и откатывается: его работа выполнена. `rollback` не получает signal прерывания, поэтому прерывание, запустившее откат, его не оборвёт.
 
-**Шаги аргументами или массивом.** `transaction(ctx, first, second)` принимает шаги по одному, `transaction(ctx, steps)` — массив, для списка, который собирается во время работы. Делают они одно и то же. Только первая запись позволяет TypeScript проверить каждый `rollback` по тому, что вернул его `run`. В первой записи options идут перед шагами, `transaction(ctx, options, first, second)`, а `null` значит «без options»; в записи с массивом они последний аргумент.
+Шаг, который может упасть на полпути, убирает за собой сам. Дайте запросу ключ, по которому его можно отменить, и отмените его в `catch`:
 
-**Что откатывается.** Только шаги, у которых `run` вернул значение. Упавший шаг в их число не входит: библиотека не знает, как далеко он дошёл, поэтому недоделанный шаг убирает за собой сам внутри своего `run`. Шаг без `rollback` пропускается. Шаг, который игнорирует signal и вернулся уже после прерывания, считается завершённым и откатывается: его работа выполнена. `rollback` не получает signal прерывания, поэтому прерывание, запустившее откат, его не оборвёт.
+```js
+import { createBus } from "nanoeffects";
+import { transaction } from "nanoeffects/effects";
 
-**Что вернётся.** После последнего отката результат отклоняется с ошибкой упавшего шага или с причиной прерывания, как у любого другого эффекта. Если откат тоже упал, результат отклоняется с `AggregateError`: первый элемент его `errors` — причина, по которой транзакция упала, остальные — откаты, которые упали.
+const bus = createBus();
+
+bus.on("checkout", async (order, ctx) => {
+  await transaction(ctx, async (step) => {
+    await step(
+      async ({ signal }) => {
+        const key = crypto.randomUUID();
+        try {
+          return await api.charge(order, { key, signal });
+        } catch (error) {
+          // шаг упал, поэтому его не откатывают: отмените то, что могло дойти до сервера, и пробросьте ошибку
+          await api.cancelCharge(key);
+          throw error;
+        }
+      },
+      (payment) => api.refund(payment.id),
+    );
+  });
+});
+```
+
+Если функция перехватила ошибку шага и вернулась, ничего не откатывается: транзакция не упала. Шаги, которые идут одновременно (`Promise.all`), откатываются в порядке завершения, последний завершённый первым.
+
+**Что вернётся.** После последнего отката результат отклоняется с ошибкой упавшего шага (или функции) или с причиной прерывания, как у любого другого эффекта. Если откат тоже упал, результат отклоняется с `AggregateError`: первый элемент его `errors` — причина, по которой транзакция упала, остальные — откаты, которые упали.
 
 ```js
 import { createBus } from "nanoeffects";
@@ -577,7 +638,7 @@ bus.on("checkout", async (order, ctx) => {
 
 ### Выбор стратегии отката
 
-Стратегию задают три параметра. Передайте их в options (перед шагами или третьим аргументом в записи с массивом) для всех шагов или в шаге только для него: шаг сильнее. `null` и отсутствующий параметр берут значение уровнем выше.
+Стратегию задают три параметра. Передайте их в options (последним аргументом функции и записи с массивом, в остальных случаях перед шагами) для всех шагов или в шаге только для него (третий аргумент `step`): шаг сильнее. `null` и отсутствующий параметр берут значение уровнем выше.
 
 | Параметр | Значения (первое — по умолчанию) | В шаге | В options |
 | --- | --- | --- | --- |
@@ -596,25 +657,25 @@ import { transaction } from "nanoeffects/effects";
 const bus = createBus();
 
 bus.on("checkout", async (order, ctx) => {
-  await transaction(
-    ctx,
-    {
-      run: ({ signal }) => api.createOrder(order, { signal }),
-      rollback: (orderId) => api.cancelOrder(orderId),
-      // rollbackOn в шаге — отменять заказ только когда шаг упал; прерывание оставляет его, чтобы пользователь продолжил
-      rollbackOn: "error",
-    },
-    {
-      run: ({ signal }) => api.charge(order, { signal }),
-      rollback: (paymentId) => api.refund(paymentId),
-      // rollbackFailure в шаге — если возврат упал, дальше не идти: заказ остаётся, и видно, что он оплачен
-      rollbackFailure: "stop",
-    },
-  );
+  await transaction(ctx, async (step) => {
+    await step(
+      ({ signal }) => api.createOrder(order, { signal }),
+      (placed) => api.cancelOrder(placed.id),
+      // rollbackOn в options шага — отменять заказ только когда шаг упал; прерывание оставляет его, чтобы пользователь продолжил
+      { rollbackOn: "error" },
+    );
+
+    await step(
+      ({ signal }) => api.charge(order, { signal }),
+      (payment) => api.refund(payment.id),
+      // rollbackFailure в options шага — если возврат упал, дальше не идти: заказ остаётся, и видно, что он оплачен
+      { rollbackFailure: "stop" },
+    );
+  });
 });
 ```
 
-Независимые шаги можно откатывать сразу. Для параллельного отката `rollbackFailure: "stop"` нечего останавливать, поэтому такое сочетание бросает `TypeError` до запуска первого шага. Значение вне списка бросает там же `RangeError`.
+Независимые шаги можно откатывать сразу. Для параллельного отката `rollbackFailure: "stop"` нечего останавливать, поэтому такое сочетание бросает `TypeError` до запуска первого шага. Значение вне списка бросает там же `RangeError`. Форма с функцией проверяет options транзакции до вызова вашей функции, а options шага — когда вызван `step`, потому что шагов до этого нет: опечатка в позднем шаге обнаружится после того, как выполнились ранние, и они откатятся. TypeScript показывает такую опечатку при написании кода.
 
 ```js
 import { createBus } from "nanoeffects";
@@ -648,14 +709,10 @@ const refundWithRetry = (paymentId) =>
   retry({}, () => api.refund(paymentId), { times: 3 });
 
 bus.on("checkout", async (order, ctx) => {
-  await transaction(
-    ctx,
-    {
-      run: ({ signal }) => api.charge(order, { signal }),
-      rollback: refundWithRetry,
-    },
-    { run: ({ signal }) => api.reserveStock(order, { signal }) },
-  );
+  await transaction(ctx, async (step) => {
+    await step(({ signal }) => api.charge(order, { signal }), refundWithRetry);
+    await step(({ signal }) => api.reserveStock(order, { signal }));
+  });
 });
 ```
 
@@ -663,7 +720,7 @@ bus.on("checkout", async (order, ctx) => {
 
 ### Внутри группы и в TypeScript
 
-`transaction(first, second)` без `ctx` — функция для группы, которую принимают `all` и `race`: когда группа упала, она прерывает транзакцию и завершённые шаги откатываются. Options идут первыми, `transaction(options, first, second)`, а в записи с массивом — последними, `transaction(steps, options)`. Форму определяет первый аргумент: объект с `run` — шаг, массив — запись с массивом, объект, у которого `signal` — объект (контекст задачи, `AbortController`, `{ signal }`), — контекст, любой другой объект, и `{}` тоже, — options. Чтобы запустить вне задачи без signal, используйте запись с массивом, `transaction({}, steps)`.
+`transaction(body, options)` без `ctx` — функция для группы, которую принимают `all` и `race`: когда группа упала, она прерывает транзакцию и завершённые шаги откатываются. То же верно для остальных записей: `transaction(options, first, second)`, где options впереди, и `transaction(steps, options)`, где они последние. Форму определяет первый аргумент: функция — тело формы с функцией, объект с `run` — шаг, массив — запись с массивом, объект, у которого `signal` — объект (контекст задачи, `AbortController`, `{ signal }`), — контекст, любой другой объект, и `{}` тоже, — options. После контекста функция — это тело: `transaction(ctx, body)` и `transaction({}, body)`, которая работает вне задачи без signal. Чтобы запустить остальные записи вне задачи, используйте запись с массивом, `transaction({}, steps)`.
 
 ```js
 import { createBus } from "nanoeffects";
@@ -676,12 +733,16 @@ bus.on("checkout", async (order, ctx) => {
   const { paid } = await all(ctx, {
     // transaction без ctx — функция для группы; options здесь тоже работают
     paid: transaction(
-      // сначала options, потом шаги
-      { rollbackOrder: "parallel" },
-      {
-        run: ({ signal }) => api.charge(order, { signal }),
-        rollback: (paymentId) => api.refund(paymentId),
+      async (step) => {
+        const payment = await step(
+          ({ signal }) => api.charge(order, { signal }),
+          (payment) => api.refund(payment.id),
+        );
+
+        return payment;
       },
+      // options идут после тела
+      { rollbackOrder: "parallel" },
     ),
     checked: ({ signal }) => api.checkFraud(order, { signal }),
   });
@@ -690,9 +751,9 @@ bus.on("checkout", async (order, ctx) => {
 });
 ```
 
-С [`effectsPlugin`](#effectsplugin) запись `effectsPlugin({ transaction })` даёт `ctx.transaction(first, second)`, `ctx.transaction(options, first, second)` и `ctx.transaction(steps, options)`.
+С [`effectsPlugin`](#effectsplugin) запись `effectsPlugin({ transaction })` даёт `ctx.transaction(body, options)`, `ctx.transaction(first, second)`, `ctx.transaction(options, first, second)` и `ctx.transaction(steps, options)`.
 
-В TypeScript результат — кортеж того, что вернул `run` каждого шага. Когда шаги переданы аргументами, TypeScript выводит и значение в `rollback` из `run` того же шага: `rollback: (orderId) => api.cancelOrder(orderId)` получает `string`, если `run` вернул `string`. В записи с массивом так не выходит, поэтому значение имеет тип `any`: укажите тип там, где хотите проверку: `rollback: (orderId: string) => api.cancelOrder(orderId)`. Ключ, которого у шага нет, например `rollbackOrder` в шаге, не ошибка, шаг его игнорирует.
+В TypeScript форма с функцией возвращает то, что вернула ваша функция, а `step` отдаёт тип, который вернул его `run`: данные между шагами и значение каждого `rollback` типизируются без аннотаций. В остальных записях результат — кортеж того, что вернул `run` каждого шага. Когда шаги переданы аргументами, TypeScript выводит и значение в `rollback` из `run` того же шага: `rollback: (orderId) => api.cancelOrder(orderId)` получает `string`, если `run` вернул `string`. В записи с массивом так не выходит, поэтому значение имеет тип `any`: укажите тип там, где хотите проверку: `rollback: (orderId: string) => api.cancelOrder(orderId)`. Ключ, которого у шага нет, например `rollbackOrder` в шаге, не ошибка, шаг его игнорирует.
 
 ## `effectsPlugin`
 

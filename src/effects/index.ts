@@ -19,6 +19,8 @@ export {
 	type RollbackFailure,
 	type RollbackOn,
 	type RollbackOrder,
+	type StepFunction,
+	type StepOptions,
 	type TransactionOptions,
 	type TransactionStep,
 	transaction,

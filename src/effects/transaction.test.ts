@@ -1,3 +1,4 @@
+import { getEventListeners } from "node:events";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createBus } from "../core/bus";
 import { latest, queue } from "../policies";
@@ -1048,6 +1049,602 @@ describe("transaction", () => {
 			await vi.advanceTimersByTimeAsync(0);
 
 			expect(results).toEqual([["a", "b"]]);
+		});
+	});
+
+	describe("scope form", () => {
+		// the same steps as `stepNamed`, for `step(run, rollback)`
+		const named = (journal: Journal, name: string) => stepNamed(journal, name);
+
+		it("passes the value of a step to the next one through a variable and gives what the body returns", async () => {
+			const harness = createHarness();
+			const journal: Journal = [];
+
+			const result = await transaction(harness.ctx(), async (step) => {
+				const first = named(journal, "a");
+				const name = await step(first.run, first.rollback);
+				const second = await step(async () => {
+					journal.push(`run after ${name}`);
+
+					return name.length;
+				});
+
+				return { name, second };
+			});
+
+			expect(result).toEqual({ name: "a", second: 1 });
+			expect(journal).toEqual(["run a", "run after a"]);
+		});
+
+		it("rolls nothing back when the body returns", async () => {
+			const harness = createHarness();
+			const journal: Journal = [];
+
+			const result = await transaction(harness.ctx(), async (step) => {
+				const a = named(journal, "a");
+				const b = named(journal, "b");
+				await step(a.run, a.rollback);
+				await step(b.run, b.rollback);
+
+				return "done";
+			});
+
+			expect(result).toBe("done");
+			expect(journal).toEqual(["run a", "run b"]);
+		});
+
+		it("gives a step a signal that aborts with the task", async () => {
+			const harness = createHarness();
+			const ctx = harness.ctx();
+			const seen: AbortSignal[] = [];
+
+			const result = transaction(ctx, async (step) => {
+				await step(({ signal }) => {
+					seen.push(signal);
+
+					return hangUntilAbort({ signal });
+				});
+			});
+			await vi.advanceTimersByTimeAsync(0);
+			expect(seen[0]?.aborted).toBe(false);
+
+			ctx.abort();
+
+			expect(await errorOf(result)).toBe(ctx.signal.reason);
+			expect(seen[0]?.aborted).toBe(true);
+		});
+
+		it("rolls back the finished steps, last first, and not the one that failed", async () => {
+			const harness = createHarness();
+			const journal: Journal = [];
+
+			const result = transaction(harness.ctx(), async (step) => {
+				const a = named(journal, "a");
+				const b = named(journal, "b");
+				const broken = failing(journal);
+				await step(a.run, a.rollback);
+				await step(b.run, b.rollback);
+				await step(broken.run, broken.rollback);
+			});
+
+			expect(await errorOf(result)).toHaveProperty("message", "boom");
+			expect(journal).toEqual([
+				"run a",
+				"run b",
+				"run failing",
+				"rollback b",
+				"rollback a",
+			]);
+		});
+
+		it("rolls back the steps when the body throws after them", async () => {
+			const harness = createHarness();
+			const journal: Journal = [];
+
+			const result = transaction(harness.ctx(), async (step) => {
+				const a = named(journal, "a");
+				const b = named(journal, "b");
+				await step(a.run, a.rollback);
+				await step(b.run, b.rollback);
+				throw new Error("late");
+			});
+
+			expect(await errorOf(result)).toHaveProperty("message", "late");
+			expect(journal).toEqual(["run a", "run b", "rollback b", "rollback a"]);
+		});
+
+		it("does not roll back when the body catches the error of a step", async () => {
+			const harness = createHarness();
+			const journal: Journal = [];
+
+			const result = await transaction(harness.ctx(), async (step) => {
+				const a = named(journal, "a");
+				const broken = failing(journal);
+				await step(a.run, a.rollback);
+				try {
+					await step(broken.run, broken.rollback);
+				} catch {
+					return "recovered";
+				}
+
+				return "clean";
+			});
+
+			expect(result).toBe("recovered");
+			expect(journal).toEqual(["run a", "run failing"]);
+		});
+
+		it("rolls back a finished step and one that ignored the signal after an abort", async () => {
+			const harness = createHarness();
+			const ctx = harness.ctx();
+			const journal: Journal = [];
+			const gate = deferred<string>();
+
+			const result = transaction(ctx, async (step) => {
+				const a = named(journal, "a");
+				await step(a.run, a.rollback);
+				await step(
+					() => gate.promise,
+					(value) => {
+						journal.push(`rollback ${value}`);
+					},
+				);
+			});
+			await vi.advanceTimersByTimeAsync(0);
+			ctx.abort();
+			await vi.advanceTimersByTimeAsync(0);
+			gate.resolve("deaf");
+
+			expect(await errorOf(result)).toBe(ctx.signal.reason);
+			expect(journal).toEqual(["run a", "rollback deaf", "rollback a"]);
+		});
+
+		it("rejects with an AggregateError that holds the step error first when a rollback fails", async () => {
+			const harness = createHarness();
+			const journal: Journal = [];
+
+			const result = transaction(harness.ctx(), async (step) => {
+				const a = named(journal, "a");
+				const broken = failing(journal);
+				await step(a.run, () => {
+					throw new Error("cannot undo");
+				});
+				await step(broken.run, broken.rollback);
+			});
+
+			const error = await errorOf(result);
+			expect(error).toBeInstanceOf(AggregateError);
+			const [first, second] = (error as AggregateError).errors;
+			expect(first).toHaveProperty("message", "boom");
+			expect(second).toHaveProperty("message", "cannot undo");
+		});
+
+		it("keeps the result pending until a slow rollback has finished", async () => {
+			const harness = createHarness();
+			const settled: string[] = [];
+
+			const result = transaction(harness.ctx(), async (step) => {
+				await step(
+					async () => "a",
+					async () => {
+						await new Promise((resolve) => setTimeout(resolve, 100));
+					},
+				);
+				throw new Error("body failed");
+			});
+			result.catch(() => {
+				settled.push("rejected");
+			});
+
+			await vi.advanceTimersByTimeAsync(99);
+			expect(settled).toEqual([]);
+			await vi.advanceTimersByTimeAsync(1);
+			expect(settled).toEqual(["rejected"]);
+			expect(await errorOf(result)).toHaveProperty("message", "body failed");
+		});
+
+		it("rolls back and rejects with the abort reason when the body ignores the abort and returns", async () => {
+			const harness = createHarness();
+			const ctx = harness.ctx();
+			const journal: Journal = [];
+			const gate = deferred<string>();
+
+			const result = transaction(ctx, async (step) => {
+				const a = named(journal, "a");
+				await step(a.run, a.rollback);
+				await gate.promise;
+
+				return "returned";
+			});
+			await vi.advanceTimersByTimeAsync(0);
+			ctx.abort();
+			gate.resolve("late");
+
+			expect(await errorOf(result)).toBe(ctx.signal.reason);
+			expect(journal).toEqual(["run a", "rollback a"]);
+		});
+
+		it("makes the same calls and the same error as the array form", async () => {
+			const harness = createHarness();
+			const arrayJournal: Journal = [];
+			const scopeJournal: Journal = [];
+			const options = { rollbackOrder: "reverse" } as const;
+
+			const arrayResult = transaction(
+				harness.ctx(),
+				[
+					stepNamed(arrayJournal, "a"),
+					stepNamed(arrayJournal, "b"),
+					failing(arrayJournal),
+				],
+				options,
+			);
+			const scopeResult = transaction(
+				harness.ctx(),
+				async (step) => {
+					const a = named(scopeJournal, "a");
+					const b = named(scopeJournal, "b");
+					const broken = failing(scopeJournal);
+					await step(a.run, a.rollback);
+					await step(b.run, b.rollback);
+					await step(broken.run, broken.rollback);
+				},
+				options,
+			);
+
+			const arrayError = await errorOf(arrayResult);
+			const scopeError = await errorOf(scopeResult);
+			expect(scopeJournal).toEqual(arrayJournal);
+			expect(scopeError).toEqual(arrayError);
+		});
+
+		describe("step after an abort or after the end", () => {
+			it("throws the abort reason and does not call run when the task is aborted", async () => {
+				const harness = createHarness();
+				const ctx = harness.ctx();
+				const run = vi.fn(async () => 1);
+				let stepError: unknown;
+
+				const result = transaction(ctx, async (step) => {
+					ctx.abort();
+					try {
+						await step(run);
+					} catch (error) {
+						stepError = error;
+						throw error;
+					}
+				});
+
+				expect(await errorOf(result)).toBe(ctx.signal.reason);
+				expect(stepError).toBe(ctx.signal.reason);
+				expect(run).not.toHaveBeenCalled();
+			});
+
+			it("throws a TypeError and does not call run for a step that is called after the end", async () => {
+				const harness = createHarness();
+				const run = vi.fn(async () => 1);
+				let kept: ((run: () => Promise<number>) => Promise<number>) | undefined;
+
+				await transaction(harness.ctx(), async (step) => {
+					kept = step;
+				});
+
+				expect(await errorOf(kept?.(run) ?? Promise.resolve())).toBeInstanceOf(
+					TypeError,
+				);
+				expect(run).not.toHaveBeenCalled();
+			});
+		});
+
+		describe("steps that run at the same time", () => {
+			// B finishes before A: both started together, then the body throws
+			const together = async (
+				journal: Journal,
+				options: { rollbackOrder: "reverse" | "parallel" },
+			) => {
+				const harness = createHarness();
+				const slow = deferred<string>();
+				const result = transaction(
+					harness.ctx(),
+					async (step) => {
+						const a = step(
+							() => slow.promise,
+							(value) => {
+								journal.push(`rollback ${value}`);
+							},
+						);
+						const b = step(
+							async () => "b",
+							(value) => {
+								journal.push(`rollback ${value}`);
+							},
+						);
+						await b;
+						slow.resolve("a");
+						await a;
+						throw new Error("after both");
+					},
+					options,
+				);
+				await expect(result).rejects.toThrow("after both");
+			};
+
+			it("rolls back in the order they finished, last finished first", async () => {
+				const journal: Journal = [];
+
+				await together(journal, { rollbackOrder: "reverse" });
+
+				expect(journal).toEqual(["rollback a", "rollback b"]);
+			});
+
+			it("calls all rollbacks with rollbackOrder parallel", async () => {
+				const journal: Journal = [];
+
+				await together(journal, { rollbackOrder: "parallel" });
+
+				expect([...journal].sort()).toEqual(["rollback a", "rollback b"]);
+			});
+		});
+
+		describe("options", () => {
+			it("throws a RangeError for a wrong word of the transaction and does not call the body", () => {
+				const harness = createHarness();
+				const body = vi.fn(async () => 1);
+
+				expect(() =>
+					// @ts-expect-error not one of the three words
+					transaction(harness.ctx(), body, { rollbackOn: "eror" }),
+				).toThrow(RangeError);
+				expect(body).not.toHaveBeenCalled();
+			});
+
+			it("throws a RangeError for a wrong word of a step before its run, and rolls back the earlier steps", async () => {
+				const harness = createHarness();
+				const journal: Journal = [];
+				const run = vi.fn(async () => 3);
+
+				const result = transaction(harness.ctx(), async (step) => {
+					const a = named(journal, "a");
+					const b = named(journal, "b");
+					await step(a.run, a.rollback);
+					await step(b.run, b.rollback);
+					// @ts-expect-error not one of the three words
+					await step(run, null, { rollbackOn: "eror" });
+				});
+
+				expect(await errorOf(result)).toBeInstanceOf(RangeError);
+				expect(run).not.toHaveBeenCalled();
+				expect(journal).toEqual(["run a", "run b", "rollback b", "rollback a"]);
+			});
+
+			it("lets the options of a step win over the options of the transaction", async () => {
+				const harness = createHarness();
+				const ctx = harness.ctx();
+				const journal: Journal = [];
+
+				const result = transaction(
+					ctx,
+					async (step) => {
+						const a = named(journal, "a");
+						const b = named(journal, "b");
+						await step(a.run, a.rollback);
+						await step(b.run, b.rollback, { rollbackOn: "both" });
+						ctx.abort();
+						throw ctx.signal.reason;
+					},
+					{ rollbackOn: "error" },
+				);
+
+				await errorOf(result);
+				expect(journal).toEqual(["run a", "run b", "rollback b"]);
+			});
+
+			it("falls back to the transaction for a null option", async () => {
+				const harness = createHarness();
+				const ctx = harness.ctx();
+				const journal: Journal = [];
+
+				const result = transaction(
+					ctx,
+					async (step) => {
+						const a = named(journal, "a");
+						await step(a.run, a.rollback, { rollbackOn: null });
+						ctx.abort();
+						throw ctx.signal.reason;
+					},
+					{ rollbackOn: "abort" },
+				);
+
+				await errorOf(result);
+				expect(journal).toEqual(["run a", "rollback a"]);
+			});
+
+			it("stops the rollbacks that are left after a failed one when the step says stop", async () => {
+				const harness = createHarness();
+				const journal: Journal = [];
+
+				const result = transaction(harness.ctx(), async (step) => {
+					const a = named(journal, "a");
+					await step(a.run, a.rollback);
+					await step(
+						async () => "b",
+						() => {
+							throw new Error("cannot undo b");
+						},
+						{ rollbackFailure: "stop" },
+					);
+					throw new Error("late");
+				});
+
+				await errorOf(result);
+				expect(journal).toEqual(["run a"]);
+			});
+
+			it("throws a TypeError for stop with rollbackOrder parallel, in the transaction and in a step", async () => {
+				const harness = createHarness();
+				const body = vi.fn(async () => 1);
+
+				expect(() =>
+					transaction(harness.ctx(), body, {
+						rollbackFailure: "stop",
+						rollbackOrder: "parallel",
+					}),
+				).toThrow(TypeError);
+				expect(body).not.toHaveBeenCalled();
+
+				const result = transaction(
+					harness.ctx(),
+					async (step) => {
+						await step(async () => 1, null, { rollbackFailure: "stop" });
+					},
+					{ rollbackOrder: "parallel" },
+				);
+				expect(await errorOf(result)).toBeInstanceOf(TypeError);
+			});
+		});
+
+		describe("listeners", () => {
+			const listenersOf = (signal: AbortSignal) =>
+				getEventListeners(signal, "abort").length;
+
+			it("leaves no listener on the parent signal after it succeeds, fails, is aborted or a rollback fails", async () => {
+				const harness = createHarness();
+				const parent = harness.ctx();
+				// the shared onAbort hub keeps its one real listener once a signal has been used
+				await transaction(parent, async () => 0);
+				const before = listenersOf(parent.signal);
+
+				await transaction(parent, async (step) => {
+					await step(async () => 1);
+				});
+				expect(listenersOf(parent.signal)).toBe(before);
+
+				await errorOf(
+					transaction(parent, async (step) => {
+						await step(
+							async () => 1,
+							() => {},
+						);
+						throw new Error("body failed");
+					}),
+				);
+				expect(listenersOf(parent.signal)).toBe(before);
+
+				await errorOf(
+					transaction(parent, async (step) => {
+						await step(
+							async () => 1,
+							() => {
+								throw new Error("cannot undo");
+							},
+						);
+						throw new Error("body failed");
+					}),
+				);
+				expect(listenersOf(parent.signal)).toBe(before);
+
+				const aborted = transaction(parent, async (step) => {
+					await step(hangUntilAbort);
+				});
+				await vi.advanceTimersByTimeAsync(0);
+				parent.abort();
+				await errorOf(aborted);
+				// an aborted signal fires and drops its listeners: none may be left over from the transaction
+				expect(listenersOf(parent.signal)).toBeLessThanOrEqual(before);
+			});
+		});
+	});
+
+	describe("scope form call forms", () => {
+		it("takes a function first as a starter, with and without options", async () => {
+			const harness = createHarness();
+			const journal: Journal = [];
+
+			const results = await all(harness.ctx(), {
+				plain: transaction(async () => "plain"),
+				limited: transaction(
+					async (step) => {
+						const a = stepNamed(journal, "a");
+
+						return step(a.run, a.rollback);
+					},
+					{ rollbackOrder: "parallel" },
+				),
+			});
+
+			expect(results).toEqual({ plain: "plain", limited: "a" });
+		});
+
+		it("takes an object and then a function as the context form, {} included", async () => {
+			const harness = createHarness();
+
+			await expect(
+				transaction(harness.ctx(), async () => "with context"),
+			).resolves.toBe("with context");
+			await expect(
+				transaction({}, async (step) => step(async () => "empty context")),
+			).resolves.toBe("empty context");
+		});
+
+		it("throws a TypeError for a second function and for a function among the steps", () => {
+			const harness = createHarness();
+
+			expect(() =>
+				transaction(
+					// @ts-expect-error the options are an object
+					harness.ctx(),
+					async () => 1,
+					() => 2,
+				),
+			).toThrow(TypeError);
+			expect(() =>
+				// @ts-expect-error a step has a run, a function is not one
+				transaction(harness.ctx(), { run: async () => 1 }, async () => 2),
+			).toThrow(TypeError);
+		});
+
+		it("aborts the steps of a body and rolls back when a group aborts it", async () => {
+			const harness = createHarness();
+			const journal: Journal = [];
+			const gate = deferred<void>();
+
+			const result = all(harness.ctx(), {
+				order: transaction(async (step) => {
+					const a = stepNamed(journal, "a");
+					await step(a.run, a.rollback);
+					await step(hangUntilAbort);
+				}),
+				user: async () => {
+					await gate.promise;
+					throw new Error("user failed");
+				},
+			});
+			await vi.advanceTimersByTimeAsync(0);
+			gate.resolve();
+
+			await expect(result).rejects.toThrow("user failed");
+			await vi.advanceTimersByTimeAsync(0);
+			expect(journal).toEqual(["run a", "rollback a"]);
+		});
+
+		it("is bound to the task by effectsPlugin and gives what the body returns", async () => {
+			const bus = createBus<TestEvents>().use(effectsPlugin({ transaction }));
+			const journal: Journal = [];
+			const results: string[] = [];
+
+			bus.on("t", async (_, ctx) => {
+				const value = await ctx.transaction(async (step) => {
+					const a = stepNamed(journal, "a");
+
+					return step(a.run, a.rollback);
+				});
+				results.push(value);
+			});
+			bus.emit("t", 1);
+			await vi.advanceTimersByTimeAsync(0);
+
+			expect(results).toEqual(["a"]);
+			expect(journal).toEqual(["run a"]);
 		});
 	});
 });

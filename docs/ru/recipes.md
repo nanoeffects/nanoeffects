@@ -454,6 +454,43 @@ bus.on("checkout", async (order, ctx) => {
 
 Подробнее: [`transaction`](effects.md#transaction), параметры стратегии `rollbackOn`, `rollbackFailure` и `rollbackOrder`.
 
+### Шагу нужно то, что вернул предыдущий
+
+Для списания нужен id заказа, который создал первый шаг. Список шагов — это данные, и шаг в нём не может прочитать, что вернул предыдущий. Запишите транзакцию функцией: `step` отдаёт значение своего `run`, следующий шаг читает его из переменной, а `rollback` получает тип этого значения.
+
+```js
+import { createBus } from "nanoeffects";
+import { transaction } from "nanoeffects/effects";
+
+const bus = createBus();
+
+bus.on("checkout", async (order, ctx) => {
+  // transaction — функция; если шаг упал, завершённые шаги откатываются, последний первым
+  const paymentId = await transaction(ctx, async (step) => {
+    // step — выполнить работу как шаг; отдаёт значение, которое вернул run
+    const placed = await step(
+      ({ signal }) => api.createOrder(order, { signal }),
+      // rollback получает это значение и не получает signal прерывания
+      (placed) => api.cancelOrder(placed.id),
+    );
+
+    // placed — обычная переменная, поэтому следующий шаг читает placed.id
+    const payment = await step(
+      ({ signal }) => api.charge(placed.id, { signal }),
+      (payment) => api.refund(payment.id),
+    );
+
+    return payment.id;
+  });
+
+  ctx.emit("checkoutDone", paymentId);
+});
+```
+
+Результат `transaction` — то, что вернула функция. Упавший шаг не откатывается: шаг атомарен или убирает за собой сам внутри своего `run`.
+
+Подробнее: [`transaction`](effects.md#transaction).
+
 ### API разрешает только N запросов в секунду
 
 API геокодирования разрешает 5 запросов в секунду. Список из 40 адресов отправляет 40 запросов сразу, и большинство падает с `429`. `rateLimit` запускает пять и держит остальные, пока окно не сдвинется.

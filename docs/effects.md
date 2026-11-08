@@ -515,36 +515,97 @@ import { transaction } from "nanoeffects/effects";
 const bus = createBus();
 
 bus.on("checkout", async (order, ctx) => {
-  // transaction — run the steps in order; if one fails, roll back the finished ones, last first
-  const [orderId, paymentId] = await transaction(
-    ctx,
-    {
+  // transaction — a function: call step for each part of the flow; if one fails, roll back the finished steps
+  const result = await transaction(ctx, async (step) => {
+    // step — run the work as a step; the second argument takes it back and gets what run returned
+    const placed = await step(
       // run — does the work; child is the context of this step, so it has a signal
+      ({ signal }) => api.createOrder(order, { signal }),
+      // rollback — gets what run returned, and no signal
+      (placed) => api.cancelOrder(placed.id),
+    );
+
+    // the value of a step is a variable: this step reads placed.id
+    const payment = await step(
+      ({ signal }) => api.charge(placed.id, { signal }),
+      (payment) => api.refund(payment.id),
+    );
+
+    await step(
+      ({ signal }) => api.reserveStock(placed.id, { signal }),
+      (reservation) => api.releaseStock(reservation.id),
+    );
+
+    return { orderId: placed.id, paymentId: payment.id };
+  });
+
+  ctx.emit("checkoutDone", result);
+});
+```
+
+`step(run, rollback)` runs `run`, waits for its value and gives it to you. If you call `step` a second time, the first step has finished, so the value of one step is a plain variable for the next one (`placed.id` above). The result of `transaction` is what the function returns.
+
+This is why the transaction is a function and not a list: a list of steps is data, and a step in it cannot read what an earlier one returned. In TypeScript each `rollback` gets the type of the value of its own `run`, with no annotation.
+
+**Step options and no rollback.** `step(run, rollback, options)` takes the options of the step as the third argument (see [Choose the rollback strategy](#choose-the-rollback-strategy)). A step with nothing to take back passes `null` for `rollback`: `step(run, null, { rollbackOn: "abort" })`.
+
+**Steps as data.** When the list of steps is built at run time, or shared between callers, give the steps as arguments or as an array. They do the same as the function. `transaction(ctx, first, second)` takes the steps one by one; `transaction(ctx, steps)` takes an array. Only the first lets TypeScript check each `rollback` against what its `run` returned. In the first form the options go before the steps, `transaction(ctx, options, first, second)`, and `null` means none; in the array form they are the last argument. The result of these forms is the array of what each `run` returned, in the order of the steps.
+
+```js
+import { createBus } from "nanoeffects";
+import { transaction } from "nanoeffects/effects";
+
+const bus = createBus();
+
+bus.on("checkout", async (order, ctx) => {
+  // transaction — the same flow as steps in an array; the result is the array of their values
+  const [orderId, paymentId] = await transaction(ctx, [
+    {
       run: ({ signal }) => api.createOrder(order, { signal }),
-      // rollback — takes the work back; it gets what run returned, and no signal
       rollback: (orderId) => api.cancelOrder(orderId),
     },
     {
       run: ({ signal }) => api.charge(order, { signal }),
       rollback: (paymentId) => api.refund(paymentId),
     },
-    {
-      run: ({ signal }) => api.reserveStock(order, { signal }),
-      rollback: (reservationId) => api.releaseStock(reservationId),
-    },
-  );
+  ]);
 
   ctx.emit("checkoutDone", { orderId, paymentId });
 });
 ```
 
-The result is the array of what each `run` returned, in the order of the steps.
+**What is rolled back.** Only the steps whose `run` returned, and the step that failed is not one of them: the library cannot know how far it got, so a step is atomic or cleans up inside its own `run`. A step with no `rollback` is skipped. A step that ignores its signal and returns after an abort counts as finished and is rolled back, because its work happened. `rollback` gets no abort signal, so the abort that started a rollback does not cut it.
 
-**Steps as arguments or as an array.** `transaction(ctx, first, second)` takes the steps one by one; `transaction(ctx, steps)` takes an array, for a list that you build at run time. They do the same. Only the first lets TypeScript check each `rollback` against what its `run` returned. In the first form the options go before the steps, `transaction(ctx, options, first, second)`, and `null` means none; in the array form they are the last argument.
+A step that may fail halfway cleans up after itself. Give the request a key you can use to cancel it, and cancel it in `catch`:
 
-**What is rolled back.** Only the steps whose `run` returned, and the step that failed is not one of them: the library cannot know how far it got, so a half-done step cleans up inside its own `run`. A step with no `rollback` is skipped. A step that ignores its signal and returns after an abort counts as finished and is rolled back, because its work happened. `rollback` gets no abort signal, so the abort that started a rollback does not cut it.
+```js
+import { createBus } from "nanoeffects";
+import { transaction } from "nanoeffects/effects";
 
-**What you get back.** After the last rollback the result rejects with the error of the failed step, or with the abort reason, as every other effect does. If a rollback failed too, it rejects with an `AggregateError`: the first of its `errors` is why the transaction failed, the rest are the rollbacks that failed.
+const bus = createBus();
+
+bus.on("checkout", async (order, ctx) => {
+  await transaction(ctx, async (step) => {
+    await step(
+      async ({ signal }) => {
+        const key = crypto.randomUUID();
+        try {
+          return await api.charge(order, { key, signal });
+        } catch (error) {
+          // the step failed, so it is not rolled back: cancel what may have reached the server, then rethrow
+          await api.cancelCharge(key);
+          throw error;
+        }
+      },
+      (payment) => api.refund(payment.id),
+    );
+  });
+});
+```
+
+If the function catches the error of a step and returns, nothing is rolled back: the transaction did not fail. Steps that run at the same time (`Promise.all`) are rolled back in the order they finished, last finished first.
+
+**What you get back.** After the last rollback the result rejects with the error of the failed step (or of the function), or with the abort reason, as every other effect does. If a rollback failed too, it rejects with an `AggregateError`: the first of its `errors` is why the transaction failed, the rest are the rollbacks that failed.
 
 ```js
 import { createBus } from "nanoeffects";
@@ -577,7 +638,7 @@ The result settles only after the last rollback has finished. A `queue` handler 
 
 ### Choose the rollback strategy
 
-Three options set the strategy. Give them in the options (before the steps, or the third argument of the array form) for every step, or in a step for that step alone; the step wins. `null` and a missing option fall back to the next level.
+Three options set the strategy. Give them in the options (the last argument of the function and of the array form, before the steps otherwise) for every step, or in a step for that step alone (the third argument of `step`); the step wins. `null` and a missing option fall back to the next level.
 
 | Option | Values (the first is the default) | In a step | In the options |
 | --- | --- | --- | --- |
@@ -596,25 +657,25 @@ import { transaction } from "nanoeffects/effects";
 const bus = createBus();
 
 bus.on("checkout", async (order, ctx) => {
-  await transaction(
-    ctx,
-    {
-      run: ({ signal }) => api.createOrder(order, { signal }),
-      rollback: (orderId) => api.cancelOrder(orderId),
-      // rollbackOn on a step — cancel the order only when a step failed; an abort leaves it for the user to resume
-      rollbackOn: "error",
-    },
-    {
-      run: ({ signal }) => api.charge(order, { signal }),
-      rollback: (paymentId) => api.refund(paymentId),
-      // rollbackFailure on a step — if the refund fails, do not go on: the order stays, so someone can see it was paid
-      rollbackFailure: "stop",
-    },
-  );
+  await transaction(ctx, async (step) => {
+    await step(
+      ({ signal }) => api.createOrder(order, { signal }),
+      (placed) => api.cancelOrder(placed.id),
+      // rollbackOn in the options of a step — cancel the order only when a step failed; an abort leaves it for the user to resume
+      { rollbackOn: "error" },
+    );
+
+    await step(
+      ({ signal }) => api.charge(order, { signal }),
+      (payment) => api.refund(payment.id),
+      // rollbackFailure in the options of a step — if the refund fails, do not go on: the order stays, so someone can see it was paid
+      { rollbackFailure: "stop" },
+    );
+  });
 });
 ```
 
-Independent steps can roll back at once. `rollbackFailure: "stop"` has nothing to stop in a parallel rollback, so the combination throws a `TypeError` before the first step starts. A value that is not in its list throws a `RangeError` there too.
+Independent steps can roll back at once. `rollbackFailure: "stop"` has nothing to stop in a parallel rollback, so the combination throws a `TypeError` before the first step starts. A value that is not in its list throws a `RangeError` there too. The function form checks the options of the transaction before it calls your function, but the options of a step when `step` is called, because the steps do not exist before that: a typo in a late step shows after the earlier ones have run, and they are rolled back. TypeScript reports such a typo when you write it.
 
 ```js
 import { createBus } from "nanoeffects";
@@ -648,14 +709,10 @@ const refundWithRetry = (paymentId) =>
   retry({}, () => api.refund(paymentId), { times: 3 });
 
 bus.on("checkout", async (order, ctx) => {
-  await transaction(
-    ctx,
-    {
-      run: ({ signal }) => api.charge(order, { signal }),
-      rollback: refundWithRetry,
-    },
-    { run: ({ signal }) => api.reserveStock(order, { signal }) },
-  );
+  await transaction(ctx, async (step) => {
+    await step(({ signal }) => api.charge(order, { signal }), refundWithRetry);
+    await step(({ signal }) => api.reserveStock(order, { signal }));
+  });
 });
 ```
 
@@ -663,7 +720,7 @@ Make a rollback safe to call twice: a request may have reached the server before
 
 ### Inside a group, and in TypeScript
 
-`transaction(first, second)` with no `ctx` is a function for a group, as `all` and `race` take: when the group fails, it aborts the transaction and the finished steps are rolled back. Options go in front, `transaction(options, first, second)`, or last in the array form, `transaction(steps, options)`. The first argument tells the forms apart: an object with a `run` is a step, an array is the array form, an object whose `signal` is an object (a task context, an `AbortController`, `{ signal }`) is a context, and any other object, `{}` too, is the options. To run outside a task with no signal, use the array form, `transaction({}, steps)`.
+`transaction(body, options)` with no `ctx` is a function for a group, as `all` and `race` take: when the group fails, it aborts the transaction and the finished steps are rolled back. The same goes for the other forms: `transaction(options, first, second)`, with the options in front, and `transaction(steps, options)`, with them last. The first argument tells the forms apart: a function is the body of the function form, an object with a `run` is a step, an array is the array form, an object whose `signal` is an object (a task context, an `AbortController`, `{ signal }`) is a context, and any other object, `{}` too, is the options. After a context, a function is the body: `transaction(ctx, body)` and `transaction({}, body)`, which runs outside a task with no signal. To run the other forms outside a task, use the array form, `transaction({}, steps)`.
 
 ```js
 import { createBus } from "nanoeffects";
@@ -676,12 +733,16 @@ bus.on("checkout", async (order, ctx) => {
   const { paid } = await all(ctx, {
     // transaction without ctx — a function for the group; the options work here too
     paid: transaction(
-      // options go first, then the steps
-      { rollbackOrder: "parallel" },
-      {
-        run: ({ signal }) => api.charge(order, { signal }),
-        rollback: (paymentId) => api.refund(paymentId),
+      async (step) => {
+        const payment = await step(
+          ({ signal }) => api.charge(order, { signal }),
+          (payment) => api.refund(payment.id),
+        );
+
+        return payment;
       },
+      // the options go after the body
+      { rollbackOrder: "parallel" },
     ),
     checked: ({ signal }) => api.checkFraud(order, { signal }),
   });
@@ -690,9 +751,9 @@ bus.on("checkout", async (order, ctx) => {
 });
 ```
 
-With [`effectsPlugin`](#effectsplugin), `effectsPlugin({ transaction })` gives `ctx.transaction(first, second)`, `ctx.transaction(options, first, second)` and `ctx.transaction(steps, options)`.
+With [`effectsPlugin`](#effectsplugin), `effectsPlugin({ transaction })` gives `ctx.transaction(body, options)`, `ctx.transaction(first, second)`, `ctx.transaction(options, first, second)` and `ctx.transaction(steps, options)`.
 
-In TypeScript the result is a tuple of what each `run` returns. With the steps as arguments, TypeScript also infers the value of `rollback` from `run` of the same step: `rollback: (orderId) => api.cancelOrder(orderId)` gets a `string` when `run` returns a `string`. In the array form it cannot, so the value is `any`; write the type where you want it checked: `rollback: (orderId: string) => api.cancelOrder(orderId)`. A key that a step does not have, such as `rollbackOrder` in a step, is not an error, and the step ignores it.
+In TypeScript the function form gives what your function returns, and `step` gives the type its `run` returns: the data between steps and the value of each `rollback` are typed with no annotation. In the other forms the result is a tuple of what each `run` returns. With the steps as arguments, TypeScript also infers the value of `rollback` from `run` of the same step: `rollback: (orderId) => api.cancelOrder(orderId)` gets a `string` when `run` returns a `string`. In the array form it cannot, so the value is `any`; write the type where you want it checked: `rollback: (orderId: string) => api.cancelOrder(orderId)`. A key that a step does not have, such as `rollbackOrder` in a step, is not an error, and the step ignores it.
 
 ## `effectsPlugin`
 

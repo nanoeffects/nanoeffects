@@ -510,6 +510,91 @@ describe("results of effects", () => {
 		});
 	});
 
+	it("transaction as a function infers the data and the rollback from step", () => {
+		type Order = { id: string };
+		const createOrder = async (): Promise<Order> => ({ id: "order-1" });
+		const charge = async (orderId: string) => orderId.length;
+
+		bus.on("search", async (_, ctx) => {
+			const result = await transaction(ctx, async (step) => {
+				const order = await step(
+					() => createOrder(),
+					(created) => expectTypeOf(created).toEqualTypeOf<Order>(),
+				);
+				expectTypeOf(order).toEqualTypeOf<Order>();
+
+				const paid = await step(() => charge(order.id), null, {
+					rollbackOn: "abort",
+				});
+				expectTypeOf(paid).toEqualTypeOf<number>();
+
+				const plain = await step(({ signal }) => {
+					expectTypeOf(signal).toEqualTypeOf<AbortSignal>();
+					return "text";
+				});
+				expectTypeOf(plain).toEqualTypeOf<string>();
+
+				return { order, paid };
+			});
+			expectTypeOf(result).toEqualTypeOf<{ order: Order; paid: number }>();
+
+			const withOptions = await transaction(ctx, async () => 1, {
+				rollbackOrder: "parallel",
+				rollbackOn: "error",
+				rollbackFailure: null,
+			});
+			expectTypeOf(withOptions).toEqualTypeOf<number>();
+
+			const grouped = await all(ctx, {
+				order: transaction(async (step) => {
+					const order = await step(() => createOrder());
+					return order.id;
+				}),
+				raced: transaction(async () => 1),
+				name: async () => "a",
+			});
+			expectTypeOf(grouped.order).toEqualTypeOf<string>();
+			expectTypeOf(grouped.raced).toEqualTypeOf<number>();
+
+			const first = await race(ctx, {
+				scoped: transaction(async () => "done"),
+			});
+			expectTypeOf(first.scoped).toEqualTypeOf<string | undefined>();
+
+			const wrongCalls = () => {
+				transaction(ctx, async (step) => {
+					await step(
+						async () => "a",
+						// @ts-expect-error rollback gets the string that run returns
+						(value: number) => value,
+					);
+				});
+				transaction(ctx, async (step) => {
+					// @ts-expect-error not one of the three words
+					await step(async () => 1, null, { rollbackOn: "eror" });
+				});
+				// @ts-expect-error not one of the three words
+				transaction(ctx, async () => 1, { rollbackOn: "eror" });
+				// @ts-expect-error a body takes the step function, nothing else
+				transaction(ctx, (first: number) => first);
+			};
+			expectTypeOf(wrongCalls).toBeFunction();
+		});
+
+		const bound = createBus<Events>().use(effectsPlugin({ transaction }));
+		bound.on("search", async (_, { transaction: boundTransaction }) => {
+			const result = await boundTransaction(async (step) => {
+				const order = await step(
+					() => createOrder(),
+					(created) => expectTypeOf(created).toEqualTypeOf<Order>(),
+				);
+
+				return order.id;
+			});
+			expectTypeOf(result).toEqualTypeOf<string>();
+		});
+	});
+
 	it("transaction rejects wrong options and a lone context", () => {
 		bus.on("search", async (_, ctx) => {
 			const wrongCalls = () => {

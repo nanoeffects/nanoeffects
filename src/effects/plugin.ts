@@ -11,6 +11,7 @@ import type { GroupOptions, Starter } from "./run";
 import type { TakeOptions, take } from "./take";
 import type {
 	LeadingOptions,
+	StepFunction,
 	StepsOf,
 	TransactionOptions,
 	TransactionStep,
@@ -74,6 +75,10 @@ type Bound<E extends EventMap, Child> = {
 	};
 	delay: (ms: number | (() => number)) => Promise<void>;
 	transaction: {
+		<R>(
+			body: (step: StepFunction<Child>) => R | PromiseLike<R>,
+			options?: TransactionOptions | null,
+		): Promise<R>;
 		<R extends [unknown, ...unknown[]]>(
 			options: LeadingOptions,
 			...steps: StepsOf<R, Child>

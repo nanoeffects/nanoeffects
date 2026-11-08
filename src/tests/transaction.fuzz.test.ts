@@ -186,12 +186,48 @@ const simulate = async (seed: number) => {
 		| undefined;
 	let settledAt = -1;
 	try {
-		// the same transaction in every call form: an array or steps as arguments, with the context or as a starter
-		const form = int(4);
+		// the same transaction in every call form: an array, steps as arguments or a body that calls step,
+		// with the context or as a starter.
+		const form = int(6);
+		// a body cannot know its steps in advance, so it throws for the "stop" of the options even when every
+		// step overrides it: only the runs where the model agrees go through a body
+		const optionsStop =
+			options.rollbackFailure === "stop" && order === "parallel";
+		const scopeFits = optionsStop ? mustThrow : !mustThrow;
 		const given = options;
 		const loose = transaction as (...args: unknown[]) => unknown;
+		type StepCall = (
+			run: (child: { signal: AbortSignal }) => Promise<number>,
+			rollback: ((value: number) => Promise<void>) | undefined,
+			stepOptions: {
+				rollbackOn: RollbackOn | null | undefined;
+				rollbackFailure: RollbackFailure | null | undefined;
+			},
+		) => Promise<number>;
+		const body = async (step: StepCall) => {
+			const values: number[] = [];
+			for (const item of steps) {
+				const value = await step(item.run, item.rollback, {
+					rollbackOn: item.rollbackOn,
+					rollbackFailure: item.rollbackFailure,
+				});
+				values.push(value);
+			}
+
+			return values;
+		};
 		const call = (): Promise<unknown> => {
-			if (form === 0 || steps.length === 0) {
+			if (form >= 4 && scopeFits) {
+				if (form === 4) {
+					return loose(ctx, body, options) as Promise<unknown>;
+				}
+				const starter = loose(body, options) as (
+					child: object,
+				) => Promise<unknown>;
+
+				return starter(ctx);
+			}
+			if (form >= 4 || form === 0 || steps.length === 0) {
 				return transaction(ctx, steps, options);
 			}
 			if (form === 1) {

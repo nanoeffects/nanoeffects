@@ -75,6 +75,8 @@ const typeExports: Record<string, string[]> = {
 		"RollbackOn",
 		"RollbackOrder",
 		"StarterOf",
+		"StepFunction",
+		"StepOptions",
 		"TakeOptions",
 		"TransactionOptions",
 		"TransactionStep",

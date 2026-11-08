@@ -454,6 +454,43 @@ The list of finished steps lives in memory: a closed tab loses a rollback that d
 
 More: [`transaction`](effects.md#transaction), with the strategy options `rollbackOn`, `rollbackFailure` and `rollbackOrder`.
 
+### A step needs what the previous one returned
+
+The charge needs the id of the order that the first step created. A list of steps is data, and a step in it cannot read what an earlier one returned. Write the transaction as a function: `step` gives the value of its `run`, so the next step reads it from a variable, and `rollback` gets the type of that value.
+
+```js
+import { createBus } from "nanoeffects";
+import { transaction } from "nanoeffects/effects";
+
+const bus = createBus();
+
+bus.on("checkout", async (order, ctx) => {
+  // transaction — a function; if a step fails, the finished steps are rolled back, last first
+  const paymentId = await transaction(ctx, async (step) => {
+    // step — run the work as a step; it gives the value that run returned
+    const placed = await step(
+      ({ signal }) => api.createOrder(order, { signal }),
+      // rollback gets that value, and no abort signal
+      (placed) => api.cancelOrder(placed.id),
+    );
+
+    // placed is a plain variable, so the next step reads placed.id
+    const payment = await step(
+      ({ signal }) => api.charge(placed.id, { signal }),
+      (payment) => api.refund(payment.id),
+    );
+
+    return payment.id;
+  });
+
+  ctx.emit("checkoutDone", paymentId);
+});
+```
+
+The result of `transaction` is what the function returns. A step that fails is not rolled back: a step is atomic, or it cleans up inside its own `run`.
+
+More: [`transaction`](effects.md#transaction).
+
 ### An API allows only N requests per second
 
 A geocoding API allows 5 requests per second. A list of 40 addresses sends 40 requests at once, and most fail with `429`. `rateLimit` starts five and holds the rest until the window slides.

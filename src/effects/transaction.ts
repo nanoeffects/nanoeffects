@@ -43,6 +43,22 @@ export type TransactionOptions = {
 	rollbackOrder?: RollbackOrder | null | undefined;
 };
 
+/** The options of one `step(run, rollback, options)` call: they win over the options of the transaction. */
+export type StepOptions = Pick<
+	TransactionStep,
+	"rollbackOn" | "rollbackFailure"
+>;
+
+/**
+ * The `step` that the body of `transaction(ctx, async (step) => ...)` gets. It runs `run` as a step and gives
+ * its value; `rollback` is typed from that value (checker only: the runtime passes the value as it is).
+ */
+export type StepFunction<Child> = <T>(
+	run: (child: Child) => T,
+	rollback?: ((value: Awaited<T>) => unknown) | null,
+	options?: StepOptions | null,
+) => Promise<Awaited<T>>;
+
 /** The values of `run` of each step, in the order of the steps. */
 export type TransactionValues<S extends readonly TransactionStep<never>[]> = {
 	-readonly [K in keyof S]: Awaited<ReturnType<S[K]["run"]>>;
@@ -107,6 +123,13 @@ const isStep = (value: unknown): value is InternalStep =>
 	!hasSignal(value) &&
 	typeof Reflect.get(value, "run") === "function";
 
+// parallel rollbacks all start together: there is nothing for "stop" to stop
+const assertStopFits = (settings: Settings, stops: boolean) => {
+	if (settings.order === "parallel" && stops) {
+		throw new TypeError('"stop" cannot go with rollbackOrder "parallel"');
+	}
+};
+
 const settingsOf = (
 	steps: readonly InternalStep[],
 	options: TransactionOptions | null | undefined,
@@ -122,13 +145,10 @@ const settingsOf = (
 		failure: given.rollbackFailure ?? "continue",
 		order: given.rollbackOrder ?? "reverse",
 	};
-	// parallel rollbacks all start together: there is nothing for "stop" to stop
 	const stops = steps.some(
 		(step) => (step.rollbackFailure ?? settings.failure) === "stop",
 	);
-	if (settings.order === "parallel" && stops) {
-		throw new TypeError('"stop" cannot go with rollbackOrder "parallel"');
-	}
+	assertStopFits(settings, stops);
 
 	return settings;
 };
@@ -182,11 +202,15 @@ const rollBack = async (
 
 // The group does not use `withGroup`: that rejects at the abort, and this result must wait for the rollback.
 // The group reports the forward outcome as soon as it is known; the rollback runs after that.
-const runTransaction = async (
+// The work is what differs between the forms: it runs the steps, puts each one that finished in `finished`
+// and gives the result. Everything around it (the group, the trace, the rollback) is one implementation.
+type Work<R> = (group: Context<EventMap>, finished: Finished[]) => Promise<R>;
+
+const inTransaction = async <R>(
 	ctx: { signal?: AbortSignal | undefined },
-	steps: readonly InternalStep[],
 	settings: Settings,
-): Promise<unknown[]> => {
+	work: Work<R>,
+): Promise<R> => {
 	ctx.signal?.throwIfAborted();
 	const { ctx: group, unlink } = forkTask<EventMap>(ctx);
 	const settle = createSettle(group, "transaction");
@@ -195,16 +219,12 @@ const runTransaction = async (
 	const finished: Finished[] = [];
 
 	try {
-		for (const step of steps) {
-			group.signal.throwIfAborted();
-			const value = await runTraced(group, (child) => step.run(child));
-			finished.push({ step, value });
-		}
+		const result = await work(group, finished);
 		// a step that ignored the signal may have finished after the abort: it is rolled back, not returned
 		group.signal.throwIfAborted();
 		settle("done");
 
-		return finished.map(({ value }) => value);
+		return result;
 	} catch (error) {
 		const aborted = group.signal.aborted;
 		settle(aborted ? "cancel" : "error", error);
@@ -217,6 +237,100 @@ const runTransaction = async (
 	} finally {
 		unlink();
 	}
+};
+
+const runTransaction = (
+	ctx: { signal?: AbortSignal | undefined },
+	steps: readonly InternalStep[],
+	settings: Settings,
+): Promise<unknown[]> =>
+	inTransaction(ctx, settings, async (group, finished) => {
+		for (const step of steps) {
+			group.signal.throwIfAborted();
+			const value = await runTraced(group, (child) => step.run(child));
+			finished.push({ step, value });
+		}
+
+		return finished.map(({ value }) => value);
+	});
+
+// Options are an object or nothing: a second function (`transaction(ctx, fn, fn)`) is a mistake, not options.
+const scopeSettings = (
+	options: TransactionOptions | null | undefined,
+): Settings => {
+	if (options != null && typeof options !== "object") {
+		throw new TypeError(
+			"The options of a transaction are an object: transaction(ctx, body, options)",
+		);
+	}
+
+	const settings = settingsOf([], options);
+	// the steps are not known yet, so a "stop" of the transaction is checked here for the steps that inherit it
+	assertStopFits(settings, settings.failure === "stop");
+
+	return settings;
+};
+
+type InternalBody = (step: StepFunction<Context<EventMap>>) => unknown;
+
+type LooseStep = (
+	run: (child: Context<EventMap>) => unknown,
+	rollback?: ((value: unknown) => unknown) | null,
+	options?: StepOptions | null,
+) => Promise<unknown>;
+
+// The scope form: the steps do not exist until the body calls `step`, so a step is checked at its call.
+// `isOpen` is false once the transaction has settled, so a `step` the body kept fails loudly.
+const makeStep = (
+	group: Context<EventMap>,
+	settings: Settings,
+	finished: Finished[],
+	isOpen: () => boolean,
+): StepFunction<Context<EventMap>> => {
+	const step: LooseStep = async (run, rollback, options) => {
+		if (!isOpen()) {
+			throw new TypeError("step was called after the transaction ended");
+		}
+		group.signal.throwIfAborted();
+		const given: StepOptions = options ?? {};
+		check(given);
+		const failure = given.rollbackFailure ?? settings.failure;
+		assertStopFits(settings, failure === "stop");
+
+		const value = await runTraced(group, (child) => run(child));
+		// pushed when `run` has finished, so steps that run together are rolled back in the order they finished
+		finished.push({
+			step: {
+				run,
+				rollback: rollback ?? void 0,
+				rollbackOn: given.rollbackOn,
+				rollbackFailure: given.rollbackFailure,
+			},
+			value,
+		});
+
+		return value;
+	};
+
+	// the generic type is for the checker: `LooseStep` is what runs
+	return step as StepFunction<Context<EventMap>>;
+};
+
+const runScoped = (
+	ctx: { signal?: AbortSignal | undefined },
+	body: InternalBody,
+	settings: Settings,
+): Promise<unknown> => {
+	let open = true;
+	const result = inTransaction(ctx, settings, async (group, finished) => {
+		const step = makeStep(group, settings, finished, () => open);
+
+		return body(step);
+	});
+
+	return result.finally(() => {
+		open = false;
+	});
 };
 
 /**
@@ -233,6 +347,11 @@ const runTransaction = async (
  * `"abort"`), `rollbackFailure` (`"continue"`, `"stop"`); `rollbackOrder`
  * (`"reverse"`, `"parallel"`) is in `options` only. Retry a rollback by
  * wrapping it: `rollback: (value) => retry({}, () => api.cancel(value))`.
+ *
+ * Written as a function, `transaction(ctx, async (step) => ...)`, each
+ * `step(run, rollback, options)` gives the value of its `run`, so the data of
+ * one step is a variable for the next, and the result is what the function
+ * returns. The steps can also be given as an array or as arguments.
  *
  * Two forms: `transaction(ctx, steps, options)` inside a body, and
  * `transaction(steps, options)`, a starter for `all`, `race` and `allSettled`.
@@ -255,6 +374,16 @@ const runTransaction = async (
  * });
  * ```
  */
+export function transaction<C extends { signal?: AbortSignal | undefined }, R>(
+	ctx: C,
+	body: (step: StepFunction<ChildOf<C>>) => R | PromiseLike<R>,
+	options?: TransactionOptions | null,
+): Promise<R>;
+// The scope form as a starter for `all`, `race` and `allSettled`.
+export function transaction<Child, R>(
+	body: (step: StepFunction<Child>) => R | PromiseLike<R>,
+	options?: TransactionOptions | null,
+): (child: Child) => Promise<R>;
 export function transaction<
 	C extends { signal?: AbortSignal | undefined },
 	const S extends readonly TransactionStep<ChildOf<C>>[],
@@ -295,6 +424,22 @@ export function transaction<Child, R extends [unknown, ...unknown[]]>(
 ): (child: Child) => Promise<ValuesOf<R>>;
 export function transaction(...args: unknown[]): unknown {
 	const [first, second, third] = args;
+	// a function tells the scope form: no other form has one where the body goes
+	if (typeof first === "function") {
+		const body = first as InternalBody;
+		const options = second as TransactionOptions | null | undefined;
+		const settings = scopeSettings(options);
+
+		return (child: { signal?: AbortSignal | undefined }) =>
+			runScoped(child, body, settings);
+	}
+	if (isContext(first) && typeof second === "function") {
+		const body = second as InternalBody;
+		const options = third as TransactionOptions | null | undefined;
+		const settings = scopeSettings(options);
+
+		return runScoped(first, body, settings);
+	}
 	if (Array.isArray(first)) {
 		const steps: readonly InternalStep[] = first;
 		// the second argument of the starter form is the options; the overloads allow nothing else there
