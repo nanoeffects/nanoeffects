@@ -114,7 +114,7 @@ More: [Run calls one after another with `queue`](#run-calls-one-after-another-wi
 
 ### `dedupe`
 
-A repeated call with the same payload does not start the work again while the first run goes: it waits and gets the same result. When the run ends, nothing is kept.
+While the first run goes, calls with the same payload get its result.
 
 Signature: `dedupe(fn, options?)`.
 
